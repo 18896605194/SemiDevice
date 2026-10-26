@@ -11,28 +11,24 @@ using xyz.Tools;
 namespace xyz.Service.Recipes;
 
 /// <summary>
-/// 工艺配方 gRPC 服务（配方 → 工艺配方页；流程配方页、腔体手动页选工艺配方也用它的列表）：把工艺配方库（RecipeComponent）的结果翻成回包。
-/// 检查都在库里做（编号、名称、版本、步骤），这里只管取库、转 DTO、带上操作人。字段表（每一步有哪些字段）也从库里取，界面按它生成步骤表。
+/// 工艺配方
 /// </summary>
 public class ProcessRecipeService : BaseService, IProcessRecipeService
 {
     private readonly IRecipeComponent? _library;
 
-    /// <summary>
-    /// EAP 的远程配方管理：Host 锁着时本地不让改
-    /// </summary>
     private readonly IE30RecipeComponent? _e30Recipe;
 
-    /// <summary>
-    /// 晶圆尺寸：字段的上限按它取
-    /// </summary>
     private readonly IWaferSize? _waferSize;
+
+    private readonly IMapper _mapper;
 
     public ProcessRecipeService()
     {
         _library = IocHelper.GetService<IRecipeComponent>();
         _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
         _waferSize = IocHelper.GetService<IWaferSize>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
@@ -45,13 +41,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         var dto = new ProcessRecipeListDto
         {
             Capacity = _library.Capacity,
-            Items = _library.List().Select(item => new ProcessRecipeSummaryDto
-            {
-                Index = item.Index,
-                Name = item.Name,
-                Description = item.Description,
-                TotalSeconds = item.TotalSeconds,
-            }).ToList(),
+            Items = _mapper.Map<List<ProcessRecipeSummaryDto>>(_library.List()),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
@@ -82,7 +72,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         var dto = new ProcessRecipeOptionsDto
         {
             HeadFields = _library.HeadFields.Select(field => ToHeadDto(field, stationTypes)).ToList(),
-            Fields = _library.Fields.Select(ToDto).ToList(),
+            Fields = _library.Fields.Select(ToFieldDto).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
@@ -174,7 +164,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// <summary>
     /// 库的结果翻成回包：成功且带回了工艺配方的转成 DTO 放进 Data，其余照通用的 Reply
     /// </summary>
-    private static Task<RpcResponse> ReplyRecipe(HandleResult result)
+    private Task<RpcResponse> ReplyRecipe(HandleResult result)
     {
         var recipe = result.Result as RecipeData;
         if (!result.IsSuccess || recipe is null)
@@ -182,47 +172,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return Reply(result);
         }
 
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(recipe))));
-    }
-
-    private static ProcessRecipeDto ToDto(RecipeData data)
-    {
-        return new ProcessRecipeDto
-        {
-            Index = data.Index,
-            Name = data.Name,
-            Type = data.Type,
-            Timeout = data.Timeout,
-            Description = data.Description,
-            Head = ToDto(data.Head).Values,
-            CreatedBy = data.CreatedBy,
-            CreatedAt = data.CreatedAt,
-            ModifiedBy = data.ModifiedBy,
-            ModifiedAt = data.ModifiedAt,
-            Revision = data.Revision,
-            Steps = data.Steps.Select(ToDto).ToList(),
-        };
-    }
-
-    private static ProcessRecipeStepDto ToDto(RecipeStep step)
-    {
-        var dto = new ProcessRecipeStepDto();
-        foreach (var value in step.Values)
-        {
-            dto.Values.TryAdd(value.Name, value.Value);
-        }
-
-        return dto;
-    }
-
-    /// <summary>
-    /// 步骤的一个字段给界面：下拉带上 machine.xml 里按站点 Type 分开写的选项。
-    /// </summary>
-    private ProcessRecipeFieldDto ToDto(RecipeField field)
-    {
-        var dto = ToFieldDto(field);
-        dto.OptionsByType = field.OptionsByType.ToDictionary(pair => pair.Key, pair => pair.Value.ToList());
-        return dto;
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_mapper.Map<ProcessRecipeDto>(recipe))));
     }
 
     /// <summary>
@@ -235,6 +185,9 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         var dto = ToFieldDto(field);
         dto.IsAuto = RecipeHead.IsAuto(field.Key);
         dto.Options = (isType ? stationTypes : field.OptionsFor(string.Empty)).ToList();
+
+        // 配方头的下拉只看 Options；按 Type 分开的那套不给，界面才不会拿它顶掉 Options
+        dto.OptionsByType.Clear();
         if (isType)
         {
             dto.Required = !stationTypes.Contains(string.Empty);
@@ -243,21 +196,14 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         return dto;
     }
 
+    /// <summary>
+    /// 字段给界面：映射组件照抄字段表，上限按当前晶圆尺寸取
+    /// </summary>
     private ProcessRecipeFieldDto ToFieldDto(RecipeField field)
     {
-        return new ProcessRecipeFieldDto
-        {
-            Key = field.Key,
-            Text = field.Text,
-            TextEn = field.TextEn,
-            Type = field.Type,
-            Unit = field.Unit,
-            Min = field.Min,
-            Max = field.MaxFor(WaferSizeComponent.SizeOf(_waferSize)),
-            Decimals = field.Decimals,
-            Default = field.Default,
-            Required = field.Required,
-        };
+        var dto = _mapper.Map<ProcessRecipeFieldDto>(field);
+        dto.Max = field.MaxFor(WaferSizeComponent.SizeOf(_waferSize));
+        return dto;
     }
 
     /// <summary>

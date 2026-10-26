@@ -15,10 +15,8 @@ namespace xyz.Components.Components;
 [Component(description: "晶圆尺寸：8 寸 / 12 寸（主界面切换，写回 machine.xml）")]
 public class WaferSizeComponent : ComponentBase, IWaferSize
 {
-    /// <summary>8 寸片（200 mm）。</summary>
     public const int Inch8 = 8;
 
-    /// <summary>12 寸片（300 mm）。</summary>
     public const int Inch12 = 12;
 
     private readonly object _gate = new();

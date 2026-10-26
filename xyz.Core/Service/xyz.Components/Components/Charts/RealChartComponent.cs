@@ -48,13 +48,12 @@ public class RealChartComponent : ComponentBase, IRealChart
     {
         get
         {
-            var source = _source;
-            if (source is null)
+            if (_source is null)
             {
                 return [];
             }
 
-            return source.Signals;
+            return _source.Signals;
         }
     }
 
@@ -65,13 +64,12 @@ public class RealChartComponent : ComponentBase, IRealChart
     {
         get
         {
-            var source = _source;
-            if (source is null)
+            if (_source is null)
             {
                 return 1000;
             }
 
-            return source.SampleIntervalMs;
+            return _source.SampleIntervalMs;
         }
     }
 

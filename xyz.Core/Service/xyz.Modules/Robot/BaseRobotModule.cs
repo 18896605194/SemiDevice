@@ -200,6 +200,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private ILedgerManager? _ledger;
 
+    /// <summary>
+    /// 映射组件：组件初始化时取一次，账上的片转给界面用
+    /// </summary>
+    private IMapper? _mapper;
+
     #endregion
 
     #region 示教点表
@@ -432,6 +437,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         // 晶圆账注册：手指在账里也是槽位，槽号 = 手指号
         _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLocation(Name, Arms.Count);
+        _mapper = IocHelper.GetService<IMapper>();
 
         bool childrenInitialized = base.InitComponent();
         return driver is not null && childrenInitialized;
@@ -614,7 +620,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                     IsExtended = intent is not null && intent.Arm == arm.Number,
                 })
                 .ToList(),
-            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_ledger, Name),
+            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_ledger, _mapper, Name),
         };
 
         dto.IsConnected = _driver?.IsConnected ?? false;
@@ -647,13 +653,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private int SlotCountOf(string station)
     {
-        var transfers = _transfers;
-        if (transfers is null)
+        if (_transfers is null)
         {
             return 0;
         }
 
-        if (!transfers.TryGetStation(station, out var module))
+        if (!_transfers.TryGetStation(station, out var module))
         {
             return 0;
         }
@@ -666,13 +671,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private StationKind KindOf(string station)
     {
-        var transfers = _transfers;
-        if (transfers is null)
+        if (_transfers is null)
         {
             return StationKind.Other;
         }
 
-        if (!transfers.TryGetStation(station, out var module))
+        if (!_transfers.TryGetStation(station, out var module))
         {
             return StationKind.Other;
         }
@@ -848,18 +852,17 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return rejected;
         }
 
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return null;
         }
 
-        if (ledger.Get(station, slot) is null)
+        if (_ledger.Get(station, slot) is null)
         {
             return HandleResult.Fail(ErrorCodes.WaferNoWafer, station, slot.ToString(CultureInfo.InvariantCulture));
         }
 
-        var held = ledger.Get(Name, arm);
+        var held = _ledger.Get(Name, arm);
         if (held is not null)
         {
             return HandleResult.Fail(ErrorCodes.RobotArmHasWafer, Name, arm.ToString(CultureInfo.InvariantCulture), held.WaferId);
@@ -879,8 +882,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return rejected;
         }
 
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return null;
         }
@@ -891,7 +893,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return HandleResult.Fail(ErrorCodes.RobotArmNoWafer, Name, arm.ToString(CultureInfo.InvariantCulture));
         }
 
-        var occupant = ledger.Get(station, slot);
+        var occupant = _ledger.Get(station, slot);
         if (occupant is not null)
         {
             return HandleResult.Fail(ErrorCodes.WaferSlotOccupied, station, slot.ToString(CultureInfo.InvariantCulture), occupant.WaferId);
@@ -975,8 +977,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     private HandleResult? FindExpectedWafer(bool pick, int arm, string station, int slot, out Guid? expectedWaferId)
     {
         expectedWaferId = null;
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return null;
         }
@@ -989,7 +990,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             fromSlot = slot;
         }
 
-        var wafer = ledger.Get(fromModule, fromSlot);
+        var wafer = _ledger.Get(fromModule, fromSlot);
         if (wafer is null)
         {
             if (pick)
@@ -1346,15 +1347,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
         }
 
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return null;
         }
 
         foreach (var arm in Arms)
         {
-            var held = ledger.Get(Name, arm.Number);
+            var held = _ledger.Get(Name, arm.Number);
             if (held is not null)
             {
                 return HandleResult.Fail(ErrorCodes.RobotArmHasWafer, Name, arm.Number.ToString(CultureInfo.InvariantCulture), held.WaferId);
@@ -1508,8 +1508,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     protected virtual HandleResult? HomeInterlock()
     {
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return null;
         }
@@ -1579,8 +1578,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     public virtual HandleResult? CheckWaferSensors()
     {
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return null;
         }
@@ -1714,8 +1712,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     private HandleResult? CommitTransferLedger(TransferIntent intent)
     {
-        var ledger = _ledger;
-        if (ledger is null)
+        if (_ledger is null)
         {
             return null;
         }
@@ -1726,7 +1723,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         string toModule = pick ? Name : intent.Station;
         int toSlot = pick ? intent.Arm : intent.Slot;
         if (intent.ExpectedWaferId is Guid expectedWaferId
-            && ledger.Move(fromModule, fromSlot, toModule, toSlot, expectedWaferId))
+            && _ledger.Move(fromModule, fromSlot, toModule, toSlot, expectedWaferId))
         {
             return null;
         }

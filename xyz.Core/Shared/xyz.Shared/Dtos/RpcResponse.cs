@@ -1,4 +1,5 @@
 ﻿using ProtoBuf;
+using xyz.Tools;
 
 namespace xyz.Shared.Dtos;
 
@@ -103,5 +104,25 @@ public class RpcResponse
             Code = code,
             Args = args?.ToList() ?? []
         };
+    }
+
+    /// <summary>
+    /// 失败就抛 InvalidOperationException（带 Message），成功什么都不做
+    /// </summary>
+    public void EnsureSuccess()
+    {
+        if (!Success)
+        {
+            throw new InvalidOperationException(Message);
+        }
+    }
+
+    /// <summary>
+    /// 成功就把 Data 转成 T（走 JsonHelper 的选项），失败抛 InvalidOperationException
+    /// </summary>
+    public T DeserializeData<T>()
+    {
+        EnsureSuccess();
+        return JsonHelper.Deserialize<T>(Data)!;
     }
 }

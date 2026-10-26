@@ -537,13 +537,12 @@ public class TransferManager : ComponentBase, ITransferManager
     /// </summary>
     private bool AreArmsEmpty(string robot)
     {
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return true;
         }
 
-        foreach (var wafer in ledger.GetSlots(robot))
+        foreach (var wafer in _ledger.GetSlots(robot))
         {
             if (wafer is not null)
             {
@@ -667,8 +666,7 @@ public class TransferManager : ComponentBase, ITransferManager
             return HandleResult<SwapRoutine>.Fail(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return HandleResult<SwapRoutine>.Fail(ErrorCodes.WaferLedgerDisabled);
         }
@@ -688,7 +686,7 @@ public class TransferManager : ComponentBase, ITransferManager
         SwapRoutine routine;
         lock (_gate)
         {
-            var rejected = CheckSwap(request, robot, station, ledger, out string pickName, out string placeName);
+            var rejected = CheckSwap(request, robot, station, _ledger, out string pickName, out string placeName);
             if (rejected is not null)
             {
                 return HandleResult<SwapRoutine>.Fail(rejected.ErrorMessage, [.. rejected.Args]);

@@ -189,13 +189,12 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// </summary>
     private WaferInfo? WaferOnStage()
     {
-        var ledger = _ledger;
-        if (ledger is null)
+        if (_ledger is null)
         {
             return null;
         }
 
-        return ledger.Get(Name, 1);
+        return _ledger.Get(Name, 1);
     }
 
     #endregion

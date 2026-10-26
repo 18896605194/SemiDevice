@@ -170,13 +170,12 @@ public partial class IoComponent : ComponentBase, IIo
         }
 
         var point = Di.Find(index);
-        var plc = _plc;
-        if (point is null || plc is null)
+        if (point is null || _plc is null)
         {
             return false;
         }
 
-        return plc.TryReadDi(point.Index, out on);
+        return _plc.TryReadDi(point.Index, out on);
     }
 
     /// <summary>
@@ -191,13 +190,12 @@ public partial class IoComponent : ComponentBase, IIo
         }
 
         var point = Do.Find(index);
-        var plc = _plc;
-        if (point is null || plc is null)
+        if (point is null || _plc is null)
         {
             return false;
         }
 
-        return plc.TryReadDo(point.Index, out on);
+        return _plc.TryReadDo(point.Index, out on);
     }
 
     /// <summary>
@@ -214,8 +212,7 @@ public partial class IoComponent : ComponentBase, IIo
         lock (_doGate)
         {
             var point = Do.Find(index);
-            var plc = _plc;
-            if (point is null || plc is null)
+            if (point is null || _plc is null)
             {
                 return WriteFailed("DO", index);
             }
@@ -234,7 +231,7 @@ public partial class IoComponent : ComponentBase, IIo
                 return InterlockRejected(index, on, blockers, states);
             }
 
-            if (!plc.WriteDo(point.Index, on))
+            if (!_plc.WriteDo(point.Index, on))
             {
                 return WriteFailed("DO", index);
             }
@@ -256,8 +253,7 @@ public partial class IoComponent : ComponentBase, IIo
         }
 
         var point = Ai.Find(index);
-        var plc = _plc;
-        if (point is null || plc is null || !plc.TryReadAi(point.Index, out double raw))
+        if (point is null || _plc is null || !_plc.TryReadAi(point.Index, out double raw))
         {
             return false;
         }
@@ -278,8 +274,7 @@ public partial class IoComponent : ComponentBase, IIo
         }
 
         var point = Ao.Find(index);
-        var plc = _plc;
-        if (point is null || plc is null || !plc.TryReadAo(point.Index, out double raw))
+        if (point is null || _plc is null || !_plc.TryReadAo(point.Index, out double raw))
         {
             return false;
         }
@@ -299,8 +294,7 @@ public partial class IoComponent : ComponentBase, IIo
         }
 
         var point = Ao.Find(index);
-        var plc = _plc;
-        if (point is null || plc is null)
+        if (point is null || _plc is null)
         {
             return WriteFailed("AO", index);
         }
@@ -317,7 +311,7 @@ public partial class IoComponent : ComponentBase, IIo
             }
         }
 
-        if (!plc.WriteAo(point.Index, point.ToRaw(engineering)))
+        if (!_plc.WriteAo(point.Index, point.ToRaw(engineering)))
         {
             return WriteFailed("AO", index);
         }
@@ -364,8 +358,7 @@ public partial class IoComponent : ComponentBase, IIo
             return;
         }
 
-        var plc = _plc;
-        if (plc is null || !plc.IsConnected)
+        if (_plc is null || !_plc.IsConnected)
         {
             // 等的过程中掉线了，重连后重新计时。
             _connectedAt = 0;

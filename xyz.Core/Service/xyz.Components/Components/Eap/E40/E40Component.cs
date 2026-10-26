@@ -153,10 +153,9 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component, IE40Sett
     /// </summary>
     public void Detach()
     {
-        var jobs = _jobs;
-        if (jobs is not null && ReferenceEquals(jobs.E40Callback, this))
+        if (_jobs is not null && ReferenceEquals(_jobs.E40Callback, this))
         {
-            jobs.E40Callback = null;
+            _jobs.E40Callback = null;
         }
 
         _engine = null;

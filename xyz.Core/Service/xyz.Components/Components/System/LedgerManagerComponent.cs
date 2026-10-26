@@ -217,13 +217,12 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
 
         // 映射组件开机准备时取、开机恢复时查过在；没走开机准备的（冒烟直接 new 的）才会是 null
         var rows = _historyRows;
-        var mapper = _mapper;
-        if (rows is null || mapper is null)
+        if (rows is null || _mapper is null)
         {
             return;
         }
 
-        var row = mapper.Map<WaferHistoryEntity>(wafer);
+        var row = _mapper.Map<WaferHistoryEntity>(wafer);
         row.Action = action.ToString();
         row.FromModule = fromModule;
         row.FromSlot = fromSlot;
@@ -444,8 +443,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
     public bool SaveSnapshot()
     {
         // 映射组件开机准备时取、开机恢复时查过在；没走开机准备的（冒烟直接 new 的）才会是 null
-        var mapper = _mapper;
-        if (mapper is null)
+        if (_mapper is null)
         {
             return false;
         }
@@ -459,7 +457,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
                 {
                     if (wafer is not null)
                     {
-                        rows.Add(mapper.Map<WaferCurrentEntity>(wafer));
+                        rows.Add(_mapper.Map<WaferCurrentEntity>(wafer));
                     }
                 }
             }
@@ -1350,13 +1348,12 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         string? toModule, int? toSlot, string operatorName, string? reason)
     {
         // 映射组件开机准备时取、开机恢复时查过在；没走开机准备的（冒烟直接 new 的）才会是 null
-        var mapper = _mapper;
-        if (mapper is null)
+        if (_mapper is null)
         {
             return;
         }
 
-        var row = mapper.Map<WaferAdjustmentEntity>(wafer);
+        var row = _mapper.Map<WaferAdjustmentEntity>(wafer);
         row.Action = action;
         row.FromModule = fromModule;
         row.FromSlot = fromSlot;

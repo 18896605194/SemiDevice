@@ -87,10 +87,9 @@ public abstract class OneStateComponent : ComponentBase
     {
         get
         {
-            var feedback = _feedback;
-            if (feedback is not null)
+            if (_feedback is not null)
             {
-                return feedback.IsActive == true;
+                return _feedback.IsActive == true;
             }
 
             var io = Io;

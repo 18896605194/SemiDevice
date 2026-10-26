@@ -148,16 +148,15 @@ public abstract class CommDriverComponent : ComponentBase, ICommDriver
     protected override void OnScan()
     {
         base.OnScan();
-        var driver = _driver;
-        if (driver is null)
+        if (_driver is null)
         {
             return;
         }
 
-        bool gaveUp = _reconnector.Check(this, driver.IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
+        bool gaveUp = _reconnector.Check(this, _driver.IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
         {
-            driver.Close();
-            driver.Open();
+            _driver.Close();
+            _driver.Open();
         });
         if (gaveUp)
         {
@@ -201,13 +200,12 @@ public abstract class CommDriverComponent : ComponentBase, ICommDriver
     /// </summary>
     public bool Send(DeviceCommand command)
     {
-        var driver = _driver;
-        if (driver is null)
+        if (_driver is null)
         {
             return false;
         }
 
-        return driver.Send(command);
+        return _driver.Send(command);
     }
 
     /// <summary>

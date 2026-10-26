@@ -169,14 +169,12 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
         }
 
         bool on;
-        var virtualIo = _virtualIo;
-        if (virtualIo is not null && virtualIo.TryReadDo(DoIndex, out on))
+        if (_virtualIo is not null && _virtualIo.TryReadDo(DoIndex, out on))
         {
             return on;
         }
 
-        var io = _io;
-        if (io is null || !io.TryReadDo(DoIndex, out on))
+        if (_io is null || !_io.TryReadDo(DoIndex, out on))
         {
             return null;
         }

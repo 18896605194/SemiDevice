@@ -35,13 +35,12 @@ public class AiService : BaseService, IAiService
     /// <returns></returns>
     public Task<RpcResponse> GetStatusAsync(RpcRequest request, CallContext context = default)
     {
-        var ai = _ai;
-        if (ai is null)
+        if (_ai is null)
         {
             return NotInstalled(ErrorCodes.AiNotInstalled);
         }
 
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(new AiStatusDto { Model = ai.Model })));
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(new AiStatusDto { Model = _ai.Model })));
     }
 
     /// <summary>
@@ -49,8 +48,7 @@ public class AiService : BaseService, IAiService
     /// </summary>
     public async Task<RpcResponse> ExplainAlarmAsync(RpcRequest request, CallContext context = default)
     {
-        var ai = _ai;
-        if (ai is null)
+        if (_ai is null)
         {
             return await NotInstalled(ErrorCodes.AiNotInstalled);
         }
@@ -61,7 +59,7 @@ public class AiService : BaseService, IAiService
         }
 
         string language = _system?.Language ?? string.Empty;
-        var result = await ai.ExplainAlarmAsync(source, code, language, context.CancellationToken);
+        var result = await _ai.ExplainAlarmAsync(source, code, language, context.CancellationToken);
         if (!result.IsSuccess)
         {
             return RpcResponse.Fail(result.ErrorMessage, result.Args);

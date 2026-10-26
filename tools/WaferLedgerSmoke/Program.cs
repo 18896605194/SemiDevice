@@ -38,8 +38,10 @@ var node = machineSettings!.Modules.FirstOrDefault(setting => string.Equals(sett
 Check(node is not null && node.Type == typeof(LedgerManagerComponent).FullName, "machine.xml 里应有指向 LedgerManagerComponent 的顶层节点");
 var databaseGroup = machineSettings.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Database", StringComparison.OrdinalIgnoreCase));
 Check(databaseGroup is not null, "machine.xml 应有 Database 节点");
-var mapperNode = machineSettings.Modules.FirstOrDefault(setting => setting.Type == typeof(MapperComponent).FullName);
-Check(mapperNode is not null, "账本的存盘、流水、人工调整记录靠映射组件转，machine.xml 里应有 MapperComponent 节点");
+// machine.xml 的 Mapper 节点配的是机型的子类（机型程序集本工具不装），这里只认节点在，装平台的映射组件
+Check(machineSettings.Modules.Any(setting => string.Equals(setting.Name, "Mapper", StringComparison.OrdinalIgnoreCase)),
+    "账本的存盘、流水、人工调整记录靠映射组件转，machine.xml 里应有 Mapper 节点");
+var mapperNode = new ModuleConfig { Name = "Mapper", Type = typeof(MapperComponent).FullName };
 
 // 连库、映射组件和账本一起装：账本的流水库名要能在这些连接里找到，否则会回落到默认库。
 // 后面直接 new 出来的账本也用这里装出来的映射组件。
@@ -86,11 +88,14 @@ Check(!ledger.HasWafer("LoadPort1", 5) && ledger.HasWafer("Robot1", 1), "移动�
 var onArm = ledger.Get("Robot1", 1)!;
 Check(onArm.OriginModule == "LoadPort1" && onArm.OriginSlot == 5 && onArm.CarrierId == "FOUP-001", "移动不改来源与载具");
 Check(onArm.SourceLoadPort == "LoadPort1" && onArm.SourceSlot == 5, "移到手臂上，来源 LoadPort 和槽号不变");
-var onArmDto = WaferLedgerSnapshot.ToDto(onArm);
+var waferMapper = IocHelper.GetRequiredService<IMapper>();
+var onArmDto = waferMapper.Map<WaferDto>(onArm);
 Check(onArmDto.SourceLoadPort == "LoadPort1" && onArmDto.SourceSlot == 5, "推给界面的片带来源 LoadPort 和槽号（片上显示 LoadPort1-5）");
+Check(onArmDto.WaferId == onArm.WaferId && onArmDto.CarrierId == "FOUP-001" && onArmDto.Status == onArm.Status.ToString()
+      && onArmDto.ProcessState == onArm.ProcessState.ToString(), "映射组件转片：同名字段照抄，状态转成文字");
 var bare = ledger.Create("Robot1", 2);
 Check(bare is not null && bare.SourceLoadPort is null && bare.SourceSlot == 0
-      && WaferLedgerSnapshot.ToDto(bare).SourceLoadPort is null, "不在 LoadPort 上建的片没有来源 LoadPort（片上不显示）");
+      && waferMapper.Map<WaferDto>(bare).SourceLoadPort is null, "不在 LoadPort 上建的片没有来源 LoadPort（片上不显示）");
 ledger.Delete("Robot1", 2);
 Check(!ledger.Move("LoadPort1", 5, "Robot1", 2), "源上没片应拒绝");
 ledger.Create("LoadPort1", 7);
@@ -710,6 +715,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && serviceRecords[1].Action == "Move" && serviceRecords[1].FromModule == "SvcPM1" && serviceRecords[1].ToModule == "SvcRobot2"
           && serviceRecords[1].ToSlot == 1 && serviceRecords[1].Operator == "Tester" && serviceRecords[1].Reason == "取片报警",
         "调整记录：新的在前，操作人从请求头取，没带的记成 Unknown");
+    Check(serviceRecords.All(record => record.Time != default && record.Time <= DateTime.Now),
+        "调整记录的时刻：映射组件把表里的 OccurredAt 转成界面的 Time");
 
     var svcCreated = await service.CreateAsync(RpcRequest.Of(
         (RpcParams.Module, "SvcPM1"),

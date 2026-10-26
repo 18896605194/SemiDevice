@@ -175,8 +175,7 @@ public class AiLevelComponent : ComponentBase, IAiLevel
     /// </summary>
     protected virtual double? ReadAi()
     {
-        var io = _io;
-        if (io is null || !io.TryReadAi(AiIndex, out double value))
+        if (_io is null || !_io.TryReadAi(AiIndex, out double value))
         {
             return null;
         }

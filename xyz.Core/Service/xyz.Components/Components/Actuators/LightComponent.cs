@@ -96,13 +96,12 @@ public class LightComponent : ComponentBase, ILight
 
     protected virtual void WriteOutput(int doIndex, bool isOn)
     {
-        var io = _io;
-        if (io is null)
+        if (_io is null)
         {
             throw new InvalidOperationException("machine.xml 没配 Io 节点，四色灯没有输出通道");
         }
 
-        var written = io.WriteDo(doIndex, isOn);
+        var written = _io.WriteDo(doIndex, isOn);
         if (!written.IsSuccess)
         {
             throw new InvalidOperationException($"DO{doIndex} 写入失败：{written.ErrorMessage} [{string.Join(", ", written.Args)}]");

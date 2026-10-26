@@ -80,10 +80,9 @@ internal sealed class ChildRoutineStep : RoutineStep
 
         if (!child.IsSuccess)
         {
-            var onFailed = _onFailed;
-            if (onFailed is not null)
+            if (_onFailed is not null)
             {
-                onFailed(this, child);
+                _onFailed(this, child);
             }
 
             if (!Routine.IsTerminal)

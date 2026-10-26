@@ -91,13 +91,12 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     {
         get
         {
-            var ledger = _ledger;
-            if (ledger is null || !ledger.IsEnable || _robot.Length == 0)
+            if (_ledger is null || !_ledger.IsEnable || _robot.Length == 0)
             {
                 return false;
             }
 
-            return ledger.Get(_robot, Number) is not null;
+            return _ledger.Get(_robot, Number) is not null;
         }
     }
 

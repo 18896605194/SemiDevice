@@ -241,12 +241,11 @@ public sealed class TransferRoutine : TransferExecution
             return HandleResult.Success();
         }
 
-        var source = _source;
-        if (source is not null)
+        if (_source is not null)
         {
-            if (!source.TransferComplete(SourceContext))
+            if (!_source.TransferComplete(SourceContext))
             {
-                return HandleResult.Fail(ErrorCodes.TransferStepRejected, source.Name, "TransferComplete");
+                return HandleResult.Fail(ErrorCodes.TransferStepRejected, _source.Name, "TransferComplete");
             }
 
             _holdingSource = false;
@@ -261,10 +260,9 @@ public sealed class TransferRoutine : TransferExecution
     private HandleResult FinishPlace()
     {
         _wafer.Progress = TransferWaferProgress.Placed;
-        var target = _target;
-        if (target is not null && !target.TransferComplete(TargetContext))
+        if (_target is not null && !_target.TransferComplete(TargetContext))
         {
-            return HandleResult.Fail(ErrorCodes.TransferStepRejected, target.Name, "TransferComplete");
+            return HandleResult.Fail(ErrorCodes.TransferStepRejected, _target.Name, "TransferComplete");
         }
 
         _holdingTarget = false;

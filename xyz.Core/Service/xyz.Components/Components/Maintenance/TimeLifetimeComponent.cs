@@ -296,14 +296,12 @@ public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
     private bool? ReadDo(int index)
     {
         bool on;
-        var virtualIo = _virtualIo;
-        if (virtualIo is not null && virtualIo.TryReadDo(index, out on))
+        if (_virtualIo is not null && _virtualIo.TryReadDo(index, out on))
         {
             return on;
         }
 
-        var io = _io;
-        if (io is null || !io.TryReadDo(index, out on))
+        if (_io is null || !_io.TryReadDo(index, out on))
         {
             return null;
         }

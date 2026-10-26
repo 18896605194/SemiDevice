@@ -199,18 +199,16 @@ public class EdaComponent : ComponentBase, IEda, IEventReceiver, IEdaSettings, I
     /// </summary>
     public void Report(ComponentBase source, string code, params GemData[] data)
     {
-        var server = _server;
-        var equipment = _equipment;
-        if (server is null || equipment is null || !server.IsCollecting)
+        if (_server is null || _equipment is null || !_server.IsCollecting)
         {
             return;
         }
 
         try
         {
-            foreach (var context in equipment.Resolve(source, code, data))
+            foreach (var context in _equipment.Resolve(source, code, data))
             {
-                server.Report(context);
+                _server.Report(context);
             }
         }
         catch (Exception exception)
@@ -221,14 +219,12 @@ public class EdaComponent : ComponentBase, IEda, IEventReceiver, IEdaSettings, I
 
     private void OnAlarmChanged(AlarmItem alarm)
     {
-        var server = _server;
-        var equipment = _equipment;
-        if (server is null || equipment is null || !server.IsCollecting)
+        if (_server is null || _equipment is null || !_server.IsCollecting)
         {
             return;
         }
 
-        string? locator = equipment.LocatorOf(alarm.SourcePath);
+        string? locator = _equipment.LocatorOf(alarm.SourcePath);
         if (locator is null)
         {
             return;
@@ -243,7 +239,7 @@ public class EdaComponent : ComponentBase, IEda, IEventReceiver, IEdaSettings, I
         string exceptionId = $"{alarm.SourcePath}.{alarm.AlarmCode}";
         try
         {
-            server.ReportException(locator, exceptionId, alarm.AlarmText, Severity(alarm.Level), alarm.IsActive, time);
+            _server.ReportException(locator, exceptionId, alarm.AlarmText, Severity(alarm.Level), alarm.IsActive, time);
         }
         catch (Exception exception)
         {

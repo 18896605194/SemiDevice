@@ -15,8 +15,7 @@ using xyz.Tools;
 namespace xyz.Service.Systems;
 
 /// <summary>
-/// 整机操作 gRPC 服务（主界面的系统操作）：全部初始化、Auto / Manual、整机停止、全部回片都转给整机模块（<see cref="SystemModule"/>），
-/// 这里只翻结果：开了就回，进展看系统状态推送（SystemStateDto）；被拒照原样回整机给的错误码和参数。另有切晶圆尺寸。
+/// 整机操作服务
 /// </summary>
 public class EquipmentService : BaseService, IEquipmentService
 {
@@ -84,9 +83,11 @@ public class EquipmentService : BaseService, IEquipmentService
     }
 
     /// <summary>
-    /// 切晶圆尺寸：整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外的位置）没片才让切——
-    /// 摆臂马上按新尺寸的半径和边缘示教位换算，机台里留着的片、初始化好的设备都还是按旧尺寸来的。LoadPort 上的片盒不算，换尺寸本来要换盒。
+    /// 切晶圆尺寸
     /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> SetWaferSizeAsync(RpcRequest request, CallContext context = default)
     {
         if (!request.TryGet<int>(RpcParams.Size, out var size))
@@ -110,10 +111,9 @@ public class EquipmentService : BaseService, IEquipmentService
         }
 
         // 整机不算模块，单独看：整机初始化过也不让切
-        var system = _system;
-        if (system is not null && system.State != ModuleState.NotInit)
+        if (_system is not null && _system.State != ModuleState.NotInit)
         {
-            return Fail(ErrorCodes.WaferSizeInitialized, system.Name);
+            return Fail(ErrorCodes.WaferSizeInitialized, _system.Name);
         }
 
         foreach (var module in IocHelper.GetServices<IModule>())

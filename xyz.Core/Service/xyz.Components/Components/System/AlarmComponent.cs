@@ -517,15 +517,14 @@ public class AlarmComponent : ComponentBase, IAlarm
     /// </summary>
     private void PushToClient(AlarmItem alarm)
     {
-        var mapper = _mapper;
-        if (mapper is null)
+        if (_mapper is null)
         {
             return;
         }
 
         try
         {
-            EventBus.Send(mapper.Map<AlarmDto>(alarm), AlarmDto.EventToken, retain: false);
+            EventBus.Send(_mapper.Map<AlarmDto>(alarm), AlarmDto.EventToken, retain: false);
         }
         catch (Exception exception)
         {

@@ -110,10 +110,9 @@ public class E90Component : ComponentBase, IE90Callback, IE90Component, IE90Ledg
     /// </summary>
     public void Detach()
     {
-        var ledger = _ledger;
-        if (ledger is not null && ReferenceEquals(ledger.E90Callback, this))
+        if (_ledger is not null && ReferenceEquals(_ledger.E90Callback, this))
         {
-            ledger.E90Callback = null;
+            _ledger.E90Callback = null;
         }
 
         Engine = null;
@@ -186,13 +185,12 @@ public class E90Component : ComponentBase, IE90Callback, IE90Component, IE90Ledg
 
     private ILedgerManager LedgerOrThrow()
     {
-        var ledger = _ledger;
-        if (ledger is null)
+        if (_ledger is null)
         {
             throw new InvalidOperationException($"{Name} 还没接晶圆账");
         }
 
-        return ledger;
+        return _ledger;
     }
 
     /// <summary>

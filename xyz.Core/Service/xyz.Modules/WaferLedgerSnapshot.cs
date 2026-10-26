@@ -12,46 +12,37 @@ namespace xyz.Modules;
 public static class WaferLedgerSnapshot
 {
     /// <summary>
-    /// 这个位置每个槽的片（槽号从 1 起，空槽的 Wafer 为 null）；晶圆账没开或没登记这个位置时为空表。
-    /// 模块每拍扫描都调（传它自己取到的晶圆账），账一变下一拍的状态推送就跟着变。
+    /// 这个位置每个槽的片（槽号从 1 起，空槽的 Wafer 为 null）；晶圆账没开、没登记这个位置、映射组件没装时为空表。
+    /// 模块每拍扫描都调（传它自己取到的晶圆账、映射组件），账一变下一拍的状态推送就跟着变。
     /// </summary>
-    public static List<WaferSlotDto> SlotsOf(ILedgerManager? ledger, string module)
+    public static List<WaferSlotDto> SlotsOf(ILedgerManager? ledger, IMapper? mapper, string module)
     {
-        if (ledger is null || !ledger.IsEnable)
+        if (ledger is null || !ledger.IsEnable || mapper is null)
         {
             return [];
         }
 
-        return ToSlots(ledger.GetSlots(module));
+        return ToSlots(mapper, ledger.GetSlots(module));
     }
 
-    public static List<WaferSlotDto> ToSlots(IReadOnlyList<WaferInfo?> slots)
+    /// <summary>
+    /// 一排槽转成给界面的样子：片走映射组件转（同名字段照抄，状态转成文字）
+    /// </summary>
+    public static List<WaferSlotDto> ToSlots(IMapper mapper, IReadOnlyList<WaferInfo?> slots)
     {
         var result = new List<WaferSlotDto>(slots.Count);
         for (int index = 0; index < slots.Count; index++)
         {
+            var slot = new WaferSlotDto { Slot = index + 1 };
             var wafer = slots[index];
-            result.Add(new WaferSlotDto
+            if (wafer is not null)
             {
-                Slot = index + 1,
-                Wafer = wafer is null ? null : ToDto(wafer),
-            });
+                slot.Wafer = mapper.Map<WaferDto>(wafer);
+            }
+
+            result.Add(slot);
         }
 
         return result;
-    }
-
-    public static WaferDto ToDto(WaferInfo wafer)
-    {
-        return new WaferDto
-        {
-            WaferId = wafer.WaferId,
-            LotId = wafer.LotId,
-            CarrierId = wafer.CarrierId,
-            Status = wafer.Status.ToString(),
-            ProcessState = wafer.ProcessState.ToString(),
-            SourceLoadPort = wafer.SourceLoadPort,
-            SourceSlot = wafer.SourceSlot,
-        };
     }
 }

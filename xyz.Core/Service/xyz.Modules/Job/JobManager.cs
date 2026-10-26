@@ -317,8 +317,7 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, port!.Name));
             }
 
-            var ledger = _ledger;
-            if (ledger is null || !ledger.IsEnable)
+            if (_ledger is null || !_ledger.IsEnable)
             {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.WaferLedgerDisabled));
             }
@@ -1722,8 +1721,7 @@ public class JobManager : ComponentBase, IJobManager
             return HandleResult.Fail(ErrorCodes.JobSequenceSourceMismatch, sequence.Name, sourceName);
         }
 
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
         }
@@ -1748,7 +1746,7 @@ public class JobManager : ComponentBase, IJobManager
         foreach (int slot in slots)
         {
             string slotText = slot.ToString(CultureInfo.InvariantCulture);
-            var wafer = ledger.Get(sourceName, slot);
+            var wafer = _ledger.Get(sourceName, slot);
             if (wafer is null)
             {
                 return HandleResult.Fail(ErrorCodes.JobSlotEmpty, sourceName, slotText);
@@ -1992,20 +1990,18 @@ public class JobManager : ComponentBase, IJobManager
     {
         base.OnScan();
 
-        var tasks = _tasks;
-        var scheduler = _scheduler;
-        if (!IsEnable || tasks is null || scheduler is null)
+        if (!IsEnable || _tasks is null || _scheduler is null)
         {
             return;
         }
 
         lock (_gate)
         {
-            scheduler.Collect(tasks);
-            tasks.CheckPositions();
+            _scheduler.Collect(_tasks);
+            _tasks.CheckPositions();
             AssignWaitingProcessJobs();
             Advance(); //推进pj和cj的状态流程
-            Dispatch(scheduler, tasks); //派发任务
+            Dispatch(_scheduler, _tasks); //派发任务
             Publish();
         }
     }

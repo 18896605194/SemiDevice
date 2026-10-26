@@ -3,7 +3,6 @@ using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
-using xyz.Database.Wafers;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -13,14 +12,19 @@ using xyz.Tools;
 
 namespace xyz.Service.Wafers;
 
-
+/// <summary>
+/// 账单服务
+/// </summary>
 public class LedgerService : BaseService, ILedgerService
 {
     private readonly ILedgerManager? _ledger;
 
+    private readonly IMapper _mapper;
+
     public LedgerService()
     {
         _ledger = IocHelper.GetService<ILedgerManager>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetLedgerAsync(RpcRequest request, CallContext context = default)
@@ -44,6 +48,12 @@ public class LedgerService : BaseService, ILedgerService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
 
+    /// <summary>
+    /// 手动移账
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> MoveAsync(RpcRequest request, CallContext context = default)
     {
         if (_ledger is null || !_ledger.IsEnable)
@@ -160,7 +170,7 @@ public class LedgerService : BaseService, ILedgerService
     public Task<RpcResponse> GetAdjustmentsAsync(RpcRequest request, CallContext context = default)
     {
         var rows = _ledger?.GetRecentAdjustments() ?? [];
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(rows.Select(ToDto).ToList())));
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_mapper.Map<List<WaferAdjustmentDto>>(rows))));
     }
 
     /// <summary>
@@ -193,9 +203,9 @@ public class LedgerService : BaseService, ILedgerService
         return names;
     }
 
-    private static WaferLocationDto ToDto(string name, IModule? module, IReadOnlyList<WaferInfo?> slots)
+    private WaferLocationDto ToDto(string name, IModule? module, IReadOnlyList<WaferInfo?> slots)
     {
-        var dto = new WaferLocationDto { Name = name, Kind = KindOf(module), Slots = WaferLedgerSnapshot.ToSlots(slots) };
+        var dto = new WaferLocationDto { Name = name, Kind = KindOf(module), Slots = WaferLedgerSnapshot.ToSlots(_mapper, slots) };
         if (module is not null)
         {
             dto.Name = module.Name;
@@ -222,22 +232,6 @@ public class LedgerService : BaseService, ILedgerService
         return module.Kind;
     }
 
-
-    private static WaferAdjustmentDto ToDto(WaferAdjustmentEntity row)
-    {
-        return new WaferAdjustmentDto
-        {
-            Time = row.OccurredAt,
-            Action = row.Action,
-            WaferId = row.WaferId,
-            FromModule = row.FromModule,
-            FromSlot = row.FromSlot,
-            ToModule = row.ToModule,
-            ToSlot = row.ToSlot,
-            Operator = row.Operator,
-            Reason = row.Reason,
-        };
-    }
 
     /// <summary>
     /// 槽号超范围：说清楚是源还是目标的哪一个槽超了。

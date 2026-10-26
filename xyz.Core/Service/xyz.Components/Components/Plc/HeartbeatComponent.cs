@@ -86,13 +86,12 @@ public class HeartbeatComponent : ComponentBase, IHeartbeat
 
     private bool WriteDo(bool on)
     {
-        var io = _io;
-        if (io is null)
+        if (_io is null)
         {
             return false;
         }
 
-        return io.WriteDo(DoIndex, on).IsSuccess;
+        return _io.WriteDo(DoIndex, on).IsSuccess;
     }
 
     #endregion

@@ -656,23 +656,22 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     protected virtual E84Inputs ReadInputs()
     {
-        var io = _io;
-        if (io is null)
+        if (_io is null)
         {
             return default;
         }
 
         return new E84Inputs
         {
-            Valid = InputOn(io, DiValidIndex),
-            Cs0 = InputOn(io, DiCs0Index),
-            Cs1 = InputOn(io, DiCs1Index),
-            AmAvbl = InputOn(io, DiAmAvblIndex),
-            TrReq = InputOn(io, DiTrReqIndex),
-            Busy = InputOn(io, DiBusyIndex),
-            Compt = InputOn(io, DiComptIndex),
-            Cont = InputOn(io, DiContIndex),
-            LightCurtain = InputOn(io, DiLightCurtainIndex),
+            Valid = InputOn(_io, DiValidIndex),
+            Cs0 = InputOn(_io, DiCs0Index),
+            Cs1 = InputOn(_io, DiCs1Index),
+            AmAvbl = InputOn(_io, DiAmAvblIndex),
+            TrReq = InputOn(_io, DiTrReqIndex),
+            Busy = InputOn(_io, DiBusyIndex),
+            Compt = InputOn(_io, DiComptIndex),
+            Cont = InputOn(_io, DiContIndex),
+            LightCurtain = InputOn(_io, DiLightCurtainIndex),
         };
     }
 
@@ -682,12 +681,11 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     protected virtual bool WriteOutputs(E84Outputs outputs)
     {
-        var io = _io;
-        bool written = OutputWritten(io, DoLReqIndex, outputs.LReq)
-            && OutputWritten(io, DoUReqIndex, outputs.UReq)
-            && OutputWritten(io, DoReadyIndex, outputs.Ready)
-            && OutputWritten(io, DoHoAvblIndex, outputs.HoAvbl)
-            && OutputWritten(io, DoEsIndex, outputs.Es);
+        bool written = OutputWritten(_io, DoLReqIndex, outputs.LReq)
+            && OutputWritten(_io, DoUReqIndex, outputs.UReq)
+            && OutputWritten(_io, DoReadyIndex, outputs.Ready)
+            && OutputWritten(_io, DoHoAvblIndex, outputs.HoAvbl)
+            && OutputWritten(_io, DoEsIndex, outputs.Es);
         if (written == _outputsWritable)
         {
             return written;

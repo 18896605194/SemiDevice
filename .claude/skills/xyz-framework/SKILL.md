@@ -41,7 +41,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
 2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（模块动作 `ModuleRoutine` 挪到了组件层）、设备侧给 EAP 的接口
    （`Interfaces` 下的 ILoadPortAccess、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
-   组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapper`，规则写在 `MapperComponent`），不在启动代码里搭桥。
+   组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapper`，平台规则写在 xyz.Modules 的 `MapperComponent.AddRules`，项目继承它重写 `AddRules` 加自己的），不在启动代码里搭桥。
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。
@@ -97,6 +97,8 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
 6. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
 7. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。
+   **字段不先接到局部变量再用**（用户 2026-10-27 定）：开机后不变的字段（构造、`InitComponent`、`Bind`、`Attach` 里赋值的，readonly 的）直接 `if (_x is null)`、`_x.Foo()`，
+   不写 `var x = _x;`；只有运行中会被别的线程改掉的（断线重连换掉的连接、Attach / Detach 的引擎、在做的动作）才先接一遍再判空、使用。
 8. 错误：配置/装配错了抛 `InvalidOperationException`（开机就暴露）；运行期返回结果（bool、结果枚举、操作的 Code+Args）；
    服务层翻成 `RpcResponse.Fail(ErrorCodes.X, [参数])` 给界面，**不向客户端抛异常**；界面按错误码查语言包显示。
 9. 用户看得到的文字都走语言包，**zh-CN、en-US 两份的 key 一一对应**，加一条两边都加。

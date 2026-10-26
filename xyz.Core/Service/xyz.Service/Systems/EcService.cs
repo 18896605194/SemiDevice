@@ -12,9 +12,7 @@ using xyz.Tools;
 namespace xyz.Service.Systems;
 
 /// <summary>
-/// EC gRPC 服务：把 EC 组件里的全部参数（定义 + 当前值）给界面，界面改值也走这儿——
-/// EC 设置页列参数、改值，通用输入框按 EcKey 取范围，都靠它。
-/// 每次改值都记一条日志：EC 是现场调出来的参数（速度、超时、标定位置），事后要查得到什么时候把哪一项从多少改成了多少。
+/// EC服务
 /// </summary>
 public class EcService : BaseService, IEcService
 {

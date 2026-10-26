@@ -1,7 +1,6 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Interfaces;
 using xyz.Modules;
-using xyz.Shared.Dtos;
 using xyz.Tools;
 using xyz._35021.Shared.Dtos;
 
@@ -30,18 +29,12 @@ public class IpaModule : BaseCdsModule
     /// </summary>
     protected override void PublishState()
     {
-        var mapper = _mapper;
-        if (mapper is null)
+        if (_mapper is null)
         {
             return;
         }
 
-        var dto = new IpaDto { Module = Name, State = State };
-        foreach (var tank in Tanks)
-        {
-            dto.Tanks.Add(mapper.Map<TankDto>(tank));
-        }
-
+        var dto = _mapper.Map<IpaDto>(this);
         if (!dto.HasStateChanged(_lastPublished))
         {
             return;

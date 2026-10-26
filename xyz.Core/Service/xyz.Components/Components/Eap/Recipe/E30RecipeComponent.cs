@@ -84,16 +84,14 @@ public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeCompone
     /// </summary>
     public void Detach()
     {
-        var sequences = _sequences;
-        if (sequences is not null && ReferenceEquals(sequences.E30Callback, this))
+        if (_sequences is not null && ReferenceEquals(_sequences.E30Callback, this))
         {
-            sequences.E30Callback = null;
+            _sequences.E30Callback = null;
         }
 
-        var processRecipes = _processRecipes;
-        if (processRecipes is not null && ReferenceEquals(processRecipes.E30Callback, this))
+        if (_processRecipes is not null && ReferenceEquals(_processRecipes.E30Callback, this))
         {
-            processRecipes.E30Callback = null;
+            _processRecipes.E30Callback = null;
         }
 
         _engine = null;
@@ -150,19 +148,17 @@ public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeCompone
     /// </summary>
     string? IGemRecipes.Store(string name, string body)
     {
-        var sequences = _sequences;
-        var processRecipes = _processRecipes;
         HandleResult result;
         string what;
-        if (sequences is not null && (HasSequence(name) || (!HasProcessRecipe(name) && sequences.AcceptsSequence(body))))
+        if (_sequences is not null && (HasSequence(name) || (!HasProcessRecipe(name) && _sequences.AcceptsSequence(body))))
         {
             what = "流程配方";
-            result = sequences.ImportSequence(name, body, HostOperator);
+            result = _sequences.ImportSequence(name, body, HostOperator);
         }
-        else if (processRecipes is not null && (HasProcessRecipe(name) || processRecipes.AcceptsRecipe(body)))
+        else if (_processRecipes is not null && (HasProcessRecipe(name) || _processRecipes.AcceptsRecipe(body)))
         {
             what = "工艺配方";
-            result = processRecipes.ImportRecipe(name, body, HostOperator);
+            result = _processRecipes.ImportRecipe(name, body, HostOperator);
         }
         else
         {
@@ -185,17 +181,15 @@ public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeCompone
     {
         HandleResult result;
         string what;
-        var sequences = _sequences;
-        var processRecipes = _processRecipes;
-        if (sequences is not null && HasSequence(name))
+        if (_sequences is not null && HasSequence(name))
         {
             what = "流程配方";
-            result = sequences.DeleteSequence(name, HostOperator);
+            result = _sequences.DeleteSequence(name, HostOperator);
         }
-        else if (processRecipes is not null)
+        else if (_processRecipes is not null)
         {
             what = "工艺配方";
-            result = processRecipes.DeleteRecipe(name, HostOperator);
+            result = _processRecipes.DeleteRecipe(name, HostOperator);
         }
         else
         {

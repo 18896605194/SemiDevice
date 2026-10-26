@@ -82,13 +82,12 @@ internal sealed class ChamberDwellStep : RoutineStep
     {
         get
         {
-            var arm = _arm;
-            if (arm is null || arm.ActionState != ActionState.Running)
+            if (_arm is null || _arm.ActionState != ActionState.Running)
             {
                 return string.Empty;
             }
 
-            return arm.FullPath;
+            return _arm.FullPath;
         }
     }
 
@@ -100,10 +99,7 @@ internal sealed class ChamberDwellStep : RoutineStep
     protected internal override bool Check()
     {
         bool due = ElapsedMs >= _seconds * MillisecondsPerSecond;
-        var arm = _arm;
-        var from = _from;
-        var to = _to;
-        if (arm is null || from is null || to is null)
+        if (_arm is null || _from is null || _to is null)
         {
             return due;
         }
@@ -114,16 +110,16 @@ internal sealed class ChamberDwellStep : RoutineStep
             action = ChamberDeviceAction.Stop;
         }
 
-        switch (arm.ActionState)
+        switch (_arm.ActionState)
         {
             case ActionState.Failed:
-                Fail(ErrorCodes.ChamberDeviceActionFailed, $"{arm.FullPath} {action} 没做成", arm.FullPath, action.ToString());
+                Fail(ErrorCodes.ChamberDeviceActionFailed, $"{_arm.FullPath} {action} 没做成", _arm.FullPath, action.ToString());
                 return false;
 
             case ActionState.Idle:
                 if (_moved)
                 {
-                    Fail(ErrorCodes.Aborted, $"{arm.FullPath} 被中止", Routine.Name);
+                    Fail(ErrorCodes.Aborted, $"{_arm.FullPath} 被中止", Routine.Name);
                     return false;
                 }
 
@@ -134,9 +130,9 @@ internal sealed class ChamberDwellStep : RoutineStep
                 if (due && !_stopped)
                 {
                     _stopped = true;
-                    if (!arm.Stop())
+                    if (!_arm.Stop())
                     {
-                        Fail(ErrorCodes.ChamberDeviceCommandRejected, $"{arm.FullPath} Stop 指令没发出去", arm.FullPath, nameof(ChamberDeviceAction.Stop));
+                        Fail(ErrorCodes.ChamberDeviceCommandRejected, $"{_arm.FullPath} Stop 指令没发出去", _arm.FullPath, nameof(ChamberDeviceAction.Stop));
                     }
                 }
 
@@ -152,12 +148,12 @@ internal sealed class ChamberDwellStep : RoutineStep
         }
 
         // 这一趟走完了，往另一头走一趟
-        double target = arm.ToAxisPosition(NextEnd(from.Value, to.Value), _nozzle);
+        double target = _arm.ToAxisPosition(NextEnd(_from.Value, _to.Value), _nozzle);
         _moved = true;
-        if (!arm.MoveTo(target, _speed))
+        if (!_arm.MoveTo(target, _speed))
         {
             Fail(ErrorCodes.ChamberDeviceCommandRejected,
-                $"{arm.FullPath} Move 到 {target.ToString(CultureInfo.InvariantCulture)} 指令没发出去", arm.FullPath, nameof(ChamberDeviceAction.Move));
+                $"{_arm.FullPath} Move 到 {target.ToString(CultureInfo.InvariantCulture)} 指令没发出去", _arm.FullPath, nameof(ChamberDeviceAction.Move));
         }
 
         return false;

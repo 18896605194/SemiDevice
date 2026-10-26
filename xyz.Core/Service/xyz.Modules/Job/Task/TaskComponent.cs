@@ -35,8 +35,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
     private ITransferStation? Station(string name)
     {
-        var transfers = _transfers;
-        return transfers is not null && transfers.TryGetStation(name, out var station) ? station : null;
+        return _transfers is not null && _transfers.TryGetStation(name, out var station) ? station : null;
     }
 
     #region 生成任务表
@@ -152,9 +151,8 @@ public class TaskComponent : ComponentBase, ITaskComponent
     /// </summary>
     private bool IsUsable(string name, RecipeData? recipe)
     {
-        var transfers = _transfers;
-        if (transfers is null || !transfers.TryGetStation(name, out var station) || !station.IsEnabled
-            || !transfers.Robots.Any(robot => robot.TryGetTeachPoint(name, out _)))
+        if (_transfers is null || !_transfers.TryGetStation(name, out var station) || !station.IsEnabled
+            || !_transfers.Robots.Any(robot => robot.TryGetTeachPoint(name, out _)))
         {
             return false;
         }
@@ -293,8 +291,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     /// </summary>
     internal void CheckPositions()
     {
-        var ledger = _ledger;
-        if (ledger is null)
+        if (_ledger is null)
         {
             return;
         }
@@ -308,7 +305,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
             }
 
             var expected = row.ExpectedLocation;
-            var found = ledger.FindById(row.WaferId);
+            var found = _ledger.FindById(row.WaferId);
             if (found is not null && string.Equals(found.Module, expected.Module, StringComparison.OrdinalIgnoreCase) && found.Slot == expected.Slot)
             {
                 continue;

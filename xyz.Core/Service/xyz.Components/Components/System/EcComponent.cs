@@ -595,11 +595,10 @@ public class EcComponent : ComponentBase, IEc
     /// </summary>
     public EcItemDto CreateDto(string path, EcValueConfig value)
     {
-        var mapper = _mapper;
         var dto = new EcItemDto();
-        if (mapper is not null)
+        if (_mapper is not null)
         {
-            dto = mapper.Map<EcItemDto>(value);
+            dto = _mapper.Map<EcItemDto>(value);
         }
 
         dto.Key = $"{path}.{value.Name}";

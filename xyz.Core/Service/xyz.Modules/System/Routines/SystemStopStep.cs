@@ -75,12 +75,11 @@ internal sealed class SystemStopStep : RoutineStep
             }
         }
 
-        var transfers = _transfers;
-        if (transfers is not null)
+        if (_transfers is not null)
         {
-            foreach (var robot in transfers.Robots)
+            foreach (var robot in _transfers.Robots)
             {
-                if (transfers.IsRobotInTransfer(robot.Name))
+                if (_transfers.IsRobotInTransfer(robot.Name))
                 {
                     return false;
                 }

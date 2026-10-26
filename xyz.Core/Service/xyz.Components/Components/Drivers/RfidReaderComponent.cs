@@ -103,8 +103,7 @@ public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrie
     /// </summary>
     public bool StartReadCarrierId()
     {
-        var driver = _driver;
-        if (driver is null || !driver.IsConnected)
+        if (_driver is null || !_driver.IsConnected)
         {
             return false;
         }
@@ -117,7 +116,7 @@ public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrie
             }
 
             var command = CreateReadCommand();
-            if (!driver.Send(command))
+            if (!_driver.Send(command))
             {
                 return false;
             }

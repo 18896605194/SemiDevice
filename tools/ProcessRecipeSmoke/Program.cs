@@ -16,6 +16,7 @@ using xyz.Tools;
 // 配方用到具体腔体时腔体照名字核对摆臂和药液、gRPC 服务的列表 / 字段表 / 错误码，腔体起工艺时配方要在库里、选的摆臂和药液这个腔体要有。
 // 不连设备，文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
+SmokeIoc.Use<IMapper>(new MapperComponent()); // 服务转 DTO 走映射组件（开机必配）
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -653,6 +654,8 @@ try
     Check(typeDto.Options.SequenceEqual(new[] { "A" }) && typeDto.Required && !typeDto.IsAuto
           && options.HeadFields.First(field => field.Key == "Revision").IsAuto && !options.HeadFields.First(field => field.Key == "Timeout").IsAuto,
         "配方头：Type 的选项是腔体配的 Type（A），都配了所以必选；版本是程序算的，超时时间要填");
+    Check(options.HeadFields.All(field => field.OptionsByType.Count == 0),
+        "配方头只给 Options：按 Type 分开的那套不带（界面才不会拿它顶掉 Options）");
     var secondsDto = options.Fields[0];
     Check(secondsDto.Type == ProcessRecipeFieldType.Double && secondsDto.Text == "时间" && secondsDto.TextEn == "Time" && secondsDto.Unit == "s"
           && secondsDto.Min == 0.1 && secondsDto.Max == 3600 && secondsDto.Decimals == 1 && secondsDto.Default == "10" && secondsDto.Required,

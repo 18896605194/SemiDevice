@@ -141,11 +141,10 @@ public class LogService : BaseService, ILogService
             LogBarDisplayMaxCount = PositiveOr(_log?.LogBarDisplayMaxCount, LogSettingsDto.DefaultLogBarDisplayMaxCount),
         };
 
-        var log = _log;
-        if (log is not null)
+        if (_log is not null)
         {
-            settings.KeepDays = log.KeepDays;
-            settings.Modules = [.. log.Modules];
+            settings.KeepDays = _log.KeepDays;
+            settings.Modules = [.. _log.Modules];
         }
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));

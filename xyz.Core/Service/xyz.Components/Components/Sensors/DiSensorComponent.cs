@@ -151,8 +151,7 @@ public class DiSensorComponent : ComponentBase, IDiSensor
     /// </summary>
     protected virtual bool? ReadDi()
     {
-        var io = _io;
-        if (io is null || !io.TryReadDi(DiIndex, out bool on))
+        if (_io is null || !_io.TryReadDi(DiIndex, out bool on))
         {
             return null;
         }

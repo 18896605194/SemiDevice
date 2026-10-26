@@ -63,13 +63,12 @@ public class JobService : BaseService, IJobService
         }
 
         string keyword = request.Get(RpcParams.Keyword, string.Empty).Trim();
-        var jobs = _jobs;
         return Task.Run(() =>
         {
             try
             {
-                int maxCount = jobs.HistoryQueryMaxCount;
-                using var db = XyzDb.Create(jobs.Database);
+                int maxCount = _jobs.HistoryQueryMaxCount;
+                using var db = XyzDb.Create(_jobs.Database);
                 if (!db.DbMaintenance.IsAnyTable(db.EntityMaintenance.GetTableName<ControlJobEntity>(), false))
                 {
                     return RpcResponse.Ok(JsonHelper.Serialize(new HistoryResult<ControlJobHistoryDto>()));
@@ -118,12 +117,11 @@ public class JobService : BaseService, IJobService
             return Fail(ErrorCodes.JobNotFound, text);
         }
 
-        var jobs = _jobs;
         return Task.Run(() =>
         {
             try
             {
-                using var db = XyzDb.Create(jobs.Database);
+                using var db = XyzDb.Create(_jobs.Database);
                 if (!db.DbMaintenance.IsAnyTable(db.EntityMaintenance.GetTableName<ProcessJobEntity>(), false))
                 {
                     return RpcResponse.Ok(JsonHelper.Serialize(new List<ProcessJobDto>()));

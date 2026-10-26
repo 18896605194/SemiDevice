@@ -31,6 +31,7 @@ using xyz.Tools;
 
 // No host, hardware connection, or configuration-file writes are used by these checks.
 SmokeIoc.Reset();
+SmokeIoc.Use<IMapper>(new MapperComponent()); // 模块推给界面的账上的片走映射组件转（开机必配）
 
 var checks = 0;
 void Check(bool condition, string message)

@@ -16,6 +16,7 @@ using xyz.Tools;
 // 流程配方冒烟：machine.xml 节点、可选站点分组（按 machine.xml 的分组节点 + 机械手示教点表生成）、新建 / 改名 / 保存 / 删除和各项检查、
 // 文件读写（一个编号一个文件、坏文件跳过）、版本冲突、变更事件、gRPC 服务的错误码。不连设备，文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
+SmokeIoc.Use<IMapper>(new MapperComponent()); // 服务转 DTO 走映射组件（开机必配）
 
 var checks = 0;
 void Check(bool condition, string message)

@@ -62,13 +62,12 @@ internal sealed class E87PortDevice : IE87Port
     {
         get
         {
-            var ledger = _ledger;
-            if (ledger is null)
+            if (_ledger is null)
             {
                 return Array.Empty<(string, string)>();
             }
 
-            return ledger.GetSlots(_loadPort.Name)
+            return _ledger.GetSlots(_loadPort.Name)
                 .Select(wafer => (wafer?.LotId ?? string.Empty, wafer?.WaferId ?? string.Empty))
                 .ToList();
         }
@@ -159,8 +158,7 @@ internal sealed class E87PortDevice : IE87Port
     /// </summary>
     public void WriteContentMap(IReadOnlyList<(string LotId, string SubstrateId)> content)
     {
-        var ledger = _ledger;
-        if (ledger is null)
+        if (_ledger is null)
         {
             return;
         }
@@ -169,19 +167,19 @@ internal sealed class E87PortDevice : IE87Port
         for (int index = 0; index < content.Count; index++)
         {
             var (lotId, substrateId) = content[index];
-            if (ledger.Get(name, index + 1) is null)
+            if (_ledger.Get(name, index + 1) is null)
             {
                 continue;
             }
 
             if (substrateId.Length > 0)
             {
-                ledger.SetWaferId(name, index + 1, substrateId);
+                _ledger.SetWaferId(name, index + 1, substrateId);
             }
 
             if (lotId.Length > 0)
             {
-                ledger.SetLotId(name, index + 1, lotId);
+                _ledger.SetLotId(name, index + 1, lotId);
             }
         }
     }

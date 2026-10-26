@@ -713,8 +713,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   晶圆账 `WaferLedgerChangedDto`、两个配方库的变更 DTO、日志组件每条日志 `LogDto`，切晶圆尺寸时工艺配方库推一条编号 0 的）；每拍比、变了才推的在自己的 `OnScan` 里发
   （模块状态、整机的设备总状态、IPA）；按周期推的也在自己的 `OnScan` 里看时间（IO 整包按 EC `PublishIntervalMs`，实时曲线把数据曲线采到的行一帧一帧推）——
   所以要推的根组件在 machine.xml 配 `IsRun=true`。推失败吞住，同一个错只记一次日志。C# 事件（`AlarmChanged`、`ValueChanged`、`Wafer*`）留给后端里别的组件订（E30 订报警和 EC 变化，晶圆账自己接给 E90）。
-- 转 DTO：映射组件 `IMapper` 的 `Map<T>(源)`（规则都写在 `MapperComponent`）；组件在开机 Bind 时取一次映射组件、服务在构造里取一次，都存成字段；不另写 `*Mapper` 类。
+- 转 DTO：映射组件 `IMapper` 的 `Map<T>(源)`；组件在开机 Bind 时取一次映射组件、服务在构造里取一次，都存成字段；不另写 `*Mapper` 类，服务里也不手写 `ToDto` 一个个字段抄。
+  只有当场才知道的值（当前晶圆尺寸下的上限、腔体配了哪些 Type）由服务映射完再补；几样东西拼起来的（账上一个位置、带角色的用户）不算映射，照旧自己拼。
   映射组件 machine.xml 必配（开机就查，没配抛）。
+  - **规则写在哪**：平台的在 `xyz.Modules\Mapper\MapperComponent` 的 `protected virtual void AddRules(TypeAdapterConfig config)`（放模块层是因为规则要认得组件、模块、数据库三层的类型），
+    构造里调一次就配好；同名字段、枚举转字符串不用配，名字对不上、形状不一样的才配一条。
+  - **项目加规则**：继承 `MapperComponent`、重写 `AddRules`（先调 base，只写规则、别用子类自己的字段），machine.xml 的 `Mapper` 节点 `Type` 换成项目的类。
+    35021 是 `xyz._35021.Module.Mapper.MapperComponent35021`（IpaModule → IpaDto）。
+  - 按接口拿到的对象（模块的 `Tanks` 是 `ITank`）要照实际类的规则转：给接口配一条 `.Include<实际类, 目标>()`（槽就是这么配的）。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。
 
 ### 主界面用到的几处（2026-10-04）

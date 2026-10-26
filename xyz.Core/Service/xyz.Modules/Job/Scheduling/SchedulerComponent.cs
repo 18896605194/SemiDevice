@@ -639,8 +639,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// </summary>
     private ITransferStation? Station(string name)
     {
-        var transfers = _transfers;
-        if (transfers is not null && transfers.TryGetStation(name, out var station))
+        if (_transfers is not null && _transfers.TryGetStation(name, out var station))
         {
             return station;
         }
@@ -653,8 +652,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// </summary>
     private ITransferRobot? Robot(string name)
     {
-        var transfers = _transfers;
-        if (transfers is not null && transfers.TryGetRobot(name, out var robot))
+        if (_transfers is not null && _transfers.TryGetRobot(name, out var robot))
         {
             return robot;
         }

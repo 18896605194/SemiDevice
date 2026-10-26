@@ -1036,7 +1036,8 @@
 
 ## 对象映射放映射组件（2026-10-14，用户："写一个 map 的组件，里面就是 Mapster 的功能，用的时候直接使用组件"）
 - **包**：Mapster 只在 xyz.Tools 引用一次，前后端经 xyz.Shared 都带上；各工程不再自己引用。客户端照旧直接 `Adapt<T>()`（同名字段，不用配）。
-- **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 构造里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局），
+- **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局；10-27 起挪到 xyz.Modules、
+  规则写在 `AddRules` 里、项目可以继承加规则，见「服务不手写 ToDto、映射组件给项目开口子」），
   用的地方取映射组件 `IMapper` 的 `Map<T>(source)`（2026-10-18 起按接口、从 IocHelper 取，组件开机时、服务构造时取一次存字段）；machine.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
   2026-10-18 起报警、EC、曲线推给界面和服务回包的 DTO 也都走它，原来服务层的 AlarmMapper、EcMapper、ChartMapper 删了。
 - **晶圆账里能映射的都映射**：片 → 存盘行、流水行、人工调整记录都走组件（流水、调整表自己的 `Id` 是雪花号，规则里 `Ignore` 掉，不拿片的 Id 填）；
@@ -1642,3 +1643,23 @@
 - **数字转文字收进 `ValueHelper.ToText`**：IoService、`AiComponent.ValueText`、IO 推送 `IoComponent.Publish` 三份 `"0.###"` 合一；IO 推送原来没指定 `InvariantCulture`，系统区域用逗号当小数点时会显示成 `1,5`，跟着修了。
 - **验证**：整个 sln Debug 0 错误（警告是原来那 9 条，加 `RecipeComponent.cs:682` 一条可能为 null 的，那个文件没动过）；IoIndexSmoke 单独编过；
   39 个冒烟全过：IoIndexSmoke 新加联锁三种原因（带 DI、电平、规则）、写不成、AO 超范围带上下限；OperationWaitSmoke 1405 项（新加 2 项：没配 Io 回 io.not_installed、IO 服务照原样带原因 / 没带值回 rpc.request_invalid）。
+
+## 服务不手写 ToDto、映射组件给项目开口子（2026-10-27，用户贴了 ProcessRecipeService 的几个 ToDto："这种不能用map吗？不是有map组件的吗？还有就是map组件的话是不是平台开一个口子可以留给项目去写呢"；听了做法："MapperComponent 加一个虚方法……这种做法是没有问题的"、"做吧"）
+- **口子**：`MapperComponent` 的规则从构造里挪进 `protected virtual void AddRules(TypeAdapterConfig config)`，构造里调一次。项目继承它重写（先调 base，只写规则，
+  别用子类自己的字段——这时子类的构造还没跑），machine.xml 的 `Mapper` 节点 `Type` 换成项目的类。跟机型继承 `Base*Module` 一个路子；没用"扫程序集找规则类"（用户不要特性 + 反射的通用框架）。
+- **挪到 xyz.Modules**（我定的，交付时说了）：配方、流程配方这些类型在模块层，组件层的映射组件看不到，规则写不了；挪上来以后组件、模块、数据库三层的类型都认得。
+  命名空间从 `xyz.Components.Components` 变成 `xyz.Modules`，machine.xml 的类型名跟着变；组件层只留 `IMapper` 接口，用法不变。
+- **换成映射组件的**：工艺配方（配方、步骤、列表项、字段表）、流程配方（配方、列表项）、人工调整记录、账上的片（`WaferLedgerSnapshot` 改成收映射组件，LoadPort、机械手开机时取一次）。
+  配了规则的：配方头和每一步的值（"名字 + 值"列表 → 字典，同名取先出现的）、字段的按 Type 分开的选项、调整记录的 `OccurredAt` → `Time`、按接口拿到的槽 `ITank` 照 `TankComponent` 的规则转（`.Include`）。
+  当场才知道的照旧由服务补：字段上限按当前晶圆尺寸（`MaxFor`）、配方头的选项 / 必不必填 / 程序算的；配方头的 `OptionsByType` 清掉（客户端见它不空就拿它顶掉 `Options`）。
+  不换的：账上一个位置（名字 + 模块 + 槽三样拼的）、账号组件的用户（要查角色表）。
+- **35021**：`xyz._35021.Module.Mapper.MapperComponent35021` 加一条 `IpaModule → IpaDto`（模块名叫 `Module`），`IpaModule.PublishState` 一行 `Map<IpaDto>(this)`。
+- **冒烟**：WaferLedgerSmoke 只认 machine.xml 有 `Mapper` 节点、装平台的映射组件（机型程序集它不装）；CdsSmoke 用 35021 的映射组件；工艺配方、流程配方、OperationWaitSmoke 开头登记映射组件。
+
+## 回包的两个方法收进 RpcResponse；字段不先接一遍（2026-10-27，用户："RpcResponseExtensions 这个类真的需要吗"、"var mapper = _mapper; 类似这种不需要再次接收一遍了呀"，两件"一起修改"）
+- **RpcResponse**：`EnsureSuccess()`、`DeserializeData<T>()` 从扩展类挪成 `RpcResponse` 自己的方法（同在 xyz.Shared，不用扩展方法），`RpcResponseExtensions.cs` 删了；
+  调用写法不变、行为不变（失败照样抛 `InvalidOperationException`）。
+- **字段直接用**：开机后不变的字段（构造、InitComponent、Bind、Attach 里赋值的，readonly 的）不再 `var x = _x;` 接一遍，全仓清了 141 处（52 个文件，脚本按字段的赋值位置分类，
+  私有字段查本类和 partial 文件、非私有的查全仓）；运行中会被改的 49 处留着（断线重连的 `_client` / `_session`、Attach / Detach 的 `_engine`、在做的动作 `_routine`、载具信息 `_info` 这类）；
+  局部变量后来又被赋值的 3 处、父类带 setter 的属性 `_driver` 6 处不动。写进了 SKILL.md 硬规矩第 7 条。
+- **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告）；39 个冒烟全过，检查数没变。

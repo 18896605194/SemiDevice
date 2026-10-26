@@ -144,18 +144,17 @@ public class SystemModule : BaseStateComponent, ISystemModule
                 return rejected;
             }
 
-            var transfers = _transfers;
-            if (transfers is null)
+            if (_transfers is null)
             {
                 return HandleResult.Fail(ErrorCodes.TransferNotInstalled);
             }
 
-            if (!transfers.IsEnable)
+            if (!_transfers.IsEnable)
             {
                 return HandleResult.Fail(ErrorCodes.TransferDisabled);
             }
 
-            transfers.StartAutoDispatch();
+            _transfers.StartAutoDispatch();
             SwitchTo(SystemAction.Auto);
             return HandleResult.Success();
         }
@@ -224,19 +223,17 @@ public class SystemModule : BaseStateComponent, ISystemModule
     /// <summary>回片要用的：搬运管理装了、开着，晶圆账装了、开着。</summary>
     private HandleResult? CheckReturnResource()
     {
-        var transfers = _transfers;
-        if (transfers is null)
+        if (_transfers is null)
         {
             return HandleResult.Fail(ErrorCodes.TransferNotInstalled);
         }
 
-        if (!transfers.IsEnable)
+        if (!_transfers.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = _ledger;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
         }
@@ -283,8 +280,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         }
 
         // 锁外发：Job 中止要等 Job 的锁，别让系统的扫描线程跟着等
-        var transfers = _transfers;
-        transfers?.Abort();
+        _transfers?.Abort();
 
         // 要先认再让 Job 中止：Job 的中止当场就给它的腔体发中止，之后就认不出那是 Job 的工艺了
         int aborted = 0;
@@ -295,7 +291,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
                 continue;
             }
 
-            bool robotInTransfer = module is ITransferRobot robot && transfers is not null && transfers.IsRobotInTransfer(robot.Name);
+            bool robotInTransfer = module is ITransferRobot robot && _transfers is not null && _transfers.IsRobotInTransfer(robot.Name);
             if (robotInTransfer || JobManager.IsJobProcess(module))
             {
                 continue;
@@ -305,10 +301,9 @@ public class SystemModule : BaseStateComponent, ISystemModule
             aborted++;
         }
 
-        var jobs = _jobs;
-        if (jobs is not null)
+        if (_jobs is not null)
         {
-            _ = jobs.AbortAllAsync();
+            _ = _jobs.AbortAllAsync();
         }
 
         LogHelper.Info(this, $"整机停止：自动派单已关，搬运已撤，Job 走中止；另有 {aborted} 个模块在做动作，已发中止");
@@ -365,8 +360,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         }
 
         // 先在锁外问 Job（要等 Job 的锁），再进自己的锁核对一遍还在 Auto
-        var jobs = _jobs;
-        int next = jobs is not null && jobs.HasRunningJob ? SystemState.AutoRunning : SystemState.AutoIdle;
+        int next = _jobs is not null && _jobs.HasRunningJob ? SystemState.AutoRunning : SystemState.AutoIdle;
         lock (RoutineGate)
         {
             int state = State;
@@ -458,15 +452,14 @@ public class SystemModule : BaseStateComponent, ISystemModule
     private bool HasModuleStatusChanged()
     {
         var last = _lastModuleStatus;
-        var modules = _modules;
-        if (last is null || last.Modules.Count != modules.Count)
+        if (last is null || last.Modules.Count != _modules.Count)
         {
             return true;
         }
 
-        for (int i = 0; i < modules.Count; i++)
+        for (int i = 0; i < _modules.Count; i++)
         {
-            var module = modules[i];
+            var module = _modules[i];
             var sent = last.Modules[i];
             if (sent.Name != module.Name || sent.State != module.State || sent.Mode != ModeOf(module))
             {

@@ -21,12 +21,11 @@ internal sealed class CustomStep : RoutineStep
 
     protected internal override bool Check()
     {
-        var check = _check;
-        if (check is null)
+        if (_check is null)
         {
             return true;
         }
 
-        return check(this);
+        return _check(this);
     }
 }

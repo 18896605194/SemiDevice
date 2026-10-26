@@ -114,13 +114,12 @@ public class CarrierComponent : ComponentBase, ICarrier
     {
         get
         {
-            var port = _port;
-            if (port is null)
+            if (_port is null)
             {
                 return false;
             }
 
-            if (port.E87Callback is null)
+            if (_port.E87Callback is null)
             {
                 return true;
             }
@@ -134,13 +133,12 @@ public class CarrierComponent : ComponentBase, ICarrier
     {
         get
         {
-            var port = _port;
-            if (port is null)
+            if (_port is null)
             {
                 throw new InvalidOperationException($"载具组件 {FullPath} 还没挂到 LoadPort 上（Attach）。");
             }
 
-            return port;
+            return _port;
         }
     }
 
@@ -253,8 +251,7 @@ public class CarrierComponent : ComponentBase, ICarrier
 
     public bool ReadId()
     {
-        var reader = _reader;
-        return reader is not null && reader.StartReadCarrierId();
+        return _reader is not null && _reader.StartReadCarrierId();
     }
 
     public void SetId(string carrierId)
@@ -431,8 +428,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     private void StartAutoRead()
     {
-        var reader = _reader;
-        if (reader is null || reader.StartReadCarrierId())
+        if (_reader is null || _reader.StartReadCarrierId())
         {
             return;
         }
@@ -458,20 +454,19 @@ public class CarrierComponent : ComponentBase, ICarrier
             return;
         }
 
-        var reader = _reader;
-        if (reader is null)
+        if (_reader is null)
         {
             _autoReadPending = false;
             return;
         }
 
-        if (reader.StartReadCarrierId())
+        if (_reader.StartReadCarrierId())
         {
             _autoReadPending = false;
             return;
         }
 
-        int timeout = reader.ReadCarrierIdTimeout;
+        int timeout = _reader.ReadCarrierIdTimeout;
         if (_autoReadWatch.ElapsedMilliseconds < timeout)
         {
             return;
@@ -586,13 +581,11 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     private void NotifyE87(Action<IE87Callback, ILoadPortAccess> notification)
     {
-        var port = _port;
-        var enqueue = _enqueue;
-        if (port is null || enqueue is null)
+        if (_port is null || _enqueue is null)
         {
             return;
         }
 
-        enqueue(callback => notification(callback, port));
+        _enqueue(callback => notification(callback, _port));
     }
 }

@@ -10,6 +10,7 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
 using xyz._35021.Module.Cds;
+using xyz._35021.Module.Mapper;
 using xyz._35021.Shared.Dtos;
 
 // CDS 冒烟：槽（Tank）照 machine.xml 认液位 DI 信号（LL / L / H / HH / Overfill，没挂 = 没有这个点）、触发值照配的电平、
@@ -445,12 +446,12 @@ try
     ipa.Bind();
     ipa.Tick();
     Check(received.Count == 0, "没装映射组件：不推（开机时映射组件是必配的）");
-    var mapper = new MapperComponent();
+    var mapper = new MapperComponent35021();
     SmokeIoc.Use<IMapper>(mapper);
     ipa.Bind();
     ipa.Tick();
     Check(received.Count == 1 && received[0].Module == "IPA" && received[0].State == ModuleState.NotInit && received[0].Tanks.Count == 1,
-        "第一拍：推一条，带 IPA 的名字、状态和下面的槽");
+        "第一拍：推一条，带 IPA 的名字、状态和下面的槽（整份 IpaDto 走 35021 映射组件自己加的规则，槽按接口拿到的也照槽的规则转）");
     var first = received[0].Tanks[0];
     Check(first.Path == "CDS.IPA.Tank16" && first.Level == (int)TankLevel.L && first.State == (int)TankState.Idle,
         "槽带全路径、液位、状态");

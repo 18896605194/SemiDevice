@@ -270,8 +270,7 @@ public class TankComponent : ComponentBase, ITank
                 return rejected;
             }
 
-            var fill = _fill;
-            if (fill is null)
+            if (_fill is null)
             {
                 return HandleResult.Fail(ErrorCodes.TankValveGroupMissing, FullPath, "Fill");
             }
@@ -297,7 +296,7 @@ public class TankComponent : ComponentBase, ITank
                 return HandleResult.Success();
             }
 
-            return Begin(TankState.Filling, fill, "Fill");
+            return Begin(TankState.Filling, _fill, "Fill");
         }
     }
 
@@ -314,8 +313,7 @@ public class TankComponent : ComponentBase, ITank
                 return rejected;
             }
 
-            var drain = _drain;
-            if (drain is null)
+            if (_drain is null)
             {
                 return HandleResult.Fail(ErrorCodes.TankValveGroupMissing, FullPath, "Drain");
             }
@@ -325,7 +323,7 @@ public class TankComponent : ComponentBase, ITank
                 return HandleResult.Fail(ErrorCodes.TankSignalMissing, FullPath, "LL");
             }
 
-            return Begin(TankState.Draining, drain, "Drain");
+            return Begin(TankState.Draining, _drain, "Drain");
         }
     }
 
@@ -342,8 +340,7 @@ public class TankComponent : ComponentBase, ITank
                 return rejected;
             }
 
-            var drain = _drain;
-            if (drain is null)
+            if (_drain is null)
             {
                 return HandleResult.Fail(ErrorCodes.TankValveGroupMissing, FullPath, "Drain");
             }
@@ -363,7 +360,7 @@ public class TankComponent : ComponentBase, ITank
                 return HandleResult.Fail(ErrorCodes.TankSignalMissing, FullPath, FillTo);
             }
 
-            return Begin(TankState.Exchanging, drain, "Drain");
+            return Begin(TankState.Exchanging, _drain, "Drain");
         }
     }
 
@@ -380,8 +377,7 @@ public class TankComponent : ComponentBase, ITank
                 return rejected;
             }
 
-            var supply = _supply;
-            if (supply is null)
+            if (_supply is null)
             {
                 return HandleResult.Fail(ErrorCodes.TankValveGroupMissing, FullPath, "Supply");
             }
@@ -391,7 +387,7 @@ public class TankComponent : ComponentBase, ITank
                 return HandleResult.Fail(ErrorCodes.TankNotReady, FullPath);
             }
 
-            return Begin(TankState.Supplying, supply, "Supply");
+            return Begin(TankState.Supplying, _supply, "Supply");
         }
     }
 
@@ -607,8 +603,7 @@ public class TankComponent : ComponentBase, ITank
         }
 
         // 换液：排完了接着补
-        var fill = _fill;
-        if (fill is null || !fill.Open())
+        if (_fill is null || !_fill.Open())
         {
             CloseAll();
             SetState(TankState.Idle, "换液：补液阀开不了");

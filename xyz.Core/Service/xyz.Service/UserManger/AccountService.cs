@@ -19,8 +19,7 @@ public class AccountService : BaseService, IAccountService
 
     public Task<RpcResponse> LoginAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -30,25 +29,23 @@ public class AccountService : BaseService, IAccountService
             return InvalidRequest();
         }
 
-        return ReplyData(account.Login(userName, password));
+        return ReplyData(_account.Login(userName, password));
     }
 
     public Task<RpcResponse> GetSessionAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         string userName = request.Get(RpcParams.UserName, string.Empty);
-        return ReplyData(account.GetSession(userName));
+        return ReplyData(_account.GetSession(userName));
     }
 
     public Task<RpcResponse> LogoutAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -59,14 +56,19 @@ public class AccountService : BaseService, IAccountService
         }
 
         bool isIdle = request.Get(RpcParams.IsIdle, false);
-        account.NoteLogout(userName, isIdle);
+        _account.NoteLogout(userName, isIdle);
         return Task.FromResult(RpcResponse.Ok());
     }
 
+    /// <summary>
+    /// 修改密码
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> ChangePasswordAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -78,6 +80,6 @@ public class AccountService : BaseService, IAccountService
             return InvalidRequest();
         }
 
-        return Reply(account.ChangePassword(userName, oldPassword, newPassword));
+        return Reply(_account.ChangePassword(userName, oldPassword, newPassword));
     }
 }

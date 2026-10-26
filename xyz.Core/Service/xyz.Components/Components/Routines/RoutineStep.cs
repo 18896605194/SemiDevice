@@ -27,13 +27,12 @@ public abstract class RoutineStep
     {
         get
         {
-            var routine = _routine;
-            if (routine is null)
+            if (_routine is null)
             {
                 throw new InvalidOperationException($"步骤 {Name} 还没加进动作");
             }
 
-            return routine;
+            return _routine;
         }
     }
 

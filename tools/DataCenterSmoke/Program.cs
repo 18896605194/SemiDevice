@@ -19,6 +19,7 @@ using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
+using xyz.Modules;
 using xyz.Service;
 using xyz.Service.Alarms;
 using xyz.Service.Charts;

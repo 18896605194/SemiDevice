@@ -17,11 +17,13 @@ public class SequenceService : BaseService, ISequenceService
 {
     private readonly ISequenceComponent? _sequence;
     private readonly IE30RecipeComponent? _e30Recipe;
+    private readonly IMapper _mapper;
 
     public SequenceService()
     {
         _sequence = IocHelper.GetService<ISequenceComponent>();
         _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
@@ -34,7 +36,7 @@ public class SequenceService : BaseService, ISequenceService
         var dto = new SequenceListDto
         {
             Capacity = _sequence.Capacity,
-            Items = _sequence.List().Select(item => new SequenceSummaryDto { Index = item.Index, Name = item.Name }).ToList(),
+            Items = _mapper.Map<List<SequenceSummaryDto>>(_sequence.List()),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
@@ -144,7 +146,7 @@ public class SequenceService : BaseService, ISequenceService
     /// <summary>
     /// 库的结果翻成回包：成功且带回了流程配方的转成 DTO 放进 Data，其余照通用的 Reply
     /// </summary>
-    private static Task<RpcResponse> ReplySequence(HandleResult result)
+    private Task<RpcResponse> ReplySequence(HandleResult result)
     {
         var sequence = result.Result as SequenceData;
         if (!result.IsSuccess || sequence is null)
@@ -152,28 +154,7 @@ public class SequenceService : BaseService, ISequenceService
             return Reply(result);
         }
 
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(sequence))));
-    }
-
-    private static SequenceDto ToDto(SequenceData data)
-    {
-        return new SequenceDto
-        {
-            Index = data.Index,
-            Name = data.Name,
-            Description = data.Description,
-            CreatedBy = data.CreatedBy,
-            CreatedAt = data.CreatedAt,
-            ModifiedBy = data.ModifiedBy,
-            ModifiedAt = data.ModifiedAt,
-            Revision = data.Revision,
-            Steps = data.Steps.Select(step => new SequenceStepDto
-            {
-                Group = step.Group,
-                Stations = step.Stations.ToList(),
-                Recipe = step.Recipe,
-            }).ToList(),
-        };
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_mapper.Map<SequenceDto>(sequence))));
     }
 
     /// <summary>

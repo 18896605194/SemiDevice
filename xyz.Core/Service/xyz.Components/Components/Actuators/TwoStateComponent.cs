@@ -102,8 +102,7 @@ public abstract class TwoStateComponent : ComponentBase
     {
         get
         {
-            var io = _io;
-            if (io is null || !io.TryReadDo(DoOpenIndex, out bool open) || !io.TryReadDo(DoCloseIndex, out bool close))
+            if (_io is null || !_io.TryReadDo(DoOpenIndex, out bool open) || !_io.TryReadDo(DoCloseIndex, out bool close))
             {
                 return TwoStatePosition.Unknown;
             }
@@ -153,14 +152,13 @@ public abstract class TwoStateComponent : ComponentBase
             return side.IsActive == true && (opposite is null || opposite.IsActive == false);
         }
 
-        var io = _io;
-        if (io is null)
+        if (_io is null)
         {
             return false;
         }
 
-        return io.TryReadDo(coil, out bool on) && on
-            && io.TryReadDo(oppositeCoil, out bool oppositeOn) && !oppositeOn;
+        return _io.TryReadDo(coil, out bool on) && on
+            && _io.TryReadDo(oppositeCoil, out bool oppositeOn) && !oppositeOn;
     }
 
     #endregion
@@ -179,7 +177,6 @@ public abstract class TwoStateComponent : ComponentBase
 
     private bool Move(bool opening)
     {
-        var io = _io;
         int coil = DoCloseIndex;
         int oppositeCoil = DoOpenIndex;
         var feedback = _closed;
@@ -190,14 +187,14 @@ public abstract class TwoStateComponent : ComponentBase
             feedback = _opened;
         }
 
-        if (io is null || coil < 0 || oppositeCoil < 0)
+        if (_io is null || coil < 0 || oppositeCoil < 0)
         {
             return false;
         }
 
         lock (_actionGate)
         {
-            if (!io.WriteDo(oppositeCoil, false).IsSuccess || !io.WriteDo(coil, true).IsSuccess)
+            if (!_io.WriteDo(oppositeCoil, false).IsSuccess || !_io.WriteDo(coil, true).IsSuccess)
             {
                 return false;
             }

@@ -9,7 +9,7 @@ using xyz.Tools;
 namespace xyz.Service.UserManger;
 
 /// <summary>
-/// 角色管理 gRPC 服务：转给账号组件，只翻结果
+/// 角色管理
 /// </summary>
 public class RoleService : BaseService, IRoleService
 {
@@ -22,19 +22,17 @@ public class RoleService : BaseService, IRoleService
 
     public Task<RpcResponse> GetRolesAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
-        return ReplyData(account.GetRoles());
+        return ReplyData(_account.GetRoles());
     }
 
     public Task<RpcResponse> CreateRoleAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -45,13 +43,12 @@ public class RoleService : BaseService, IRoleService
         }
 
         string description = request.Get(RpcParams.Description, string.Empty);
-        return ReplyData(account.CreateRole(name, description));
+        return ReplyData(_account.CreateRole(name, description));
     }
 
     public Task<RpcResponse> UpdateRoleAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -63,13 +60,12 @@ public class RoleService : BaseService, IRoleService
         }
 
         string description = request.Get(RpcParams.Description, string.Empty);
-        return Reply(account.UpdateRole(id, name, description));
+        return Reply(_account.UpdateRole(id, name, description));
     }
 
     public Task<RpcResponse> DeleteRoleAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -79,13 +75,12 @@ public class RoleService : BaseService, IRoleService
             return InvalidRequest();
         }
 
-        return Reply(account.DeleteRole(id));
+        return Reply(_account.DeleteRole(id));
     }
 
     public Task<RpcResponse> GetPermissionsAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -95,13 +90,12 @@ public class RoleService : BaseService, IRoleService
             return InvalidRequest();
         }
 
-        return ReplyData(account.GetPermissions(id));
+        return ReplyData(_account.GetPermissions(id));
     }
 
     public Task<RpcResponse> SavePermissionsAsync(RpcRequest request, CallContext context = default)
     {
-        var account = _account;
-        if (account is null)
+        if (_account is null)
         {
             return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
@@ -112,6 +106,6 @@ public class RoleService : BaseService, IRoleService
             return InvalidRequest();
         }
 
-        return Reply(account.SavePermissions(roleId, items));
+        return Reply(_account.SavePermissions(roleId, items));
     }
 }

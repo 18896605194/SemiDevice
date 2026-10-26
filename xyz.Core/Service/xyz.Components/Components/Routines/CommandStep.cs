@@ -50,8 +50,7 @@ internal sealed class CommandStep : RoutineStep
     protected internal override void Run()
     {
         var command = _create();
-        var driver = _driver;
-        if (driver is null || !driver.Send(command))
+        if (_driver is null || !_driver.Send(command))
         {
             Fail(ErrorCodes.CommandRejected, "指令被拒绝（没连上或同一条还在途）", Routine.Name);
             return;

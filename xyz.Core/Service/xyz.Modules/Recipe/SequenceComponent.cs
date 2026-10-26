@@ -331,14 +331,13 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     public HandleResult Save(int index, int revision, string description, IReadOnlyList<SequenceStep> steps, string operatorName)
     {
         // 工艺配方要在工艺配方库里（没装库就不查）。库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = _recipes;
         HandleResult result;
         lock (_gate)
         {
             var groups = _groups;
             result = CheckExists(index)
                 ?? CheckRevision(index, revision)
-                ?? CheckSteps(steps, groups, recipes)
+                ?? CheckSteps(steps, groups, _recipes)
                 ?? Store(Touch(_items[index], operatorName, next =>
                 {
                     next.Description = description.Trim();
@@ -418,7 +417,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
 
         // 工艺配方库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = _recipes;
         HandleResult result;
         int index;
         string reported;
@@ -437,7 +435,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
                 var now = DateTime.Now;
                 result = (index == 0 ? HandleResult.Fail(ErrorCodes.SequenceFull, Text(Capacity)) : null)
                     ?? CheckName(name, index)
-                    ?? CheckSteps(body.Steps, groups, recipes)
+                    ?? CheckSteps(body.Steps, groups, _recipes)
                     ?? Store(new SequenceData
                     {
                         Index = index,
@@ -459,7 +457,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
                 index = existing.Index;
                 reported = existing.Name;
-                result = CheckSteps(body.Steps, groups, recipes) ?? Store(Touch(existing, operatorName, next =>
+                result = CheckSteps(body.Steps, groups, _recipes) ?? Store(Touch(existing, operatorName, next =>
                 {
                     next.Description = body.Description.Trim();
                     next.Steps = Normalize(body.Steps, groups);

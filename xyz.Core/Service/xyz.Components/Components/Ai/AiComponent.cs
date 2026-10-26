@@ -199,8 +199,7 @@ public class AiComponent : ComponentBase, IAi
         }
 
         var client = _client;
-        var slots = _slots;
-        if (client is null || slots is null)
+        if (client is null || _slots is null)
         {
             return HandleResult<AiAnswer>.Fail(ErrorCodes.AiFailed, "AI 组件还没初始化");
         }
@@ -212,7 +211,7 @@ public class AiComponent : ComponentBase, IAi
         bool entered = false;
         try
         {
-            await slots.WaitAsync(limit.Token);
+            await _slots.WaitAsync(limit.Token);
             entered = true;
 
             // 查数据曲线要读库，放线程池
@@ -259,7 +258,7 @@ public class AiComponent : ComponentBase, IAi
         {
             if (entered)
             {
-                slots.Release();
+                _slots.Release();
             }
         }
     }
@@ -269,15 +268,14 @@ public class AiComponent : ComponentBase, IAi
     /// </summary>
     private AlarmItem? FindAlarm(string sourcePath, string alarmCode)
     {
-        var alarms = _alarms;
-        if (alarms is null)
+        if (_alarms is null)
         {
             return null;
         }
 
         string source = sourcePath.Trim();
         string code = alarmCode.Trim();
-        return alarms.ActiveAlarms.FirstOrDefault(item =>
+        return _alarms.ActiveAlarms.FirstOrDefault(item =>
             string.Equals(item.SourcePath, source, StringComparison.OrdinalIgnoreCase)
             && string.Equals(item.AlarmCode, code, StringComparison.Ordinal));
     }
@@ -356,15 +354,14 @@ public class AiComponent : ComponentBase, IAi
     /// <returns></returns>
     private IReadOnlyList<string> AppendSignals(StringBuilder text, AlarmItem alarm, CancellationToken cancellationToken)
     {
-        var chart = _chart;
         int count = SignalCount;
-        if (chart is null || count <= 0)
+        if (_chart is null || count <= 0)
         {
             return [];
         }
 
         string prefix = alarm.SourcePath.Replace(".", DataSignal.Separator);
-        var related = chart.Signals
+        var related = _chart.Signals
             .Where(signal => string.Equals(signal.Name, prefix, StringComparison.OrdinalIgnoreCase)
                 || signal.Name.StartsWith(prefix + DataSignal.Separator, StringComparison.OrdinalIgnoreCase))
             .Take(count)
@@ -390,7 +387,7 @@ public class AiComponent : ComponentBase, IAi
         {
             try
             {
-                result = chart.Query(related.Select(signal => signal.Name).ToList(), start, end, cancellationToken);
+                result = _chart.Query(related.Select(signal => signal.Name).ToList(), start, end, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -402,7 +399,7 @@ public class AiComponent : ComponentBase, IAi
             }
         }
 
-        text.AppendLine($"【报警前后的信号】（{start.ToString(ClockFormat, CultureInfo.InvariantCulture)} ～ {end.ToString(ClockFormat, CultureInfo.InvariantCulture)}，每 {chart.SampleIntervalMs} ms 采一次；数字量 1 = 通 / 触发）{note}");
+        text.AppendLine($"【报警前后的信号】（{start.ToString(ClockFormat, CultureInfo.InvariantCulture)} ～ {end.ToString(ClockFormat, CultureInfo.InvariantCulture)}，每 {_chart.SampleIntervalMs} ms 采一次；数字量 1 = 通 / 触发）{note}");
         long raisedMs = alarm.RaisedAt.ToUnixTimeMilliseconds();
         foreach (var signal in related)
         {
@@ -542,14 +539,13 @@ public class AiComponent : ComponentBase, IAi
     /// </summary>
     private int AppendLogs(StringBuilder text)
     {
-        var logs = _logs;
         int count = LogCount;
-        if (logs is null || count <= 0)
+        if (_logs is null || count <= 0)
         {
             return 0;
         }
 
-        var recent = logs.Recent();
+        var recent = _logs.Recent();
         var picked = recent.Skip(Math.Max(0, recent.Count - count)).ToList();
         if (picked.Count == 0)
         {

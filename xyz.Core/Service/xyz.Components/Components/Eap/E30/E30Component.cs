@@ -356,16 +356,14 @@ public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Se
     /// </summary>
     public void Detach()
     {
-        var alarms = _alarms;
-        if (alarms is not null)
+        if (_alarms is not null)
         {
-            alarms.AlarmChanged -= OnAlarmChanged;
+            _alarms.AlarmChanged -= OnAlarmChanged;
         }
 
-        var ec = _ec;
-        if (ec is not null)
+        if (_ec is not null)
         {
-            ec.ValueChanged -= OnConstantChanged;
+            _ec.ValueChanged -= OnConstantChanged;
         }
 
         _engine?.Stop();
@@ -383,8 +381,7 @@ public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Se
     public void Report(ComponentBase source, string code, params GemData[] data)
     {
         ArgumentNullException.ThrowIfNull(source);
-        var collectors = _collectors;
-        if (_engine is null || collectors is null)
+        if (_engine is null || _collectors is null)
         {
             return;
         }
@@ -392,14 +389,14 @@ public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Se
         var values = new Dictionary<uint, SecsItem>();
         foreach (var item in data)
         {
-            int dvid = collectors.Dv.DvidOf($"{source.FullPath}.{item.Name}");
+            int dvid = _collectors.Dv.DvidOf($"{source.FullPath}.{item.Name}");
             if (dvid == 0)
             {
                 LogHelper.Warn(this, $"{source.FullPath} 报事件 {code} 带的 {item.Name} 没有 DV 编号，不带");
                 continue;
             }
 
-            values[(uint)dvid] = GemValue.From(item.Value, FormatOf(collectors, dvid));
+            values[(uint)dvid] = GemValue.From(item.Value, FormatOf(_collectors, dvid));
         }
 
         ReportEvent($"{source.FullPath}.{code}", values);
@@ -419,13 +416,12 @@ public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Se
     private void ReportEvent(string eventName, IReadOnlyDictionary<uint, SecsItem> values)
     {
         var engine = _engine;
-        var collectors = _collectors;
-        if (engine is null || collectors is null)
+        if (engine is null || _collectors is null)
         {
             return;
         }
 
-        int ceid = collectors.Event.CeidOf(eventName);
+        int ceid = _collectors.Event.CeidOf(eventName);
         if (ceid == 0)
         {
             LogHelper.Warn(this, $"事件 {eventName} 没有 CEID（编号表不可用或没声明），不报");
@@ -462,14 +458,13 @@ public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Se
         try
         {
             var engine = _engine;
-            var collectors = _collectors;
-            if (engine is null || collectors is null)
+            if (engine is null || _collectors is null)
             {
                 return;
             }
 
             string name = $"{alarm.SourcePath}.{alarm.AlarmCode}";
-            var definition = collectors.Alarm.Definitions
+            var definition = _collectors.Alarm.Definitions
                 .FirstOrDefault(row => row.Enabled && string.Equals(row.Name, name, StringComparison.OrdinalIgnoreCase));
             if (definition is null)
             {
@@ -479,7 +474,7 @@ public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Se
 
             engine.ReportAlarm((uint)definition.Id, alarm.IsActive, (byte)alarm.Category, definition.Name);
 
-            var payload = collectors.Dv.AlarmPayloadDvids;
+            var payload = _collectors.Dv.AlarmPayloadDvids;
             var values = new Dictionary<uint, SecsItem>();
             if (payload.Count == DvCollector.AlarmPayload.Count)
             {
@@ -494,7 +489,7 @@ public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Se
                 ];
                 for (int index = 0; index < payload.Count; index++)
                 {
-                    values[(uint)payload[index]] = GemValue.From(items[index], FormatOf(collectors, payload[index]));
+                    values[(uint)payload[index]] = GemValue.From(items[index], FormatOf(_collectors, payload[index]));
                 }
             }
 

@@ -115,8 +115,7 @@ public partial class IoComponent
                 continue; // 不按规则顺序交替写相反值；命令入口仍检查全部规则。
             }
 
-            var plc = _plc;
-            if (plc is null || !plc.IsConnected || Do.Find(index) is null)
+            if (_plc is null || !_plc.IsConnected || Do.Find(index) is null)
             {
                 _forcedDo.Remove(index);
                 ReportInterlockError(index, $"DO{index} 联锁强制失败：PLC 未连接或 DO 点不存在");
@@ -127,7 +126,7 @@ public partial class IoComponent
             if (!_forcedDo.Contains(index) || !TryReadDo(index, out bool actual) || actual != forced)
             {
                 // 已检查所有规则，直接走 PLC，避免强制命令递归进入业务拦截入口。
-                if (!plc.WriteDo(index, forced))
+                if (!_plc.WriteDo(index, forced))
                 {
                     _forcedDo.Remove(index);
                     ReportInterlockError(index, $"DO{index} 联锁强制为 {BoolText(forced)} 失败，将在后续扫描重试");

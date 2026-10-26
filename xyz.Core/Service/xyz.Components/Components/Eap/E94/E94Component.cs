@@ -142,10 +142,9 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component, IE94Sett
     /// </summary>
     public void Detach()
     {
-        var jobs = _jobs;
-        if (jobs is not null && ReferenceEquals(jobs.E94Callback, this))
+        if (_jobs is not null && ReferenceEquals(_jobs.E94Callback, this))
         {
-            jobs.E94Callback = null;
+            _jobs.E94Callback = null;
         }
 
         _engine = null;

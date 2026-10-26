@@ -3,7 +3,7 @@
 namespace xyz.Client.Common.Session;
 
 /// <summary>
-/// 当前会话：谁在用、什么角色、每一项权限几档；在界面线程上改，变了发通知
+/// 当前会话：谁在用、什么角色
 /// </summary>
 public static class ClientSession
 {
@@ -40,7 +40,7 @@ public static class ClientSession
     public static RoleKind RoleKind => _current.RoleKind;
 
     /// <summary>
-    /// 当前角色名（库里存的；内置角色界面按种类取语言包显示）
+    /// 当前角色名
     /// </summary>
     public static string RoleName => _current.RoleName;
 

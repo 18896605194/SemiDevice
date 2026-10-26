@@ -21,21 +21,15 @@ using xyz.Shared.Services;
 
 namespace xyz.Client;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
 public partial class App : Application
 {
-    /// <summary>
-    /// 每个加载步骤的停留时长，让进度条看得出来在走。
-    /// </summary>
     private const int StepDelayMs = 180;
 
     /// <summary>
     /// 等后端最多多久。后端要先装配、连完设备才开始监听端口（设备不在线时 TCP 连接要等系统超时），
     /// VS 里前后端一起启动时客户端往往先起来；过了这个时间还没等到，就按后端不在线处理。
     /// </summary>
-    private const int BackendWaitSeconds = 30;
+    private const int BackendWaitSeconds = 60;
 
     /// <summary>
     /// 后端还没起来时，每隔多久再问一次。
