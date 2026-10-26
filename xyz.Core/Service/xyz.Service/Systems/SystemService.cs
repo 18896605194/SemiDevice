@@ -13,7 +13,7 @@ namespace xyz.Service.Systems;
 /// 顺带把装了哪些模块（其中哪些是腔体、LoadPort、机械手）告诉客户端——按模块分的界面（IO、腔体手动、主界面的 LoadPort 页签和调度图）
 /// 照它生成，machine.xml 里没配的不出现。
 /// </summary>
-public class SystemService : ISystemService
+public class SystemService : BaseService, ISystemService
 {
     private readonly ISystemModule? _system;
 

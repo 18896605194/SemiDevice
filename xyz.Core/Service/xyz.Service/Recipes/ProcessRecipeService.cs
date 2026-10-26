@@ -270,6 +270,6 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return null;
         }
 
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeLockedByHost, []));
+        return Fail(ErrorCodes.RecipeLockedByHost);
     }
 }

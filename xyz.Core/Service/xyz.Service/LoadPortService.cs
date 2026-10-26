@@ -161,9 +161,12 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return Task.FromResult(port._carrier.ReadId()
-            ? RpcResponse.Ok()
-            : RpcResponse.Fail(ErrorCodes.ReadCarrierIdRejected, [module]));
+        if (!port._carrier.ReadId())
+        {
+            return Fail(ErrorCodes.ReadCarrierIdRejected, module);
+        }
+
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     public Task<RpcResponse> GetStateAsync(RpcRequest request)

@@ -16,7 +16,7 @@ namespace xyz.Service.Systems;
 /// EC 设置页列参数、改值，通用输入框按 EcKey 取范围，都靠它。
 /// 每次改值都记一条日志：EC 是现场调出来的参数（速度、超时、标定位置），事后要查得到什么时候把哪一项从多少改成了多少。
 /// </summary>
-public class EcService : IEcService
+public class EcService : BaseService, IEcService
 {
     private readonly IEc? _ec;
 
@@ -40,7 +40,7 @@ public class EcService : IEcService
     {
         if (_ec is null)
         {
-            return Fail(ErrorCodes.EcNotInstalled);
+            return NotInstalled(ErrorCodes.EcNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.Key, out var key)
@@ -82,19 +82,6 @@ public class EcService : IEcService
         }
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_ec.CreateDto(path, item))));
-    }
-
-    /// <summary>
-    /// 请求参数不对回包（rpc.request_invalid）
-    /// </summary>
-    private static Task<RpcResponse> InvalidRequest()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
-    }
-
-    private static Task<RpcResponse> Fail(string code, params string[] args)
-    {
-        return Task.FromResult(RpcResponse.Fail(code, args));
     }
 
     /// <summary>

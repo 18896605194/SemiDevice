@@ -92,7 +92,7 @@ public class ChamberService : BaseService, IChamberService
         recipe = recipe.Trim();
         if (recipe.Length == 0)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeRequired, [module]));
+            return Fail(ErrorCodes.RecipeRequired, module);
         }
 
         // 配方要在工艺配方库里：被删了、改名了的配方不让起（没装库只有名字，腔体会回拿不到配方步骤）；
@@ -103,7 +103,7 @@ public class ChamberService : BaseService, IChamberService
             snapshot = _recipes.Find(recipe);
             if (snapshot is null)
             {
-                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeNotFound, [module, recipe]));
+                return Fail(ErrorCodes.ChamberRecipeNotFound, module, recipe);
             }
         }
 
@@ -114,7 +114,7 @@ public class ChamberService : BaseService, IChamberService
             string? owner = _jobs?.OwnerOf(wafer.Id);
             if (owner is not null)
             {
-                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberWaferOwned, [module, wafer.WaferId, owner]));
+                return Fail(ErrorCodes.ChamberWaferOwned, module, wafer.WaferId, owner);
             }
         }
 
@@ -215,13 +215,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        var started = chamber.AxisJog(axis, speed);
-        if (!started.IsSuccess)
-        {
-            return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
-        }
-
-        return Task.FromResult(RpcResponse.Ok());
+        return Reply(chamber.AxisJog(axis, speed));
     }
 
     /// <summary>
@@ -241,13 +235,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        var sent = chamber.AxisStop(device);
-        if (!sent.IsSuccess)
-        {
-            return Task.FromResult(RpcResponse.Fail(sent.ErrorMessage, [.. sent.Args]));
-        }
-
-        return Task.FromResult(RpcResponse.Ok());
+        return Reply(chamber.AxisStop(device));
     }
 
     /// <summary>

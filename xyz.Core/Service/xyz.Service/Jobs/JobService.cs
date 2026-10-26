@@ -39,7 +39,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
+            return NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         string json = JsonHelper.Serialize(_jobs.Snapshot);
@@ -53,7 +53,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
+            return NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<DateTime>(RpcParams.Start, out var start)
@@ -105,7 +105,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
+            return NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.ControlJob, out var text))
@@ -115,7 +115,7 @@ public class JobService : BaseService, IJobService
 
         if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long controlJob))
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotFound, [text]));
+            return Fail(ErrorCodes.JobNotFound, text);
         }
 
         var jobs = _jobs;
@@ -158,7 +158,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
@@ -177,13 +177,7 @@ public class JobService : BaseService, IJobService
             sequence,
             lotId).ConfigureAwait(false);
 
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     /// <summary>
@@ -196,7 +190,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
@@ -213,13 +207,7 @@ public class JobService : BaseService, IJobService
             name,
             lotId).ConfigureAwait(false);
 
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     /// <summary>
@@ -232,7 +220,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
@@ -249,13 +237,7 @@ public class JobService : BaseService, IJobService
             name,
             lotId).ConfigureAwait(false);
 
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     /// <summary>
@@ -268,7 +250,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
@@ -331,7 +313,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.JobId, out var jobId))
@@ -340,13 +322,7 @@ public class JobService : BaseService, IJobService
         }
 
         var result = await _jobs.CancelProcessJobAsync(jobId).ConfigureAwait(false);
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     /// <summary>
@@ -359,7 +335,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.JobId, out var jobId)
@@ -379,20 +355,14 @@ public class JobService : BaseService, IJobService
         }
 
         var result = await _jobs.ExecuteControlJobCommandAsync(id, command, action).ConfigureAwait(false);
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     public async Task<RpcResponse> ProcessJobCommandAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.JobId, out var jobId)
@@ -410,13 +380,7 @@ public class JobService : BaseService, IJobService
         }
 
         var result = await _jobs.ExecuteProcessJobCommandAsync(id, command).ConfigureAwait(false);
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     #endregion
@@ -427,7 +391,7 @@ public class JobService : BaseService, IJobService
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.ProcessJob, out var processJob)
@@ -438,20 +402,14 @@ public class JobService : BaseService, IJobService
         }
 
         var result = await _jobs.RetryTaskAsync(processJob, slot, task).ConfigureAwait(false);
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     public async Task<RpcResponse> CompleteTaskAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
-            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+            return await NotInstalled(ErrorCodes.JobNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.ProcessJob, out var processJob)
@@ -462,13 +420,7 @@ public class JobService : BaseService, IJobService
         }
 
         var result = await _jobs.CompleteTaskAsync(processJob, slot, task).ConfigureAwait(false);
-        if (result.IsSuccess)
-        {
-            string json = JsonHelper.Serialize(result.Result);
-            return RpcResponse.Ok(json);
-        }
-
-        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+        return await ReplyData(result);
     }
 
     #endregion
@@ -499,7 +451,9 @@ public class JobService : BaseService, IJobService
             .ToList();
     }
 
-    /// <summary>建 Job 中途被拒：已经建好的 PJ 撤掉（还在排队的 PJ 收到取消就删，E40 #18）。</summary>
+    /// <summary>
+    /// 建 Job 中途被拒：已经建好的 PJ 撤掉（还在排队的 PJ 收到取消就删，E40 #18）。
+    /// </summary>
     private async Task CancelAsync(IJobManager jobs, IEnumerable<string> processJobs)
     {
         foreach (string id in processJobs)

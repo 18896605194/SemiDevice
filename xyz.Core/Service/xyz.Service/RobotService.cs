@@ -135,7 +135,7 @@ public class RobotService : BaseService, IRobotService
     {
         if (_transfers is null)
         {
-            return RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []);
+            return await NotInstalled(ErrorCodes.TransferNotInstalled);
         }
 
         var started = _transfers.Start(request);

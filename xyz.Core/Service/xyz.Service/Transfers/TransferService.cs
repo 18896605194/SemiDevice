@@ -25,7 +25,7 @@ public class TransferService : BaseService, ITransferService
     {
         if (_transfers is null)
         {
-            return RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []);
+            return await NotInstalled(ErrorCodes.TransferNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.Source, out var source)
@@ -82,7 +82,7 @@ public class TransferService : BaseService, ITransferService
     {
         if (_transfers is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
+            return NotInstalled(ErrorCodes.TransferNotInstalled);
         }
 
         if (!request.TryGet<Guid>(RpcParams.WaferId, out var waferId))
@@ -90,8 +90,11 @@ public class TransferService : BaseService, ITransferService
             return InvalidRequest();
         }
 
-        return Task.FromResult(_transfers.ReleaseHold(waferId)
-            ? RpcResponse.Ok()
-            : RpcResponse.Fail(ErrorCodes.TransferNotHeld, [waferId.ToString()]));
+        if (!_transfers.ReleaseHold(waferId))
+        {
+            return Fail(ErrorCodes.TransferNotHeld, waferId.ToString());
+        }
+
+        return Task.FromResult(RpcResponse.Ok());
     }
 }

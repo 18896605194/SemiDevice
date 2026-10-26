@@ -26,7 +26,7 @@ public interface IAccountService
     Task<RpcResponse> LogoutAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    ///修改密码
+    /// 修改密码
     /// </summary>
     [OperationContract]
     Task<RpcResponse> ChangePasswordAsync(RpcRequest request, CallContext context = default);

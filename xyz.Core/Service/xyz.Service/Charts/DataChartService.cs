@@ -13,7 +13,7 @@ namespace xyz.Service.Charts;
 /// <summary>
 /// 数据曲线服务
 /// </summary>
-public class DataChartService : IDataChartService
+public class DataChartService : BaseService, IDataChartService
 {
     private readonly IDataChart? _chart;
 
@@ -35,7 +35,7 @@ public class DataChartService : IDataChartService
     {
         if (_chart is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.DataChartNotInstalled, []));
+            return NotInstalled(ErrorCodes.DataChartNotInstalled);
         }
 
         var result = new DataChartSignalsDto

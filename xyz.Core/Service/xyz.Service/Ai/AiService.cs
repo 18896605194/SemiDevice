@@ -12,7 +12,7 @@ namespace xyz.Service.Ai;
 /// <summary>
 /// AI 助手服务
 /// </summary>
-public class AiService :BaseService, IAiService
+public class AiService : BaseService, IAiService
 {
     private readonly IAi? _ai;
 
@@ -32,7 +32,7 @@ public class AiService :BaseService, IAiService
         var ai = _ai;
         if (ai is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.AiNotInstalled, []));
+            return NotInstalled(ErrorCodes.AiNotInstalled);
         }
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(new AiStatusDto { Model = ai.Model })));
@@ -46,7 +46,7 @@ public class AiService :BaseService, IAiService
         var ai = _ai;
         if (ai is null)
         {
-            return RpcResponse.Fail(ErrorCodes.AiNotInstalled, []);
+            return await NotInstalled(ErrorCodes.AiNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.Source, out var source)

@@ -186,6 +186,6 @@ public class SequenceService : BaseService, ISequenceService
             return null;
         }
 
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeLockedByHost, []));
+        return Fail(ErrorCodes.RecipeLockedByHost);
     }
 }

@@ -22,11 +22,19 @@ public abstract class BaseService
     }
 
     /// <summary>
+    /// 失败回包：错误码 + 参数（顺序见错误码的注释），能直接回 Task 的地方都用它
+    /// </summary>
+    protected static Task<RpcResponse> Fail(string code, params string[] args)
+    {
+        return Task.FromResult(RpcResponse.Fail(code, args));
+    }
+
+    /// <summary>
     /// 模块不存在回包（module.not_found）。
     /// </summary>
     protected static Task<RpcResponse> ModuleNotFound(string module)
     {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.ModuleNotFound, [module]));
+        return Fail(ErrorCodes.ModuleNotFound, module);
     }
 
     /// <summary>
@@ -34,7 +42,7 @@ public abstract class BaseService
     /// </summary>
     protected static Task<RpcResponse> InvalidRequest()
     {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
+        return Fail(ErrorCodes.RequestInvalid);
     }
 
     /// <summary>
@@ -42,7 +50,7 @@ public abstract class BaseService
     /// </summary>
     protected static Task<RpcResponse> NotInstalled(string code)
     {
-        return Task.FromResult(RpcResponse.Fail(code, []));
+        return Fail(code);
     }
 
     /// <summary>
@@ -50,7 +58,12 @@ public abstract class BaseService
     /// </summary>
     protected static Task<RpcResponse> Reply(HandleResult result)
     {
-        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
+        if (!result.IsSuccess)
+        {
+            return Fail(result.ErrorMessage, [.. result.Args]);
+        }
+
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     /// <summary>
@@ -58,17 +71,35 @@ public abstract class BaseService
     /// </summary>
     protected static Task<RpcResponse> Reply<T>(HandleResult<T> result)
     {
-        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
+        if (!result.IsSuccess)
+        {
+            return Fail(result.ErrorMessage, [.. result.Args]);
+        }
+
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     /// <summary>
     /// 组件的结果翻成回包：成功把结果转成 JSON 放进 Data，失败照原样回错误码和参数
     /// </summary>
+    protected static Task<RpcResponse> ReplyData(HandleResult result)
+    {
+        if (!result.IsSuccess)
+        {
+            return Fail(result.ErrorMessage, [.. result.Args]);
+        }
+
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+    }
+
+    /// <summary>
+    /// 同上，结果带类型的
+    /// </summary>
     protected static Task<RpcResponse> ReplyData<T>(HandleResult<T> result)
     {
         if (!result.IsSuccess)
         {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
+            return Fail(result.ErrorMessage, [.. result.Args]);
         }
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
@@ -121,7 +152,7 @@ public abstract class BaseService
     {
         if (!started.IsSuccess)
         {
-            return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
+            return Fail(started.ErrorMessage, [.. started.Args]);
         }
 
         return RunRoutine(module, port.State, started.Result, timeout);
@@ -139,7 +170,7 @@ public abstract class BaseService
             var rejected = whyRejected();
             if (rejected is not null)
             {
-                return Task.FromResult(RpcResponse.Fail(rejected.ErrorMessage, [.. rejected.Args]));
+                return Fail(rejected.ErrorMessage, [.. rejected.Args]);
             }
         }
 
@@ -154,7 +185,7 @@ public abstract class BaseService
     {
         if (!started.IsSuccess)
         {
-            return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
+            return Fail(started.ErrorMessage, [.. started.Args]);
         }
 
         return RunRoutine(module, robot.State, started.Result, timeout);
@@ -172,7 +203,7 @@ public abstract class BaseService
             var rejected = whyRejected();
             if (rejected is not null)
             {
-                return Task.FromResult(RpcResponse.Fail(rejected.ErrorMessage, [.. rejected.Args]));
+                return Fail(rejected.ErrorMessage, [.. rejected.Args]);
             }
         }
 
@@ -187,7 +218,7 @@ public abstract class BaseService
     {
         if (!started.IsSuccess)
         {
-            return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
+            return Fail(started.ErrorMessage, [.. started.Args]);
         }
 
         return RunRoutine(module, chamber.State, started.Result, timeout);
@@ -205,7 +236,7 @@ public abstract class BaseService
             var rejected = whyRejected();
             if (rejected is not null)
             {
-                return Task.FromResult(RpcResponse.Fail(rejected.ErrorMessage, [.. rejected.Args]));
+                return Fail(rejected.ErrorMessage, [.. rejected.Args]);
             }
         }
 
@@ -223,13 +254,13 @@ public abstract class BaseService
     {
         if (routine is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, [module, state.ToString()]));
+            return Fail(ErrorCodes.ActionRejected, module, state.ToString());
         }
 
 
         if (!routine.WaitReply(timeout))
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaitTimeout, [routine.Name, timeout.ToString()]));
+            return Fail(ErrorCodes.WaitTimeout, routine.Name, timeout.ToString());
         }
 
         if (routine.IsSuccess)

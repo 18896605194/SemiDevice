@@ -19,8 +19,7 @@ public interface IProcessRecipeService
     Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 一个工艺配方的全部内容。Data 为 ProcessRecipeDto 的 JSON。
-    /// 失败回 process_recipe.index_out_of_range / process_recipe.not_found。参数：Index（int）
+    /// 获取工艺配方内容（ProcessRecipeDto）
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetAsync(RpcRequest request, CallContext context = default);
@@ -32,35 +31,25 @@ public interface IProcessRecipeService
     Task<RpcResponse> GetOptionsAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 新建：空编号上建一个，内容按默认。Data 为建好的 ProcessRecipeDto 的 JSON。
-    /// 失败回 process_recipe.index_out_of_range / process_recipe.index_occupied / process_recipe.name_* / process_recipe.save_failed。
-    /// 参数：Index（int）、Name（string）
+    /// 新建工艺配方（ProcessRecipeDto）
     /// </summary>
     [OperationContract]
     Task<RpcResponse> CreateAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 重命名（版本加 1）。Data 为改完的 ProcessRecipeDto 的 JSON。
-    /// 失败回 process_recipe.index_out_of_range / process_recipe.not_found / process_recipe.name_* / process_recipe.save_failed。
-    /// 参数：Index（int）、Name（string）
+    /// 重命名工艺配方（ProcessRecipeDto）
     /// </summary>
     [OperationContract]
     Task<RpcResponse> RenameAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 删除：编号空出来。失败回 process_recipe.index_out_of_range / process_recipe.not_found / process_recipe.save_failed。参数：Index（int）
+    /// 删除工艺配方
     /// </summary>
     [OperationContract]
     Task<RpcResponse> DeleteAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 保存说明和步骤：版本对得上、步骤检查通过才存，存完版本加 1。Data 为存好的 ProcessRecipeDto 的 JSON。
-    /// 失败回 process_recipe.index_out_of_range / process_recipe.not_found / process_recipe.revision_mismatch / process_recipe.no_steps /
-    /// process_recipe.time_out_of_range / process_recipe.rpm_out_of_range / process_recipe.arm_not_found / process_recipe.chemical_required /
-    /// process_recipe.chemical_not_on_arm / process_recipe.flow_out_of_range / process_recipe.position_out_of_range /
-    /// process_recipe.scan_same_position / process_recipe.scan_speed_out_of_range / process_recipe.total_too_long / process_recipe.save_failed。
-    /// 参数：Index（int）、Revision（int，打开时读到的版本）、Steps（ProcessRecipeStepDto 列表）、Type（string）、Timeout（string）、
-    /// Description（string，可不带）、Head（字段名 → 值，可不带）
+    /// 保存工艺配方的说明和步骤（ProcessRecipeDto）
     /// </summary>
     [OperationContract]
     Task<RpcResponse> SaveAsync(RpcRequest request, CallContext context = default);

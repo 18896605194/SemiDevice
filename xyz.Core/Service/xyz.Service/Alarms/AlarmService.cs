@@ -15,7 +15,7 @@ namespace xyz.Service.Alarms;
 /// <summary>
 /// 报警服务
 /// </summary>
-public class AlarmService : IAlarmService
+public class AlarmService : BaseService, IAlarmService
 {
     private readonly IAlarm? _alarms;
 
@@ -46,7 +46,7 @@ public class AlarmService : IAlarmService
     {
         if (_alarms is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmNotInstalled, []));
+            return NotInstalled(ErrorCodes.AlarmNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.Source, out var source))
@@ -56,7 +56,7 @@ public class AlarmService : IAlarmService
 
         if (string.IsNullOrWhiteSpace(source) || !_alarms.Reset(source))
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmSourceNotFound, [source]));
+            return Fail(ErrorCodes.AlarmSourceNotFound, source);
         }
 
         return Task.FromResult(RpcResponse.Ok());
@@ -72,7 +72,7 @@ public class AlarmService : IAlarmService
     {
         if (_alarms is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmNotInstalled, []));
+            return NotInstalled(ErrorCodes.AlarmNotInstalled);
         }
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_alarms.ResetAll())));
@@ -134,13 +134,5 @@ public class AlarmService : IAlarmService
                 return RpcResponse.Fail(ErrorCodes.HistoryQueryFailed, [exception.Message]);
             }
         });
-    }
-
-    /// <summary>
-    /// 请求参数不对回包（rpc.request_invalid）
-    /// </summary>
-    private static Task<RpcResponse> InvalidRequest()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 }

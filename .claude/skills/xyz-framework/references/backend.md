@@ -664,13 +664,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
    public interface IXxxService
    {
        /// <summary>
-       /// 做某件事。参数：Index（int）、Keyword（string，可不带）
+       /// 做某件事
        /// </summary>
        [OperationContract]
        Task<RpcResponse> DoSomethingAsync(RpcRequest request, CallContext context = default);
    }
    ```
-2. **请求不建类**（2026-10-26 用户定）：一律 `RpcRequest`，参数按名字装在 `Parameters`（JSON 对象）里，契约注释写"参数：名字（类型）"，可选的标"可不带"。
+2. **请求不建类**（2026-10-26 用户定）：一律 `RpcRequest`，参数按名字装在 `Parameters`（JSON 对象）里。契约注释一句短话说清是什么，不写参数
+   （2026-10-26 用户改，原来写"参数：名字（类型）"）；要传什么看服务里的 `TryGet` / `Get`。
    参数名用 `Shared\xyz.Shared\Rpc\RpcParams.cs` 里的常量（值就是名字本身），客户端装、服务端取都用它，名字只写这一份；新参数名先加进去，已有的同义名字直接用（`Module`、`Index`、`Start` / `End`……）。
    返回数据放 `Shared\xyz.Shared\Dtos`（普通类，走 JSON），不加 `[ProtoContract]`——全仓只有 `RpcRequest`、`RpcResponse`（和事件流的 `EventMessage`、`EventSubscription`）带它。
 3. 实现 `Service\xyz.Service\<领域>\XxxService.cs`：`public class XxxService : BaseService, IXxxService`。取参数：必带的 `request.TryGet<int>(RpcParams.Index, out var index)`、`request.TryGet<string>(RpcParams.Module, out var module)`
@@ -688,11 +689,12 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 ### 返回
 - 成功：`RpcResponse.Ok()` / `RpcResponse.Ok(JsonHelper.Serialize(数据))`；客户端 `DeserializeData<T>()`。
-- 失败：`RpcResponse.Fail(ErrorCodes.Xxx, [参数...])`。**坑**：只传一个字符串 `Fail(ErrorCodes.Xxx)` 会绑到"只有消息"的重载，Code 是空的——
-  没参数也要传 `[]`（或像 WaferLedgerService 那样包一个 `Fail(code, params string[] args)`）。
-- 组件的结果翻回包、组件没装，用 `BaseService` 的（2026-10-26 起，跟 `InvalidRequest()` 一样不在服务里各写私有的）：`Reply(result)` 只回成败
-  （`HandleResult<T>` 也行，结果不带回去，比如开起来的动作），`ReplyData(result)` 成功把 `HandleResult<T>` 的结果转 JSON 放进 Data，失败都照原样回错误码和参数；
-  没装 `NotInstalled(ErrorCodes.XxxNotInstalled)`。要转 DTO 的自己写一个（`SequenceService.ReplySequence`），成功之外交给 `Reply`。
+- 失败：服务里一律写 `BaseService` 的 `Fail(ErrorCodes.Xxx, 参数...)`（2026-10-26 起所有服务都继承它，不在服务里各写私有的）。
+  只有 `Task.Run` 的 lambda、async 方法、流式迭代器里要直接回 `RpcResponse` 的才写 `RpcResponse.Fail(ErrorCodes.Xxx, [参数...])`。
+  **坑**：`RpcResponse.Fail` 只传一个字符串会绑到"只有消息"的重载，Code 是空的——没参数也要传 `[]`（基类的 `Fail` 没这个坑）。
+- 组件的结果翻回包、组件没装，也用 `BaseService` 的：`Reply(result)` 只回成败（`HandleResult<T>` 也行，结果不带回去，比如开起来的动作），
+  `ReplyData(result)` 成功把结果转 JSON 放进 Data（`HandleResult` / `HandleResult<T>` 都行），失败都照原样回错误码和参数；没装 `NotInstalled(ErrorCodes.XxxNotInstalled)`。
+  async 方法里写 `return await NotInstalled(...)` / `return await ReplyData(result)`（跟 `InvalidRequest()` 一样）。要转 DTO 的自己写一个（`SequenceService.ReplySequence`），成功之外交给 `Reply`。
 - 服务不往客户端抛异常：设备动作走 `BaseService.RunRoutine(...)`（拒绝 → `ActionRejected`、等超时 → `WaitTimeout`、失败 → `Failed(routine)`：动作的 Code/Args，不止一步的带停在第几步）；
   查库、读文件放 `Task.Run` 里 try/catch 转错误码。
 - 找模块：`FindModule<IXxx>(name)`（按接口，`ILoadPort` / `IRobot` / `IChamber`），找不到 `ModuleNotFound(name)`。

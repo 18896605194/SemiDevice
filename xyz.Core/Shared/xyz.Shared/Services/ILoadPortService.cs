@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Shared.Services;
 
 /// <summary>
-/// LoadPort 服务契约：除了查状态，参数都是 Module（string，模块名）
+/// LoadPort 服务契约
 /// </summary>
 [ServiceContract]
 public interface ILoadPortService
@@ -40,7 +40,7 @@ public interface ILoadPortService
     Task<RpcResponse> ReadCarrierIdAsync(RpcRequest request);
 
     /// <summary>
-    /// 查询当前状态。参数：Module（string，可不带，空 = 全部 LoadPort）
+    /// 查询当前状态
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetStateAsync(RpcRequest request);

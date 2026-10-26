@@ -12,7 +12,7 @@ namespace xyz.Service;
 /// <summary>
 /// IO  服务
 /// </summary>
-public class IoService : IIoService
+public class IoService : BaseService, IIoService
 {
     private readonly IIo? _io;
 
@@ -59,8 +59,7 @@ public class IoService : IIoService
             double max = Math.Max(point.LogicalMin, point.LogicalMax);
             if (value < min || value > max)
             {
-                return Task.FromResult(RpcResponse.Fail(ErrorCodes.IoOutOfRange,
-                    [index.ToString(), Format(min), Format(max), point.Unit]));
+                return Fail(ErrorCodes.IoOutOfRange, index.ToString(), Format(min), Format(max), point.Unit);
             }
         }
 
@@ -73,16 +72,11 @@ public class IoService : IIoService
     }
 
     /// <summary>
-    /// 请求参数不对回包（rpc.request_invalid）
+    /// 写不成回包（io.write_failed）：哪一类、第几个点
     /// </summary>
-    private static Task<RpcResponse> InvalidRequest()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
-    }
-
     private static Task<RpcResponse> WriteFailed(string type, int index)
     {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.IoWriteFailed, [type, index.ToString()]));
+        return Fail(ErrorCodes.IoWriteFailed, type, index.ToString());
     }
 
     private static string Format(double value)

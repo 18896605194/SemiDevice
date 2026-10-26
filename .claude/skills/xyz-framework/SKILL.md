@@ -30,7 +30,8 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
   gRPC 请求一律 `RpcRequest`、回包一律 `RpcResponse`，不建请求类（2026-10-26 用户定）：参数按名字装在 `RpcRequest.Parameters`（JSON 对象）里，
   名字只写一份：`xyz.Shared.Rpc.RpcParams` 里的常量，客户端装、服务端取都用它，不在两头各写字符串（新参数名先加进去）。
   客户端 `RpcRequest.Of((RpcParams.Index, 1))`，服务端 `request.TryGet<int>(RpcParams.Index, out var index)`（统一写 `TryGet<类型>(名字, out var 变量)`，字符串、列表写 `out string x` 会报可能为 null）/
-  `request.Get(RpcParams.Keyword, "")`；契约注释写"参数：名字（类型）"。
+  `request.Get(RpcParams.Keyword, "")`；契约注释一句短话，不写参数（2026-10-26 用户改）。
+  服务都继承 `BaseService`，回包用它的 `Fail` / `NotInstalled` / `Reply` / `ReplyData` / `InvalidRequest`，不在服务里各写私有的（见 backend.md §5「返回」）。
 - 设备树：machine.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树，按开机几个阶段走：
   组件初始化（`InitComponent`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted`，退出倒着 `OnStopping`。组件自己的开机准备、收尾、推送
   都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体组件，加组件不用改它们。
@@ -115,7 +116,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 | 加组件、machine.xml / ec.xml 参数、报警、GEM 事件 | backend.md §2 |
 | 加模块、加动作（ModuleRoutine） | backend.md §3；机型实现见 machine-and-tools.md §2 |
 | 加品牌驱动、改通讯 | backend.md §4 |
-| 加 gRPC 服务或接口 | backend.md §5 清单（契约（注释写参数）→ 新参数名加进 RpcParams → 实现（TryGet 取参数）→ 错误码 → 语言包 → 冒烟；不建请求类、不用注册） |
+| 加 gRPC 服务或接口 | backend.md §5 清单（契约（注释一句短话、不写参数）→ 新参数名加进 RpcParams → 实现（TryGet 取参数）→ 错误码 → 语言包 → 冒烟；不建请求类、不用注册） |
 | 后端推送、客户端订阅 | backend.md §5「事件推送」；client.md §4「事件」 |
 | 加错误码 | backend.md §6（+ 两个语言包） |
 | 加表、流水、历史清理 | backend.md §7 |

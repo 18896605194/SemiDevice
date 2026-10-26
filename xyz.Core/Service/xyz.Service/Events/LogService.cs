@@ -13,7 +13,7 @@ namespace xyz.Service.Events;
 /// <summary>
 /// 日志服务 
 /// </summary>
-public class LogService : ILogService
+public class LogService : BaseService, ILogService
 {
     private readonly ILogComponent? _log;
 
@@ -167,13 +167,5 @@ public class LogService : ILogService
     private static int PositiveOr(int? value, int fallback)
     {
         return value > 0 ? value.Value : fallback;
-    }
-
-    /// <summary>
-    /// 请求参数不对回包（rpc.request_invalid）
-    /// </summary>
-    private static Task<RpcResponse> InvalidRequest()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 }

@@ -249,9 +249,4 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
             ? Fail(ErrorCodes.WaferSlotOutOfRange, from, fromSlot.ToString(), fromCount.ToString())
             : Fail(ErrorCodes.WaferSlotOutOfRange, to, toSlot.ToString(), ledger.GetSlots(to).Count.ToString());
     }
-
-    private static Task<RpcResponse> Fail(string code, params string[] args)
-    {
-        return Task.FromResult(RpcResponse.Fail(code, args));
-    }
 }

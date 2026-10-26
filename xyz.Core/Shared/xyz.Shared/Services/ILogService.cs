@@ -11,14 +11,13 @@ namespace xyz.Shared.Services;
 public interface ILogService
 {
     /// <summary>
-    /// 最近一段日志。参数：Count（int，可不带，&lt;=0 = 后端缓冲里有多少给多少）
+    /// 获取最近一段日志
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetRecentAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 按时间段查主日志。参数：Start（DateTime，含）、End（DateTime，不含）、Level（string，可不带）、Keyword（string，可不带）、
-    /// MaxCount（int，可不带，&lt;=0 按后端配置）、Module（string，可不带，日志的第一层）
+    /// 按时间段查询主日志
     /// </summary>
     [OperationContract]
     Task<RpcResponse> QueryHistoryAsync(RpcRequest request, CallContext context = default);

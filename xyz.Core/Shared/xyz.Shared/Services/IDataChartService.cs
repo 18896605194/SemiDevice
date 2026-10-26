@@ -12,13 +12,13 @@ public interface IDataChartService
     Task<RpcResponse> GetSignalsAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 按名字查 [Start, End) 的曲线（本机时间）。参数：Start（DateTime）、End（DateTime）、Names（string 列表）
+    /// 按名字查询时间段内的曲线
     /// </summary>
     [OperationContract]
     Task<RpcResponse> QueryAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 导出 [Start, End) 的原始行，一段一条消息。参数：Start（DateTime）、End（DateTime）、Names（string 列表）
+    /// 导出时间段内的原始行
     /// </summary>
     [OperationContract]
     IAsyncEnumerable<RpcResponse> ExportAsync(RpcRequest request, CallContext context = default);

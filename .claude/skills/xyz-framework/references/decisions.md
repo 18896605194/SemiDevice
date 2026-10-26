@@ -777,7 +777,8 @@
   还没做：Job 页（样稿 v2 等确认）、救片任务、
   设备动作中禁止改账的联锁（用户押后）。腔体按工艺配方真执行（照每一步去转、摆臂、喷液）用户说不做。
 - **Job 创建接口（2026-10-07 用户明确）**：PJ 独立创建，参数包含 LoadPort、PJ 名、槽位集合、Sequence、LotId；提供独立取消 PJ。CJ 创建接收 LoadPort 和已有 PJ 的名称集合（一个 CJ 可以有多个 PJ）。CreateJob 使用已经创建的 PJ，内部创建 CJ 并关联，不重新生成 PJ 和任务。CJ/PJ 管理提供明确的停止、中止、暂停、恢复方法，仍使用各自状态机；Pick、Place 保持独立 WaferTask。
-- **创建参数与 PJ 启动配置（2026-10-07 用户明确）**：不用 ProcessJobSpec / ControlJobSpec 这类参数包装，内部方法直接收参数；PJ 的 AutoStart 由 machine.xml `ProcessJobAutoStart` 配置，不放在创建请求或每个 PJ 对象里。本地和 EAP 统一使用设备配置。JobService 按区域管理，用传统 if / return，不封装 NotInstalled / Reply。
+- **创建参数与 PJ 启动配置（2026-10-07 用户明确）**：不用 ProcessJobSpec / ControlJobSpec 这类参数包装，内部方法直接收参数；PJ 的 AutoStart 由 machine.xml `ProcessJobAutoStart` 配置，不放在创建请求或每个 PJ 对象里。本地和 EAP 统一使用设备配置。JobService 按区域管理，用传统 if / return，不封装 NotInstalled / Reply
+  （2026-10-26 用户改：没装、翻结果改用 BaseService 的 NotInstalled / ReplyData，跟别的服务一样，还是 if / return，见「回包的公共方法收进 BaseService」）。
 - **Job 命令入口（2026-10-07 用户：重复就重复先，没关系）**：去掉 Execute / WithProcessJob 的委托包装，各入口直接写检查、锁超时、执行、发布、异常处理；PJ 创建合并到 CreateProcessJobAsync，不为减少重复增加调用层次。保留原有锁和状态机行为。
 - **设备状态判断归模块（2026-10-07 用户明确）**：载具能不能分给 Job 由 BaseLoadPortModule.CanAssignCarrierToJob 判断（2026-10-09 由 IsCarrierReady 改名：它在机械手正在取放时也是 true，只管排活，机械手进站看 CanPrepare）（模块启用、载具到位、IsLoaded；2026-10-08 加：接了 EAP 时槽图被 Host 认定）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
 - **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 machine.xml ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 machine.xml。
@@ -1590,12 +1591,15 @@
   收 `string module` 的 25 个方法（LoadPort / 机械手 / 腔体）也改成收 `RpcRequest`（参数 `Module`）。参数里本身是一组数据的类型（`SequenceStepDto`、`ProcessRecipeStepDto`、
   `JobSlotDto`、`RolePermissionItem`）留着，回包里也在用。
 - **只剩这几个带 `[ProtoContract]`**：`RpcRequest`、`RpcResponse`，加事件流的 `EventMessage`、`EventSubscription`（事件流这次没动）；别的 DTO 都是普通类、走 JSON。
-- **参数写在契约注释里**：签名上看不出要传什么了，每个方法注释写"参数：名字（类型）"，可选的标"可不带"。
+- **契约注释不写参数**（2026-10-26 用户改，原来每个方法注释写"参数：名字（类型）"、可选的标"可不带"）：用户改 IAccountService 时特意删的，
+  随后其余契约一起删了；注释一句短话说清是什么，要传什么看服务里的 `TryGet` / `Get`。
 - **取不到回 `rpc.request_invalid`**（`ErrorCodes.RequestInvalid`，语言包"请求参数不对：客户端和后端的版本可能对不上"）：`BaseService.InvalidRequest()`，不是它派生的服务各有一个同名私有方法，
   async 方法里 `return await InvalidRequest();`。行为变化：必带参数没带以前落到别的码（模块名空回 `module.not_found [""]` 这类），现在统一回它；带了空串的跟以前一样。
-- **回包的公共方法也收进 BaseService**（用户："这种没安装的是不是可以提出来公共的"）：`NotInstalled(code)`、`Reply(result)` 只回成败、`Reply<T>` 同样只回成败
-  （整机 InitAll / ReturnAll 回的是开起来的动作，不能转 JSON）、`ReplyData<T>` 成功带结果；账号、用户、角色、整机、流程配方、工艺配方服务原来各写一份私有的，删了。
-  流程配方、工艺配方要转 DTO，自己的改叫 `ReplySequence` / `ReplyRecipe`（跟基类同名同参数会盖掉基类的），成功之外交给 `Reply`。JobService 照 10-07 那条内联写，没动。
+- **回包的公共方法收进 BaseService**（用户："这种没安装的是不是可以提出来公共的"，又定"都要继承的""要统一的"）：所有服务都继承 `BaseService`；
+  `Fail(code, 参数...)`、`NotInstalled(code)`、`Reply(result)` 只回成败、`Reply<T>` 同样只回成败（整机 InitAll / ReturnAll 回的是开起来的动作，不能转 JSON）、
+  `ReplyData(result)` 成功带结果（`HandleResult` / `HandleResult<T>` 各一个，Job 管理回的是不带类型的）。各服务原来私有的 NotInstalled / Reply / Fail / InvalidRequest 都删了，
+  内联的 `Task.FromResult(RpcResponse.Fail(...))` 都换成 `Fail(...)`；async 方法里没装、整段翻结果写 `return await`，别的失败和 `Task.Run` 的 lambda、流式迭代器里照旧直接写 `RpcResponse.Fail`。
+  流程配方、工艺配方要转 DTO，自己的改叫 `ReplySequence` / `ReplyRecipe`（跟基类同名同参数会盖掉基类的），成功之外交给 `Reply`。JobService 也换了（10-07 那条跟着改）。
 - **账号组件**：`IAccount` 的建用户、改用户、重置密码、启停用户、建角色、改角色、存权限 7 个方法改成直接收参数（原来收请求类，传输用的东西不进组件）。
 - **常量挪家**：`JobCommandRequest.ControlJobStart` → `IJobService.ControlJobStart`；`IEquipmentService.WaferSizeKey` 删了，参数名就是 `Size`（int，取不到或不支持照旧回 `system.wafer_size_invalid`）。
 - **操作日志**：`ActionFilter` 碰到 `RpcRequest` 直接记 `Parameters` 那段 JSON（重新写一遍让中文原样）；不带参数记 `{}`。密码同日起不打码（见上面「操作日志」一节）。

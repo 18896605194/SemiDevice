@@ -14,7 +14,7 @@ public interface ISequenceService
     Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 参数：Index（int）
+    /// 获取流程配方
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetAsync(RpcRequest request, CallContext context = default);
@@ -23,25 +23,25 @@ public interface ISequenceService
     Task<RpcResponse> GetStationGroupsAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 参数：Index（int）、Name（string）
+    /// 新建流程配方
     /// </summary>
     [OperationContract]
     Task<RpcResponse> CreateAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 参数：Index（int）、Name（string）
+    /// 重命名流程配方
     /// </summary>
     [OperationContract]
     Task<RpcResponse> RenameAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 参数：Index（int）
+    /// 删除流程配方
     /// </summary>
     [OperationContract]
     Task<RpcResponse> DeleteAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 参数：Index（int）、Revision（int，打开时读到的版本）、Steps（SequenceStepDto 列表）、Description（string，可不带）
+    /// 保存流程配方
     /// </summary>
     [OperationContract]
     Task<RpcResponse> SaveAsync(RpcRequest request, CallContext context = default);

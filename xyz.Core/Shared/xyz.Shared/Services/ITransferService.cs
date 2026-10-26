@@ -12,16 +12,13 @@ namespace xyz.Shared.Services;
 public interface ITransferService
 {
     /// <summary>
-    /// 手动传片：启动搬运操作并等它收尾（上限是搬运管理的 EC ManualWaitTimeoutMs）。Data 为 TransferDoneDto 的 JSON。
-    /// 启动不了回 transfer.* / wafer.* / module.action_rejected 的码（站点、槽位、片、被 Job 占着、锁、机械手、手臂）；
-    /// 没搬成回执行时的码（transfer.station_busy、transfer.failed……）；等超时回 transfer.wait_timeout（搬运还在跑）。
-    /// 参数：Source（string）、SourceSlot（int）、Target（string）、TargetSlot（int）、Robot（string，可不带，空 = 自动挑）、Arm（int，可不带，0 = 自动挑）
+    /// 手动传片（TransferDoneDto）
     /// </summary>
     [OperationContract]
     Task<RpcResponse> TransferAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 人工确认片位后，按晶圆标识放开搬运失败保留的资源；没有保留资源回 transfer.not_held。参数：WaferId（Guid）
+    /// 放开搬运失败保留的资源
     /// </summary>
     [OperationContract]
     Task<RpcResponse> ReleaseAsync(RpcRequest request, CallContext context = default);

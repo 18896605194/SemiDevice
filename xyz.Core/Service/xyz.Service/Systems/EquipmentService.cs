@@ -79,8 +79,7 @@ public class EquipmentService : BaseService, IEquipmentService
         var rejected = _system.CheckAbort();
         if (rejected is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected,
-                [_system.Name, _system.State.ToString(CultureInfo.InvariantCulture)]));
+            return Fail(ErrorCodes.ActionRejected, _system.Name, _system.State.ToString(CultureInfo.InvariantCulture));
         }
 
         return Reply(rejected);
@@ -104,12 +103,12 @@ public class EquipmentService : BaseService, IEquipmentService
     {
         if (!request.TryGet<int>(RpcParams.Size, out var size))
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInvalid, [string.Empty]));
+            return Fail(ErrorCodes.WaferSizeInvalid, string.Empty);
         }
 
         if (!WaferSizeComponent.IsSupported(size))
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInvalid, [size.ToString(CultureInfo.InvariantCulture)]));
+            return Fail(ErrorCodes.WaferSizeInvalid, size.ToString(CultureInfo.InvariantCulture));
         }
 
         if (_waferSize is null)
@@ -126,14 +125,14 @@ public class EquipmentService : BaseService, IEquipmentService
         var system = _system;
         if (system is not null && system.State != ModuleState.NotInit)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInitialized, [system.Name]));
+            return Fail(ErrorCodes.WaferSizeInitialized, system.Name);
         }
 
         foreach (var module in IocHelper.GetServices<IModule>())
         {
             if (module.State != ModuleState.NotInit)
             {
-                return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInitialized, [module.Name]));
+                return Fail(ErrorCodes.WaferSizeInitialized, module.Name);
             }
         }
 
@@ -143,7 +142,7 @@ public class EquipmentService : BaseService, IEquipmentService
             {
                 if (!_wafers.IsLoadPort(location) && _wafers.CountWafers(location) > 0)
                 {
-                    return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeHasWafer, [location]));
+                    return Fail(ErrorCodes.WaferSizeHasWafer, location);
                 }
             }
         }

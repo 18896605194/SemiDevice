@@ -13,7 +13,7 @@ namespace xyz.Service.Charts;
 /// <summary>
 /// 实时曲线 服务
 /// </summary>
-public class RealChartService : IRealChartService
+public class RealChartService : BaseService, IRealChartService
 {
     private readonly IRealChart? _realChart;
 
@@ -32,7 +32,7 @@ public class RealChartService : IRealChartService
     {
         if (_realChart is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.RealChartNotInstalled, []));
+            return NotInstalled(ErrorCodes.RealChartNotInstalled);
         }
 
         var layout = new RealChartLayoutDto
@@ -51,7 +51,7 @@ public class RealChartService : IRealChartService
     {
         if (_realChart is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.RealChartNotInstalled, []));
+            return NotInstalled(ErrorCodes.RealChartNotInstalled);
         }
 
         if (!request.TryGet<List<string>>(RpcParams.Names, out var names))
@@ -80,13 +80,5 @@ public class RealChartService : IRealChartService
             }).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result)));
-    }
-
-    /// <summary>
-    /// 请求参数不对回包（rpc.request_invalid）
-    /// </summary>
-    private static Task<RpcResponse> InvalidRequest()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 }

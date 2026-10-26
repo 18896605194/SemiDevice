@@ -10,7 +10,7 @@ namespace xyz.Service.Events;
 /// <summary>
 /// 事件通道
 /// </summary>
-public class EventService : IEventService
+public class EventService : BaseService, IEventService
 {
     public IAsyncEnumerable<EventMessage> SubscribeAsync(EventSubscription request, CallContext context = default)
     {
