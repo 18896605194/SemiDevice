@@ -1,4 +1,5 @@
-﻿using xyz.Common.Log;
+﻿using xyz.Common;
+using xyz.Common.Log;
 using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Tools;
@@ -164,7 +165,7 @@ public partial class IoComponent
         point.IsOn = on;
         if (isAnalog)
         {
-            point.Value = value.ToString("0.###");
+            point.Value = ValueHelper.ToText(value);
         }
         else if (on)
         {

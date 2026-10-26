@@ -589,7 +589,7 @@ public class AiComponent : ComponentBase, IAi
             return value.Value >= 0.5 ? "1" : "0";
         }
 
-        return value.Value.ToString("0.###", CultureInfo.InvariantCulture);
+        return ValueHelper.ToText(value.Value);
     }
 
     #endregion

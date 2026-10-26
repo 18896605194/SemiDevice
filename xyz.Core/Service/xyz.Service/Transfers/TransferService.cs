@@ -10,7 +10,7 @@ using xyz.Tools;
 namespace xyz.Service.Transfers;
 
 /// <summary>
-/// 搬运 gRPC 服务：启动手动传片并等搬运收尾、出错后人工放锁。校验、锁、执行都在搬运管理里，这里只管翻成回包。
+/// 搬运服务
 /// </summary>
 public class TransferService : BaseService, ITransferService
 {
@@ -27,7 +27,7 @@ public class TransferService : BaseService, ITransferService
         {
             return await NotInstalled(ErrorCodes.TransferNotInstalled);
         }
-
+        //校验
         if (!request.TryGet<string>(RpcParams.Source, out var source)
             || !request.TryGet<int>(RpcParams.SourceSlot, out var sourceSlot)
             || !request.TryGet<string>(RpcParams.Target, out var target)
@@ -40,7 +40,7 @@ public class TransferService : BaseService, ITransferService
         int arm = request.Get(RpcParams.Arm, 0);
         var started = _transfers.Start(new TransferRequest
         {
-            Origin = TransferOrigin.Manual,
+            Origin = TransferOrigin.Manual, //操作模式手动还是自动
             Source = source,
             SourceSlot = sourceSlot,
             Target = target,
@@ -56,7 +56,8 @@ public class TransferService : BaseService, ITransferService
         }
 
         int timeout = _transfers.ManualWaitTimeoutMs;
-        if (!await Task.Run(() => routine.WaitReply(timeout, context.CancellationToken)).ConfigureAwait(false))
+        bool replied = await Task.Run(() => routine.WaitReply(timeout, context.CancellationToken)).ConfigureAwait(false);
+        if (!replied)
         {
             return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout,
                 [routine.Name, timeout.ToString(CultureInfo.InvariantCulture)]);

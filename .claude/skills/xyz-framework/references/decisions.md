@@ -1568,7 +1568,7 @@
 - **`DateTimeHelper`**：`ToUnixMilliseconds`（本机时间 → UTC 毫秒，不看 Kind：界面传来的时间走 gRPC 丢了 Kind）、`FromUnixMilliseconds`（UTC 毫秒 → 本机时间）、`NowUnixMilliseconds`、
   `LocalTimeOf`（`DateTimeOffset?` → 本机时间，空还是空）。收进来的：`DataRecordQuery.LocalMilliseconds`、`DataChartComponent` 的 `NowMs` / `DayOf` 和查询、导出里内联的四行、
   `RealChartComponent` 的会话号、`AiComponent.Clock` 里的换算、`MapperComponent.LocalTimeOf`。
-- **`ValueHelper`**：`ToFloat`（`double?` → `float?`）、`ToDouble`（对象 → `double?`：开关量 1 / 0、枚举取数、别的数字照转，转不了或不是有限数为空）、`TryParseDouble`（不变区域性解析小数）、
+- **`ValueHelper`**：`ToFloat`（`double?` → `float?`）、`ToDouble`（对象 → `double?`：开关量 1 / 0、枚举取数、别的数字照转，转不了或不是有限数为空）、`TryParseDouble`（不变区域性解析小数）、`ToText`（小数转文字，最多三位、不跟区域设置走，10-27 收了 IoService、AiComponent、IO 推送三份）、
   `ConvertTo`（字符串按类型转值：int / double / bool / string / 枚举，machine.xml 装配用它，不支持的类型抛 `NotSupportedException`）。收进来的：`RealChartService`、`DataRecordQuery` 两份 `ToFloat`、
   `SvCollector.ReadNumber` 里的换算（反射读值、读失败给空还在原地）、`EcComponent.TryParseLimit`、`ComponentLoader.ConvertValue`。
 - **没收的**：计时（`Stopwatch.GetElapsedTime` 本来就一行，`TankComponent.Elapsed` 留着）、采样对齐 `DataChartComponent.AlignUp`；带业务含义的读法（`IoPointTable.Number` 读点表格子、
@@ -1629,3 +1629,16 @@
   现在等一个已经做完的，结果一样）；默认的初始化还是算被拒，回 `module.action_rejected`（平台模块基类都重写了，实际走不到）；buffer 正在交互时初始化被拒回 `module.state_not_allowed`。
 - **验证**：整个 sln Debug 0 错误 0 警告、IoIndexSmoke 单独编过；39 个冒烟全过（OperationWaitSmoke 1403 项，新加 1 项"没自己复位、中止动作的模块回做完的空动作"；
   JobSmoke 798、EapSmoke 580、ChamberSmoke 270、WaferLedgerSmoke 208、CdsSmoke 148、SequenceSmoke 85、AlignerSmoke 51 等，改的是断言写法、检查数不变）。
+
+## IO 写入带原因（2026-10-27，用户贴了 IoService 的 WriteFailed、Format："这两个一定要放在这个服务里面吗"；听了"根子在 IIo 只回 bool"以后："我建议从根上改。这个直接从根上修改"）
+- **毛病在哪**：`IIo.WriteDo` / `WriteAo` 只回 bool，服务不知道为什么没写成，只能自己编笼统的 `io.write_failed`；被 DI 联锁拦下的原因只进了日志，手动 IO 页看到的是"写不成"。
+  AO 超标定范围的检查也写在服务里，只有手动页写 AO 才查，喷嘴流量这类代码里写的不查。
+- **做成什么样**：两个写方法回 `HandleResult`，原因在 IO 组件里当场给：点表没有 / 预留区间（≥3000）/ PLC 没装 / 写 PLC 出错 `io.write_failed` [DO/AO, 点号]；
+  联锁拦着 `io.interlock_blocked`（DI 正在触发）/ `io.interlock_unknown`（DI 读不到）/ `io.interlock_conflict`（别的规则又要求下发这个值），参数照错误码注释，只报第一条命中的规则，
+  全部命中的规则照旧记日志；标定过的 AO 超出工程量范围 `io.out_of_range` [点号, 下限, 上限, 单位]，**谁写都卡**（行为变化：配方给的喷嘴流量超标定范围以前照写，现在被拒、工艺跟着失败）。
+  三个联锁错误码和语言包以前就有、一直没用上，这次接上了。
+- **服务只翻结果**：`IoService` 两个方法取参数、没配 Io 回 `io.not_installed`（新加的，跟别的服务没装的回法一样），然后 `Reply(_io.WriteXx(...))`；私有的 `WriteFailed`、`Format` 删了。
+- **调用方**：气缸（单线圈、双线圈）、喷嘴、心跳、E84 看 `.IsSuccess`；四色灯写不成抛的异常里带上原因；开机下发 DO 没下发的日志带上原因。
+- **数字转文字收进 `ValueHelper.ToText`**：IoService、`AiComponent.ValueText`、IO 推送 `IoComponent.Publish` 三份 `"0.###"` 合一；IO 推送原来没指定 `InvariantCulture`，系统区域用逗号当小数点时会显示成 `1,5`，跟着修了。
+- **验证**：整个 sln Debug 0 错误（警告是原来那 9 条，加 `RecipeComponent.cs:682` 一条可能为 null 的，那个文件没动过）；IoIndexSmoke 单独编过；
+  39 个冒烟全过：IoIndexSmoke 新加联锁三种原因（带 DI、电平、规则）、写不成、AO 超范围带上下限；OperationWaitSmoke 1405 项（新加 2 项：没配 Io 回 io.not_installed、IO 服务照原样带原因 / 没带值回 rpc.request_invalid）。

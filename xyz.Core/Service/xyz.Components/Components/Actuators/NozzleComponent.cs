@@ -91,7 +91,7 @@ public class NozzleComponent : ValveComponent, INozzle
         }
 
         var io = Io;
-        return io is not null && io.WriteAo(AoIndex, litersPerMinute);
+        return io is not null && io.WriteAo(AoIndex, litersPerMinute).IsSuccess;
     }
 
     /// <summary>

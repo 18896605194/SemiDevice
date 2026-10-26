@@ -1,5 +1,7 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
+using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 
 namespace xyz.Components.Components;
 
@@ -140,6 +142,30 @@ public partial class IoComponent
 
             _interlockErrors.Remove(index);
         }
+    }
+
+    /// <summary>
+    /// DO 被联锁拦下的原因：别的规则又要求下发这个值是冲突，DI 读不到是无法判断，DI 正在触发是被拒
+    /// </summary>
+    private HandleResult InterlockRejected(int index, bool on, List<Interlock> blockers, Dictionary<int, bool?> states)
+    {
+        string doIndex = index.ToString(CultureInfo.InvariantCulture);
+        var agreeing = _interlocks.Where(rule => rule.DoIndex == index && rule.DoValue == on && states[rule.DiIndex] == rule.DiValue).ToList();
+        if (agreeing.Count > 0)
+        {
+            string rules = string.Join("；", agreeing.Concat(blockers).Select(rule => rule.Text).Distinct());
+            return HandleResult.Fail(ErrorCodes.IoInterlockConflict, doIndex, BoolText(on), rules);
+        }
+
+        var rule = blockers[0];
+        string di = $"DI{rule.DiIndex}";
+        var level = states[rule.DiIndex];
+        if (level is null)
+        {
+            return HandleResult.Fail(ErrorCodes.IoInterlockUnknown, doIndex, BoolText(on), di, rule.Text);
+        }
+
+        return HandleResult.Fail(ErrorCodes.IoInterlockBlocked, doIndex, BoolText(on), di, BoolText(level.Value), BoolText(rule.DoValue), rule.Text);
     }
 
     private void ReportInterlockError(int index, string message)

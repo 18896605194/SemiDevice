@@ -15,9 +15,7 @@ namespace xyz.Service;
 public class ChamberService : BaseService, IChamberService
 {
     private readonly IRecipeComponent? _recipes;
-
     private readonly ILedgerManager? _wafers;
-
     private readonly IJobManager? _jobs;
 
     public ChamberService()

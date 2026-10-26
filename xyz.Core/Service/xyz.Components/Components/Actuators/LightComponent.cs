@@ -102,9 +102,10 @@ public class LightComponent : ComponentBase, ILight
             throw new InvalidOperationException("machine.xml 没配 Io 节点，四色灯没有输出通道");
         }
 
-        if (!io.WriteDo(doIndex, isOn))
+        var written = io.WriteDo(doIndex, isOn);
+        if (!written.IsSuccess)
         {
-            throw new InvalidOperationException($"DO{doIndex} 写入失败（PLC 没连或点表里没有这个索引）");
+            throw new InvalidOperationException($"DO{doIndex} 写入失败：{written.ErrorMessage} [{string.Join(", ", written.Args)}]");
         }
     }
 

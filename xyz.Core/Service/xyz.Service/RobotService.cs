@@ -66,12 +66,9 @@ public class RobotService : BaseService, IRobotService
         return RunRoutine(robot.Abort(), robot.AbortTimeout);
     }
 
-    /// <summary>
-    /// 手动取片：站点这个槽 → 这台机械手的这只手。跟自动跑货一样交给搬运管理（只取片）：先准备站点（腔体开门、LoadPort 要 Load 着），
-    /// 再让机械手取；手、槽、片都上锁，自动在跑时不会撞车。被拒、失败都回具体原因。
-    /// </summary>
     public Task<RpcResponse> PickAsync(RpcRequest request)
     {
+        //参数校验
         if (!request.TryGet<string>(RpcParams.Module, out var module)
             || !request.TryGet<int>(RpcParams.Arm, out var arm)
             || !request.TryGet<string>(RpcParams.Station, out var station)
@@ -79,7 +76,7 @@ public class RobotService : BaseService, IRobotService
         {
             return InvalidRequest();
         }
-
+        //获取模块
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -134,12 +131,13 @@ public class RobotService : BaseService, IRobotService
     /// </summary>
     private async Task<RpcResponse> RunTransfer(TransferRequest request)
     {
+        //ITransferManager 的服务
         if (_transfers is null)
         {
             return await NotInstalled(ErrorCodes.TransferNotInstalled);
         }
 
-        var started = _transfers.Start(request);
+        var started = _transfers.Start(request); //受理
         var routine = started.Result;
         if (!started.IsSuccess || routine is null)
         {
@@ -147,7 +145,8 @@ public class RobotService : BaseService, IRobotService
         }
 
         int timeout = _transfers.ManualWaitTimeoutMs;
-        if (!await Task.Run(() => routine.WaitReply(timeout)).ConfigureAwait(false))
+        bool replied = await Task.Run(() => routine.WaitReply(timeout)).ConfigureAwait(false);
+        if (!replied)
         {
             return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout, [routine.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
         }

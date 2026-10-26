@@ -526,6 +526,9 @@ public static class ErrorCodes
 
     #region IO
 
+    /// <summary>machine.xml 没配 Io 节点，IO 读写都用不了。Args: []</summary>
+    public const string IoNotInstalled = "io.not_installed";
+
     /// <summary>IO 输出写不进（PLC 没连上、点表里没有这个点、写 PLC 出错）。Args: [类型 DO/AO, 点号]</summary>
     public const string IoWriteFailed = "io.write_failed";
 

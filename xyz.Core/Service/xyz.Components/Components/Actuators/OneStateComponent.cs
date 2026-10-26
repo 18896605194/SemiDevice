@@ -132,7 +132,7 @@ public abstract class OneStateComponent : ComponentBase
         lock (_actionGate)
         {
             // 常开阀开阀写 false、关阀写 true
-            if (!io.WriteDo(DoIndex, on == OpenValue))
+            if (!io.WriteDo(DoIndex, on == OpenValue).IsSuccess)
             {
                 return false;
             }

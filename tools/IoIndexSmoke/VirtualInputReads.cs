@@ -87,7 +87,7 @@ static class VirtualInputReads
 
             foreach (int index in new[] { 3000, 3999, 4000, 4999, 5000, 5999, 6000, 6999, 7000 })
             {
-                Check(!io.WriteDo(index, true) && !io.WriteAo(index, 1)
+                Check(!io.WriteDo(index, true).IsSuccess && !io.WriteAo(index, 1).IsSuccess
                     && !io.TryReadDo(index, out _) && !io.TryReadAo(index, out _), "virtual outputs are removed and never sent to PLC");
                 if (index < 4000 || index >= 5000)
                 {
@@ -102,7 +102,7 @@ static class VirtualInputReads
 
             Check(!io.TryReadDi(4010, out _) && !io.TryReadAi(6010, out _), "undeclared virtual inputs remain invalid");
             Check(plc.Indices.All(index => index < 3000) && plc.Writes == 0, "no virtual index reaches PLC");
-            Check(io.WriteDo(12, true) && plc.Writes == 1, "physical writes remain unchanged");
+            Check(io.WriteDo(12, true).IsSuccess && plc.Writes == 1, "physical writes remain unchanged");
 
             CheckStandaloneAndOperators();
             Check(io.TryReadAi(6001, out value) && value == 60, "another assembly does not replace existing registry");

@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using xyz.Common;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
@@ -6,6 +7,8 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs;
 using xyz.Configs.Models;
+using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Tools;
 
 namespace xyz.Components.Components;
@@ -198,14 +201,14 @@ public partial class IoComponent : ComponentBase, IIo
     }
 
     /// <summary>
-    /// 写一个 DO 点；关联 DI 触发时只允许配置的强制值，拒绝原因记日志。
+    /// 写一个 DO 点；关联 DI 触发时只允许配置的强制值，被联锁拦下带原因（命中的规则另记日志）
     /// </summary>
-    public bool WriteDo(int index, bool on)
+    public HandleResult WriteDo(int index, bool on)
     {
         // 虚拟点只保留计算型 DI/AI；预留的输出区间不能下发到 PLC。
         if (index >= 3000)
         {
-            return false;
+            return WriteFailed("DO", index);
         }
 
         lock (_doGate)
@@ -214,7 +217,7 @@ public partial class IoComponent : ComponentBase, IIo
             var plc = _plc;
             if (point is null || plc is null)
             {
-                return false;
+                return WriteFailed("DO", index);
             }
 
             var states = ReadInterlockStates();
@@ -228,10 +231,15 @@ public partial class IoComponent : ComponentBase, IIo
                         : $"DI{rule.DiIndex}={BoolText(rule.DiValue)} 联锁正在触发，DO{index} 被强制为 {BoolText(rule.DoValue)}（规则：{rule.Text}）"));
                 LogHelper.Warn(this, $"{reason}");
                 EnforceInterlocks(states);
-                return false;
+                return InterlockRejected(index, on, blockers, states);
             }
 
-            return plc.WriteDo(point.Index, on);
+            if (!plc.WriteDo(point.Index, on))
+            {
+                return WriteFailed("DO", index);
+            }
+
+            return HandleResult.Success();
         }
     }
 
@@ -281,23 +289,48 @@ public partial class IoComponent : ComponentBase, IIo
     }
 
     /// <summary>
-    /// 写一个 AO 点：给的是工程值，按标定反算成原始码再下发。
+    /// 写一个 AO 点：给的是工程值，标定过的点先按工程量范围卡住，再按标定反算成原始码下发
     /// </summary>
-    public bool WriteAo(int index, double engineering)
+    public HandleResult WriteAo(int index, double engineering)
     {
         if (index >= 3000)
         {
-            return false;
+            return WriteFailed("AO", index);
         }
 
         var point = Ao.Find(index);
         var plc = _plc;
         if (point is null || plc is null)
         {
-            return false;
+            return WriteFailed("AO", index);
         }
 
-        return plc.WriteAo(point.Index, point.ToRaw(engineering));
+        // 模拟量输出多半是流量、压力、转速设定，给过头了设备会照做；谁写都一样卡（手动页、喷嘴流量）
+        if (point.IsScaled)
+        {
+            double min = Math.Min(point.LogicalMin, point.LogicalMax);
+            double max = Math.Max(point.LogicalMin, point.LogicalMax);
+            if (engineering < min || engineering > max)
+            {
+                return HandleResult.Fail(ErrorCodes.IoOutOfRange, index.ToString(CultureInfo.InvariantCulture),
+                    ValueHelper.ToText(min), ValueHelper.ToText(max), point.Unit);
+            }
+        }
+
+        if (!plc.WriteAo(point.Index, point.ToRaw(engineering)))
+        {
+            return WriteFailed("AO", index);
+        }
+
+        return HandleResult.Success();
+    }
+
+    /// <summary>
+    /// 写不成（io.write_failed）：PLC 没装、点表里没有、预留区间、写 PLC 出错
+    /// </summary>
+    private static HandleResult WriteFailed(string type, int index)
+    {
+        return HandleResult.Fail(ErrorCodes.IoWriteFailed, type, index.ToString(CultureInfo.InvariantCulture));
     }
 
     #endregion
@@ -361,9 +394,10 @@ public partial class IoComponent : ComponentBase, IIo
                 continue;
             }
 
-            if (!WriteDo(index, on))
+            var result = WriteDo(index, on);
+            if (!result.IsSuccess)
             {
-                LogHelper.Warn(this, $"开机下发 {text}：写 PLC 失败或被 IO 联锁拒绝");
+                LogHelper.Warn(this, $"开机下发 {text} 没下发：{result.ErrorMessage} [{string.Join(", ", result.Args)}]");
                 continue;
             }
 

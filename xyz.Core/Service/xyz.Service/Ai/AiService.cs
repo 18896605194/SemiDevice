@@ -27,6 +27,12 @@ public class AiService : BaseService, IAiService
         _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
+    /// <summary>
+    /// 获取ai服务状态
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> GetStatusAsync(RpcRequest request, CallContext context = default)
     {
         var ai = _ai;
@@ -49,8 +55,7 @@ public class AiService : BaseService, IAiService
             return await NotInstalled(ErrorCodes.AiNotInstalled);
         }
 
-        if (!request.TryGet<string>(RpcParams.Source, out var source)
-            || !request.TryGet<string>(RpcParams.Code, out var code))
+        if (!request.TryGet<string>(RpcParams.Source, out var source)|| !request.TryGet<string>(RpcParams.Code, out var code))
         {
             return await InvalidRequest();
         }

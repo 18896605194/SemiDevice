@@ -8,9 +8,6 @@ using xyz.Tools;
 
 namespace xyz.Service;
 
-/// <summary>
-/// LoadPort 服务给界面操作
-/// </summary>
 public class LoadPortService : BaseService, ILoadPortService
 {
     public Task<RpcResponse> LoadAsync(RpcRequest request)

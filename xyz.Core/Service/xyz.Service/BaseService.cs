@@ -98,23 +98,21 @@ public abstract class BaseService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
     }
 
-    /// <summary>
-    /// 下发动作并同步等终态：被拒照原样回入口给的错误码 + 参数；等超时回 module.wait_timeout（动作还在做，不能据此判失败或重发）；到终态回 Ok 或动作自己的错误码
-    /// </summary>
+
     protected static Task<RpcResponse> RunRoutine(HandleResult<ModuleRoutine> started, int timeout)
     {
         var routine = started.Result;
-        if (!started.IsSuccess || routine is null)
+        if (!started.IsSuccess || routine is null)  //判断动作是否为空
         {
             return Fail(started.ErrorMessage, [.. started.Args]);
         }
 
-        if (!routine.WaitReply(timeout))
+        if (!routine.WaitReply(timeout)) //等待结果，本质上是等 scan 轮训
         {
             return Fail(ErrorCodes.WaitTimeout, routine.Name, timeout.ToString());
         }
 
-        if (routine.IsSuccess)
+        if (routine.IsSuccess) //成功
         {
             return Task.FromResult(RpcResponse.Ok());
         }

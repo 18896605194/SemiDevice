@@ -2,6 +2,7 @@
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
+using xyz.Shared.Errors;
 using xyz.Tools;
 
 static class IoInterlocks
@@ -54,24 +55,27 @@ static class IoInterlocks
                 "initial levels force all rules, including false outputs, with mixed case and Chinese separators");
             io.Tick();
             Check(plc.Writes.Count == 3, "confirmed forced values need no redundant writes");
-            Check(!io.WriteDo(12, false) && plc.Do[12], "active DI blocks opposite command");
-            Check(io.WriteDo(12, true), "forced value is allowed");
+            var blocked = io.WriteDo(12, false);
+            Check(blocked.ErrorMessage == ErrorCodes.IoInterlockBlocked
+                && blocked.Args.SequenceEqual(new[] { "12", "false", "DI25", "false", "true", "di25 = FALSE : do12 = TRUE , Do13 = true" })
+                && plc.Do[12], "active DI blocks opposite command, with the DI, its level and the rule");
+            Check(io.WriteDo(12, true).IsSuccess, "forced value is allowed");
             plc.Do[12] = false;
-            Check(!io.WriteDo(12, false) && plc.Do[12], "rejected command also restores a deviated output");
+            Check(!io.WriteDo(12, false).IsSuccess && plc.Do[12], "rejected command also restores a deviated output");
             plc.Do[13] = false;
             io.Tick();
             Check(plc.Do[13], "sustained level corrects output drift");
             plc.Di[25] = true;
             io.Tick();
             Check(plc.Do[12] && plc.Do[13], "release does not restore old output values");
-            Check(io.WriteDo(12, false), "release permits opposite command");
+            Check(io.WriteDo(12, false).IsSuccess, "release permits opposite command");
             plc.Di.Remove(25);
-            Check(!io.WriteDo(12, false), "unreadable DI cannot be treated as released");
+            Check(io.WriteDo(12, false).ErrorMessage == ErrorCodes.IoInterlockUnknown, "unreadable DI cannot be treated as released");
             io.Tick();
             plc.Di[25] = false;
             plc.IsConnected = false;
             io.Tick();
-            Check(!io.WriteDo(12, false), "disconnected DI cannot authorize a command");
+            Check(!io.WriteDo(12, false).IsSuccess, "disconnected DI cannot authorize a command");
             plc.IsConnected = true;
             plc.FailWrites = true;
             io.Tick();
@@ -86,16 +90,16 @@ static class IoInterlocks
             overlap.Tick();
             Check(overlapPlc.Writes.Count == 1, "same-value overlapping rules write once");
             overlapPlc.Di[25] = true;
-            Check(!overlap.WriteDo(12, false), "remaining active rule still blocks");
+            Check(!overlap.WriteDo(12, false).IsSuccess, "remaining active rule still blocks");
             overlapPlc.Di[26] = false;
-            Check(overlap.WriteDo(12, false), "all rules released permits write before next scan");
+            Check(overlap.WriteDo(12, false).IsSuccess, "all rules released permits write before next scan");
 
             var conflictPlc = new RecordingPlc();
             conflictPlc.Di[25] = false;
             conflictPlc.Di[26] = true;
             var conflict = Create(conflictPlc, "DI25=false:DO12=true;DI26=true:DO12=false");
             conflict.Tick();
-            Check(!conflict.WriteDo(12, true) && !conflict.WriteDo(12, false)
+            Check(conflict.WriteDo(12, true).ErrorMessage == ErrorCodes.IoInterlockConflict && conflict.WriteDo(12, false).ErrorMessage == ErrorCodes.IoInterlockConflict
                 && conflictPlc.Writes.Count == 0, "conflicting active rules block both values without alternating writes");
             conflictPlc.Di.Remove(26);
             conflict.Tick();
@@ -116,7 +120,7 @@ static class IoInterlocks
 
             var plainPlc = new RecordingPlc();
             var plain = Create(plainPlc, "");
-            Check(plain.WriteDo(12, false), "empty config preserves original behavior");
+            Check(plain.WriteDo(12, false).IsSuccess, "empty config preserves original behavior");
             Console.WriteLine("PASS: IO interlocks (parsing, case, multiple rules, enforcement, blocking, release, retries, conflicts, startup)");
         }
         finally

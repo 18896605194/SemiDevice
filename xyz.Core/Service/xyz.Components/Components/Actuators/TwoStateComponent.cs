@@ -197,7 +197,7 @@ public abstract class TwoStateComponent : ComponentBase
 
         lock (_actionGate)
         {
-            if (!io.WriteDo(oppositeCoil, false) || !io.WriteDo(coil, true))
+            if (!io.WriteDo(oppositeCoil, false).IsSuccess || !io.WriteDo(coil, true).IsSuccess)
             {
                 return false;
             }

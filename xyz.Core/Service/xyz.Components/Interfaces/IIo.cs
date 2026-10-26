@@ -1,4 +1,5 @@
 ﻿using xyz.Components.Models;
+using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
@@ -38,9 +39,9 @@ public interface IIo
     bool TryReadDo(int index, out bool on);
 
     /// <summary>
-    /// 写一个 DO，没写成返回 false
+    /// 写一个 DO，没写成带原因
     /// </summary>
-    bool WriteDo(int index, bool on);
+    HandleResult WriteDo(int index, bool on);
 
     /// <summary>
     /// 读一个 AI（换算成工程值），读不到返回 false
@@ -53,9 +54,9 @@ public interface IIo
     bool TryReadAo(int index, out double value);
 
     /// <summary>
-    /// 按工程值写一个 AO，没写成返回 false
+    /// 按工程值写一个 AO，标定过的点超出工程量范围不写，没写成带原因
     /// </summary>
-    bool WriteAo(int index, double engineering);
+    HandleResult WriteAo(int index, double engineering);
 
     /// <summary>
     /// 挂上虚拟输入点的登记表（装配时）

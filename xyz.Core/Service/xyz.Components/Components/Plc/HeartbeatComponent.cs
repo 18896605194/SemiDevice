@@ -92,7 +92,7 @@ public class HeartbeatComponent : ComponentBase, IHeartbeat
             return false;
         }
 
-        return io.WriteDo(DoIndex, on);
+        return io.WriteDo(DoIndex, on).IsSuccess;
     }
 
     #endregion

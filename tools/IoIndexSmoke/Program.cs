@@ -2,6 +2,7 @@
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Tools;
 
 SmokeIoc.Reset();
@@ -86,9 +87,12 @@ try
     Check(io.TryReadDo(12, out on) && on, "unnamed DO read");
     Check(io.TryReadAo(7, out value) && value == 25, "AO readback keeps engineering conversion");
     Check(!io.TryReadAi(0, out _), "missing AI index");
-    Check(io.WriteDo(12, true) && plc.LastDo == (12, true), "DO writes use the requested index");
-    Check(io.WriteAo(7, 25) && plc.LastAo == (7, 250d), "AO keeps engineering conversion");
-    Check(!io.WriteDo(-1, true) && !io.WriteAo(0, 25), "invalid writes must fail");
+    Check(io.WriteDo(12, true).IsSuccess && plc.LastDo == (12, true), "DO writes use the requested index");
+    Check(io.WriteAo(7, 25).IsSuccess && plc.LastAo == (7, 250d), "AO keeps engineering conversion");
+    Check(io.WriteDo(-1, true).ErrorMessage == ErrorCodes.IoWriteFailed && io.WriteAo(0, 25).ErrorMessage == ErrorCodes.IoWriteFailed, "invalid writes must fail");
+    var outOfRange = io.WriteAo(7, 150);
+    Check(outOfRange.ErrorMessage == ErrorCodes.IoOutOfRange && outOfRange.Args.Take(3).SequenceEqual(new[] { "7", "0", "100" }),
+        "scaled AO beyond its engineering range is refused with the range");
     Check(plc.LastAo == (7, 250d), "invalid write must not reach PLC");
 
     plc.IsConnected = false;

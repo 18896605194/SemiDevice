@@ -713,7 +713,7 @@ public class E84Component : ComponentBase, IE84
 
     private static bool OutputWritten(IIo? io, int index, bool on)
     {
-        return index < 0 || (io is not null && io.WriteDo(index, on));
+        return index < 0 || (io is not null && io.WriteDo(index, on).IsSuccess);
     }
 
     #endregion

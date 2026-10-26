@@ -56,6 +56,14 @@ public static class ValueHelper
     }
 
     /// <summary>
+    /// 小数转文字：最多三位小数、末尾的 0 不写，不跟系统的区域设置走
+    /// </summary>
+    public static string ToText(double value)
+    {
+        return value.ToString("0.###", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
     /// 按不变区域性解析小数，不跟系统的区域设置走
     /// </summary>
     public static bool TryParseDouble(string? text, out double value)
