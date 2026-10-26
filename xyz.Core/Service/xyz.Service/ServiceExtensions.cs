@@ -13,17 +13,13 @@ using xyz.Tools;
 namespace xyz.Service;
 
 /// <summary>
-/// 后端开机：装配组件树、组件和 gRPC 服务进容器；容器建好以后按阶段把组件起来、退出时收尾。
-/// 这里只有框架自己的几步，不认识具体组件：组件开机要做的事写在它自己的开机阶段里（见 ComponentBase），加组件不用改这个文件。
+/// 后端开机：装配组件树、组件和 gRPC 服务进容器
 /// </summary>
 public static class ServiceExtensions
 {
-    /// <summary>
-    /// 注册 xyz 后端：照 machine.xml 装组件树，组件、GEM 编号表、gRPC 服务、操作日志进容器。不开机，组件等容器建好以后由 <see cref="StartComponents"/> 起
-    /// </summary>
     public static IServiceCollection AddXyzServices(this IServiceCollection services)
     {
-        var settings = MachineXml.Load();
+        var settings = MachineXml.Load();//装机文件加载
         services.AddSingleton<IReadOnlyList<ModuleConfig>>(settings);
 
         var roots = ComponentLoader.Load(settings);

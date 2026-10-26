@@ -18,7 +18,7 @@ public static class Program
 {
     public static void Main(string[] args)
     {
-        // 一台机只跑一个后端（灯绿灯红都算在跑）：再双击 exe 只让已有那颗灯冒气泡提示，这个直接退，不再去连一遍设备。
+        //托盘，判定只能有一个实例
         using var instance = HostTrayIcon.ClaimInstance();
         if (instance is null)
         {
@@ -58,16 +58,16 @@ public static class Program
 
     private static void Run(string[] args, HostTrayIcon tray)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(args); //启用asp.core
 
-        // 宿主（ASP.NET Core、gRPC 框架）自己的日志也走 LogHelper，记在 Host 名下，只转 Warn 以上
+        //用我们自己的日志 模块记录host
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(new LogHelperLoggerProvider(LogHelper.HostModule));
 
-        // 照 machine.xml 装组件树，组件和 gRPC 服务进容器；组件等容器建好以后再开机
+        //按照machine.xml 装组件树以及相关服务
         builder.Services.AddXyzServices();
 
-        // 只走 HTTP/2；监听哪个地址、端口等组件起来以后从 Rpc 组件上取（见下面 app.Urls）
+        // 只走 HTTP/2；监听地址走的rpc的组件
         builder.WebHost.ConfigureKestrel(options =>
         {
             options.ConfigureEndpointDefaults(listenOptions =>
@@ -79,17 +79,15 @@ public static class Program
         // 退出时不干等长连接：客户端的事件流不会自己断，按默认 30 秒超时要等半分钟才退得掉。
         builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(3));
 
-        // 单条消息上限从 Rpc 组件取：这个选项第一次用到是在映射服务的时候（已经开完机），那时容器里取得到。
-        // 所有调用都过 ActionFilter：记操作日志（谁点了什么）
         builder.Services.AddCodeFirstGrpc(options =>
         {
-            options.MaxReceiveMessageSize = MaxMessageSizeMb() * 1024 * 1024;
-            options.Interceptors.Add<ActionFilter>();
+            options.MaxReceiveMessageSize = MaxMessageSizeMb() * 1024 * 1024;  //单挑消息的大小走的是rpc组件里面配置的
+            options.Interceptors.Add<ActionFilter>(); //增加过滤器 记操作日志（谁点了什么）
         });
 
-        var app = builder.Build();
+        var app = builder.Build(); //创建
 
-        // 容器建好了再开机：组件按阶段起来（PLC 先连先扫描），都起来以后才开 gRPC 端口；退出时各组件按开机的倒序收尾
+       //开始创建容器
         app.Services.StartComponents();
         app.Lifetime.ApplicationStopping.Register(ServiceExtensions.StopComponents);
 

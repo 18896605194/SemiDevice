@@ -3,7 +3,7 @@
 namespace xyz.GrpcHost;
 
 /// <summary>
-/// 托盘灯用到的 Win32：隐藏消息窗口、Shell_NotifyIcon、弹出菜单、拿像素拼图标。
+/// 托盘灯
 /// </summary>
 internal sealed partial class HostTrayIcon
 {
