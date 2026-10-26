@@ -1,8 +1,5 @@
 ﻿namespace xyz.Shared.Rpc;
 
-/// <summary>
-/// RpcRequest 的参数名：客户端装、服务端取都用这里的常量，名字只写一份
-/// </summary>
 public static class RpcParams
 {
     #region 通用

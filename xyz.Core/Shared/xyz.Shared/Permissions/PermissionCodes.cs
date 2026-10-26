@@ -1,8 +1,5 @@
 ﻿namespace xyz.Shared.Permissions;
 
-/// <summary>
-/// 平台的权限项编码：菜单的就是菜单 Code，客户端菜单和后端预置角色共用这一份
-/// </summary>
 public static class PermissionCodes
 {
     #region 菜单
