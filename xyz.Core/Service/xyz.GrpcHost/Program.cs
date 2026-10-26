@@ -16,8 +16,13 @@ namespace xyz.GrpcHost;
 [SupportedOSPlatform("windows")]
 public static class Program
 {
+    /// <summary>
+    /// 入口：只开一个、崩溃原因进日志、托盘灯跟着启动结果变
+    /// </summary>
     public static void Main(string[] args)
     {
+        #region 只开一个
+
         //托盘，判定只能有一个实例
         using var instance = HostTrayIcon.ClaimInstance();
         if (instance is null)
@@ -25,12 +30,20 @@ public static class Program
             return;
         }
 
+        #endregion
+
+        #region 崩溃原因进日志
+
         // 没有控制台了，崩溃原因只能进日志：日志是异步写的，记完等它写进文件再让进程没掉。
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             LogHelper.Error(LogHelper.HostModule, $"后端异常退出：{e.ExceptionObject}");
             LogHelper.Flush(TimeSpan.FromSeconds(3));
         };
+
+        #endregion
+
+        #region 托盘灯、跑宿主
 
         // 右下角状态灯：灰 = 启动中，绿 = 运行中，红 = 启动失败。
         using var tray = new HostTrayIcon();
@@ -54,18 +67,33 @@ public static class Program
             // 日志队列里还没写的写完、文件关掉
             LogHelper.Shutdown();
         }
+
+        #endregion
     }
 
+    /// <summary>
+    /// 建宿主、组件开机、开始监听，一直跑到退出
+    /// </summary>
     private static void Run(string[] args, HostTrayIcon tray)
     {
+        #region 建宿主、日志转进 LogHelper
+
         var builder = WebApplication.CreateBuilder(args); //启用asp.core
 
         //用我们自己的日志 模块记录host
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(new LogHelperLoggerProvider(LogHelper.HostModule));
 
+        #endregion
+
+        #region 装组件树和服务
+
         //按照machine.xml 装组件树以及相关服务
         builder.Services.AddXyzServices();
+
+        #endregion
+
+        #region Kestrel、gRPC 设置
 
         // 只走 HTTP/2；监听地址走的rpc的组件
         builder.WebHost.ConfigureKestrel(options =>
@@ -85,11 +113,19 @@ public static class Program
             options.Interceptors.Add<ActionFilter>(); //增加过滤器 记操作日志（谁点了什么）
         });
 
+        #endregion
+
+        #region 组件开机
+
         var app = builder.Build(); //创建
 
-       //开始创建容器
+        //开始创建容器
         app.Services.StartComponents();
         app.Lifetime.ApplicationStopping.Register(ServiceExtensions.StopComponents);
+
+        #endregion
+
+        #region 监听地址
 
         // gRPC 端点本身是组件（machine.xml 的 Rpc 节点），地址端口从它上面取；没配该节点退回默认 localhost:5000
         var rpc = IocHelper.GetService<IRpc>();
@@ -102,18 +138,30 @@ public static class Program
         int port = rpc?.Port ?? RpcComponent.DefaultPort;
         app.Urls.Add(ListenUrl(host, port));
 
+        #endregion
+
+        #region 映射 gRPC 服务
+
         // gRPC 服务：实现了契约的类都映射上（加服务不用改这里）
         foreach (var implementation in ServiceExtensions.GrpcServices().Select(service => service.Implementation).Distinct())
         {
             MapGrpcService(app, implementation);
         }
 
+        #endregion
+
+        #region 托盘灯、退出
+
         // 端口监听上了灯才变绿；托盘上点退出就停宿主。
         app.Lifetime.ApplicationStarted.Register(() => tray.SetRunning($"{host}:{port}"));
         tray.ExitRequested.Register(app.Lifetime.StopApplication);
 
+        #endregion
+
         app.Run();
     }
+
+    #region 启动用到的小方法
 
     /// <summary>
     /// 单条消息最大多少 MB：没配 Rpc 节点按默认 26 MB
@@ -152,4 +200,6 @@ public static class Program
             .Single(method => method.Name == nameof(GrpcEndpointRouteBuilderExtensions.MapGrpcService) && method.IsGenericMethodDefinition);
         map.MakeGenericMethod(implementation).Invoke(null, [app]);
     }
+
+    #endregion
 }
