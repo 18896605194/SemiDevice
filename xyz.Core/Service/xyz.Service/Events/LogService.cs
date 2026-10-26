@@ -10,8 +10,7 @@ using xyz.Shared.Services;
 namespace xyz.Service.Events;
 
 /// <summary>
-/// 日志 gRPC 服务：客户端连上后拉取后端最近日志（历史），实时日志走事件流；日志历史页按时间段查日志文件；
-/// 客户端日志显示条数也从这里取（machine.xml 的 Log 节点）。
+/// 日志服务 
 /// </summary>
 public class LogService : ILogService
 {
@@ -22,6 +21,12 @@ public class LogService : ILogService
         _log = IocHelper.GetService<ILogComponent>();
     }
 
+    /// <summary>
+    /// 多少条
+    /// </summary>
+    /// <param name="query"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> GetRecentAsync(LogQuery query, CallContext context = default)
     {
         var logs = _log?.Recent() ?? [];
@@ -34,9 +39,12 @@ public class LogService : ILogService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(logs)));
     }
 
-    /// <summary>
-    /// 按时间段读主日志文件，再按模块（第一层完全一样）、级别、关键字（模块、部件、内容里包含）筛；超过条数只留最新的。读文件放线程池，不占 gRPC 线程。
-    /// </summary>
+   /// <summary>
+   /// 查询的区间，根据日期
+   /// </summary>
+   /// <param name="query"></param>
+   /// <param name="context"></param>
+   /// <returns></returns>
     public Task<RpcResponse> QueryHistoryAsync(LogHistoryQuery query, CallContext context = default)
     {
         return Task.Run(() =>
@@ -112,8 +120,11 @@ public class LogService : ILogService
     }
 
     /// <summary>
-    /// 客户端的日志设置：显示条数、文件留几天、日志历史页的模块下拉选项，读 machine.xml 的 Log 节点（ILogComponent），没装或配得不对时给默认值。
+    /// 设置查询的基础条件，显示多少条，最多实时日志保留多少条
     /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
     {
         var settings = new LogSettingsDto

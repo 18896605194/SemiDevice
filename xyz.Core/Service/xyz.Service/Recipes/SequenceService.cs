@@ -10,57 +10,52 @@ using xyz.Tools;
 namespace xyz.Service.Recipes;
 
 /// <summary>
-/// 流程配方 gRPC 服务（配方 → 流程配方页）：把流程配方库（SequenceComponent）的结果翻成回包。
-/// 检查都在库里做（编号、名称、版本、步骤），这里只管取库、转 DTO、带上操作人。
+/// 流程配方服务
 /// </summary>
 public class SequenceService : BaseService, ISequenceService
 {
-    private readonly ISequenceComponent? _library;
-
-    /// <summary>
-    /// EAP 的远程配方管理：Host 锁着时本地不让改
-    /// </summary>
+    private readonly ISequenceComponent? _sequence;
     private readonly IE30RecipeComponent? _e30Recipe;
 
     public SequenceService()
     {
-        _library = IocHelper.GetService<ISequenceComponent>();
+        _sequence = IocHelper.GetService<ISequenceComponent>();
         _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
     {
-        if (_library is null)
+        if (_sequence is null)
         {
             return NotInstalled();
         }
 
         var dto = new SequenceListDto
         {
-            Capacity = _library.Capacity,
-            Items = _library.List().Select(item => new SequenceSummaryDto { Index = item.Index, Name = item.Name }).ToList(),
+            Capacity = _sequence.Capacity,
+            Items = _sequence.List().Select(item => new SequenceSummaryDto { Index = item.Index, Name = item.Name }).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
 
     public Task<RpcResponse> GetAsync(SequenceIndexRequest request, CallContext context = default)
     {
-        if (_library is null)
+        if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return Reply(_library.Get(request.Index));
+        return Reply(_sequence.Get(request.Index));
     }
 
     public Task<RpcResponse> GetStationGroupsAsync(RpcRequest request, CallContext context = default)
     {
-        if (_library is null)
+        if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        var groups = _library.StationGroups.Select(group => new SequenceStationGroupDto
+        var groups = _sequence.StationGroups.Select(group => new SequenceStationGroupDto
         {
             Name = group.Name,
             Modules = group.Modules.ToList(),
@@ -72,37 +67,37 @@ public class SequenceService : BaseService, ISequenceService
 
     public Task<RpcResponse> CreateAsync(SequenceCreateRequest request, CallContext context = default)
     {
-        if (_library is null)
+        if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Create(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
+        return LockedByHost() ?? Reply(_sequence.Create(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> RenameAsync(SequenceRenameRequest request, CallContext context = default)
     {
-        if (_library is null)
+        if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Rename(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
+        return LockedByHost() ?? Reply(_sequence.Rename(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> DeleteAsync(SequenceDeleteRequest request, CallContext context = default)
     {
-        if (_library is null)
+        if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Delete(request.Index, RpcOperator.Of(context)));
+        return LockedByHost() ?? Reply(_sequence.Delete(request.Index, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> SaveAsync(SequenceSaveRequest request, CallContext context = default)
     {
-        if (_library is null)
+        if (_sequence is null)
         {
             return NotInstalled();
         }
@@ -112,7 +107,7 @@ public class SequenceService : BaseService, ISequenceService
             step.Group ?? string.Empty,
             (step.Stations ?? []).Select(station => station ?? string.Empty),
             step.Recipe ?? string.Empty)).ToList();
-        return LockedByHost() ?? Reply(_library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, RpcOperator.Of(context)));
+        return LockedByHost() ?? Reply(_sequence.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, RpcOperator.Of(context)));
     }
 
     private static Task<RpcResponse> Reply(HandleResult result)
