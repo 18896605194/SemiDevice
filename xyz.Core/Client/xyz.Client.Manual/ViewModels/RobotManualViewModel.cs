@@ -171,7 +171,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         // 先拉一次当前状态（含示教点表），再订阅推送；只等推送的话页面刚打开会一直是空的。
         try
         {
-            var response = _service.GetStateAsync(ModuleName).GetAwaiter().GetResult();
+            var response = _service.GetStateAsync(RpcRequest.Of((RpcParams.Module, ModuleName))).GetAwaiter().GetResult();
             response.EnsureSuccess();
 
             var json = response.Data?.TrimStart() ?? string.Empty;
@@ -338,13 +338,12 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoPick()
     {
-        var response = await _service.PickAsync(new RobotPickPlaceRequest
-        {
-            Module = ModuleName,
-            Arm = SourceArm,
-            Station = SourceStation,
-            Slot = SourceSlot,
-        });
+        var response = await _service.PickAsync(RpcRequest.Of(
+            (RpcParams.Module, ModuleName),
+            (RpcParams.Arm, SourceArm),
+            // 下拉选项重建时会被写成 null；给空串，后端照旧回"站点不对"的具体原因
+            (RpcParams.Station, SourceStation ?? string.Empty),
+            (RpcParams.Slot, SourceSlot)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Pick 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -353,13 +352,12 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoPlace()
     {
-        var response = await _service.PlaceAsync(new RobotPickPlaceRequest
-        {
-            Module = ModuleName,
-            Arm = TargetArm,
-            Station = TargetStation,
-            Slot = TargetSlot,
-        });
+        var response = await _service.PlaceAsync(RpcRequest.Of(
+            (RpcParams.Module, ModuleName),
+            (RpcParams.Arm, TargetArm),
+            // 下拉选项重建时会被写成 null；给空串，后端照旧回"站点不对"的具体原因
+            (RpcParams.Station, TargetStation ?? string.Empty),
+            (RpcParams.Slot, TargetSlot)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Place 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -368,7 +366,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoHome()
     {
-        var response = await _service.HomeAsync(ModuleName);
+        var response = await _service.HomeAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Home 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -378,7 +376,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     private async Task DoAbort()
     {
         // 急停：可顶替在途动作（被顶的调用方收到 module.action_aborted）。
-        var response = await _service.AbortAsync(ModuleName);
+        var response = await _service.AbortAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Abort 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -388,7 +386,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     private async Task DoReset()
     {
         // 复位：组件基类先清报警，模块再发设备复位清错。
-        var response = await _service.ResetAsync(ModuleName);
+        var response = await _service.ResetAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Reset 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -397,7 +395,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoPowerOn()
     {
-        var response = await _service.PowerOnAsync(ModuleName);
+        var response = await _service.PowerOnAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"PowerOn 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -406,7 +404,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoPowerOff()
     {
-        var response = await _service.PowerOffAsync(ModuleName);
+        var response = await _service.PowerOffAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"PowerOff 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -416,7 +414,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     private async Task DoProduction()
     {
         // 生产 / 维护只改模块模式，结果随状态推送刷新到模块名右边的模式灯。
-        var response = await _service.SetProductionAsync(ModuleName);
+        var response = await _service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"切生产模式失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
@@ -425,7 +423,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoMaintenance()
     {
-        var response = await _service.SetMaintenanceAsync(ModuleName);
+        var response = await _service.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"切维护模式失败：{ErrorText.Of(response, ModuleStates.RobotText)}");

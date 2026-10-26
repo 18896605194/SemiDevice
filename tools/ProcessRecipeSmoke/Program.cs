@@ -663,11 +663,11 @@ try
           && options.Fields.First(field => field.Key == "Mode").OptionsByType["A"].SequenceEqual(new[] { "Time", "Scan" })
           && chemicalDto.Options.Count == 0,
         "步骤字段表：下拉带上 machine.xml 里按 Type 分开写的选项");
-    var one = (await service.GetAsync(new ProcessRecipeIndexRequest { Index = 1 })).DeserializeData<ProcessRecipeDto>();
+    var one = (await service.GetAsync(RpcRequest.Of((RpcParams.Index, 1)))).DeserializeData<ProcessRecipeDto>();
     Check(one.Index == 1 && one.Revision == 5 && one.Steps.Count == 1 && one.Steps[0].Values["Chemical"] == "SC1" && one.Steps[0].Values.Count == 9
           && one.Type == "A" && one.Timeout == "600", "取一个：配方头（Type、超时时间）和每一步的字段值");
 
-    var createdBySvc = await service.CreateAsync(new ProcessRecipeCreateRequest { Index = 3, Name = "SVC_NEW" });
+    var createdBySvc = await service.CreateAsync(RpcRequest.Of((RpcParams.Index, 3), (RpcParams.Name, "SVC_NEW")));
     var createdDto = createdBySvc.DeserializeData<ProcessRecipeDto>();
     Check(createdBySvc.Success && createdDto.Index == 3 && createdDto.CreatedBy == "Unknown" && createdDto.Steps.Count == 1
           && createdDto.Steps[0].Values["Rpm"] == "500", "服务新建：没带操作人记成 Unknown，第一步是默认值");
@@ -680,45 +680,63 @@ try
         ];
     }
 
-    var savedBySvc = await service.SaveAsync(new ProcessRecipeSaveRequest
-    {
-        Index = 3, Revision = 1, Type = "A", Timeout = "120", Description = "d", Steps = ServiceSteps("1.5"),
-    }, SmokeCall.As("Op"));
+    var savedBySvc = await service.SaveAsync(RpcRequest.Of(
+        (RpcParams.Index, 3),
+        (RpcParams.Revision, 1),
+        (RpcParams.Type, "A"),
+        (RpcParams.Timeout, "120"),
+        (RpcParams.Description, "d"),
+        (RpcParams.Steps, ServiceSteps("1.5"))), SmokeCall.As("Op"));
     var savedDto = savedBySvc.DeserializeData<ProcessRecipeDto>();
     Check(savedBySvc.Success && savedDto.Revision == 2 && savedDto.ModifiedBy == "Op" && savedDto.Steps[0].Values["ScanTo"] == "60"
           && savedDto.Steps[1].Values["Arm"].Length == 0 && savedDto.Type == "A" && savedDto.Timeout == "120",
         "服务保存：版本加 1，配方头的 Type、超时时间存上，没给的字段存成空的");
-    var stale = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 1, Type = "A", Timeout = "600", Steps = ServiceSteps("1.5") }, SmokeCall.As("Op"));
+    var stale = await service.SaveAsync(RpcRequest.Of(
+        (RpcParams.Index, 3),
+        (RpcParams.Revision, 1),
+        (RpcParams.Type, "A"),
+        (RpcParams.Timeout, "600"),
+        (RpcParams.Steps, ServiceSteps("1.5"))), SmokeCall.As("Op"));
     Check(!stale.Success && stale.Code == ErrorCodes.ProcessRecipeRevisionMismatch && stale.Args.SequenceEqual(new[] { "3" }), "版本冲突：错误码带编号");
-    var badFlow = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 2, Type = "A", Timeout = "600", Steps = ServiceSteps("9") }, SmokeCall.As("Op"));
+    var badFlow = await service.SaveAsync(RpcRequest.Of(
+        (RpcParams.Index, 3),
+        (RpcParams.Revision, 2),
+        (RpcParams.Type, "A"),
+        (RpcParams.Timeout, "600"),
+        (RpcParams.Steps, ServiceSteps("9"))), SmokeCall.As("Op"));
     Check(!badFlow.Success && badFlow.Code == ErrorCodes.ProcessRecipeValueAboveMax && badFlow.Args.SequenceEqual(new[] { "1", "流量", "3", " L/min" }),
         "流量超了：错误码带步号、字段名、上限和单位");
-    var badType = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 2, Type = "B", Timeout = "600", Steps = ServiceSteps("1.5") }, SmokeCall.As("Op"));
+    var badType = await service.SaveAsync(RpcRequest.Of(
+        (RpcParams.Index, 3),
+        (RpcParams.Revision, 2),
+        (RpcParams.Type, "B"),
+        (RpcParams.Timeout, "600"),
+        (RpcParams.Steps, ServiceSteps("1.5"))), SmokeCall.As("Op"));
     Check(!badType.Success && badType.Code == ErrorCodes.ProcessRecipeHeadValueNotInOptions && badType.Args.SequenceEqual(new[] { "Type", "B" }),
         "Type 不是腔体配的：配方头的错误码带名字和值");
-    var duplicate = await service.RenameAsync(new ProcessRecipeRenameRequest { Index = 3, Name = "sc1_45s" }, SmokeCall.As("Op"));
+    var duplicate = await service.RenameAsync(RpcRequest.Of((RpcParams.Index, 3), (RpcParams.Name, "sc1_45s")), SmokeCall.As("Op"));
     Check(!duplicate.Success && duplicate.Code == ErrorCodes.ProcessRecipeNameDuplicate && duplicate.Args.SequenceEqual(new[] { "sc1_45s", "1" }),
         "改名重了：错误码带名称和编号");
 
     // 13. 腔体起工艺：配方要在库里，Type 要跟腔体一样，选的摆臂、药液这个腔体要有；都对得上的照常往下走（探针腔体不接动作，回动作被拒）。
     SmokeIoc.Tree(pm1, pm2, pmB);
     var chamberService = new ChamberService();
-    var wrongType = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePMB", Recipe = "sc1_45s" });
+    var wrongType = await chamberService.ProcessAsync(RpcRequest.Of((RpcParams.Module, "SmokePMB"), (RpcParams.Recipe, "sc1_45s")));
     Check(!wrongType.Success && wrongType.Code == ErrorCodes.ChamberRecipeOptionMissing && wrongType.Args.SequenceEqual(new[] { "SmokePMB", "sc1_45s", "Type", "A" }),
         "腔体起工艺：配方是 Type A、腔体是 Type B，错误码带模块、配方、字段 Type 和配方的 Type");
-    var missing = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePM1", Recipe = " NOPE " });
+    var missing = await chamberService.ProcessAsync(RpcRequest.Of((RpcParams.Module, "SmokePM1"), (RpcParams.Recipe, " NOPE ")));
     Check(!missing.Success && missing.Code == ErrorCodes.ChamberRecipeNotFound && missing.Args.SequenceEqual(new[] { "SmokePM1", "NOPE" }),
         "腔体起工艺：配方不在库里，错误码带模块和配方名");
-    var mismatch = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePM2", Recipe = "sc1_45s" });
+    var mismatch = await chamberService.ProcessAsync(RpcRequest.Of((RpcParams.Module, "SmokePM2"), (RpcParams.Recipe, "sc1_45s")));
     Check(!mismatch.Success && mismatch.Code == ErrorCodes.ChamberRecipeOptionMissing && mismatch.Args.SequenceEqual(new[] { "SmokePM2", "sc1_45s", "药液", "SC1" }),
         "腔体起工艺：配方里的 SC1 这个腔体的摆臂上没有，错误码带模块、配方、字段和值");
-    var fits = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePM1", Recipe = "sc1_45s" });
+    var fits = await chamberService.ProcessAsync(RpcRequest.Of((RpcParams.Module, "SmokePM1"), (RpcParams.Recipe, "sc1_45s")));
     Check(fits.Code != ErrorCodes.ChamberRecipeOptionMissing && fits.Code != ErrorCodes.ChamberRecipeNotFound, "对得上的腔体不挡");
-    var empty = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePM1", Recipe = "  " });
+    var empty = await chamberService.ProcessAsync(RpcRequest.Of((RpcParams.Module, "SmokePM1"), (RpcParams.Recipe, "  ")));
     Check(!empty.Success && empty.Code == ErrorCodes.RecipeRequired, "没填配方还是 chamber.recipe_required");
 
-    Check((await service.DeleteAsync(new ProcessRecipeDeleteRequest { Index = 3 }, SmokeCall.As("Op"))).Success, "服务删除");
-    var gone = await service.GetAsync(new ProcessRecipeIndexRequest { Index = 3 });
+    Check((await service.DeleteAsync(RpcRequest.Of((RpcParams.Index, 3)), SmokeCall.As("Op"))).Success, "服务删除");
+    var gone = await service.GetAsync(RpcRequest.Of((RpcParams.Index, 3)));
     Check(!gone.Success && gone.Code == ErrorCodes.ProcessRecipeNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 
     SmokeIoc.Use<IRecipeComponent>(null);
@@ -727,7 +745,7 @@ try
     var notInstalled = await service.GetListAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.ProcessRecipeNotInstalled && notInstalled.Args.Count == 0,
         "没装库：process_recipe.not_installed");
-    var notChecked = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePM1", Recipe = "NOPE" });
+    var notChecked = await chamberService.ProcessAsync(RpcRequest.Of((RpcParams.Module, "SmokePM1"), (RpcParams.Recipe, "NOPE")));
     Check(!notChecked.Success && notChecked.Code == ErrorCodes.ChamberRecipeStepsMissing && notChecked.Args.SequenceEqual(new[] { "SmokePM1", "NOPE" }),
         "没装库时只有配方名、拿不到步骤：腔体起工艺前就挡下（chamber.recipe_steps_missing）");
 }

@@ -1,6 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 晶圆账全貌（设置 → 账单调整页）：能调整的位置——所有机械手 machine.xml 里 Stations 配的站点合并，再加上机械手自己（手指），
@@ -161,64 +159,4 @@ public class WaferAdjustmentDto
     public string Operator { get; set; } = string.Empty;
 
     public string? Reason { get; set; }
-}
-
-/// <summary>
-/// 人工移账请求。code-first gRPC 的请求参数必须是消息类，故包一层。
-/// </summary>
-[ProtoContract]
-public class WaferMoveRequest
-{
-    [ProtoMember(1)]
-    public string FromModule { get; set; } = string.Empty;
-
-    [ProtoMember(2)]
-    public int FromSlot { get; set; }
-
-    [ProtoMember(3)]
-    public string ToModule { get; set; } = string.Empty;
-
-    [ProtoMember(4)]
-    public int ToSlot { get; set; }
-
-    /// <summary>
-    /// 原因（选填），记进调整记录。
-    /// </summary>
-    [ProtoMember(5)]
-    public string Reason { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 人工补账请求：在空槽上建一片，片号由人填，其余按默认（正常片、未处理）。
-/// </summary>
-[ProtoContract]
-public class WaferCreateRequest
-{
-    [ProtoMember(1)]
-    public string Module { get; set; } = string.Empty;
-
-    [ProtoMember(2)]
-    public int Slot { get; set; }
-
-    [ProtoMember(3)]
-    public string WaferId { get; set; } = string.Empty;
-
-    [ProtoMember(4)]
-    public string Reason { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 人工删账请求。
-/// </summary>
-[ProtoContract]
-public class WaferDeleteRequest
-{
-    [ProtoMember(1)]
-    public string Module { get; set; } = string.Empty;
-
-    [ProtoMember(2)]
-    public int Slot { get; set; }
-
-    [ProtoMember(3)]
-    public string Reason { get; set; } = string.Empty;
 }

@@ -161,7 +161,7 @@ public class LogRealtimeViewModel : BaseViewModel
         try
         {
             // 后端缓冲里有多少补多少（缓冲条数在 machine.xml 的 Log 节点配）
-            var response = await _service.GetRecentAsync(new LogQuery());
+            var response = await _service.GetRecentAsync(new RpcRequest());
             if (!response.Success)
             {
                 return;

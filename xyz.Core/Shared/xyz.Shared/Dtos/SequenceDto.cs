@@ -1,6 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 流程配方列表（配方 → 流程配方页左边）：编号 1~Capacity，只带用了的编号的名称。
@@ -61,18 +59,14 @@ public class SequenceDto
 
 /// <summary>
 /// 一步：站点分组（machine.xml 里的分组节点名，如 LoadPort、Chamber）、这一步可去的站点（勾几个 = 哪个空去哪个）、
-/// 工艺配方（分组要的时候才有）。既是 <see cref="SequenceDto"/> 里的数据（走 JSON），也是保存请求里的消息（走 protobuf），所以带 ProtoContract。
+/// 工艺配方（分组要的时候才有）。既是 <see cref="SequenceDto"/> 里的数据，也是保存时 Steps 参数的一项。
 /// </summary>
-[ProtoContract]
 public class SequenceStepDto
 {
-    [ProtoMember(1)]
     public string Group { get; set; } = string.Empty;
 
-    [ProtoMember(2)]
     public List<string> Stations { get; set; } = [];
 
-    [ProtoMember(3)]
     public string Recipe { get; set; } = string.Empty;
 }
 
@@ -103,72 +97,4 @@ public class SequenceStationGroupDto
 public class SequenceChangedDto
 {
     public int Index { get; set; }
-}
-
-/// <summary>
-/// 按编号取一个流程配方。
-/// </summary>
-[ProtoContract]
-public class SequenceIndexRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-}
-
-/// <summary>
-/// 新建：在空编号上建一个，只给名称，内容按默认（LoadPort → 第一个要工艺配方的分组 → LoadPort，模块全勾）。
-/// </summary>
-[ProtoContract]
-public class SequenceCreateRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-
-    [ProtoMember(2)]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 重命名。
-/// </summary>
-[ProtoContract]
-public class SequenceRenameRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-
-    [ProtoMember(2)]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 删除。
-/// </summary>
-[ProtoContract]
-public class SequenceDeleteRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-}
-
-/// <summary>
-/// 保存说明和步骤（名称走重命名）。
-/// </summary>
-[ProtoContract]
-public class SequenceSaveRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-
-    /// <summary>
-    /// 打开时读到的版本；后端的版本已经变了就拒绝，免得两台客户端互相覆盖。
-    /// </summary>
-    [ProtoMember(2)]
-    public int Revision { get; set; }
-
-    [ProtoMember(3)]
-    public string Description { get; set; } = string.Empty;
-
-    [ProtoMember(4)]
-    public List<SequenceStepDto> Steps { get; set; } = [];
 }

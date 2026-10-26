@@ -103,14 +103,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         set { SetEcInt(nameof(DeviceActionTimeout), value); }
     }
 
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "500", max: "10000",
-        @default: "1000", description: "点动保活超时：手动页按住点动时界面每 200 ms 续一次，超过这么久没续上（界面断了、客户端退了）就自己停")]
-    public int HoldTimeoutMs
-    {
-        get { return GetEcInt(nameof(HoldTimeoutMs)); }
-        set { SetEcInt(nameof(HoldTimeoutMs), value); }
-    }
-
     [VariableMark(VariableType.EC, ValueFormat.Bool, @default: "True",
         description: "起工艺前看不看供液就绪（machine.xml Supply 配的供液模块）；False = 不看，调试时供液还没调好用")]
     public bool SupplyCheckEnabled
@@ -900,8 +892,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 轴点动（速度正负是方向，不能是 0）：发起了就回，返回的动作等松手；按住期间界面调 <see cref="AxisJogRenew"/> 续，
-    /// 松手发 <see cref="AxisStop"/>；EC HoldTimeoutMs 内没续上模块自己停
+    /// 轴点动（速度正负是方向，不能是 0）：按下发一次就回，返回的动作等松手；一直走到松手发 <see cref="AxisStop"/>
     /// </summary>
     public HandleResult<ModuleRoutine> AxisJog(string path, double speed)
     {
@@ -929,13 +920,12 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(DeviceCommandRejected(path, ChamberDeviceAction.Jog));
             }
 
-            // 按住期间界面一直续；松手（界面发停止）或没续上就停轴，再等轴停下
+            // 一直走到松手（界面发停止），再等轴停下
             var jog = new ModuleRoutine(this, $"{axis.FullPath} {ChamberDeviceAction.Jog}");
             jog.Add("按住", null, HoldJog);
             jog.AwaitSent("等停下", axis, ChamberDeviceAction.Jog, () => DeviceActionTimeout);
             _jogAxis = axis;
             _jogReleased = false;
-            Interlocked.Exchange(ref _jogRenewedAt, Environment.TickCount64);
             var started = Started(ChamberAction.Manual, jog);
             if (!started.IsSuccess)
             {
@@ -950,7 +940,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 按住期间每拍：界面松手了这一步就过；轴报失败先停再判失败；EC HoldTimeoutMs 内没续上（界面断了、客户端退了）就自己停、算松手
+    /// 按住期间每拍：界面松手了这一步就过；轴报失败先停再判失败
     /// </summary>
     private bool HoldJog(RoutineStep step)
     {
@@ -965,18 +955,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             axis.Stop();
             step.Fail(ErrorCodes.ChamberDeviceActionFailed, $"{axis.FullPath} 点动中轴报失败（设备报错）",
                 axis.FullPath, nameof(ChamberDeviceAction.Jog));
-            return false;
         }
 
-        if (Environment.TickCount64 - Interlocked.Read(ref _jogRenewedAt) <= HoldTimeoutMs)
-        {
-            return false;
-        }
-
-        LogHelper.Warn(this, $"{axis.FullPath} {HoldTimeoutMs} ms 没续上（界面断了或客户端退了），自己停");
-        axis.Stop();
-        _jogReleased = true;
-        return true;
+        return false;
     }
 
     /// <summary>
@@ -1010,21 +991,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         }
 
         return HandleResult.Success();
-    }
-
-    /// <summary>
-    /// 续点动：正在点动的就是这根轴才续上（重新计时），否则返回 false——已经松手、被停止或中止顶掉了
-    /// </summary>
-    public bool AxisJogRenew(string path)
-    {
-        var axis = FindAxis(path);
-        if (axis is null || !IsJogging(axis) || _jogReleased)
-        {
-            return false;
-        }
-
-        Interlocked.Exchange(ref _jogRenewedAt, Environment.TickCount64);
-        return true;
     }
 
     /// <summary>
@@ -1266,14 +1232,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     private volatile IAxis? _jogAxis;
 
     /// <summary>
-    /// 已经松手（界面发了停止，或者没续上自己停了）
+    /// 已经松手（界面发了停止）
     /// </summary>
     private volatile bool _jogReleased;
-
-    /// <summary>
-    /// 界面上次续的时刻（Environment.TickCount64）
-    /// </summary>
-    private long _jogRenewedAt;
 
     #endregion
 

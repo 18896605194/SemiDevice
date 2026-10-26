@@ -42,7 +42,7 @@ public class LoadPortsManualViewModel : BaseViewModel
         try
         {
             //页面刚起来主动获取一次
-            var response = _service.GetStateAsync(string.Empty).GetAwaiter().GetResult();
+            var response = _service.GetStateAsync(RpcRequest.Of((RpcParams.Module, string.Empty))).GetAwaiter().GetResult();
             response.EnsureSuccess();
 
             var json = response.Data?.TrimStart() ?? string.Empty;

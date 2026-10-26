@@ -184,14 +184,12 @@ public class LogHistoryViewModel : BaseViewModel
         var range = QueryDateRange.Of(StartTime ?? QueryDateRange.Today().Start, EndTime ?? QueryDateRange.Today().End);
         try
         {
-            var response = await _service.QueryHistoryAsync(new LogHistoryQuery
-            {
-                Start = range.Start,
-                End = range.End,
-                Module = LevelOptions.ToQuery(SelectedModule),
-                Level = LevelOptions.ToQuery(SelectedLevel),
-                Keyword = Keyword.Trim(),
-            });
+            var response = await _service.QueryHistoryAsync(RpcRequest.Of(
+                (RpcParams.Start, range.Start),
+                (RpcParams.End, range.End),
+                (RpcParams.Module, LevelOptions.ToQuery(SelectedModule)),
+                (RpcParams.Level, LevelOptions.ToQuery(SelectedLevel)),
+                (RpcParams.Keyword, Keyword.Trim())));
 
             if (!response.Success)
             {

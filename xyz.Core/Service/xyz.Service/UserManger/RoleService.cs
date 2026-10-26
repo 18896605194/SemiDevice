@@ -2,6 +2,7 @@
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -36,7 +37,7 @@ public class RoleService : BaseService, IRoleService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
     }
 
-    public Task<RpcResponse> CreateRoleAsync(RoleSaveRequest request, CallContext context = default)
+    public Task<RpcResponse> CreateRoleAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -44,7 +45,13 @@ public class RoleService : BaseService, IRoleService
             return NotInstalled();
         }
 
-        var result = account.CreateRole(request);
+        if (!request.TryGet<string>(RpcParams.Name, out var name))
+        {
+            return InvalidRequest();
+        }
+
+        string description = request.Get(RpcParams.Description, string.Empty);
+        var result = account.CreateRole(name, description);
         if (!result.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
@@ -53,7 +60,7 @@ public class RoleService : BaseService, IRoleService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
     }
 
-    public Task<RpcResponse> UpdateRoleAsync(RoleSaveRequest request, CallContext context = default)
+    public Task<RpcResponse> UpdateRoleAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -61,10 +68,17 @@ public class RoleService : BaseService, IRoleService
             return NotInstalled();
         }
 
-        return Reply(account.UpdateRole(request));
+        if (!request.TryGet<long>(RpcParams.Id, out var id)
+            || !request.TryGet<string>(RpcParams.Name, out var name))
+        {
+            return InvalidRequest();
+        }
+
+        string description = request.Get(RpcParams.Description, string.Empty);
+        return Reply(account.UpdateRole(id, name, description));
     }
 
-    public Task<RpcResponse> DeleteRoleAsync(AccountIdRequest request, CallContext context = default)
+    public Task<RpcResponse> DeleteRoleAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -72,10 +86,15 @@ public class RoleService : BaseService, IRoleService
             return NotInstalled();
         }
 
-        return Reply(account.DeleteRole(request.Id));
+        if (!request.TryGet<long>(RpcParams.Id, out var id))
+        {
+            return InvalidRequest();
+        }
+
+        return Reply(account.DeleteRole(id));
     }
 
-    public Task<RpcResponse> GetPermissionsAsync(AccountIdRequest request, CallContext context = default)
+    public Task<RpcResponse> GetPermissionsAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -83,7 +102,12 @@ public class RoleService : BaseService, IRoleService
             return NotInstalled();
         }
 
-        var result = account.GetPermissions(request.Id);
+        if (!request.TryGet<long>(RpcParams.Id, out var id))
+        {
+            return InvalidRequest();
+        }
+
+        var result = account.GetPermissions(id);
         if (!result.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
@@ -92,7 +116,7 @@ public class RoleService : BaseService, IRoleService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
     }
 
-    public Task<RpcResponse> SavePermissionsAsync(RolePermissionsSaveRequest request, CallContext context = default)
+    public Task<RpcResponse> SavePermissionsAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -100,7 +124,13 @@ public class RoleService : BaseService, IRoleService
             return NotInstalled();
         }
 
-        return Reply(account.SavePermissions(request));
+        if (!request.TryGet<long>(RpcParams.RoleId, out var roleId)
+            || !request.TryGet<List<RolePermissionItem>>(RpcParams.Items, out var items))
+        {
+            return InvalidRequest();
+        }
+
+        return Reply(account.SavePermissions(roleId, items));
     }
 
     private static Task<RpcResponse> NotInstalled()

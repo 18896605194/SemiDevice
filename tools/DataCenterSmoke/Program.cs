@@ -25,6 +25,7 @@ using xyz.Service.Charts;
 using xyz.Service.Events;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -77,31 +78,31 @@ try
 
     // ── 2. 日志历史查询：最新的在前；按级别、关键字（不分大小写）、时间段筛；超出条数只留最新的 ─────
     var logService = new LogService();
-    async Task<HistoryResult<LogDto>> QueryLogs(LogHistoryQuery query)
+    async Task<HistoryResult<LogDto>> QueryLogs(RpcRequest request)
     {
-        var response = await logService.QueryHistoryAsync(query);
+        var response = await logService.QueryHistoryAsync(request);
         Check(response.Success, "日志查询应成功");
         return JsonHelper.Deserialize<HistoryResult<LogDto>>(response.Data)!;
     }
 
-    var all = await QueryLogs(new LogHistoryQuery { Start = day, End = day.AddDays(1) });
+    var all = await QueryLogs(RpcRequest.Of((RpcParams.Start, day), (RpcParams.End, day.AddDays(1))));
     Check(all.Items.Count == 5 && all.Items[0].Module == "E84" && all.Items[^1].Message == "旧文件里的一条" && !all.Truncated,
         "全部 5 条，最新的在前");
     Check(all.Items.All(log => log.Source == "Server") && all.Items[0].Level == "Debug", "来源 Server，级别用 Info/Warn 这种名字");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day, End = day.AddDays(1), Keyword = "robot1" })).Items.Count == 2,
+    Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day), (RpcParams.End, day.AddDays(1)), (RpcParams.Keyword, "robot1")))).Items.Count == 2,
         "关键字按模块筛，不分大小写");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day, End = day.AddDays(1), Keyword = "堆栈不存在" })).Items.Count == 0,
+    Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day), (RpcParams.End, day.AddDays(1)), (RpcParams.Keyword, "堆栈不存在")))).Items.Count == 0,
         "关键字对不上就没有");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day, End = day.AddDays(1), Keyword = "Bar()" })).Items.Count == 1,
+    Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day), (RpcParams.End, day.AddDays(1)), (RpcParams.Keyword, "Bar()")))).Items.Count == 1,
         "关键字也查续行里的内容");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day, End = day.AddDays(1), Level = "Error" })).Items.Count == 1,
+    Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day), (RpcParams.End, day.AddDays(1)), (RpcParams.Level, "Error")))).Items.Count == 1,
         "按级别筛");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day.AddHours(9), End = day.AddHours(11) })).Items.Count == 2,
+    Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day.AddHours(9)), (RpcParams.End, day.AddHours(11))))).Items.Count == 2,
         "时间段含头不含尾");
-    var limited = await QueryLogs(new LogHistoryQuery { Start = day, End = day.AddDays(1), MaxCount = 2 });
+    var limited = await QueryLogs(RpcRequest.Of((RpcParams.Start, day), (RpcParams.End, day.AddDays(1)), (RpcParams.MaxCount, 2)));
     Check(limited.Truncated && limited.Items.Count == 2 && limited.Items[0].Module == "E84" && limited.Items[1].Level == "Error",
         "超出条数只留最新的，并标出截断");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day.AddDays(3), End = day.AddDays(4) })).Items.Count == 0,
+    Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day.AddDays(3)), (RpcParams.End, day.AddDays(4))))).Items.Count == 0,
         "没有日志文件的日子查出来为空");
 
     // ── 2b. 最近日志、实时日志：日志组件 Bind 时接上日志队列（接上之前攒在队列里的也补进来），留最近 RecentLogCount 条供客户端连上补拉，
@@ -148,7 +149,7 @@ try
             "每条都推给界面；接上之前攒在队列里的也补推");
     }
 
-    var recentReply = await new LogService().GetRecentAsync(new LogQuery { Count = 2 });
+    var recentReply = await new LogService().GetRecentAsync(RpcRequest.Of((RpcParams.Count, 2)));
     var recentTail = JsonHelper.Deserialize<List<LogDto>>(recentReply.Data)!;
     Check(recentReply.Success && recentTail.Count == 2 && recentTail[^1].Message == "第 4 条", "日志服务从日志组件取最近一段，带了条数只回最新的几条");
 
@@ -158,7 +159,7 @@ try
         new LogItem("LoadPort.LoadPort1", string.Empty, LogLevel.Info, "Load 做完 5746 ms") { Time = day2.AddHours(9) }.ToString(),
         new LogItem("LoadPort.LoadPort1", "Serial", LogLevel.Info, "MOV:CLOAD") { Time = day2.AddHours(9).AddSeconds(1), Direction = LogHelper.Sent }.ToString(),
         new LogItem("LoadPort.LoadPort1", "RFID.Serial", LogLevel.Warn, "读码超时（3000ms）") { Time = day2.AddHours(9).AddSeconds(2) }.ToString(),
-        new LogItem(LogHelper.OperationModule, string.Empty, LogLevel.Info, "张三@192.168.1.20 LoadPort.Load \"LoadPort1\"") { Time = day2.AddHours(9).AddSeconds(3) }.ToString(),
+        new LogItem(LogHelper.OperationModule, string.Empty, LogLevel.Info, "张三@192.168.1.20 LoadPort.Load {\"Module\":\"LoadPort1\"}") { Time = day2.AddHours(9).AddSeconds(3) }.ToString(),
         new LogItem("LoadPort.LoadPort2", string.Empty, LogLevel.Error, "Unload 失败在 关门") { Time = day2.AddHours(10) }.ToString(),
     ], Encoding.UTF8);
     var parsed2 = LogFileReader.Read(day2, day2.AddDays(1)).ToList();
@@ -169,19 +170,31 @@ try
           && oldItem.Module == "LoadPort1" && oldItem.Part.Length == 0 && oldItem.Message == "改之前的旧格式",
         "改之前写的旧格式照样认");
 
-    var byModule = await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Module = "LoadPort.LoadPort1" });
+    var byModule = await QueryLogs(RpcRequest.Of(
+        (RpcParams.Start, day2),
+        (RpcParams.End, day2.AddDays(1)),
+        (RpcParams.Module, "LoadPort.LoadPort1")));
     Check(byModule.Items.Count == 3 && byModule.Items.All(log => log.Module == "LoadPort.LoadPort1"),
         "按模块筛：只要第一层完全一样的，它的部件（串口、RFID）也一起出来");
     Check(byModule.Items.Any(log => log.Part == "RFID.Serial") && byModule.Items.Any(log => log.Level == LogHelper.Sent && log.Part == "Serial"),
         "查出来带部件；收发原文的级别显示方向");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Module = "LoadPort" })).Items.Count == 0,
+    Check((await QueryLogs(RpcRequest.Of(
+        (RpcParams.Start, day2),
+        (RpcParams.End, day2.AddDays(1)),
+        (RpcParams.Module, "LoadPort")))).Items.Count == 0,
         "模块要完全一样：只写分组名查不到");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Module = LogHelper.OperationModule })).Items.Count == 1,
+    Check((await QueryLogs(RpcRequest.Of(
+        (RpcParams.Start, day2),
+        (RpcParams.End, day2.AddDays(1)),
+        (RpcParams.Module, LogHelper.OperationModule)))).Items.Count == 1,
         "选 Operation 就是谁点了什么");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Level = "Info" })).Items.All(log => log.Level == "Info")
-          && (await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Level = "Info" })).Items.Count == 2,
+    Check((await QueryLogs(RpcRequest.Of(
+        (RpcParams.Start, day2),
+        (RpcParams.End, day2.AddDays(1)),
+        (RpcParams.Level, "Info")))).Items.All(log => log.Level == "Info")
+          && (await QueryLogs(RpcRequest.Of((RpcParams.Start, day2), (RpcParams.End, day2.AddDays(1)), (RpcParams.Level, "Info")))).Items.Count == 2,
         "选了级别就不要收发原文（它们没有级别）");
-    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Keyword = "rfid" })).Items.Count == 1,
+    Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day2), (RpcParams.End, day2.AddDays(1)), (RpcParams.Keyword, "rfid")))).Items.Count == 1,
         "关键字也搜部件");
 
     // LogHelper 真写文件：用后端的 NLog.config（这个冒烟也引了客户端，运行目录里那份不一定是后端的）
@@ -199,16 +212,17 @@ try
     LogHelper.Info(new SmokeLogSource("Eap", "E87"), "两层名字写进文件");
 
     // 操作日志：经接口 IActionFilter 测 ActionFilter（宿主的 ActionFilter 每个调用把方法名、来路、请求头里的操作人交给它）：
-    // 记谁、哪台电脑、调了什么、参数，回包记结果；Get / Query 和自动反复发的不记；密码写成 ***
+    // 记谁、哪台电脑、调了什么、参数，回包记结果；Get / Query 开头的、订阅推送、上行发布不记。请求都是 RpcRequest，参数记的是 Parameters 那段 JSON：
+    // 中文写回原样（客户端装的时候转成了 \uXXXX）、不带参数的记 {}
     IActionFilter actionLog = new ActionFilter();
-    var load = actionLog.Begin("/xyz.Shared.Services.LoadPortService/Load", "ipv4:192.168.1.20:5123", "张三", "LoadPort1");
+    var load = actionLog.Begin("/xyz.Shared.Services.LoadPortService/Load", "ipv4:192.168.1.20:5123", "张三", RpcRequest.Of((RpcParams.Module, "LoadPort1")));
     Check(load is not null, "LoadPort.Load 要记");
     if (load is not null)
     {
         actionLog.End(load, RpcResponse.Ok());
     }
 
-    var home = actionLog.Begin("/xyz.Shared.Services.LoadPortService/HomeAsync", "ipv6:[::1]:5123", "李四", "LoadPort1");
+    var home = actionLog.Begin("/xyz.Shared.Services.LoadPortService/HomeAsync", "ipv6:[::1]:5123", "李四", RpcRequest.Of((RpcParams.Module, "LoadPort1")));
     if (home is not null)
     {
         actionLog.End(home, RpcResponse.Fail(ErrorCodes.ActionRejected, ["LoadPort1", "3"]));
@@ -216,19 +230,24 @@ try
 
     Check(actionLog.Begin("/xyz.Shared.Services.LoadPortService/GetStatus", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
           && actionLog.Begin("/xyz.Shared.Services.LogService/QueryHistory", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
-          && actionLog.Begin("/xyz.Shared.Services.ChamberService/AxisJogRenew", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
           && actionLog.Begin("/xyz.Shared.Services.EventService/Subscribe", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
           && actionLog.Begin("/xyz.Shared.Services.EventService/Publish", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null,
-        "Get / Query 开头的、续点动、订阅推送、上行发布不记");
+        "Get / Query 开头的、订阅推送、上行发布不记");
     string noHeader = RpcOperator.Of(SmokeCall.Context(null, "/xyz.Shared.Services.AccountService/Login"));
     var login = actionLog.Begin("/xyz.Shared.Services.AccountService/Login", "ipv4:127.0.0.1:50000", noHeader,
-        new LoginRequest { UserName = "张三", Password = "secret-smoke" });
+        RpcRequest.Of((RpcParams.UserName, "张三"), (RpcParams.Password, "secret-smoke")));
     if (login is not null)
     {
         actionLog.End(login, RpcResponse.Ok());
     }
 
-    var unload = actionLog.Begin("/xyz.Shared.Services.LoadPortService/Unload", "ipv4:127.0.0.1:50000", "张三", "LoadPort1");
+    var noParameters = actionLog.Begin("/xyz.Shared.Services.AlarmService/ResetAll", "ipv4:127.0.0.1:50000", "张三", new RpcRequest());
+    if (noParameters is not null)
+    {
+        actionLog.End(noParameters, RpcResponse.Ok());
+    }
+
+    var unload = actionLog.Begin("/xyz.Shared.Services.LoadPortService/Unload", "ipv4:127.0.0.1:50000", "张三", RpcRequest.Of((RpcParams.Module, "LoadPort1")));
     if (unload is not null)
     {
         actionLog.Fault(unload, new InvalidOperationException("smoke-boom"));
@@ -254,15 +273,16 @@ try
     Check(written.Any(item => item.Module == "Eap" && item.Part == "E87" && item.Message == "两层名字写进文件"), "运行日志带两层名字写进文件");
 
     var operations = written.Where(item => item.Module == LogHelper.OperationModule).Select(item => item.Message).ToList();
-    Check(operations.Contains("张三@192.168.1.20 LoadPort.Load \"LoadPort1\"") && operations.Any(text => text.StartsWith("张三@192.168.1.20 LoadPort.Load → 成功 ")),
-        "操作日志：请求进来一条（谁@哪台电脑 服务.方法 参数），回包一条（成功、用时）");
+    Check(operations.Contains("张三@192.168.1.20 LoadPort.Load {\"Module\":\"LoadPort1\"}") && operations.Any(text => text.StartsWith("张三@192.168.1.20 LoadPort.Load → 成功 ")),
+        "操作日志：请求进来一条（谁@哪台电脑 服务.方法 参数，参数是 RpcRequest 里那段 JSON），回包一条（成功、用时）");
     Check(operations.Any(text => text.StartsWith("李四@::1 LoadPort.Home → 失败 module.action_rejected [LoadPort1, 3] "))
           && written.Any(item => item.Module == LogHelper.OperationModule && item.Level == LogLevel.Warn && item.Message.StartsWith("李四@::1 LoadPort.Home → 失败")),
         "回的是失败记 Warn，带错误码和参数；方法名去掉 Async，IPv6 去掉方括号");
-    Check(!operations.Any(text => text.Contains("GetStatus") || text.Contains("AxisJogRenew")), "Get / Query 开头的、续点动不记");
-    Check(operations.Any(text => text.StartsWith("Unknown@127.0.0.1 Account.Login ") && text.Contains("\"password\":\"***\"") && text.Contains("\"userName\":\"张三\""))
-          && !operations.Any(text => text.Contains("secret-smoke")),
-        "没带操作人记 Unknown；参数里的密码写成 ***，中文原样（不转成 \\uXXXX）");
+    Check(!operations.Any(text => text.Contains("GetStatus") || text.Contains("Subscribe")), "Get / Query 开头的、订阅推送不记");
+    Check(operations.Any(text => text.StartsWith("Unknown@127.0.0.1 Account.Login ") && text.Contains("\"UserName\":\"张三\"")),
+        "没带操作人记 Unknown；参数里的中文原样（不转成 \\uXXXX）");
+    Check(!operations.Any(text => text.Contains("\\u")), "RpcRequest 参数里的中文在操作日志里都是原样，一处 \\uXXXX 都没有");
+    Check(operations.Contains("张三@127.0.0.1 Alarm.ResetAll {}"), "不带参数的 RpcRequest 记成 {}");
     Check(written.Any(item => item.Module == LogHelper.OperationModule && item.Level == LogLevel.Error && item.Message.Contains("LoadPort.Unload → 出错") && item.Message.EndsWith("smoke-boom")),
         "服务抛异常记 Error");
     lock (pushedLogs)
@@ -349,11 +369,14 @@ try
     Check(pushedAlarms.Count == 1 && pushedAlarms[0].Source == "Tool1" && pushedAlarms[0].Code == "ProbeFault" && pushedAlarms[0].IsActive,
         "报警组件自己推给界面：报出来推一条（照映射组件的规则转）");
 
-    var unknown = await alarmService.ResetAsync(new RpcRequest { Parameters = { ["Source"] = "Nobody" } });
+    var noSource = await alarmService.ResetAsync(new RpcRequest());
+    Check(!noSource.Success && noSource.Code == ErrorCodes.RequestInvalid && alarms.ActiveAlarms.Count == 1,
+        "复位不带来源（必带参数没带）：回 rpc.request_invalid，报警不动");
+    var unknown = await alarmService.ResetAsync(RpcRequest.Of((RpcParams.Source, "Nobody")));
     Check(!unknown.Success && unknown.Code == ErrorCodes.AlarmSourceNotFound
           && unknown.Args.Count == 1 && unknown.Args[0] == "Nobody",
         "复位没报过报警的来源：给错误码和来源");
-    var reset = await alarmService.ResetAsync(new RpcRequest { Parameters = { ["Source"] = "Tool1" } });
+    var reset = await alarmService.ResetAsync(RpcRequest.Of((RpcParams.Source, "Tool1")));
     Check(reset.Success && alarms.ActiveAlarms.Count == 0, "复位来源后报警清掉");
     Check(pushedAlarms.Count == 2 && pushedAlarms[1].Source == "Tool1" && !pushedAlarms[1].IsActive, "清掉也推一条");
 
@@ -386,27 +409,33 @@ try
         }).SplitTable().ExecuteCommand();
     }
 
-    async Task<HistoryResult<AlarmHistoryDto>> QueryAlarms(AlarmHistoryQuery query)
+    async Task<HistoryResult<AlarmHistoryDto>> QueryAlarms(RpcRequest request)
     {
-        var response = await alarmService.QueryHistoryAsync(query);
+        var response = await alarmService.QueryHistoryAsync(request);
         Check(response.Success, $"报警历史查询应成功：{response.Message}");
         return JsonHelper.Deserialize<HistoryResult<AlarmHistoryDto>>(response.Data)!;
     }
 
-    var history = await QueryAlarms(new AlarmHistoryQuery { Start = today, End = today.AddDays(1) });
+    var history = await QueryAlarms(RpcRequest.Of((RpcParams.Start, today), (RpcParams.End, today.AddDays(1))));
     Check(history.Items.Count == 3 && history.Items[0].Code == "Crash" && history.Items[1].Action == "Cleared" && !history.Truncated,
         "全部 3 条，最新的在前");
     Check(history.Items[1].RaisedAt == today.AddHours(8) && history.Items[1].OccurredAt == today.AddHours(8).AddMinutes(5),
         "清除那条带着报出时刻");
-    Check((await QueryAlarms(new AlarmHistoryQuery { Start = today, End = today.AddDays(1), Level = "Fatal" })).Items.Count == 1,
+    Check((await QueryAlarms(RpcRequest.Of(
+        (RpcParams.Start, today),
+        (RpcParams.End, today.AddDays(1)),
+        (RpcParams.Level, "Fatal")))).Items.Count == 1,
         "按等级筛");
-    Check((await QueryAlarms(new AlarmHistoryQuery { Start = today, End = today.AddDays(1), Keyword = "探针" })).Items.Count == 2,
+    Check((await QueryAlarms(RpcRequest.Of((RpcParams.Start, today), (RpcParams.End, today.AddDays(1)), (RpcParams.Keyword, "探针")))).Items.Count == 2,
         "关键字查报警文本");
-    Check((await QueryAlarms(new AlarmHistoryQuery { Start = today, End = today.AddDays(1), Keyword = "Tool2" })).Items.Count == 1,
+    Check((await QueryAlarms(RpcRequest.Of(
+        (RpcParams.Start, today),
+        (RpcParams.End, today.AddDays(1)),
+        (RpcParams.Keyword, "Tool2")))).Items.Count == 1,
         "关键字查来源");
-    var truncated = await QueryAlarms(new AlarmHistoryQuery { Start = today, End = today.AddDays(1), MaxCount = 2 });
+    var truncated = await QueryAlarms(RpcRequest.Of((RpcParams.Start, today), (RpcParams.End, today.AddDays(1)), (RpcParams.MaxCount, 2)));
     Check(truncated.Truncated && truncated.Items.Count == 2, "超出条数截断");
-    Check((await QueryAlarms(new AlarmHistoryQuery { Start = day, End = day.AddDays(1) })).Items.Count == 0,
+    Check((await QueryAlarms(RpcRequest.Of((RpcParams.Start, day), (RpcParams.End, day.AddDays(1))))).Items.Count == 0,
         "没有日表的日子查出来为空，不报错");
 }
 finally
@@ -873,7 +902,8 @@ finally
 
 Console.WriteLine($"PASS: {checks} data center checks (log file parsing with continuation lines and rolled files, " +
                   "log history filters and truncation, two-level log names (module + part) with the module filter, comm lines in the main log and poll lines in the poll file, " +
-                  "the operation log through IActionFilter (who, from where, what, arguments, result; reads and repeats skipped; passwords masked; operator from the request header), " +
+                  "the operation log through IActionFilter (who, from where, what, arguments, result; reads and repeats skipped; operator from the request header; " +
+                  "RpcRequest parameters logged as their JSON with Chinese written back as is, and no parameters as {}), " +
                   "log files kept for KeepDays, the module list for the history page, recent and realtime logs forwarded by the log component, active alarms with reset / reset-all / not-installed error codes and their pushes, " +
                   "alarm history over day-split tables, and data chart sampling on its own scan (IsRun, whole periods), " +
                   "signal names (a DI component named by its own path) / day tables through SqlSugar, real chart frames pushed from its own scan, " +
@@ -940,12 +970,12 @@ sealed class FakeExportService(bool failAfterFirst) : IDataChartService
         throw new NotSupportedException();
     }
 
-    public Task<RpcResponse> QueryAsync(DataChartQuery query, CallContext context = default)
+    public Task<RpcResponse> QueryAsync(RpcRequest request, CallContext context = default)
     {
         throw new NotSupportedException();
     }
 
-    public async IAsyncEnumerable<RpcResponse> ExportAsync(DataChartQuery query, CallContext context = default)
+    public async IAsyncEnumerable<RpcResponse> ExportAsync(RpcRequest request, CallContext context = default)
     {
         long start = new DateTimeOffset(new DateTime(2000, 1, 2, 0, 0, 0, DateTimeKind.Local)).ToUnixTimeMilliseconds();
         var first = new DataChartExportDto { Times = [start, start + 1000, start + 2000], Names = ["Chart1__Door__Speed"], Values = [[1, 2, 3]] };

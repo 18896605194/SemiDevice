@@ -2,6 +2,7 @@
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -19,7 +20,7 @@ public class AccountService : BaseService, IAccountService
         _account = IocHelper.GetService<IAccount>();
     }
 
-    public Task<RpcResponse> LoginAsync(LoginRequest request, CallContext context = default)
+    public Task<RpcResponse> LoginAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -27,10 +28,16 @@ public class AccountService : BaseService, IAccountService
             return NotInstalled();
         }
 
-        return Reply(account.Login(request.UserName, request.Password));
+        if (!request.TryGet<string>(RpcParams.UserName, out var userName)
+            || !request.TryGet<string>(RpcParams.Password, out var password))
+        {
+            return InvalidRequest();
+        }
+
+        return Reply(account.Login(userName, password));
     }
 
-    public Task<RpcResponse> GetSessionAsync(SessionRequest request, CallContext context = default)
+    public Task<RpcResponse> GetSessionAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -38,10 +45,11 @@ public class AccountService : BaseService, IAccountService
             return NotInstalled();
         }
 
-        return Reply(account.GetSession(request.UserName));
+        string userName = request.Get(RpcParams.UserName, string.Empty);
+        return Reply(account.GetSession(userName));
     }
 
-    public Task<RpcResponse> LogoutAsync(LogoutRequest request, CallContext context = default)
+    public Task<RpcResponse> LogoutAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -49,11 +57,17 @@ public class AccountService : BaseService, IAccountService
             return NotInstalled();
         }
 
-        account.NoteLogout(request.UserName, request.IsIdle);
+        if (!request.TryGet<string>(RpcParams.UserName, out var userName))
+        {
+            return InvalidRequest();
+        }
+
+        bool isIdle = request.Get(RpcParams.IsIdle, false);
+        account.NoteLogout(userName, isIdle);
         return Task.FromResult(RpcResponse.Ok());
     }
 
-    public Task<RpcResponse> ChangePasswordAsync(PasswordChangeRequest request, CallContext context = default)
+    public Task<RpcResponse> ChangePasswordAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -61,7 +75,14 @@ public class AccountService : BaseService, IAccountService
             return NotInstalled();
         }
 
-        var result = account.ChangePassword(request.UserName, request.OldPassword, request.NewPassword);
+        if (!request.TryGet<string>(RpcParams.UserName, out var userName)
+            || !request.TryGet<string>(RpcParams.OldPassword, out var oldPassword)
+            || !request.TryGet<string>(RpcParams.NewPassword, out var newPassword))
+        {
+            return InvalidRequest();
+        }
+
+        var result = account.ChangePassword(userName, oldPassword, newPassword);
         return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 

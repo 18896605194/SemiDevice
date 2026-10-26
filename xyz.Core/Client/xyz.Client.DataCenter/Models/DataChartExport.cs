@@ -40,8 +40,8 @@ public static class DataChartExport
     private static RpcResponse Save(IDataChartService service, IReadOnlyList<string> names, DateTime start, DateTime end,
         string path, string timeHeader, IProgress<double> progress, CancellationToken token)
     {
-        var query = new DataChartQuery { Start = start, End = end, Names = names.ToList() };
-        var responses = service.ExportAsync(query, new CallContext(new CallOptions(cancellationToken: token)));
+        var request = RpcRequest.Of((RpcParams.Start, start), (RpcParams.End, end), (RpcParams.Names, names.ToList()));
+        var responses = service.ExportAsync(request, new CallContext(new CallOptions(cancellationToken: token)));
         RpcResponse? failure = null;
         using var rows = Rows(responses.ToBlockingEnumerable(token), names, start, end, progress, response => failure = response)
             .GetEnumerator();

@@ -5,6 +5,7 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -35,15 +36,21 @@ public class EcService : IEcService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dtos)));
     }
 
-    public Task<RpcResponse> SetValueAsync(EcSetRequest request, CallContext context = default)
+    public Task<RpcResponse> SetValueAsync(RpcRequest request, CallContext context = default)
     {
         if (_ec is null)
         {
             return Fail(ErrorCodes.EcNotInstalled);
         }
 
+        if (!request.TryGet<string>(RpcParams.Key, out var key)
+            || !request.TryGet<string>(RpcParams.Value, out var value))
+        {
+            return InvalidRequest();
+        }
+
         // 键是"组件全路径.参数名"：最后一个点前面是组件，后面是参数。
-        string key = (request.Key ?? string.Empty).Trim();
+        key = key.Trim();
         int dot = key.LastIndexOf('.');
         if (dot <= 0 || dot == key.Length - 1)
         {
@@ -53,7 +60,7 @@ public class EcService : IEcService
         string path = key[..dot];
         string name = key[(dot + 1)..];
         string old = _ec.Get(path, name);
-        var result = _ec.TrySet(path, name, request.Value ?? string.Empty, out var item);
+        var result = _ec.TrySet(path, name, value, out var item);
         if (item is null)
         {
             return Fail(ErrorCodes.EcNotFound, key);
@@ -75,6 +82,14 @@ public class EcService : IEcService
         }
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_ec.CreateDto(path, item))));
+    }
+
+    /// <summary>
+    /// 请求参数不对回包（rpc.request_invalid）
+    /// </summary>
+    private static Task<RpcResponse> InvalidRequest()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 
     private static Task<RpcResponse> Fail(string code, params string[] args)

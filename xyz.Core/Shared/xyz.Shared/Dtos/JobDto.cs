@@ -1,6 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没删的 CJ、界面要看的 PJ（CJ 状态为内部状态，PJ 状态照 E40，每片带它的一行任务）。
@@ -164,93 +162,13 @@ public class JobTaskDto
 }
 
 /// <summary>
-/// 创建独立 PJ，建好后等待 CJ 关联。
+/// 一槽和它的流程配方（本地建 Job 时 Slots 参数的一项）
 /// </summary>
-[ProtoContract]
-public class ProcessJobCreateRequest
-{
-    [ProtoMember(1)] public string LoadPort { get; set; } = string.Empty;
-    [ProtoMember(2)] public string Name { get; set; } = string.Empty;
-    [ProtoMember(3)] public List<int> Slots { get; set; } = [];
-    [ProtoMember(4)] public string Sequence { get; set; } = string.Empty;
-    [ProtoMember(5)] public string LotId { get; set; } = string.Empty;
-}
-
-/// <summary>关联已经创建的 PJ；不会按槽位或流程配方重新创建 PJ。Name 为空时用 LotId 或自动生成 CJ 名。</summary>
-[ProtoContract]
-public class ControlJobCreateRequest
-{
-    [ProtoMember(1)] public string LoadPort { get; set; } = string.Empty;
-    [ProtoMember(2)] public string Name { get; set; } = string.Empty;
-    [ProtoMember(3)] public List<string> ProcessJobs { get; set; } = [];
-    [ProtoMember(5)] public string LotId { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 本地建 Job：一个 LoadPort 上的一篮，每槽一个流程配方（相同流程配方的槽分成一个 PJ），整篮一个 CJ。
-/// </summary>
-[ProtoContract]
-public class JobCreateRequest
-{
-    [ProtoMember(1)]
-    public string LoadPort { get; set; } = string.Empty;
-
-    /// <summary>批次号，也是 CJ 的名字；空就自动起名。</summary>
-    [ProtoMember(2)]
-    public string LotId { get; set; } = string.Empty;
-
-    /// <summary>要做的槽和各自的流程配方。</summary>
-    [ProtoMember(3)]
-    public List<JobSlotDto> Slots { get; set; } = [];
-}
-
-/// <summary>
-/// 一槽和它的流程配方。
-/// </summary>
-[ProtoContract]
 public class JobSlotDto
 {
-    [ProtoMember(1)]
     public int Slot { get; set; }
 
-    [ProtoMember(2)]
     public string Sequence { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// CJ / PJ 命令：CJ 的命令值照 E94（1 Start、2 Pause、3 Resume、4 Cancel、5 Deselect、6 Stop、7 Abort、8 HOQ），
-/// Action 照 E94（0 SaveJobs、1 RemoveJobs）；PJ 的命令值 0 Start、1 Pause、2 Resume、3 Stop、4 Abort、5 Cancel。
-/// </summary>
-[ProtoContract]
-public class JobCommandRequest
-{
-    /// <summary>CJ 命令值 Start（E94 CTLJOBCMD 1）。</summary>
-    public const int ControlJobStart = 1;
-
-    [ProtoMember(1)]
-    public string JobId { get; set; } = string.Empty;
-
-    [ProtoMember(2)]
-    public int Command { get; set; }
-
-    [ProtoMember(3)]
-    public int Action { get; set; }
-}
-
-/// <summary>
-/// 出错任务的人工处理（重做 / 标记完成）：哪个 PJ、哪一片（来源槽号）、这一片的第几个任务（从 0 开始）。只给本地界面，Host 不碰。
-/// </summary>
-[ProtoContract]
-public class JobTaskRequest
-{
-    [ProtoMember(1)]
-    public string ProcessJob { get; set; } = string.Empty;
-
-    [ProtoMember(2)]
-    public int Slot { get; set; }
-
-    [ProtoMember(3)]
-    public int Task { get; set; }
 }
 
 /// <summary>

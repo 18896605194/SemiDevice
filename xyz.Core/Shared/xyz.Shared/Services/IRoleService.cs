@@ -17,32 +17,32 @@ public interface IRoleService
     Task<RpcResponse> GetRolesAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 新建角色，回新建的 RoleDto
+    /// 新建角色，回新建的 RoleDto。参数：Name（string）、Description（string，可不带）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> CreateRoleAsync(RoleSaveRequest request, CallContext context = default);
+    Task<RpcResponse> CreateRoleAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 改角色名和说明
+    /// 改角色名和说明。参数：Id（long）、Name（string）、Description（string，可不带）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> UpdateRoleAsync(RoleSaveRequest request, CallContext context = default);
+    Task<RpcResponse> UpdateRoleAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 删角色
+    /// 删角色。参数：Id（long）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> DeleteRoleAsync(AccountIdRequest request, CallContext context = default);
+    Task<RpcResponse> DeleteRoleAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 取一个角色配过的权限（RolePermissionsDto）
+    /// 取一个角色配过的权限（RolePermissionsDto）。参数：Id（long，角色编号）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> GetPermissionsAsync(AccountIdRequest request, CallContext context = default);
+    Task<RpcResponse> GetPermissionsAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 存一个角色的权限：整张换掉
+    /// 存一个角色的权限：整张换掉。参数：RoleId（long）、Items（RolePermissionItem 列表）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> SavePermissionsAsync(RolePermissionsSaveRequest request, CallContext context = default);
+    Task<RpcResponse> SavePermissionsAsync(RpcRequest request, CallContext context = default);
 }

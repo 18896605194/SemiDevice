@@ -183,7 +183,7 @@ public class EcViewModel : BaseViewModel
 
         try
         {
-            var response = await _service.SetValueAsync(new EcSetRequest { Key = item.Key, Value = item.PendingValue });
+            var response = await _service.SetValueAsync(RpcRequest.Of((RpcParams.Key, item.Key), (RpcParams.Value, item.PendingValue)));
             if (!response.Success)
             {
                 ClientLog.Error("EC", string.IsNullOrEmpty(response.Code)

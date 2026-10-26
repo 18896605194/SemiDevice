@@ -3,6 +3,7 @@ using ProtoBuf.Grpc;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -20,24 +21,32 @@ public class TransferService : BaseService, ITransferService
         _transfers = IocHelper.GetService<ITransferManager>();
     }
 
-    public async Task<RpcResponse> TransferAsync(TransferRequestDto request, CallContext context = default)
+    public async Task<RpcResponse> TransferAsync(RpcRequest request, CallContext context = default)
     {
         if (_transfers is null)
         {
             return RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []);
         }
 
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        string robot = (request.Robot ?? string.Empty).Trim();
+        if (!request.TryGet<string>(RpcParams.Source, out var source)
+            || !request.TryGet<int>(RpcParams.SourceSlot, out var sourceSlot)
+            || !request.TryGet<string>(RpcParams.Target, out var target)
+            || !request.TryGet<int>(RpcParams.TargetSlot, out var targetSlot))
+        {
+            return await InvalidRequest();
+        }
+
+        string robot = request.Get(RpcParams.Robot, string.Empty).Trim();
+        int arm = request.Get(RpcParams.Arm, 0);
         var started = _transfers.Start(new TransferRequest
         {
             Origin = TransferOrigin.Manual,
-            Source = request.Source ?? string.Empty,
-            SourceSlot = request.SourceSlot,
-            Target = request.Target ?? string.Empty,
-            TargetSlot = request.TargetSlot,
+            Source = source,
+            SourceSlot = sourceSlot,
+            Target = target,
+            TargetSlot = targetSlot,
             Robot = robot.Length == 0 ? null : robot,
-            Arm = request.Arm,
+            Arm = arm,
         });
 
         var routine = started.Result;
@@ -69,15 +78,20 @@ public class TransferService : BaseService, ITransferService
         }));
     }
 
-    public Task<RpcResponse> ReleaseAsync(TransferReleaseRequest request, CallContext context = default)
+    public Task<RpcResponse> ReleaseAsync(RpcRequest request, CallContext context = default)
     {
         if (_transfers is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
         }
 
-        return Task.FromResult(_transfers.ReleaseHold(request.WaferId)
+        if (!request.TryGet<Guid>(RpcParams.WaferId, out var waferId))
+        {
+            return InvalidRequest();
+        }
+
+        return Task.FromResult(_transfers.ReleaseHold(waferId)
             ? RpcResponse.Ok()
-            : RpcResponse.Fail(ErrorCodes.TransferNotHeld, [request.WaferId.ToString()]));
+            : RpcResponse.Fail(ErrorCodes.TransferNotHeld, [waferId.ToString()]));
     }
 }

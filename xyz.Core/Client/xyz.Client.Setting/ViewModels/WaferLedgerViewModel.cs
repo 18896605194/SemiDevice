@@ -691,14 +691,12 @@ public class WaferLedgerViewModel : BaseViewModel
         if (action == LedgerAction.Move && source is not null && target is not null)
         {
             done = await Submit(
-                () => _service.MoveAsync(new WaferMoveRequest
-                {
-                    FromModule = source.Location.Name,
-                    FromSlot = source.Slot,
-                    ToModule = target.Location.Name,
-                    ToSlot = target.Slot,
-                    Reason = Reason.Trim(),
-                }),
+                () => _service.MoveAsync(RpcRequest.Of(
+                    (RpcParams.FromModule, source.Location.Name),
+                    (RpcParams.FromSlot, source.Slot),
+                    (RpcParams.ToModule, target.Location.Name),
+                    (RpcParams.ToSlot, target.Slot),
+                    (RpcParams.Reason, Reason.Trim()))),
                 "setting.ledger.move_failed",
                 L10n.Get("setting.ledger.moved", source.WaferId, source.PositionText, target.PositionText));
             if (done)
@@ -709,25 +707,21 @@ public class WaferLedgerViewModel : BaseViewModel
         else if (action == LedgerAction.Delete && source is not null)
         {
             done = await Submit(
-                () => _service.DeleteAsync(new WaferDeleteRequest
-                {
-                    Module = source.Location.Name,
-                    Slot = source.Slot,
-                    Reason = Reason.Trim(),
-                }),
+                () => _service.DeleteAsync(RpcRequest.Of(
+                    (RpcParams.Module, source.Location.Name),
+                    (RpcParams.Slot, source.Slot),
+                    (RpcParams.Reason, Reason.Trim()))),
                 "setting.ledger.delete_failed",
                 L10n.Get("setting.ledger.deleted", source.WaferId, source.PositionText));
         }
         else if (action == LedgerAction.Create && target is not null)
         {
             done = await Submit(
-                () => _service.CreateAsync(new WaferCreateRequest
-                {
-                    Module = target.Location.Name,
-                    Slot = target.Slot,
-                    WaferId = waferId,
-                    Reason = Reason.Trim(),
-                }),
+                () => _service.CreateAsync(RpcRequest.Of(
+                    (RpcParams.Module, target.Location.Name),
+                    (RpcParams.Slot, target.Slot),
+                    (RpcParams.WaferId, waferId),
+                    (RpcParams.Reason, Reason.Trim()))),
                 "setting.ledger.create_failed",
                 L10n.Get("setting.ledger.created", waferId, target.PositionText));
             if (done)

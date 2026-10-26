@@ -1,5 +1,4 @@
 ﻿using System.Collections.ObjectModel;
-using System.Globalization;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Alarms;
 using xyz.Client.Common.Events;
@@ -503,8 +502,7 @@ public class MainPageViewModel : BaseViewModel
         int target = status.WaferSize == 8 ? 12 : 8;
         try
         {
-            var request = new RpcRequest();
-            request.Parameters[IEquipmentService.WaferSizeKey] = target.ToString(CultureInfo.InvariantCulture);
+            var request = RpcRequest.Of((RpcParams.Size, target));
             var response = await _equipmentService.SetWaferSizeAsync(request);
             if (!response.Success)
             {
@@ -614,12 +612,10 @@ public class MainPageViewModel : BaseViewModel
             return;
         }
 
-        var request = new JobCreateRequest
-        {
-            LoadPort = port.Name,
-            LotId = port.LotId.Trim(),
-            Slots = port.SelectedSlots.Select(slot => new JobSlotDto { Slot = slot.Slot, Sequence = slot.Sequence }).ToList(),
-        };
+        var request = RpcRequest.Of(
+            (RpcParams.LoadPort, port.Name),
+            (RpcParams.LotId, port.LotId.Trim()),
+            (RpcParams.Slots, port.SelectedSlots.Select(slot => new JobSlotDto { Slot = slot.Slot, Sequence = slot.Sequence }).ToList()));
         try
         {
             var response = await _jobService.CreateAsync(request);
@@ -651,11 +647,9 @@ public class MainPageViewModel : BaseViewModel
 
         try
         {
-            var response = await _jobService.ControlJobCommandAsync(new JobCommandRequest
-            {
-                JobId = job.Id,
-                Command = JobCommandRequest.ControlJobStart,
-            });
+            var response = await _jobService.ControlJobCommandAsync(RpcRequest.Of(
+                (RpcParams.JobId, job.Id),
+                (RpcParams.Command, IJobService.ControlJobStart)));
             if (!response.Success)
             {
                 ClientLog.Error(LogModule, L10n.Get("main.start_job_failed", job.Id, ReasonOf(response)));

@@ -6,6 +6,7 @@ using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -48,7 +49,11 @@ public class AlarmService : IAlarmService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmNotInstalled, []));
         }
 
-        var source = request.Parameters.GetValueOrDefault("Source") ?? string.Empty;
+        if (!request.TryGet<string>(RpcParams.Source, out var source))
+        {
+            return InvalidRequest();
+        }
+
         if (string.IsNullOrWhiteSpace(source) || !_alarms.Reset(source))
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmSourceNotFound, [source]));
@@ -76,23 +81,28 @@ public class AlarmService : IAlarmService
     /// <summary>
     /// 查报警记录表
     /// </summary>
-    public Task<RpcResponse> QueryHistoryAsync(AlarmHistoryQuery query, CallContext context = default)
+    public Task<RpcResponse> QueryHistoryAsync(RpcRequest request, CallContext context = default)
     {
+        if (!request.TryGet<DateTime>(RpcParams.Start, out var start)
+            || !request.TryGet<DateTime>(RpcParams.End, out var end))
+        {
+            return InvalidRequest();
+        }
+
+        string level = request.Get(RpcParams.Level, string.Empty);
+        string keyword = request.Get(RpcParams.Keyword, string.Empty);
+        int maxCount = request.Get(RpcParams.MaxCount, 0);
         return Task.Run(() =>
         {
             try
             {
-                var level = query.Level ?? string.Empty;
-                var keyword = query.Keyword ?? string.Empty;
                 var configured = _alarms?.HistoryQueryMaxCount ?? 0;
                 if (configured <= 0)
                 {
                     configured = 1000;
                 }
 
-                var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, configured) : configured;
-                var start = query.Start;
-                var end = query.End;
+                var limit = maxCount > 0 ? Math.Min(maxCount, configured) : configured;
 
                 using var db = XyzDb.Create(_alarms?.HistoryDatabase ?? XyzDb.DefaultName);
                 var hasTables = db.SplitHelper<AlarmHistoryEntity>().GetTables()
@@ -109,13 +119,13 @@ public class AlarmService : IAlarmService
                     .WhereIF(keyword.Length > 0,
                         row => row.Source.Contains(keyword) || row.Code.Contains(keyword) || row.Text.Contains(keyword))
                     .OrderBy(row => row.OccurredAt, OrderByType.Desc)
-                    .Take(maxCount + 1)
+                    .Take(limit + 1)
                     .ToList();
 
                 var result = new HistoryResult<AlarmHistoryDto>
                 {
-                    Items = rows.Take(maxCount).Select(row => _mapper.Map<AlarmHistoryDto>(row)).ToList(),
-                    Truncated = rows.Count > maxCount,
+                    Items = rows.Take(limit).Select(row => _mapper.Map<AlarmHistoryDto>(row)).ToList(),
+                    Truncated = rows.Count > limit,
                 };
                 return RpcResponse.Ok(JsonHelper.Serialize(result));
             }
@@ -124,5 +134,13 @@ public class AlarmService : IAlarmService
                 return RpcResponse.Fail(ErrorCodes.HistoryQueryFailed, [exception.Message]);
             }
         });
+    }
+
+    /// <summary>
+    /// 请求参数不对回包（rpc.request_invalid）
+    /// </summary>
+    private static Task<RpcResponse> InvalidRequest()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 }

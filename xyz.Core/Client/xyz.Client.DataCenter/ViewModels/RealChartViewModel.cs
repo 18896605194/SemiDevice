@@ -448,7 +448,7 @@ public class RealChartViewModel : BaseViewModel
 
         try
         {
-            var response = await _service.GetRecentAsync(new RealChartRecentQuery { Names = names });
+            var response = await _service.GetRecentAsync(RpcRequest.Of((RpcParams.Names, names)));
             var recent = response.DeserializeData<RealChartRecentDto>();
             if (recent.Session != _session)
             {

@@ -20,10 +20,10 @@ public interface IProcessRecipeService
 
     /// <summary>
     /// 一个工艺配方的全部内容。Data 为 ProcessRecipeDto 的 JSON。
-    /// 失败回 process_recipe.index_out_of_range / process_recipe.not_found。
+    /// 失败回 process_recipe.index_out_of_range / process_recipe.not_found。参数：Index（int）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> GetAsync(ProcessRecipeIndexRequest request, CallContext context = default);
+    Task<RpcResponse> GetAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
     /// 能选什么、范围多少（摆臂和药液来自 machine.xml，合计上限来自腔体工艺超时）。Data 为 ProcessRecipeOptionsDto 的 JSON。
@@ -34,22 +34,24 @@ public interface IProcessRecipeService
     /// <summary>
     /// 新建：空编号上建一个，内容按默认。Data 为建好的 ProcessRecipeDto 的 JSON。
     /// 失败回 process_recipe.index_out_of_range / process_recipe.index_occupied / process_recipe.name_* / process_recipe.save_failed。
+    /// 参数：Index（int）、Name（string）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> CreateAsync(ProcessRecipeCreateRequest request, CallContext context = default);
+    Task<RpcResponse> CreateAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
     /// 重命名（版本加 1）。Data 为改完的 ProcessRecipeDto 的 JSON。
     /// 失败回 process_recipe.index_out_of_range / process_recipe.not_found / process_recipe.name_* / process_recipe.save_failed。
+    /// 参数：Index（int）、Name（string）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> RenameAsync(ProcessRecipeRenameRequest request, CallContext context = default);
+    Task<RpcResponse> RenameAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 删除：编号空出来。失败回 process_recipe.index_out_of_range / process_recipe.not_found / process_recipe.save_failed。
+    /// 删除：编号空出来。失败回 process_recipe.index_out_of_range / process_recipe.not_found / process_recipe.save_failed。参数：Index（int）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> DeleteAsync(ProcessRecipeDeleteRequest request, CallContext context = default);
+    Task<RpcResponse> DeleteAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
     /// 保存说明和步骤：版本对得上、步骤检查通过才存，存完版本加 1。Data 为存好的 ProcessRecipeDto 的 JSON。
@@ -57,7 +59,9 @@ public interface IProcessRecipeService
     /// process_recipe.time_out_of_range / process_recipe.rpm_out_of_range / process_recipe.arm_not_found / process_recipe.chemical_required /
     /// process_recipe.chemical_not_on_arm / process_recipe.flow_out_of_range / process_recipe.position_out_of_range /
     /// process_recipe.scan_same_position / process_recipe.scan_speed_out_of_range / process_recipe.total_too_long / process_recipe.save_failed。
+    /// 参数：Index（int）、Revision（int，打开时读到的版本）、Steps（ProcessRecipeStepDto 列表）、Type（string）、Timeout（string）、
+    /// Description（string，可不带）、Head（字段名 → 值，可不带）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> SaveAsync(ProcessRecipeSaveRequest request, CallContext context = default);
+    Task<RpcResponse> SaveAsync(RpcRequest request, CallContext context = default);
 }

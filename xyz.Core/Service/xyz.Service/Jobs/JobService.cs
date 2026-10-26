@@ -11,6 +11,7 @@ using xyz.Database.Jobs;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -48,22 +49,26 @@ public class JobService : BaseService, IJobService
     /// <summary>
     /// 查 control_job 表：建的时刻在时间段里的 CJ，再按关键字筛，最新的在前。读库放线程池
     /// </summary>
-    public Task<RpcResponse> QueryHistoryAsync(JobHistoryQuery query, CallContext context = default)
+    public Task<RpcResponse> QueryHistoryAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
         }
 
+        if (!request.TryGet<DateTime>(RpcParams.Start, out var start)
+            || !request.TryGet<DateTime>(RpcParams.End, out var end))
+        {
+            return InvalidRequest();
+        }
+
+        string keyword = request.Get(RpcParams.Keyword, string.Empty).Trim();
         var jobs = _jobs;
         return Task.Run(() =>
         {
             try
             {
-                string keyword = (query.Keyword ?? string.Empty).Trim();
                 int maxCount = jobs.HistoryQueryMaxCount;
-                var start = query.Start;
-                var end = query.End;
                 using var db = XyzDb.Create(jobs.Database);
                 if (!db.DbMaintenance.IsAnyTable(db.EntityMaintenance.GetTableName<ControlJobEntity>(), false))
                 {
@@ -103,7 +108,11 @@ public class JobService : BaseService, IJobService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
         }
 
-        string text = request.Parameters.GetValueOrDefault("ControlJob") ?? string.Empty;
+        if (!request.TryGet<string>(RpcParams.ControlJob, out var text))
+        {
+            return InvalidRequest();
+        }
+
         if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long controlJob))
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotFound, [text]));
@@ -145,19 +154,28 @@ public class JobService : BaseService, IJobService
     /// <param name="request"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    public async Task<RpcResponse> CreateProcessJobAsync(ProcessJobCreateRequest request, CallContext context = default)
+    public async Task<RpcResponse> CreateProcessJobAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
+        if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
+            || !request.TryGet<List<int>>(RpcParams.Slots, out var slots)
+            || !request.TryGet<string>(RpcParams.Sequence, out var sequence))
+        {
+            return await InvalidRequest();
+        }
+
+        string name = request.Get(RpcParams.Name, string.Empty);
+        string lotId = request.Get(RpcParams.LotId, string.Empty);
         var result = await _jobs.CreateProcessJobAsync(
-            request.LoadPort ?? string.Empty,
-            request.Name ?? string.Empty,
-            request.Slots ?? [],
-            request.Sequence ?? string.Empty,
-            request.LotId).ConfigureAwait(false);
+            loadPort,
+            name,
+            slots,
+            sequence,
+            lotId).ConfigureAwait(false);
 
         if (result.IsSuccess)
         {
@@ -174,18 +192,26 @@ public class JobService : BaseService, IJobService
     /// <param name="request"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    public async Task<RpcResponse> CreateControlJobAsync(ControlJobCreateRequest request, CallContext context = default)
+    public async Task<RpcResponse> CreateControlJobAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
+        if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
+            || !request.TryGet<List<string>>(RpcParams.ProcessJobs, out var processJobs))
+        {
+            return await InvalidRequest();
+        }
+
+        string name = request.Get(RpcParams.Name, string.Empty);
+        string lotId = request.Get(RpcParams.LotId, string.Empty);
         var result = await _jobs.CreateControlJobAsync(
-            request.LoadPort ?? string.Empty,
-            request.ProcessJobs ?? [],
-            request.Name,
-            request.LotId).ConfigureAwait(false);
+            loadPort,
+            processJobs,
+            name,
+            lotId).ConfigureAwait(false);
 
         if (result.IsSuccess)
         {
@@ -202,18 +228,26 @@ public class JobService : BaseService, IJobService
     /// <param name="request"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    public async Task<RpcResponse> CreateJobAsync(ControlJobCreateRequest request, CallContext context = default)
+    public async Task<RpcResponse> CreateJobAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
+        if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
+            || !request.TryGet<List<string>>(RpcParams.ProcessJobs, out var processJobs))
+        {
+            return await InvalidRequest();
+        }
+
+        string name = request.Get(RpcParams.Name, string.Empty);
+        string lotId = request.Get(RpcParams.LotId, string.Empty);
         var result = await _jobs.CreateJobAsync(
-            request.LoadPort ?? string.Empty,
-            request.ProcessJobs ?? [],
-            request.Name,
-            request.LotId).ConfigureAwait(false);
+            loadPort,
+            processJobs,
+            name,
+            lotId).ConfigureAwait(false);
 
         if (result.IsSuccess)
         {
@@ -230,28 +264,33 @@ public class JobService : BaseService, IJobService
     /// <param name="request"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    public async Task<RpcResponse> CreateAsync(JobCreateRequest request, CallContext context = default)
+    public async Task<RpcResponse> CreateAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        // protobuf 传输省略默认值字段，空字符串、空列表在接收端可能为 null。
-        string portName = (request.LoadPort ?? string.Empty).Trim();
+        if (!request.TryGet<string>(RpcParams.LoadPort, out var loadPort)
+            || !request.TryGet<List<JobSlotDto>>(RpcParams.Slots, out var jobSlots))
+        {
+            return await InvalidRequest();
+        }
+
+        string portName = loadPort.Trim();
         var port = FindModule<ILoadPort>(portName);
         if (port is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobLoadPortNotFound, [portName]);
         }
 
-        var groups = GroupBySequence(request.Slots ?? [], port.PickOrder);
+        var groups = GroupBySequence(jobSlots, port.PickOrder);
         if (groups.Count == 0)
         {
             return RpcResponse.Fail(ErrorCodes.JobNoWafers, [port.Name]);
         }
 
-        string lotId = (request.LotId ?? string.Empty).Trim();
+        string lotId = request.Get(RpcParams.LotId, string.Empty).Trim();
         string controlId = lotId.Length > 0
             ? lotId
             : $"CJ-{port.Name}-{DateTime.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
@@ -288,14 +327,19 @@ public class JobService : BaseService, IJobService
 
     #region CJ 与 PJ 控制
 
-    public async Task<RpcResponse> CancelProcessJobAsync(JobCommandRequest request, CallContext context = default)
+    public async Task<RpcResponse> CancelProcessJobAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await _jobs.CancelProcessJobAsync(request.JobId ?? string.Empty).ConfigureAwait(false);
+        if (!request.TryGet<string>(RpcParams.JobId, out var jobId))
+        {
+            return await InvalidRequest();
+        }
+
+        var result = await _jobs.CancelProcessJobAsync(jobId).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);
@@ -311,20 +355,27 @@ public class JobService : BaseService, IJobService
     /// <param name="request"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    public async Task<RpcResponse> ControlJobCommandAsync(JobCommandRequest request, CallContext context = default)
+    public async Task<RpcResponse> ControlJobCommandAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        string id = (request.JobId ?? string.Empty).Trim();
-        var command = (ControlJobCommand)request.Command;
-        var action = (ControlJobAction)request.Action;
+        if (!request.TryGet<string>(RpcParams.JobId, out var jobId)
+            || !request.TryGet<int>(RpcParams.Command, out var commandValue))
+        {
+            return await InvalidRequest();
+        }
+
+        int actionValue = request.Get(RpcParams.Action, 0);
+        string id = jobId.Trim();
+        var command = (ControlJobCommand)commandValue;
+        var action = (ControlJobAction)actionValue;
         if (!Enum.IsDefined(command) || !Enum.IsDefined(action))
         {
             return RpcResponse.Fail(ErrorCodes.JobCommandNotAllowed,
-                [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
+                [id, commandValue.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
         var result = await _jobs.ExecuteControlJobCommandAsync(id, command, action).ConfigureAwait(false);
@@ -337,19 +388,25 @@ public class JobService : BaseService, IJobService
         return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
 
-    public async Task<RpcResponse> ProcessJobCommandAsync(JobCommandRequest request, CallContext context = default)
+    public async Task<RpcResponse> ProcessJobCommandAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        string id = (request.JobId ?? string.Empty).Trim();
-        var command = (ProcessJobCommand)request.Command;
+        if (!request.TryGet<string>(RpcParams.JobId, out var jobId)
+            || !request.TryGet<int>(RpcParams.Command, out var commandValue))
+        {
+            return await InvalidRequest();
+        }
+
+        string id = jobId.Trim();
+        var command = (ProcessJobCommand)commandValue;
         if (!Enum.IsDefined(command))
         {
             return RpcResponse.Fail(ErrorCodes.JobCommandNotAllowed,
-                [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
+                [id, commandValue.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
         var result = await _jobs.ExecuteProcessJobCommandAsync(id, command).ConfigureAwait(false);
@@ -366,14 +423,21 @@ public class JobService : BaseService, IJobService
 
     #region 任务恢复
 
-    public async Task<RpcResponse> RetryTaskAsync(JobTaskRequest request, CallContext context = default)
+    public async Task<RpcResponse> RetryTaskAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await _jobs.RetryTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
+        if (!request.TryGet<string>(RpcParams.ProcessJob, out var processJob)
+            || !request.TryGet<int>(RpcParams.Slot, out var slot)
+            || !request.TryGet<int>(RpcParams.Task, out var task))
+        {
+            return await InvalidRequest();
+        }
+
+        var result = await _jobs.RetryTaskAsync(processJob, slot, task).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);
@@ -383,14 +447,21 @@ public class JobService : BaseService, IJobService
         return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
 
-    public async Task<RpcResponse> CompleteTaskAsync(JobTaskRequest request, CallContext context = default)
+    public async Task<RpcResponse> CompleteTaskAsync(RpcRequest request, CallContext context = default)
     {
         if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await _jobs.CompleteTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
+        if (!request.TryGet<string>(RpcParams.ProcessJob, out var processJob)
+            || !request.TryGet<int>(RpcParams.Slot, out var slot)
+            || !request.TryGet<int>(RpcParams.Task, out var task))
+        {
+            return await InvalidRequest();
+        }
+
+        var result = await _jobs.CompleteTaskAsync(processJob, slot, task).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);

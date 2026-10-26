@@ -75,7 +75,7 @@ public interface IChamber : IProcessStation
     HandleResult<ModuleRoutine> MoveCylinder(string path, bool up);
 
     /// <summary>
-    /// 点动：发起了就回，返回的是等松手的动作；按住期间界面每隔一会儿续一次（AxisJogRenew）
+    /// 点动：按下发一次就回，返回的是等松手的动作；一直走到松手发 AxisStop
     /// </summary>
     HandleResult<ModuleRoutine> AxisJog(string path, double speed);
 
@@ -83,11 +83,6 @@ public interface IChamber : IProcessStation
     /// 一根轴停下：不看腔体忙不忙、不挂动作，发出去就回
     /// </summary>
     HandleResult AxisStop(string path);
-
-    /// <summary>
-    /// 点动续一次，没在点动返回 false
-    /// </summary>
-    bool AxisJogRenew(string path);
 
     #endregion
 

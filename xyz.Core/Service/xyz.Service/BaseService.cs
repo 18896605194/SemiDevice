@@ -8,8 +8,7 @@ using xyz.Tools;
 namespace xyz.Service;
 
 /// <summary>
-/// 服务基类：找模块（按接口从容器里取）+ 模块动作「下发 → 等终态 → 回包」的公共流程。
-/// 各动作服务只管两件事：找模块、调对应动作，错误码拼装与超时判定都在这里。
+/// 服务基类
 /// </summary>
 public abstract class BaseService
 {
@@ -28,6 +27,14 @@ public abstract class BaseService
     protected static Task<RpcResponse> ModuleNotFound(string module)
     {
         return Task.FromResult(RpcResponse.Fail(ErrorCodes.ModuleNotFound, [module]));
+    }
+
+    /// <summary>
+    /// 请求参数不对回包（rpc.request_invalid）：该带的没带、类型对不上
+    /// </summary>
+    protected static Task<RpcResponse> InvalidRequest()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 
     /// <summary>

@@ -230,17 +230,17 @@ try
     var service = new AiService();
     var response = await service.GetStatusAsync(new RpcRequest());
     Check(response.Success && response.DeserializeData<AiStatusDto>().Model == "qwen-test", "服务：配了 AI，状态带模型名");
-    response = await service.ExplainAlarmAsync(new AiAlarmRequest { Source = Source, Code = Code });
+    response = await service.ExplainAlarmAsync(RpcRequest.Of((RpcParams.Source, Source), (RpcParams.Code, Code)));
     var dto = response.Success ? response.DeserializeData<AiAnswerDto>() : null;
     Check(dto is not null && dto.Text == "可能是开到位传感器坏了。" && dto.Model == "qwen-test" && dto.Signals.Count == 4 && dto.LogCount == 3,
         "服务：回答转成 AiAnswerDto（正文、模型、信号、日志条数）");
     Check(fake.Requests[^1][0].Text.EndsWith("用简体中文回答。", StringComparison.Ordinal), "服务：没装整机（没有界面语言）按中文答");
-    response = await service.ExplainAlarmAsync(new AiAlarmRequest { Source = Source, Code = "Nope" });
+    response = await service.ExplainAlarmAsync(RpcRequest.Of((RpcParams.Source, Source), (RpcParams.Code, "Nope")));
     Check(!response.Success && response.Code == ErrorCodes.AiAlarmNotFound && response.Args.SequenceEqual([Source, "Nope"]), "服务：报警没了原样回 ai.alarm_not_found");
     SmokeIoc.Use<IAi>(null);
     var noAi = new AiService();
     response = await noAi.GetStatusAsync(new RpcRequest());
-    var explainNoAi = await noAi.ExplainAlarmAsync(new AiAlarmRequest { Source = Source, Code = Code });
+    var explainNoAi = await noAi.ExplainAlarmAsync(RpcRequest.Of((RpcParams.Source, Source), (RpcParams.Code, Code)));
     Check(!response.Success && response.Code == ErrorCodes.AiNotInstalled && explainNoAi.Code == ErrorCodes.AiNotInstalled, "服务：没配 AI 都回 ai.not_installed");
 
     // 11. 真走一遍微软的 OpenAI 格式适配：本机假模型服务收到 POST /v1/chat/completions，模型名、两条消息、占位密钥都对，回答原样回来

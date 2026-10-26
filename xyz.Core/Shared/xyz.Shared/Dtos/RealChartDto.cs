@@ -1,6 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 实时曲线的信号表（RpcResponse.Data 的 JSON）：每帧的值按 Signals 的顺序排。
@@ -30,16 +28,6 @@ public class RealChartLayoutDto
     public string ScreenshotDirectory { get; set; } = string.Empty;
 
     public List<DataChartSignalDto> Signals { get; set; } = [];
-}
-
-/// <summary>
-/// 要这几个信号最近一段的值（实时曲线页打开、新勾曲线时补历史）。
-/// </summary>
-[ProtoContract]
-public class RealChartRecentQuery
-{
-    [ProtoMember(1)]
-    public List<string> Names { get; set; } = [];
 }
 
 /// <summary>

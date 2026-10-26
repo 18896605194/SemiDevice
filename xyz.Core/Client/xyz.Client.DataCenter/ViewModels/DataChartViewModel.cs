@@ -572,7 +572,7 @@ public class DataChartViewModel : BaseViewModel
             bool done = await Query.RunAsync(async (_, cancel) =>
             {
                 response = await _service.QueryAsync(
-                    new DataChartQuery { Start = fetch.Start, End = fetch.End, Names = fetch.Names.ToList() },
+                    RpcRequest.Of((RpcParams.Start, fetch.Start), (RpcParams.End, fetch.End), (RpcParams.Names, fetch.Names.ToList())),
                     new CallContext(new CallOptions(cancellationToken: cancel)));
             }, token);
             if (!done || response is null)

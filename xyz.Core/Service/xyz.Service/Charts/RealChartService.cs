@@ -4,6 +4,7 @@ using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -46,17 +47,22 @@ public class RealChartService : IRealChartService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(layout)));
     }
 
-    public Task<RpcResponse> GetRecentAsync(RealChartRecentQuery query, CallContext context = default)
+    public Task<RpcResponse> GetRecentAsync(RpcRequest request, CallContext context = default)
     {
         if (_realChart is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RealChartNotInstalled, []));
         }
 
+        if (!request.TryGet<List<string>>(RpcParams.Names, out var names))
+        {
+            return InvalidRequest();
+        }
+
         var indexes = _realChart.Signals
             .Select((signal, index) => (signal.Name, Index: index))
             .ToDictionary(item => item.Name, item => item.Index, StringComparer.OrdinalIgnoreCase);
-        var wanted = (query.Names ?? [])
+        var wanted = names
             .Where(indexes.ContainsKey)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -74,5 +80,13 @@ public class RealChartService : IRealChartService
             }).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result)));
+    }
+
+    /// <summary>
+    /// 请求参数不对回包（rpc.request_invalid）
+    /// </summary>
+    private static Task<RpcResponse> InvalidRequest()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 }

@@ -739,7 +739,7 @@ public class SequenceViewModel : BaseViewModel
 
         try
         {
-            var response = await _service.GetAsync(new SequenceIndexRequest { Index = slot.Index });
+            var response = await _service.GetAsync(RpcRequest.Of((RpcParams.Index, slot.Index)));
             if (version != _openVersion || !ReferenceEquals(slot, _selectedSlot))
             {
                 return;
@@ -996,18 +996,16 @@ public class SequenceViewModel : BaseViewModel
             return;
         }
 
-        var request = new SequenceSaveRequest
-        {
-            Index = current.Index,
-            Revision = current.Revision,
-            Description = Description.Trim(),
-            Steps = Steps.Select(step => new SequenceStepDto
+        var request = RpcRequest.Of(
+            (RpcParams.Index, current.Index),
+            (RpcParams.Revision, current.Revision),
+            (RpcParams.Description, Description.Trim()),
+            (RpcParams.Steps, Steps.Select(step => new SequenceStepDto
             {
                 Group = step.Group,
                 Stations = step.CheckedStations,
                 Recipe = step.NeedsRecipe ? step.Recipe.Trim() : string.Empty,
-            }).ToList(),
-        };
+            }).ToList()));
 
         var response = await Call(() => _service.SaveAsync(request), "recipe.sequence.save_failed");
         if (response is null)
@@ -1102,11 +1100,9 @@ public class SequenceViewModel : BaseViewModel
             return;
         }
 
-        var response = await CallInDialog(() => _service.CreateAsync(new SequenceCreateRequest
-        {
-            Index = slot.Index,
-            Name = DialogName.Trim(),
-        }));
+        var response = await CallInDialog(() => _service.CreateAsync(RpcRequest.Of(
+            (RpcParams.Index, slot.Index),
+            (RpcParams.Name, DialogName.Trim()))));
         if (response is null)
         {
             return;
@@ -1136,11 +1132,9 @@ public class SequenceViewModel : BaseViewModel
             return;
         }
 
-        var response = await CallInDialog(() => _service.RenameAsync(new SequenceRenameRequest
-        {
-            Index = current.Index,
-            Name = DialogName.Trim(),
-        }));
+        var response = await CallInDialog(() => _service.RenameAsync(RpcRequest.Of(
+            (RpcParams.Index, current.Index),
+            (RpcParams.Name, DialogName.Trim()))));
         if (response is null)
         {
             return;
@@ -1175,10 +1169,7 @@ public class SequenceViewModel : BaseViewModel
             return;
         }
 
-        var response = await CallInDialog(() => _service.DeleteAsync(new SequenceDeleteRequest
-        {
-            Index = current.Index,
-        }));
+        var response = await CallInDialog(() => _service.DeleteAsync(RpcRequest.Of((RpcParams.Index, current.Index))));
         if (response is null)
         {
             return;

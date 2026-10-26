@@ -368,7 +368,6 @@
                                 Content="{DynamicResource chambermanual.axis.jog_plus}"
                                 PressCommand="{Binding DataContext.JogPressCommand, ElementName=Root}"
                                 ReleaseCommand="{Binding DataContext.JogReleaseCommand, ElementName=Root}"
-                                RenewCommand="{Binding DataContext.JogRenewCommand, ElementName=Root}"
                                 Style="{DynamicResource CompactButtonStyle}" />
                             <presentationControls:HoldButton
                                 MinWidth="88"
@@ -376,7 +375,6 @@
                                 Content="{DynamicResource chambermanual.axis.jog_minus}"
                                 PressCommand="{Binding DataContext.JogPressCommand, ElementName=Root}"
                                 ReleaseCommand="{Binding DataContext.JogReleaseCommand, ElementName=Root}"
-                                RenewCommand="{Binding DataContext.JogRenewCommand, ElementName=Root}"
                                 Style="{DynamicResource CompactButtonStyle}" />
                             <Button
                                 MinWidth="88"

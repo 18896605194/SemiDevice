@@ -190,12 +190,10 @@ public class JobHistoryViewModel : BaseViewModel
         var range = QueryDateRange.Of(StartTime ?? QueryDateRange.Today().Start, EndTime ?? QueryDateRange.Today().End);
         try
         {
-            var response = await _service.QueryHistoryAsync(new JobHistoryQuery
-            {
-                Start = range.Start,
-                End = range.End,
-                Keyword = Keyword.Trim(),
-            });
+            var response = await _service.QueryHistoryAsync(RpcRequest.Of(
+                (RpcParams.Start, range.Start),
+                (RpcParams.End, range.End),
+                (RpcParams.Keyword, Keyword.Trim())));
 
             if (!response.Success)
             {
@@ -256,8 +254,7 @@ public class JobHistoryViewModel : BaseViewModel
 
         try
         {
-            var request = new RpcRequest();
-            request.Parameters["ControlJob"] = controlJob.Id.ToString();
+            var request = RpcRequest.Of((RpcParams.ControlJob, controlJob.Id.ToString()));
             var response = await _service.GetHistoryProcessJobsAsync(request);
             if (version != _loadVersion)
             {

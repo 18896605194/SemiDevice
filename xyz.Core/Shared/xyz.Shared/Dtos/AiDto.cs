@@ -1,25 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
-
-/// <summary>
-/// 让 AI 解释一条当前报警的请求（实时报警页）。code-first gRPC 的请求参数必须是消息类，故包一层
-/// </summary>
-[ProtoContract]
-public class AiAlarmRequest
-{
-    /// <summary>
-    /// 报警来源（组件全路径）
-    /// </summary>
-    [ProtoMember(1)]
-    public string Source { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 报警码
-    /// </summary>
-    [ProtoMember(2)]
-    public string Code { get; set; } = string.Empty;
-}
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// AI 的一次回答：正文，加上它看了哪些数据（界面列出来给人核对）

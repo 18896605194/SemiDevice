@@ -6,7 +6,7 @@
 public interface IActionFilter
 {
     /// <summary>
-    /// 调用进来：要记的记一条，返回这次调用的记录，回包时用；不记的（Get / Query、续点动、订阅）返回 null。
+    /// 调用进来：要记的记一条，返回这次调用的记录，回包时用；不记的（Get / Query、订阅推送、上行发布）返回 null。
     /// method 是 gRPC 方法全名，peer 是来路（ipv4:IP:端口），operatorName 是请求头里的操作人
     /// </summary>
     ActionCall? Begin(string method, string peer, string operatorName, object? request);

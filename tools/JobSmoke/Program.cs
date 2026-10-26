@@ -628,12 +628,10 @@ try
     HandleResult Create(string lot, string port, bool controlJobAutoStart, params (int Slot, string Sequence)[] slots)
     {
         jobs.ControlJobAutoStart = controlJobAutoStart;
-        var task = jobService.CreateAsync(new JobCreateRequest
-        {
-            LoadPort = port,
-            LotId = lot,
-            Slots = slots.Select(item => new JobSlotDto { Slot = item.Slot, Sequence = item.Sequence }).ToList(),
-        });
+        var task = jobService.CreateAsync(RpcRequest.Of(
+            (RpcParams.LoadPort, port),
+            (RpcParams.LotId, lot),
+            (RpcParams.Slots, slots.Select(item => new JobSlotDto { Slot = item.Slot, Sequence = item.Sequence }).ToList())));
         Check(task.IsCompleted, "建 Job 应当场做完");
         var response = task.Result;
         return response.Success
@@ -1119,16 +1117,14 @@ try
     // 7b. Job 历史页（数据中心）走 Job 服务：按建的时刻查库里的 CJ（关键字筛、最新的在前），再按 CJ 的行号取它下面的 PJ，每片带它的任务明细
     HistoryResult<ControlJobHistoryDto> QueryHistory(JobService service, string keyword, DateTime start, DateTime end)
     {
-        var response = service.QueryHistoryAsync(new JobHistoryQuery { Start = start, End = end, Keyword = keyword }).Result;
+        var response = service.QueryHistoryAsync(RpcRequest.Of((RpcParams.Start, start), (RpcParams.End, end), (RpcParams.Keyword, keyword))).Result;
         Check(response.Success, $"查 Job 历史应成功：{response.Code} {response.Message}");
         return response.DeserializeData<HistoryResult<ControlJobHistoryDto>>();
     }
 
     RpcResponse HistoryProcessJobs(JobService service, string controlJob)
     {
-        var request = new RpcRequest();
-        request.Parameters["ControlJob"] = controlJob;
-        return service.GetHistoryProcessJobsAsync(request).Result;
+        return service.GetHistoryProcessJobsAsync(RpcRequest.Of((RpcParams.ControlJob, controlJob))).Result;
     }
 
     var historyToday = DateTime.Today;
@@ -1493,31 +1489,42 @@ try
     // 15b. 独立 PJ 的创建、取消，再用名称集合创建 Job；不重新创建 PJ 或任务行。
     using (var requestStream = new MemoryStream())
     {
-        ProtoBuf.Serializer.Serialize(requestStream, new ProcessJobCreateRequest
-        {
-            LoadPort = "LP1", Name = "PJ-WAIT", Slots = [1, 2], Sequence = "SEQ_A", LotId = "LOT-WAIT",
-        });
+        ProtoBuf.Serializer.Serialize(requestStream, RpcRequest.Of(
+            (RpcParams.LoadPort, "LP1"),
+            (RpcParams.Name, "PJ-WAIT"),
+            (RpcParams.Slots, new List<int> { 1, 2 }),
+            (RpcParams.Sequence, "SEQ_A"),
+            (RpcParams.LotId, "LOT-WAIT")));
         requestStream.Position = 0;
-        var decoded = ProtoBuf.Serializer.Deserialize<ProcessJobCreateRequest>(requestStream);
-        Check(decoded.Slots.SequenceEqual(new[] { 1, 2 }) && decoded.LotId == "LOT-WAIT",
-            "PJ 创建请求经过 protobuf 后仍保留槽位集合和批次号");
+        var decoded = ProtoBuf.Serializer.Deserialize<RpcRequest>(requestStream);
+        Check(decoded.TryGet<List<int>>(RpcParams.Slots, out var decodedSlots) && decodedSlots.SequenceEqual(new[] { 1, 2 })
+              && decoded.TryGet<string>(RpcParams.LotId, out var decodedLotId) && decodedLotId == "LOT-WAIT",
+            "PJ 创建请求（RpcRequest）经过 protobuf 后仍取得到槽位集合和批次号");
     }
     LoadCarrier(lp1, 1, 2);
-    var manualPj = new ProcessJobCreateRequest { LoadPort = "LP1", Name = "PJ-M1", Slots = [1], Sequence = "SEQ_A", LotId = "LOT-MANUAL" };
+    var manualPj = RpcRequest.Of(
+        (RpcParams.LoadPort, "LP1"),
+        (RpcParams.Name, "PJ-M1"),
+        (RpcParams.Slots, new List<int> { 1 }),
+        (RpcParams.Sequence, "SEQ_A"),
+        (RpcParams.LotId, "LOT-MANUAL"));
     Check(Pump(jobService.CreateProcessJobAsync(manualPj)).Success && PjOf("PJ-M1")?.LotId == "LOT-MANUAL",
         "独立创建 PJ：LoadPort、PJ 名、槽位、Sequence、LotId 当场记录");
-    Check(Pump(jobService.CancelProcessJobAsync(new JobCommandRequest { JobId = "PJ-M1" })).Success
+    Check(Pump(jobService.CancelProcessJobAsync(RpcRequest.Of((RpcParams.JobId, "PJ-M1")))).Success
           && PjOf("PJ-M1") is null && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null, "取消独立 PJ，释放片归属");
     Check(Pump(jobService.CreateProcessJobAsync(manualPj)).Success, "取消后可以再次创建同名 PJ");
     Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-M2", new[] { 2 }, "SEQ_B", "LOT-MANUAL")).IsSuccess,
         "参数形式创建第二个 PJ");
     var manualRows = jobs.FindChild<TaskComponent>()!.Rows.Where(row => row.Owner is "PJ-M1" or "PJ-M2").ToList();
     var manualTasks = manualRows.SelectMany(row => row.Tasks).ToList();
-    var assembled = new ControlJobCreateRequest { LoadPort = "LP1", Name = "CJ-MANUAL", ProcessJobs = ["PJ-M1", "PJ-M2"] };
-    var wrongPort = Pump(jobService.CreateControlJobAsync(new ControlJobCreateRequest
-    {
-        LoadPort = "LP2", Name = "CJ-WRONG", ProcessJobs = ["PJ-M1", "PJ-M2"],
-    }));
+    var assembled = RpcRequest.Of(
+        (RpcParams.LoadPort, "LP1"),
+        (RpcParams.Name, "CJ-MANUAL"),
+        (RpcParams.ProcessJobs, new List<string> { "PJ-M1", "PJ-M2" }));
+    var wrongPort = Pump(jobService.CreateControlJobAsync(RpcRequest.Of(
+        (RpcParams.LoadPort, "LP2"),
+        (RpcParams.Name, "CJ-WRONG"),
+        (RpcParams.ProcessJobs, new List<string> { "PJ-M1", "PJ-M2" }))));
     Check(!wrongPort.Success && wrongPort.Code == ErrorCodes.JobProcessJobUnavailable
           && CjOf("CJ-WRONG") is null && PjOf("PJ-M1")?.ControlJob == string.Empty && PjOf("PJ-M2")?.ControlJob == string.Empty,
         "CJ 的 LoadPort 与 PJ 不匹配：不关联、不删除已建好的 PJ");
@@ -1539,10 +1546,10 @@ try
 
     LoadCarrier(lp1, 1);
     Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-RAW", new[] { 1 }, "SEQ_A", "LOT-RAW")).IsSuccess
-          && Pump(jobService.CreateControlJobAsync(new ControlJobCreateRequest
-          {
-              LoadPort = "LP1", Name = "CJ-RAW", ProcessJobs = ["PJ-RAW"],
-          })).Success, "可直接创建 CJ，关联之前创建的 PJ");
+          && Pump(jobService.CreateControlJobAsync(RpcRequest.Of(
+              (RpcParams.LoadPort, "LP1"),
+              (RpcParams.Name, "CJ-RAW"),
+              (RpcParams.ProcessJobs, new List<string> { "PJ-RAW" })))).Success, "可直接创建 CJ，关联之前创建的 PJ");
     Check(Do(jobs.CancelControlJobAsync("CJ-RAW", ControlJobAction.SaveJobs)).IsSuccess
           && PjOf("PJ-RAW")?.ControlJob == string.Empty && PjOf("PJ-RAW")?.LotId == "LOT-RAW",
         "取消排队 CJ 并保留 PJ：PJ 脱离 CJ，自己的批次号仍保留");
@@ -1746,14 +1753,18 @@ try
         return task.Result;
     }
 
-    var noPort = Pump(jobService.CreateAsync(new JobCreateRequest { LoadPort = "LPX", Slots = [new JobSlotDto { Slot = 1, Sequence = "SEQ_A" }] }));
+    var noPort = Pump(jobService.CreateAsync(RpcRequest.Of(
+        (RpcParams.LoadPort, "LPX"),
+        (RpcParams.Slots, new List<JobSlotDto> { new JobSlotDto { Slot = 1, Sequence = "SEQ_A" } }))));
     Check(!noPort.Success && noPort.Code == ErrorCodes.JobLoadPortNotFound && noPort.Args.SequenceEqual(new[] { "LPX" }), "建 Job 不成：错误码带 LoadPort");
-    var unknown = Pump(jobService.ControlJobCommandAsync(new JobCommandRequest { JobId = "NOPE", Command = (int)ControlJobCommand.Start }));
+    var unknown = Pump(jobService.ControlJobCommandAsync(RpcRequest.Of(
+        (RpcParams.JobId, "NOPE"),
+        (RpcParams.Command, (int)ControlJobCommand.Start))));
     Check(!unknown.Success && unknown.Code == ErrorCodes.JobNotFound && unknown.Args.SequenceEqual(new[] { "NOPE" }), "没有这个 Job");
-    var badCommand = Pump(jobService.ControlJobCommandAsync(new JobCommandRequest { JobId = "NOPE", Command = 99 }));
+    var badCommand = Pump(jobService.ControlJobCommandAsync(RpcRequest.Of((RpcParams.JobId, "NOPE"), (RpcParams.Command, 99))));
     Check(!badCommand.Success && badCommand.Code == ErrorCodes.JobCommandNotAllowed, "命令值不认识：拒");
-    var noRetry = Pump(jobService.RetryTaskAsync(new JobTaskRequest { ProcessJob = "NOPE", Slot = 1, Task = 0 }));
-    var noComplete = Pump(jobService.CompleteTaskAsync(new JobTaskRequest { ProcessJob = "NOPE", Slot = 1, Task = 0 }));
+    var noRetry = Pump(jobService.RetryTaskAsync(RpcRequest.Of((RpcParams.ProcessJob, "NOPE"), (RpcParams.Slot, 1), (RpcParams.Task, 0))));
+    var noComplete = Pump(jobService.CompleteTaskAsync(RpcRequest.Of((RpcParams.ProcessJob, "NOPE"), (RpcParams.Slot, 1), (RpcParams.Task, 0))));
     Check(!noRetry.Success && noRetry.Code == ErrorCodes.JobNotFound && noRetry.Args.SequenceEqual(new[] { "NOPE" })
           && !noComplete.Success && noComplete.Code == ErrorCodes.JobNotFound, "重做、标记完成找不到 PJ：job.not_found");
     var list = Pump(jobService.GetJobsAsync(new RpcRequest())).DeserializeData<JobListDto>();
@@ -1761,12 +1772,20 @@ try
 
     LoadCarrier(lp1, 1);
     var transferService = new TransferService();
-    var manual = Pump(transferService.TransferAsync(new TransferRequestDto { Source = "LP1", SourceSlot = 1, Target = "PM1", TargetSlot = 1 }));
+    var manual = Pump(transferService.TransferAsync(RpcRequest.Of(
+        (RpcParams.Source, "LP1"),
+        (RpcParams.SourceSlot, 1),
+        (RpcParams.Target, "PM1"),
+        (RpcParams.TargetSlot, 1))));
     Check(manual.Success && manual.DeserializeData<TransferDoneDto>().Robot == "Robot1" && ledger.Get("PM1", 1) is not null,
         "手动传片走搬运管理：搬完回机械手和手");
-    var occupied = Pump(transferService.TransferAsync(new TransferRequestDto { Source = "LP1", SourceSlot = 2, Target = "PM1", TargetSlot = 1 }));
+    var occupied = Pump(transferService.TransferAsync(RpcRequest.Of(
+        (RpcParams.Source, "LP1"),
+        (RpcParams.SourceSlot, 2),
+        (RpcParams.Target, "PM1"),
+        (RpcParams.TargetSlot, 1))));
     Check(!occupied.Success && occupied.Code == ErrorCodes.WaferNoWafer, "手动传片受理不了：错误码照搬");
-    var notHeld = Pump(transferService.ReleaseAsync(new TransferReleaseRequest { WaferId = Guid.Empty }));
+    var notHeld = Pump(transferService.ReleaseAsync(RpcRequest.Of((RpcParams.WaferId, Guid.Empty))));
     Check(!notHeld.Success && notHeld.Code == ErrorCodes.TransferNotHeld && notHeld.Args.SequenceEqual(new[] { Guid.Empty.ToString() }), "没有留着锁的单：transfer.not_held");
     Check(ledger.Move("PM1", 1, "LP1", 1), "手动传过去的那片人工收回");
     UnloadCarrier(lp1);

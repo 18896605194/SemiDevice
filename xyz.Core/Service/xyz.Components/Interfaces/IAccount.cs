@@ -40,22 +40,22 @@ public interface IAccount
     /// <summary>
     /// 新建账号
     /// </summary>
-    HandleResult<UserDto> CreateUser(UserCreateRequest request);
+    HandleResult<UserDto> CreateUser(string userName, string displayName, long roleId, string password);
 
     /// <summary>
     /// 改账号的显示名、角色
     /// </summary>
-    HandleResult UpdateUser(UserUpdateRequest request);
+    HandleResult UpdateUser(long id, string displayName, long roleId);
 
     /// <summary>
     /// 重置密码（不要旧密码）
     /// </summary>
-    HandleResult ResetPassword(UserPasswordResetRequest request);
+    HandleResult ResetPassword(long id, string password);
 
     /// <summary>
     /// 停用 / 启用账号
     /// </summary>
-    HandleResult SetUserEnabled(UserEnableRequest request);
+    HandleResult SetUserEnabled(long id, bool isEnabled);
 
     /// <summary>
     /// 删账号
@@ -70,12 +70,12 @@ public interface IAccount
     /// <summary>
     /// 新建角色
     /// </summary>
-    HandleResult<RoleDto> CreateRole(RoleSaveRequest request);
+    HandleResult<RoleDto> CreateRole(string name, string description);
 
     /// <summary>
     /// 改角色名和说明
     /// </summary>
-    HandleResult UpdateRole(RoleSaveRequest request);
+    HandleResult UpdateRole(long id, string name, string description);
 
     /// <summary>
     /// 删角色
@@ -90,5 +90,5 @@ public interface IAccount
     /// <summary>
     /// 存一个角色的权限：整张换掉
     /// </summary>
-    HandleResult SavePermissions(RolePermissionsSaveRequest request);
+    HandleResult SavePermissions(long roleId, IReadOnlyList<RolePermissionItem> items);
 }

@@ -1,6 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 工艺配方列表（配方 → 工艺配方页左边，也是流程配方页、腔体手动页选工艺配方的弹窗里列的）：编号 1~Capacity，只带用了的编号。
@@ -94,12 +92,10 @@ public enum ProcessRecipeFieldType
 
 /// <summary>
 /// 一步：每个字段的值（字段名 → 值，都按文字传；有哪些字段由 machine.xml 的字段表定，见 <see cref="ProcessRecipeFieldDto"/>）。
-/// 既是 <see cref="ProcessRecipeDto"/> 里的数据（走 JSON），也是保存请求里的消息（走 protobuf），所以带 ProtoContract。
+/// 既是 <see cref="ProcessRecipeDto"/> 里的数据，也是保存时 Steps 参数的一项。
 /// </summary>
-[ProtoContract]
 public class ProcessRecipeStepDto
 {
-    [ProtoMember(1)]
     public Dictionary<string, string> Values { get; set; } = new();
 }
 
@@ -196,84 +192,4 @@ public class ProcessRecipeFieldDto
 public class ProcessRecipeChangedDto
 {
     public int Index { get; set; }
-}
-
-/// <summary>
-/// 按编号取一个工艺配方。
-/// </summary>
-[ProtoContract]
-public class ProcessRecipeIndexRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-}
-
-/// <summary>
-/// 新建：在空编号上建一个，只给名称，内容按默认（一步，不出液）。
-/// </summary>
-[ProtoContract]
-public class ProcessRecipeCreateRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-
-    [ProtoMember(2)]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 重命名。
-/// </summary>
-[ProtoContract]
-public class ProcessRecipeRenameRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-
-    [ProtoMember(2)]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 删除。
-/// </summary>
-[ProtoContract]
-public class ProcessRecipeDeleteRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-}
-
-/// <summary>
-/// 保存配方头里能填的项和步骤（名称走重命名）。
-/// </summary>
-[ProtoContract]
-public class ProcessRecipeSaveRequest
-{
-    [ProtoMember(1)]
-    public int Index { get; set; }
-
-    /// <summary>
-    /// 打开时读到的版本；后端的版本已经变了就拒绝，免得两台客户端互相覆盖。
-    /// </summary>
-    [ProtoMember(2)]
-    public int Revision { get; set; }
-
-    [ProtoMember(3)]
-    public string Description { get; set; } = string.Empty;
-
-    [ProtoMember(4)]
-    public List<ProcessRecipeStepDto> Steps { get; set; } = [];
-
-    [ProtoMember(6)]
-    public string Type { get; set; } = string.Empty;
-
-    [ProtoMember(7)]
-    public string Timeout { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 配方头里自己在字段表加的那些项：字段名 → 值。
-    /// </summary>
-    [ProtoMember(8)]
-    public Dictionary<string, string> Head { get; set; } = new();
 }

@@ -17,8 +17,8 @@ public interface IRealChartService
     Task<RpcResponse> GetLayoutAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 这几个信号最近一段的值（后端内存里留的，WindowSeconds 秒）。Data 为 RealChartRecentDto 的 JSON。
+    /// 这几个信号最近一段的值（后端内存里留的，WindowSeconds 秒）。Data 为 RealChartRecentDto 的 JSON。参数：Names（string 列表）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> GetRecentAsync(RealChartRecentQuery query, CallContext context = default);
+    Task<RpcResponse> GetRecentAsync(RpcRequest request, CallContext context = default);
 }

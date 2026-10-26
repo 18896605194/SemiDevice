@@ -93,7 +93,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         // 先拉一次当前状态，再订阅推送；只等推送的话刚进页面会一直是空默认值。
         try
         {
-            var response = _service.GetStateAsync(ModuleName).GetAwaiter().GetResult();
+            var response = _service.GetStateAsync(RpcRequest.Of((RpcParams.Module, ModuleName))).GetAwaiter().GetResult();
             response.EnsureSuccess();
 
             var json = response.Data?.TrimStart() ?? string.Empty;
@@ -125,7 +125,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoHome()
     {
-        var response = await _service.HomeAsync(ModuleName);
+        var response = await _service.HomeAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Home 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
@@ -134,7 +134,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoLoad()
     {
-        var response = await _service.LoadAsync(ModuleName);
+        var response = await _service.LoadAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Load 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
@@ -143,7 +143,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoUnload()
     {
-        var response = await _service.UnloadAsync(ModuleName);
+        var response = await _service.UnloadAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Unload 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
@@ -152,7 +152,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoReset()
     {
-        var response = await _service.ResetAsync(ModuleName);
+        var response = await _service.ResetAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Reset 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
@@ -161,7 +161,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoProduction()
     {
-        var response = await _service.SetProductionAsync(ModuleName);
+        var response = await _service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"切生产模式失败：{L10n.Get(response.Code, response.Args)}");
@@ -170,7 +170,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoMaintenance()
     {
-        var response = await _service.SetMaintenanceAsync(ModuleName);
+        var response = await _service.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"切维护模式失败：{L10n.Get(response.Code, response.Args)}");
@@ -179,7 +179,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoAuto()
     {
-        var response = await _service.AutoAsync(ModuleName);
+        var response = await _service.AutoAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Auto 失败：{L10n.Get(response.Code, response.Args)}");
@@ -188,7 +188,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoManual()
     {
-        var response = await _service.ManualAsync(ModuleName);
+        var response = await _service.ManualAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Manual 失败：{L10n.Get(response.Code, response.Args)}");
@@ -197,7 +197,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoReadCarrierId()
     {
-        var response = await _service.ReadCarrierIdAsync(ModuleName);
+        var response = await _service.ReadCarrierIdAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Read ID 失败：{L10n.Get(response.Code, response.Args)}");
@@ -206,7 +206,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoAbort()
     {
-        var response = await _service.AbortAsync(ModuleName);
+        var response = await _service.AbortAsync(RpcRequest.Of((RpcParams.Module, ModuleName)));
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Abort 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");

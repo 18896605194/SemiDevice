@@ -319,11 +319,11 @@ try
     var groupDtos = (await service.GetStationGroupsAsync(new RpcRequest())).DeserializeData<List<SequenceStationGroupDto>>();
     Check(groupDtos.Count == 3 && groupDtos[0].IsLoadPort && groupDtos[1].Name == "Chamber" && groupDtos[1].NeedsRecipe
           && groupDtos[1].Modules.SequenceEqual(new[] { "SmokePM1", "SmokePM2" }), "分组");
-    var one = (await service.GetAsync(new SequenceIndexRequest { Index = 1 })).DeserializeData<SequenceDto>();
+    var one = (await service.GetAsync(RpcRequest.Of((RpcParams.Index, 1)))).DeserializeData<SequenceDto>();
     Check(one.Index == 1 && one.Revision == 4 && one.Steps.Count == 4 && one.Steps[3].Stations.SequenceEqual(new[] { "SmokeLP2" }),
         "取一个：头信息和步骤");
 
-    var createdBySvc = await service.CreateAsync(new SequenceCreateRequest { Index = 3, Name = "SVC_NEW" });
+    var createdBySvc = await service.CreateAsync(RpcRequest.Of((RpcParams.Index, 3), (RpcParams.Name, "SVC_NEW")));
     var createdDto = createdBySvc.DeserializeData<SequenceDto>();
     Check(createdBySvc.Success && createdDto.Index == 3 && createdDto.CreatedBy == "Unknown" && createdDto.Steps.Count == 3,
         "服务新建：没带操作人记成 Unknown");
@@ -337,23 +337,28 @@ try
         ];
     }
 
-    var savedBySvc = await service.SaveAsync(new SequenceSaveRequest { Index = 3, Revision = 1, Description = "d", Steps = ServiceSteps() }, SmokeCall.As("Op"));
+    var savedBySvc = await service.SaveAsync(RpcRequest.Of(
+        (RpcParams.Index, 3),
+        (RpcParams.Revision, 1),
+        (RpcParams.Description, "d"),
+        (RpcParams.Steps, ServiceSteps())), SmokeCall.As("Op"));
     Check(savedBySvc.Success && savedBySvc.DeserializeData<SequenceDto>().Revision == 2 && savedBySvc.DeserializeData<SequenceDto>().ModifiedBy == "Op",
         "服务保存：版本加 1，修改人是请求头里的操作人");
-    var stale = await service.SaveAsync(new SequenceSaveRequest { Index = 3, Revision = 1, Steps = ServiceSteps() }, SmokeCall.As("Op"));
+    var stale = await service.SaveAsync(RpcRequest.Of(
+        (RpcParams.Index, 3),
+        (RpcParams.Revision, 1),
+        (RpcParams.Steps, ServiceSteps())), SmokeCall.As("Op"));
     Check(!stale.Success && stale.Code == ErrorCodes.SequenceRevisionMismatch && stale.Args.SequenceEqual(new[] { "3" }), "版本冲突：错误码带编号");
-    var noRecipe = await service.SaveAsync(new SequenceSaveRequest
-    {
-        Index = 3,
-        Revision = 2,
-        Steps = [new SequenceStepDto { Group = "LoadPort", Stations = ["SmokeLP1"] }, new SequenceStepDto { Group = "Chamber", Stations = ["SmokePM1"] }, new SequenceStepDto { Group = "LoadPort", Stations = ["SmokeLP1"] }],
-    }, SmokeCall.As("Op"));
+    var noRecipe = await service.SaveAsync(RpcRequest.Of(
+        (RpcParams.Index, 3),
+        (RpcParams.Revision, 2),
+        (RpcParams.Steps, new List<SequenceStepDto> { new SequenceStepDto { Group = "LoadPort", Stations = ["SmokeLP1"] }, new SequenceStepDto { Group = "Chamber", Stations = ["SmokePM1"] }, new SequenceStepDto { Group = "LoadPort", Stations = ["SmokeLP1"] } })), SmokeCall.As("Op"));
     Check(!noRecipe.Success && noRecipe.Code == ErrorCodes.SequenceRecipeRequired && noRecipe.Args.SequenceEqual(new[] { "2" }), "没选工艺配方：错误码带步号");
-    var duplicate = await service.RenameAsync(new SequenceRenameRequest { Index = 3, Name = "sc1_lp1_to_lp2" }, SmokeCall.As("Op"));
+    var duplicate = await service.RenameAsync(RpcRequest.Of((RpcParams.Index, 3), (RpcParams.Name, "sc1_lp1_to_lp2")), SmokeCall.As("Op"));
     Check(!duplicate.Success && duplicate.Code == ErrorCodes.SequenceNameDuplicate && duplicate.Args.SequenceEqual(new[] { "sc1_lp1_to_lp2", "1" }),
         "改名重了：错误码带名称和编号");
-    Check((await service.DeleteAsync(new SequenceDeleteRequest { Index = 3 }, SmokeCall.As("Op"))).Success, "服务删除");
-    var gone = await service.GetAsync(new SequenceIndexRequest { Index = 3 });
+    Check((await service.DeleteAsync(RpcRequest.Of((RpcParams.Index, 3)), SmokeCall.As("Op"))).Success, "服务删除");
+    var gone = await service.GetAsync(RpcRequest.Of((RpcParams.Index, 3)));
     Check(!gone.Success && gone.Code == ErrorCodes.SequenceNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 
     SmokeIoc.Use<ISequenceComponent>(null);

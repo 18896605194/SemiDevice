@@ -2,6 +2,7 @@
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -16,8 +17,13 @@ public class RobotService : BaseService, IRobotService
         _transfers = IocHelper.GetService<ITransferManager>();
     }
 
-    public Task<RpcResponse> HomeAsync(string module)
+    public Task<RpcResponse> HomeAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -27,8 +33,13 @@ public class RobotService : BaseService, IRobotService
         return RunRoutine(module, robot, robot.Home(), robot.HomeTimeout);
     }
 
-    public Task<RpcResponse> ResetAsync(string module)
+    public Task<RpcResponse> ResetAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -38,8 +49,13 @@ public class RobotService : BaseService, IRobotService
         return RunRoutine(module, robot, robot.Reset(), robot.CheckReset, robot.ResetTimeout);
     }
 
-    public Task<RpcResponse> AbortAsync(string module)
+    public Task<RpcResponse> AbortAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -53,10 +69,16 @@ public class RobotService : BaseService, IRobotService
     /// 手动取片：站点这个槽 → 这台机械手的这只手。跟自动跑货一样交给搬运管理（只取片）：先准备站点（腔体开门、LoadPort 要 Load 着），
     /// 再让机械手取；手、槽、片都上锁，自动在跑时不会撞车。被拒、失败都回具体原因。
     /// </summary>
-    public Task<RpcResponse> PickAsync(RobotPickPlaceRequest request)
+    public Task<RpcResponse> PickAsync(RpcRequest request)
     {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        var module = request.Module ?? string.Empty;
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<int>(RpcParams.Arm, out var arm)
+            || !request.TryGet<string>(RpcParams.Station, out var station)
+            || !request.TryGet<int>(RpcParams.Slot, out var slot))
+        {
+            return InvalidRequest();
+        }
+
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -66,22 +88,28 @@ public class RobotService : BaseService, IRobotService
         return RunTransfer(new TransferRequest
         {
             Origin = TransferOrigin.Manual,
-            Source = request.Station ?? string.Empty,
-            SourceSlot = request.Slot,
+            Source = station,
+            SourceSlot = slot,
             Target = robot.Name,
-            TargetSlot = request.Arm,
+            TargetSlot = arm,
             Robot = robot.Name,
-            Arm = request.Arm,
+            Arm = arm,
         });
     }
 
     /// <summary>
     /// 手动放片：这台机械手这只手上的片 → 站点这个槽。同 <see cref="PickAsync"/>，交给搬运管理（只放片）。
     /// </summary>
-    public Task<RpcResponse> PlaceAsync(RobotPickPlaceRequest request)
+    public Task<RpcResponse> PlaceAsync(RpcRequest request)
     {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        var module = request.Module ?? string.Empty;
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<int>(RpcParams.Arm, out var arm)
+            || !request.TryGet<string>(RpcParams.Station, out var station)
+            || !request.TryGet<int>(RpcParams.Slot, out var slot))
+        {
+            return InvalidRequest();
+        }
+
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -92,11 +120,11 @@ public class RobotService : BaseService, IRobotService
         {
             Origin = TransferOrigin.Manual,
             Source = robot.Name,
-            SourceSlot = request.Arm,
-            Target = request.Station ?? string.Empty,
-            TargetSlot = request.Slot,
+            SourceSlot = arm,
+            Target = station,
+            TargetSlot = slot,
             Robot = robot.Name,
-            Arm = request.Arm,
+            Arm = arm,
         });
     }
 
@@ -131,8 +159,13 @@ public class RobotService : BaseService, IRobotService
         return Failed(routine);
     }
 
-    public Task<RpcResponse> PowerOnAsync(string module)
+    public Task<RpcResponse> PowerOnAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -142,8 +175,13 @@ public class RobotService : BaseService, IRobotService
         return RunRoutine(module, robot, robot.PowerOn(), robot.PowerTimeout);
     }
 
-    public Task<RpcResponse> PowerOffAsync(string module)
+    public Task<RpcResponse> PowerOffAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
@@ -156,21 +194,32 @@ public class RobotService : BaseService, IRobotService
     /// <summary>
     /// 切生产 / 维护模式走服务基类（见 <see cref="BaseService.SetProduction{TModule}"/>）
     /// </summary>
-    public Task<RpcResponse> SetProductionAsync(string module)
+    public Task<RpcResponse> SetProductionAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         return SetProduction<IRobot>(module);
     }
 
-    public Task<RpcResponse> SetMaintenanceAsync(string module)
+    public Task<RpcResponse> SetMaintenanceAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         return SetMaintenance<IRobot>(module);
     }
 
     /// <summary>
     /// 状态快照与事件流发布的是同一份 RobotDto。
     /// </summary>
-    public Task<RpcResponse> GetStateAsync(string module)
+    public Task<RpcResponse> GetStateAsync(RpcRequest request)
     {
+        string module = request.Get(RpcParams.Module, string.Empty);
         var dto = IocHelper.GetServices<IRobot>()
             .Where(robot => string.IsNullOrWhiteSpace(module)
                             || string.Equals(robot.Name, module, StringComparison.OrdinalIgnoreCase))

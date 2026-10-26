@@ -1,6 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 数据曲线（实时曲线也用）的一个信号。名字全部由 machine.xml 生成、按两个下划线 __ 分层（模块 → 部件 → 属性），界面照它长出勾选树：
@@ -56,31 +54,6 @@ public class DataChartSignalsDto
     /// 截图存到哪个文件夹（machine.xml 的 DataChart 节点 ScreenshotDirectory；相对路径算客户端程序目录）。
     /// </summary>
     public string ScreenshotDirectory { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// 数据曲线查询：按名字查 [Start, End) 的曲线。时间用本机时间，传过去只保留刻度。
-/// </summary>
-[ProtoContract]
-public class DataChartQuery
-{
-    /// <summary>
-    /// 起始时刻（含）。
-    /// </summary>
-    [ProtoMember(1)]
-    public DateTime Start { get; set; }
-
-    /// <summary>
-    /// 截止时刻（不含）。
-    /// </summary>
-    [ProtoMember(2)]
-    public DateTime End { get; set; }
-
-    /// <summary>
-    /// 信号名；超过最多条数的只查前面的。
-    /// </summary>
-    [ProtoMember(3)]
-    public List<string> Names { get; set; } = [];
 }
 
 /// <summary>

@@ -649,33 +649,55 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         "槽上带片号、载具、物理状态、工艺状态");
     Check(view.Locations[2].Slots[4].Wafer?.Status == "Crossed" && view.Locations[2].Slots[3].Wafer is null, "空槽为 null");
 
-    var moved = await service.MoveAsync(new WaferMoveRequest
-    {
-        FromModule = "SvcPM1", FromSlot = 1, ToModule = "SvcRobot2", ToSlot = 1, Reason = "取片报警",
-    }, SmokeCall.As("Tester"));
+    var moved = await service.MoveAsync(RpcRequest.Of(
+        (RpcParams.FromModule, "SvcPM1"),
+        (RpcParams.FromSlot, 1),
+        (RpcParams.ToModule, "SvcRobot2"),
+        (RpcParams.ToSlot, 1),
+        (RpcParams.Reason, "取片报警")), SmokeCall.As("Tester"));
     Check(moved.Success && serviceLedger.Get("SvcRobot2", 1)?.WaferId == "W-PM" && serviceLedger.Get("SvcPM1", 1) is null, "移账");
 
-    var noWafer = await service.MoveAsync(new WaferMoveRequest { FromModule = "SvcPM1", FromSlot = 1, ToModule = "SvcRobot2", ToSlot = 2 });
+    var noWafer = await service.MoveAsync(RpcRequest.Of(
+        (RpcParams.FromModule, "SvcPM1"),
+        (RpcParams.FromSlot, 1),
+        (RpcParams.ToModule, "SvcRobot2"),
+        (RpcParams.ToSlot, 2)));
     Check(!noWafer.Success && noWafer.Code == ErrorCodes.WaferNoWafer && noWafer.Args.SequenceEqual(new[] { "SvcPM1", "1" }),
         "源上没片：错误码带位置、槽号");
-    var occupied = await service.MoveAsync(new WaferMoveRequest { FromModule = "SvcRobot2", FromSlot = 1, ToModule = "SvcLP1", ToSlot = 5 });
+    var occupied = await service.MoveAsync(RpcRequest.Of(
+        (RpcParams.FromModule, "SvcRobot2"),
+        (RpcParams.FromSlot, 1),
+        (RpcParams.ToModule, "SvcLP1"),
+        (RpcParams.ToSlot, 5)));
     Check(!occupied.Success && occupied.Code == ErrorCodes.WaferSlotOccupied && occupied.Args.SequenceEqual(new[] { "SvcLP1", "5", "W-LP05" }),
         "目标有片：带上那片的片号");
-    var outOfRange = await service.MoveAsync(new WaferMoveRequest { FromModule = "SvcRobot2", FromSlot = 1, ToModule = "SvcPM1", ToSlot = 2 });
+    var outOfRange = await service.MoveAsync(RpcRequest.Of(
+        (RpcParams.FromModule, "SvcRobot2"),
+        (RpcParams.FromSlot, 1),
+        (RpcParams.ToModule, "SvcPM1"),
+        (RpcParams.ToSlot, 2)));
     Check(!outOfRange.Success && outOfRange.Code == ErrorCodes.WaferSlotOutOfRange && outOfRange.Args.SequenceEqual(new[] { "SvcPM1", "2", "1" }),
         "槽号超范围：说清是哪个位置、共几槽");
-    var nowhere = await service.MoveAsync(new WaferMoveRequest { FromModule = "SvcRobot2", FromSlot = 1, ToModule = " Nowhere ", ToSlot = 1 });
+    var nowhere = await service.MoveAsync(RpcRequest.Of(
+        (RpcParams.FromModule, "SvcRobot2"),
+        (RpcParams.FromSlot, 1),
+        (RpcParams.ToModule, " Nowhere "),
+        (RpcParams.ToSlot, 1)));
     Check(!nowhere.Success && nowhere.Code == ErrorCodes.WaferLocationNotFound && nowhere.Args.SequenceEqual(new[] { "Nowhere" }),
         "没有的位置：说出是哪个（去掉首尾空白）");
-    var sameSlot = await service.MoveAsync(new WaferMoveRequest { FromModule = "SvcRobot2", FromSlot = 1, ToModule = "svcrobot2", ToSlot = 1 });
+    var sameSlot = await service.MoveAsync(RpcRequest.Of(
+        (RpcParams.FromModule, "SvcRobot2"),
+        (RpcParams.FromSlot, 1),
+        (RpcParams.ToModule, "svcrobot2"),
+        (RpcParams.ToSlot, 1)));
     Check(!sameSlot.Success && sameSlot.Code == ErrorCodes.WaferSameSlot, "同一个槽");
 
-    var deletedResponse = await service.DeleteAsync(new WaferDeleteRequest { Module = "SvcLP1", Slot = 5, Reason = "交叉片已取出" });
+    var deletedResponse = await service.DeleteAsync(RpcRequest.Of((RpcParams.Module, "SvcLP1"), (RpcParams.Slot, 5), (RpcParams.Reason, "交叉片已取出")));
     Check(deletedResponse.Success && serviceLedger.Get("SvcLP1", 5) is null, "删账");
-    var deleteEmpty = await service.DeleteAsync(new WaferDeleteRequest { Module = "SvcLP1", Slot = 5 });
+    var deleteEmpty = await service.DeleteAsync(RpcRequest.Of((RpcParams.Module, "SvcLP1"), (RpcParams.Slot, 5)));
     Check(!deleteEmpty.Success && deleteEmpty.Code == ErrorCodes.WaferNoWafer && deleteEmpty.Args.SequenceEqual(new[] { "SvcLP1", "5" }),
         "删空槽：错误码");
-    var deleteOutOfRange = await service.DeleteAsync(new WaferDeleteRequest { Module = "SvcLP1", Slot = 26 });
+    var deleteOutOfRange = await service.DeleteAsync(RpcRequest.Of((RpcParams.Module, "SvcLP1"), (RpcParams.Slot, 26)));
     Check(!deleteOutOfRange.Success && deleteOutOfRange.Code == ErrorCodes.WaferSlotOutOfRange
           && deleteOutOfRange.Args.SequenceEqual(new[] { "SvcLP1", "26", "25" }),
         "删账槽号超范围");
@@ -689,23 +711,24 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && serviceRecords[1].ToSlot == 1 && serviceRecords[1].Operator == "Tester" && serviceRecords[1].Reason == "取片报警",
         "调整记录：新的在前，操作人从请求头取，没带的记成 Unknown");
 
-    var svcCreated = await service.CreateAsync(new WaferCreateRequest
-    {
-        Module = "SvcPM1", Slot = 1, WaferId = "W-NEW", Reason = "重启后账丢了",
-    }, SmokeCall.As("Tester"));
+    var svcCreated = await service.CreateAsync(RpcRequest.Of(
+        (RpcParams.Module, "SvcPM1"),
+        (RpcParams.Slot, 1),
+        (RpcParams.WaferId, "W-NEW"),
+        (RpcParams.Reason, "重启后账丢了")), SmokeCall.As("Tester"));
     Check(svcCreated.Success && serviceLedger.Get("SvcPM1", 1)?.WaferId == "W-NEW", "补账");
-    var noWaferId = await service.CreateAsync(new WaferCreateRequest { Module = "SvcBuffer", Slot = 1, WaferId = "  " });
+    var noWaferId = await service.CreateAsync(RpcRequest.Of((RpcParams.Module, "SvcBuffer"), (RpcParams.Slot, 1), (RpcParams.WaferId, "  ")));
     Check(!noWaferId.Success && noWaferId.Code == ErrorCodes.WaferIdRequired, "补账没填片号：错误码");
-    var duplicateId = await service.CreateAsync(new WaferCreateRequest { Module = "SvcBuffer", Slot = 1, WaferId = "W-PM" });
+    var duplicateId = await service.CreateAsync(RpcRequest.Of((RpcParams.Module, "SvcBuffer"), (RpcParams.Slot, 1), (RpcParams.WaferId, "W-PM")));
     Check(!duplicateId.Success && duplicateId.Code == ErrorCodes.WaferDuplicateId
           && duplicateId.Args.SequenceEqual(new[] { "W-PM", "SvcRobot2", "1" }),
         "片号已经在账上：说出在哪个位置哪个槽");
-    var createOccupied = await service.CreateAsync(new WaferCreateRequest { Module = "SvcPM1", Slot = 1, WaferId = "W-X" });
+    var createOccupied = await service.CreateAsync(RpcRequest.Of((RpcParams.Module, "SvcPM1"), (RpcParams.Slot, 1), (RpcParams.WaferId, "W-X")));
     Check(!createOccupied.Success && createOccupied.Code == ErrorCodes.WaferSlotOccupied
           && createOccupied.Args.SequenceEqual(new[] { "SvcPM1", "1", "W-NEW" }),
         "补账槽上有片：带上那片的片号");
-    var createNowhere = await service.CreateAsync(new WaferCreateRequest { Module = "Nowhere", Slot = 1, WaferId = "W-X" });
-    var createOutOfRange = await service.CreateAsync(new WaferCreateRequest { Module = "SvcBuffer", Slot = 5, WaferId = "W-X" });
+    var createNowhere = await service.CreateAsync(RpcRequest.Of((RpcParams.Module, "Nowhere"), (RpcParams.Slot, 1), (RpcParams.WaferId, "W-X")));
+    var createOutOfRange = await service.CreateAsync(RpcRequest.Of((RpcParams.Module, "SvcBuffer"), (RpcParams.Slot, 5), (RpcParams.WaferId, "W-X")));
     Check(!createNowhere.Success && createNowhere.Code == ErrorCodes.WaferLocationNotFound && createNowhere.Args.SequenceEqual(new[] { "Nowhere" })
           && !createOutOfRange.Success && createOutOfRange.Code == ErrorCodes.WaferSlotOutOfRange
           && createOutOfRange.Args.SequenceEqual(new[] { "SvcBuffer", "5", "4" }),
@@ -719,8 +742,12 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
     serviceLedger.IsEnable = false;
     var disabledView = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
-    var disabledMove = await service.MoveAsync(new WaferMoveRequest { FromModule = "SvcRobot2", FromSlot = 1, ToModule = "SvcPM1", ToSlot = 1 });
-    var disabledCreate = await service.CreateAsync(new WaferCreateRequest { Module = "SvcBuffer", Slot = 1, WaferId = "W-Y" });
+    var disabledMove = await service.MoveAsync(RpcRequest.Of(
+        (RpcParams.FromModule, "SvcRobot2"),
+        (RpcParams.FromSlot, 1),
+        (RpcParams.ToModule, "SvcPM1"),
+        (RpcParams.ToSlot, 1)));
+    var disabledCreate = await service.CreateAsync(RpcRequest.Of((RpcParams.Module, "SvcBuffer"), (RpcParams.Slot, 1), (RpcParams.WaferId, "W-Y")));
     Check(!disabledView.IsEnabled && disabledView.Locations.Count == 0
           && !disabledMove.Success && disabledMove.Code == ErrorCodes.WaferLedgerDisabled
           && !disabledCreate.Success && disabledCreate.Code == ErrorCodes.WaferLedgerDisabled,

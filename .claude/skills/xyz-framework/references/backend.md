@@ -275,15 +275,15 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   token 模块名、留存、有变化才推，跟 `ChamberDto` 类型不同互不覆盖；条目是 record，浮点按 3 位取整）。门、Bowl、卡盘、摆臂以外的东西不在推送里（35021 没有，真有了再加一个位置）。
   加新种类的硬件（加热、真空……）：写组件 + 在模块 / DTO / 服务 / 界面各加一处，这是平台一次性的活；之后各项目 machine.xml 里挂就行。
   做没做完由组件自己说：`ComponentBase.ActionState`（基类默认已做完，自己管动作到完成的轴、气缸、阀重写；2026-10-07 用户："为什么是腔体判断，不应该"，去掉了 `IActionComponent`）。
-- 腔体设备手动动作（手动页）：服务是具体方法 `AxisHomeAsync` / `AxisMoveAsync`（位置、速度 0 = EC MoveSpeed）/ `AxisStepAsync`（步距不能 0）/ `AxisJogAsync` + `AxisJogRenewAsync` / `AxisStopAsync` / `AxisResetAsync`、
-  `CylinderUpAsync` / `CylinderDownAsync`（请求 `ChamberDeviceRequest`（Module + Device 路径）/ `ChamberAxisMoveRequest` / `ChamberAxisStepRequest` / `ChamberAxisJogRequest`），模块上对应 `AxisHome`……`MoveCylinder`
+- 腔体设备手动动作（手动页）：服务是具体方法 `AxisHomeAsync` / `AxisMoveAsync`（位置、速度 0 = EC MoveSpeed）/ `AxisStepAsync`（步距不能 0）/ `AxisJogAsync` / `AxisStopAsync` / `AxisResetAsync`、
+  `CylinderUpAsync` / `CylinderDownAsync`（参数装在 `RpcRequest` 里：`Module` + `Device` 路径，轴动作是 `Module` + `Axis` 加位置 / 步距 / 速度），模块上对应 `AxisHome`……`MoveCylinder`
   （回 `HandleResult<ModuleRoutine>`，停止回 `HandleResult`，服务只把被拒的原因原样转回去）：先认设备、查参数，再在锁里查 状态（`CheckState(Manual)`：停用 `module.disabled`、
   状态不允许 `module.state_not_allowed`[模块, 状态码]）→ 互锁（`DeviceActionInterlock`，平台不拦）。
   普通动作走迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内当场发，发不出去回 `chamber.device_command_rejected`
   不改状态、不报警，挂的动作只有一步 `AwaitSent`（只看设备的 ActionState，回到 Idle 算被中止），EC `DeviceActionTimeout` 兜底；
-  停止不看忙不忙、不挂动作，发出去就回；点动挂两步的动作（"按住"等松手、"等停下"）——界面按住期间调 `AxisJogRenewAsync` 续，
-  EC `HoldTimeoutMs`（默认 1000）内没续上就自己停，停下才退出 Manual。错误码：`chamber.device_not_found`（这个路径不是这种设备）、
-  `chamber.device_args_invalid`（不是有限数、速度负、点动速度 / 步距 0）、`chamber.jog_not_held`；第二个参数是动作名 `ChamberDeviceAction`（Shared 枚举），界面按 `device.action.*` 翻（`DeviceActionText.Of`）。
+  停止不看忙不忙、不挂动作，发出去就回；点动挂两步的动作（"按住"等松手、"等停下"）——按下发一次，一直走到界面松手发停止（中间不发别的、不会自己停，2026-10-26 用户定），
+  停下才退出 Manual。错误码：`chamber.device_not_found`（这个路径不是这种设备）、
+  `chamber.device_args_invalid`（不是有限数、速度负、点动速度 / 步距 0）；第二个参数是动作名 `ChamberDeviceAction`（Shared 枚举），界面按 `device.action.*` 翻（`DeviceActionText.Of`）。
 - 腔体整腔动作（都在 `BaseChamberModule` 的 `AddXxxSteps` 里，多用 `Devices` 步骤：一步里几个设备同时发、都做完再走下一步；指令发不出去 `chamber.device_command_rejected`、
   设备失败 `chamber.device_action_failed`、整个动作超过 EC 超时 `chamber.action_timeout`[模块, ms]（`LimitTo`）；machine.xml 里没配的设备那一步不加）：
   - 回零 `AddHomeSteps`（用户定的先后，一步一个名字）：喷嘴全关 → 卡盘停转 → 各臂 Lift 升 → 摆臂、卡盘（和别的轴）回零 → Bowl 降，门不动（门归站点交互环）。Lift 先升，摆臂回零才不刮 Bowl 壁。
@@ -663,12 +663,20 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
    [ServiceContract]
    public interface IXxxService
    {
+       /// <summary>
+       /// 做某件事。参数：Index（int）、Keyword（string，可不带）
+       /// </summary>
        [OperationContract]
-       Task<RpcResponse> DoSomethingAsync(XxxRequest request, CallContext context = default);
+       Task<RpcResponse> DoSomethingAsync(RpcRequest request, CallContext context = default);
    }
    ```
-2. 请求 DTO 放 `Shared\xyz.Shared\Dtos`，`[ProtoContract]` + `[ProtoMember(n)]`；返回数据也放 Dtos（普通 POCO，走 JSON）。
-3. 实现 `Service\xyz.Service\<领域>\XxxService.cs`：`public class XxxService : BaseService, IXxxService`。要用的单例在无参构造里
+2. **请求不建类**（2026-10-26 用户定）：一律 `RpcRequest`，参数按名字装在 `Parameters`（JSON 对象）里，契约注释写"参数：名字（类型）"，可选的标"可不带"。
+   参数名用 `Shared\xyz.Shared\Rpc\RpcParams.cs` 里的常量（值就是名字本身），客户端装、服务端取都用它，名字只写这一份；新参数名先加进去，已有的同义名字直接用（`Module`、`Index`、`Start` / `End`……）。
+   返回数据放 `Shared\xyz.Shared\Dtos`（普通类，走 JSON），不加 `[ProtoContract]`——全仓只有 `RpcRequest`、`RpcResponse`（和事件流的 `EventMessage`、`EventSubscription`）带它。
+3. 实现 `Service\xyz.Service\<领域>\XxxService.cs`：`public class XxxService : BaseService, IXxxService`。取参数：必带的 `request.TryGet<int>(RpcParams.Index, out var index)`、`request.TryGet<string>(RpcParams.Module, out var module)`
+   （一律写 `TryGet<类型>(名字, out var 变量)`：字符串、列表写成 `out string x` 会报可能为 null；几个写进一个 if，取不到回 `InvalidRequest()` → `rpc.request_invalid`，
+   async 方法里 `return await InvalidRequest();`；名字不分大小写，没带、是 null、类型对不上都算取不到），可不带的 `request.Get(RpcParams.Keyword, string.Empty)`
+   （类型对不上也悄悄用默认值，所以只给真正可选的参数用）。要用的单例在无参构造里
    `IocHelper.GetService<IXxx>()` 取一次、存成字段（宿主每次调用都新建一个服务，构造里取的就是当前的），方法里只判空、不再各自取
    （2026-10-18 用户："单例的不需要这个样子啊，为啥不通过构造"；取一律走 IocHelper，不写构造参数注入）；转 DTO 的服务在构造里取映射组件，没取到就是 machine.xml 配错了、直接抛。
    模块按名字找用 `FindModule<IXxx>(name)`（按接口从容器里取这一类的全部再按名字挑）。
@@ -685,7 +693,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - 服务不往客户端抛异常：设备动作走 `BaseService.RunRoutine(...)`（拒绝 → `ActionRejected`、等超时 → `WaitTimeout`、失败 → `Failed(routine)`：动作的 Code/Args，不止一步的带停在第几步）；
   查库、读文件放 `Task.Run` 里 try/catch 转错误码。
 - 找模块：`FindModule<IXxx>(name)`（按接口，`ILoadPort` / `IRobot` / `IChamber`），找不到 `ModuleNotFound(name)`。
-- 一次回不完的大数据（数据曲线导出）走服务端流：契约 `IAsyncEnumerable<RpcResponse> ExportAsync(请求, CallContext)`，一段一条 `RpcResponse.Ok(JSON)`，
+- 一次回不完的大数据（数据曲线导出）走服务端流：契约 `IAsyncEnumerable<RpcResponse> ExportAsync(RpcRequest, CallContext)`，一段一条 `RpcResponse.Ok(JSON)`，
   每条远小于 gRPC 单条上限（26 MB，见 decisions.md）；出错推一条 `Fail` 就结束。迭代器的 try 里不能 yield，读下一段放一个返回"段 / 原因"的方法里接住
   （`DataChartService.Next`），读库放 `Task.Run`；客户端取消时 `context.CancellationToken` 停。
 
@@ -835,7 +843,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   收发原文的级别那一格写方向（`LogHelper.Sent` 发 / `Received` 收）：`LogHelper.Comm`（主日志）、`LogHelper.InfoLoop`（轮询文件）。
 - **操作日志**（谁点了什么）：`xyz.GrpcHost\ActionFilter`（gRPC 服务端拦截器，在 `AddCodeFirstGrpc` 里挂，只做 gRPC 这一层）把方法名、来路、请求头的操作人交给 `xyz.Service\IActionFilterLog`
   （实现 `ActionFilterLog`，`AddXyzServices` 注册成单例、构造注入给 `ActionFilter`；记不记、怎么记都在它里面，冒烟经接口测它）：每个调用进来记一条（`操作人@IP 服务.方法 参数JSON`）、回包记一条（成功 / 失败 错误码 [参数] / 出错，带用时），
-  第一层 `Operation`、只进主日志不推顶栏（`LogHelper.Operation`）。不记：`Get` / `Query` 开头的、`AxisJogRenew` / `Subscribe` / `Publish`；参数里名字带 Password 的写成 `***`、中文原样（`JsonHelper.ToLogText`）。
+  第一层 `Operation`、只进主日志不推顶栏（`LogHelper.Operation`）。不记：`Get` / `Query` 开头的、`Subscribe` / `Publish`；参数原样记（密码也不打码，2026-10-26 用户定）、中文原样（`JsonHelper.ToLogText`）。
   操作人是客户端每次调用带的请求头 `xyz-user-bin`（`RpcHeaders.Operator`，UTF-8），服务里要"谁"的（账单调整、两个配方库、建 Job）也从这儿取：`RpcOperator.Of(context)`，没带记 `Unknown`；请求 DTO 上不再有 `Operator`。
 - Warn 以上的运行日志进 `LogQueue`，由日志组件（`LogComponent`，machine.xml 的 Log 节点）在它的 `Bind` 里接上：留最近 `RecentLogCount` 条（客户端连上补拉），每条推给客户端顶栏；接上之前的日志都在队列里攒着（最多 2000 条），不会丢。操作日志、收发原文不进队列。
 - **保留天数**：日志组件 machine.xml `KeepDays`（默认 30，0 = 不删），`Bind` 时 `LogHelper.SetKeepDays` 设到 NLog 各文件目标的 `MaxArchiveDays` 并把配置重新挂一遍（NLog 只在打开文件时按天数清，不重挂要等换天）；主日志、轮询文件、客户端日志（经 `LogSettingsDto.KeepDays`）共用。

@@ -233,13 +233,11 @@ public class UserViewModel : BaseViewModel
                 return L10n.Get("account.role.required");
             }
 
-            var response = await _userService.CreateUserAsync(new UserCreateRequest
-            {
-                UserName = form.UserName,
-                DisplayName = form.DisplayName,
-                RoleId = role.Id,
-                Password = form.Password
-            });
+            var response = await _userService.CreateUserAsync(RpcRequest.Of(
+                (RpcParams.UserName, form.UserName),
+                (RpcParams.DisplayName, form.DisplayName),
+                (RpcParams.RoleId, role.Id),
+                (RpcParams.Password, form.Password)));
             return response.Success ? null : ErrorText.Of(response);
         });
         if (created)
@@ -266,12 +264,10 @@ public class UserViewModel : BaseViewModel
                 return L10n.Get("account.role.required");
             }
 
-            var response = await _userService.UpdateUserAsync(new UserUpdateRequest
-            {
-                Id = user.Id,
-                DisplayName = form.DisplayName,
-                RoleId = role.Id
-            });
+            var response = await _userService.UpdateUserAsync(RpcRequest.Of(
+                (RpcParams.Id, user.Id),
+                (RpcParams.DisplayName, form.DisplayName),
+                (RpcParams.RoleId, role.Id)));
             return response.Success ? null : ErrorText.Of(response);
         });
         if (edited)
@@ -292,7 +288,7 @@ public class UserViewModel : BaseViewModel
         bool reset = DialogService.ShowPassword(L10n.Get("account.password.reset_title"), L10n.Get("account.password.reset_subtitle", user.UserName),
             false, async (_, password) =>
             {
-                var response = await _userService.ResetPasswordAsync(new UserPasswordResetRequest { Id = user.Id, Password = password });
+                var response = await _userService.ResetPasswordAsync(RpcRequest.Of((RpcParams.Id, user.Id), (RpcParams.Password, password)));
                 return response.Success ? null : ErrorText.Of(response);
             });
         if (reset)
@@ -313,7 +309,7 @@ public class UserViewModel : BaseViewModel
 
         try
         {
-            var response = await _userService.SetEnabledAsync(new UserEnableRequest { Id = user.Id, IsEnabled = !user.IsEnabled });
+            var response = await _userService.SetEnabledAsync(RpcRequest.Of((RpcParams.Id, user.Id), (RpcParams.IsEnabled, !user.IsEnabled)));
             if (!response.Success)
             {
                 ClientLog.Error(LogModule, $"停用 / 启用账号 {user.UserName} 没成：{ErrorText.Of(response)}");
@@ -345,7 +341,7 @@ public class UserViewModel : BaseViewModel
 
         try
         {
-            var response = await _userService.DeleteUserAsync(new AccountIdRequest { Id = user.Id });
+            var response = await _userService.DeleteUserAsync(RpcRequest.Of((RpcParams.Id, user.Id)));
             if (!response.Success)
             {
                 ClientLog.Error(LogModule, $"删账号 {user.UserName} 没成：{ErrorText.Of(response)}");

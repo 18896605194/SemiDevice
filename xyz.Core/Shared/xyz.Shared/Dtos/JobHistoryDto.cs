@@ -1,32 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
-
-/// <summary>
-/// Job 历史查询：按 CJ 建的时刻查一段时间里的 CJ，可再按关键字筛；最多返回多少个按后端 machine.xml 配置（取最新的）。
-/// 时间用本机时间，传过去只保留刻度。
-/// </summary>
-[ProtoContract]
-public class JobHistoryQuery
-{
-    /// <summary>
-    /// 起始时刻（含）
-    /// </summary>
-    [ProtoMember(1)]
-    public DateTime Start { get; set; }
-
-    /// <summary>
-    /// 截止时刻（不含）
-    /// </summary>
-    [ProtoMember(2)]
-    public DateTime End { get; set; }
-
-    /// <summary>
-    /// CJ 名、LotID、载具号或 LoadPort 里包含这段文字；空表示不筛
-    /// </summary>
-    [ProtoMember(3)]
-    public string Keyword { get; set; } = string.Empty;
-}
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 库里的一个 CJ（control_job 表一行）；它下面的 PJ 按行号另取。

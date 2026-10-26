@@ -18,12 +18,13 @@ using xyz.Modules.Enums;
 using xyz.Service;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Tools;
 
 // 腔体冒烟：照 machine.xml 认设备（轴表、气缸表、喷嘴表，门 / Bowl / Lift / 卡盘 / 摆臂和它上面的喷嘴），气缸三态、喷嘴、卡盘、摆臂 Reach，有变化才推；
 // 动作入口跟 LoadPort、机械手一样走 状态 → 资源 → 互锁，被拒带原因（状态不允许带状态码、停用，复位 / 中止被拒再问原因）；
 // 设备手动动作（找不到、参数不对、指令没发出去、执行中 Manual、在途拒绝、Abort 顶替、失败、停用、停止腔体忙也照发、
-// 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
+// 点动按下发一次 / 中间不发也一直走 / 松手停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
 // 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算，或盯计时 DO 只算通着的，
@@ -153,9 +154,9 @@ try
         return Finish(Start(call));
     }
 
-    ChamberDeviceRequest Device(string path, string module = "Chamber9")
+    RpcRequest Device(string path, string module = "Chamber9")
     {
-        return new ChamberDeviceRequest { Module = module, Device = path };
+        return RpcRequest.Of((RpcParams.Module, module), (RpcParams.Device, path));
     }
 
     ChamberAxisDto SpinDto()
@@ -470,11 +471,11 @@ try
     SmokeIoc.Tree(chamber);
 
     // 切生产 / 维护走服务基类 → 模块的 SetProduction / SetMaintenance，只改 Mode、不挂动作
-    var response = Run(() => service.SetProductionAsync("Chamber404"));
+    var response = Run(() => service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, "Chamber404"))));
     Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "切生产：找不到模块回 module.not_found");
-    response = Run(() => service.SetProductionAsync("Chamber9"));
+    response = Run(() => service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(response.Success && chamber.Mode == ModuleMode.Production && chamber.CurrentRoutine is null, "腔体切生产：Mode 变 Production，不挂动作");
-    response = Run(() => service.SetMaintenanceAsync("Chamber9"));
+    response = Run(() => service.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(response.Success && chamber.Mode == ModuleMode.Maintenance, "腔体切维护：Mode 变 Maintenance");
 
     // 5. 设备动作出错：找不到（轴的动作给了气缸路径、不是轴也不是气缸的组件）、参数不对、模块不存在
@@ -487,22 +488,39 @@ try
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceNotFound, "门不是轴：轴动作找不到它");
     response = Run(() => service.CylinderDownAsync(Device("Chamber9.Arm1")));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceNotFound, "摆臂不是气缸");
-    response = Run(() => service.AxisMoveAsync(new ChamberAxisMoveRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Position = double.PositiveInfinity }));
+    // JSON 的数写不了无穷大（Of 装 double.PositiveInfinity 会抛），照 JSON 的写法用字符串 "Infinity" 带过去，服务端按 double 取出来是正无穷
+    response = Run(() => service.AxisMoveAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Position, "Infinity"))));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceArgsInvalid
         && response.Args.SequenceEqual(["Chamber9.Arm1", "Move"]), "位置不是有限数：chamber.device_args_invalid [路径, 动作]");
-    response = Run(() => service.AxisMoveAsync(new ChamberAxisMoveRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Position = 1, Speed = -5 }));
+    response = Run(() => service.AxisMoveAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Position, 1.0),
+        (RpcParams.Speed, -5.0))));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceArgsInvalid, "速度是负的");
-    response = Run(() => service.AxisStepAsync(new ChamberAxisStepRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Distance = 0 }));
+    response = Run(() => service.AxisStepAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Distance, 0.0))));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceArgsInvalid
         && response.Args.SequenceEqual(["Chamber9.Arm1", "Step"]), "步距是 0");
-    response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = 0 }));
+    response = Run(() => service.AxisJogAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.SpinMotor"),
+        (RpcParams.Speed, 0.0))));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceArgsInvalid, "点动速度是 0");
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Door", "Chamber404")));
     Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "模块不存在");
 
     // 6. 指令没发出去（轴没回零不能定位）：直接回码，模块状态不动、不挂操作；路径大小写不论
     Check(chamber.State == ModuleState.NotInit, "还没初始化");
-    response = Run(() => service.AxisMoveAsync(new ChamberAxisMoveRequest { Module = "Chamber9", Axis = "chamber9.arm1", Position = 10 }));
+    response = Run(() => service.AxisMoveAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "chamber9.arm1"),
+        (RpcParams.Position, 10.0))));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceCommandRejected
         && response.Args.SequenceEqual(["chamber9.arm1", "Move"]), "轴没回零不能定位：chamber.device_command_rejected");
     Check(chamber.State == ModuleState.NotInit && chamber.CurrentRoutine is null, "指令没发出去不改模块状态、不挂操作");
@@ -517,9 +535,12 @@ try
         && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]),
         "一个设备动作在途时别的动作被拒：腔体在手动中，回 module.state_not_allowed [模块, 状态码]");
     Check(!plc.ReadDo(2), "被拒的动作没发指令（Bowl 线圈没通）");
-    response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = 50 }));
+    response = Run(() => service.AxisJogAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.SpinMotor"),
+        (RpcParams.Speed, 50.0))));
     Check(!response.Success && response.Code == ErrorCodes.ModuleStateNotAllowed && !spin.IsBusy, "在途时点动也被拒");
-    response = Run(() => service.HomeAsync("Chamber9"));
+    response = Run(() => service.HomeAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(!response.Success && response.Code == ErrorCodes.ModuleStateNotAllowed
         && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]) && chamber.State == ChamberState.Manual,
         "设备动作在途时回零被拒：入口带原因（状态不允许 + 状态码），在途的门照走");
@@ -539,7 +560,7 @@ try
     Check(diw.Open() && plc.ReadDo(6), "先开着 DIW");
     var lifting = Start(() => service.CylinderUpAsync(Device("Chamber9.Arm1.Lift")));
     Tick(2);
-    response = Run(() => service.AbortAsync("Chamber9"));
+    response = Run(() => service.AbortAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(response.Success, "Abort 成功");
     response = Finish(lifting);
     Check(!response.Success && response.Code == ErrorCodes.Aborted, "被 Abort 顶掉的设备动作回 module.action_aborted");
@@ -562,54 +583,81 @@ try
     plc.SetAxisError("Arm.Status", true);
     Tick();
     Check(arm.IsError, "摆臂报错");
-    response = Run(() => service.ResetAsync("Chamber9"));
+    response = Run(() => service.ResetAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(response.Success && chamber.State == ModuleState.Idle && !arm.IsError, "复位：轴发驱动器复位、等清错做完，回空闲");
     Check(plc.LastCommand("Arm.Command") == MotionCommandId.Reset && plc.LastCommand("Spin.Command") == MotionCommandId.Reset, "每根轴都发了复位");
 
     // 10. 轴真走一遍：回零、移动（带速度 / 速度 0 用 EC）、步进、复位
     response = Run(() => service.AxisHomeAsync(Device("Chamber9.Arm1")));
     Check(response.Success && arm.IsHomed && chamber.State == ModuleState.Idle, "摆臂回零");
-    response = Run(() => service.AxisMoveAsync(new ChamberAxisMoveRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Position = 200, Speed = 20 }));
+    response = Run(() => service.AxisMoveAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Position, 200.0),
+        (RpcParams.Speed, 20.0))));
     Check(response.Success && Near(arm.CurrentPosition, 200) && Reach() == 1 && plc.LastSpeed("Arm.Command") == 20,
         "摆臂移动到 200（= 示教的 Center），Reach = 1，按给的速度走");
-    response = Run(() => service.AxisStepAsync(new ChamberAxisStepRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Distance = -50, Speed = 20 }));
+    response = Run(() => service.AxisStepAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Distance, -50.0),
+        (RpcParams.Speed, 20.0))));
     Check(response.Success && Near(arm.CurrentPosition, 150), "步进 -50 到 150");
-    response = Run(() => service.AxisStepAsync(new ChamberAxisStepRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Distance = 0.5, Speed = 20 }));
+    response = Run(() => service.AxisStepAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Distance, 0.5),
+        (RpcParams.Speed, 20.0))));
     Check(response.Success && Near(arm.CurrentPosition, 150.5), "步距比到位容差（1）还小也照走：相对移动不按\"已经在目标\"省掉");
-    response = Run(() => service.AxisMoveAsync(new ChamberAxisMoveRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Position = 150.2, Speed = 20 }));
+    response = Run(() => service.AxisMoveAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Position, 150.2),
+        (RpcParams.Speed, 20.0))));
     Check(response.Success && Near(arm.CurrentPosition, 150.5), "绝对定位的目标已在到位容差里就不发");
-    response = Run(() => service.AxisMoveAsync(new ChamberAxisMoveRequest { Module = "Chamber9", Axis = "Chamber9.Arm1", Position = 0 }));
+    response = Run(() => service.AxisMoveAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.Arm1"),
+        (RpcParams.Position, 0.0))));
     Check(response.Success && Near(arm.CurrentPosition, 0) && Reach() == 0 && plc.LastSpeed("Arm.Command") == arm.MoveSpeed,
         "速度给 0 按后端 EC MoveSpeed 走回 0");
     response = Run(() => service.AxisResetAsync(Device("Chamber9.Arm1")));
     Check(response.Success && chamber.State == ModuleState.Idle, "驱动器复位");
 
-    // 11. 点动（按住类）：发起就回、腔体进 Manual；按住期间续；松手发停止，停下来回原状态；松手后再续回 chamber.jog_not_held
-    response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = 50 }));
+    // 11. 点动（按住类）：按下发一次就回、腔体进 Manual；松手发停止，停下来回原状态
+    response = Run(() => service.AxisJogAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.SpinMotor"),
+        (RpcParams.Speed, 50.0))));
     Check(response.Success && chamber.State == ChamberState.Manual, "点动发起就回 Ok，腔体进手动中");
     Tick();
     Check(spin.IsBusy && SpinDto().CurrentSpeed == 50, "点动按 50 转起来");
-    Check(service.AxisJogRenewAsync(Device("chamber9.spinmotor")).Result.Success, "按住期间续得上（路径大小写不论）");
-    response = service.AxisJogRenewAsync(Device("Chamber9.Arm1")).Result;
-    Check(!response.Success && response.Code == ErrorCodes.ChamberJogNotHeld
-        && response.Args.SequenceEqual(["Chamber9.Arm1", "Jog"]), "续的不是正按着的轴：chamber.jog_not_held");
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Bowl1")));
     Check(!response.Success && response.Code == ErrorCodes.ModuleStateNotAllowed, "点动按住期间别的普通动作被拒");
     response = Run(() => service.AxisStopAsync(Device("Chamber9.SpinMotor")));
     Check(response.Success, "松手发停止（腔体忙也照发）");
     WaitIdle("松手后等停下就退出手动中");
     Check(chamber.State == ModuleState.Idle && !spin.IsBusy, "停下了，回到原来的空闲");
-    Check(!service.AxisJogRenewAsync(Device("Chamber9.SpinMotor")).Result.Success, "松手后再续：没在按住");
 
-    // 12. 没续上（界面断了、客户端退了）：过了 EC HoldTimeoutMs 模块自己发停止
-    chamber.HoldTimeoutMs = 500;
-    response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = -50 }));
+    // 12. 按住期间界面什么都不发：1.5 s 里一拍一拍地扫，点动一直走、不会自己停，只认松手发的停止
+    response = Run(() => service.AxisJogAsync(RpcRequest.Of(
+        (RpcParams.Module, "Chamber9"),
+        (RpcParams.Axis, "Chamber9.SpinMotor"),
+        (RpcParams.Speed, -50.0))));
     Check(response.Success && chamber.State == ChamberState.Manual, "反向点动发起");
     Tick();
     Check(spin.IsBusy && spin.CurrentSpeed < 0, "反向转起来");
     var held = Stopwatch.StartNew();
-    WaitIdle("没续上应在保活超时后自己停");
-    Check(held.ElapsedMilliseconds >= 400 && !spin.IsBusy && chamber.State == ModuleState.Idle, "过了保活超时（500 ms）自己停，回到空闲");
+    while (held.ElapsedMilliseconds < 1500)
+    {
+        Tick();
+        Thread.Sleep(10);
+    }
+
+    Check(spin.IsBusy && spin.CurrentSpeed < 0 && chamber.State == ChamberState.Manual, "按住 1.5 s、中间没发别的：还在走，不会自己停");
+    response = Run(() => service.AxisStopAsync(Device("Chamber9.SpinMotor")));
+    WaitIdle("松手后等停下就退出手动中");
+    Check(response.Success && !spin.IsBusy && chamber.State == ModuleState.Idle, "松手发停止才停，回到空闲");
 
     // 13. 气缸升降：Lift、Bowl
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Arm1.Lift")));
@@ -626,7 +674,7 @@ try
     Tick();
     int armCommands = plc.CommandCount("Arm.Command");
     plc.HoldCylinders = true;
-    var homing = Start(() => service.HomeAsync("Chamber9"));
+    var homing = Start(() => service.HomeAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Tick(8);
     Check(chamber.State == ChamberState.Homing && !plc.ReadDo(6) && !plc.ReadDo(7), "第一段：喷嘴全关");
     Check(plc.LastCommand("Spin.Command") == MotionCommandId.Stop, "第二段：卡盘停转");
@@ -683,7 +731,7 @@ try
     Check(!plc.ReadDo(0) && CylinderDto("Chamber9.Door").Position == CylinderPosition.Closed, "卡盘先发、发不出去就不开门");
     unhomed.Is_Homed = 1;
     plc.Put("Spin.Status", unhomed);
-    response = Run(() => service.ResetAsync("Chamber9"));
+    response = Run(() => service.ResetAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(response.Success && chamber.State == ModuleState.Idle, "复位回空闲");
 
     // 15. 工艺（平台默认）：按配方快照一步一步做
@@ -810,7 +858,7 @@ try
     // 拿不到配方步骤的、Type 跟腔体不一样的、选的摆臂 / 药液这个腔体没有的，起工艺前就挡下，腔体不动
     void ResetChamber()
     {
-        var reset = Run(() => service.ResetAsync("Chamber9"));
+        var reset = Run(() => service.ResetAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
         Check(reset.Success && chamber.State == ModuleState.Idle, "复位回空闲");
     }
 
@@ -855,7 +903,7 @@ try
     }
 
     Check(aborting is not null && plc.ReadDo(6), "长工艺喷起来了");
-    response = Run(() => service.AbortAsync("Chamber9"));
+    response = Run(() => service.AbortAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(response.Success && aborting!.State == RoutineState.Aborted && chamber.State == ModuleState.Idle, "中止顶掉工艺，回空闲");
     Check(!plc.ReadDo(6) && plc.Ao(0) == 0 && plc.LastCommand("Spin.Command") == MotionCommandId.Stop, "中止停液、停轴");
     Check(chamber.TodayWafers == 4 && chamber.TotalWafers == 4,
@@ -927,8 +975,9 @@ try
     }
 
     Check(Disabled(disabledService.CylinderUpAsync(Device("Chamber8.Door", "Chamber8")).Result), "停用的腔体设备动作被拒：module.disabled [模块]");
-    Check(Disabled(disabledService.HomeAsync("Chamber8").Result), "停用的腔体回零被拒：module.disabled");
-    Check(Disabled(disabledService.ResetAsync("Chamber8").Result) && Disabled(disabledService.AbortAsync("Chamber8").Result),
+    Check(Disabled(disabledService.HomeAsync(RpcRequest.Of((RpcParams.Module, "Chamber8"))).Result), "停用的腔体回零被拒：module.disabled");
+    Check(Disabled(disabledService.ResetAsync(RpcRequest.Of((RpcParams.Module, "Chamber8"))).Result)
+          && Disabled(disabledService.AbortAsync(RpcRequest.Of((RpcParams.Module, "Chamber8"))).Result),
         "停用的腔体复位、中止被拒：服务再问 CheckReset / CheckAbort 拿到原因（module.disabled）");
     Check(disabled.State == ModuleState.NotInit && disabled.CurrentRoutine is null, "停用的腔体被拒的动作都没挂上，状态不动");
 
@@ -1431,7 +1480,7 @@ try
         + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, device actions: not found, invalid args, "
         + "command rejected, Manual state, rejections with their reasons (state not allowed with the state code, disabled, reset / abort asked for the reason), "
         + "stop while busy, abort replacement, failure to Error, axis end to end, "
-        + "jog hold / renew / release, hold timeout auto stop, cylinders up / down; platform Home order (spin homed too), "
+        + "jog sent once and kept running until released (no renew, no auto stop), cylinders up / down; platform Home order (spin homed too), "
         + "prepare transfer 2 (spin to transfer position + door, unhomed spin fails), Reset, Abort; "
         + "process by recipe: lift / bowl up, rpm, arm to wafer position, nozzle by chemical with flow, Time / Scan, finish, "
         + "missing steps, recipe mismatch, rpm over limit, timeout, abort; process starts counted per day in the database (adding one to the day, "

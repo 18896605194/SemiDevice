@@ -3,14 +3,14 @@ using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
 namespace xyz.Service;
 
 /// <summary>
-/// 腔体手动操作 gRPC 服务（命令通道）：下发 → 同步等终态 → 码+参数回包。
-/// 检查都在腔体的动作入口里（状态 → 资源 → 互锁），被拒照原样回入口给的原因；公共流程（找模块、被拒/超时/终态回包）在 <see cref="BaseService"/>。
+/// 腔体操作服务
 /// </summary>
 public class ChamberService : BaseService, IChamberService
 {
@@ -27,8 +27,13 @@ public class ChamberService : BaseService, IChamberService
         _jobs = IocHelper.GetService<IJobManager>();
     }
 
-    public Task<RpcResponse> HomeAsync(string module)
+    public Task<RpcResponse> HomeAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
@@ -38,8 +43,13 @@ public class ChamberService : BaseService, IChamberService
         return RunRoutine(module, chamber, chamber.Home(), chamber.HomeTimeout);
     }
 
-    public Task<RpcResponse> ResetAsync(string module)
+    public Task<RpcResponse> ResetAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
@@ -49,8 +59,13 @@ public class ChamberService : BaseService, IChamberService
         return RunRoutine(module, chamber, chamber.Reset(), chamber.CheckReset, chamber.ResetTimeout);
     }
 
-    public Task<RpcResponse> AbortAsync(string module)
+    public Task<RpcResponse> AbortAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
@@ -60,17 +75,21 @@ public class ChamberService : BaseService, IChamberService
         return RunRoutine(module, chamber, chamber.Abort(), chamber.CheckAbort, chamber.AbortTimeout);
     }
 
-    public Task<RpcResponse> ProcessAsync(ChamberProcessRequest request)
+    public Task<RpcResponse> ProcessAsync(RpcRequest request)
     {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        var module = request.Module ?? string.Empty;
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Recipe, out var recipe))
+        {
+            return InvalidRequest();
+        }
+
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
         }
 
-        var recipe = (request.Recipe ?? string.Empty).Trim();
+        recipe = recipe.Trim();
         if (recipe.Length == 0)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeRequired, [module]));
@@ -108,50 +127,95 @@ public class ChamberService : BaseService, IChamberService
 
     #region 设备手动动作（轴、气缸按设备推送里的 Path 找）
 
-    public Task<RpcResponse> AxisHomeAsync(ChamberDeviceRequest request)
+    public Task<RpcResponse> AxisHomeAsync(RpcRequest request)
     {
-        return RunDeviceAction(request.Module, chamber => chamber.AxisHome(request.Device ?? string.Empty));
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Device, out var device))
+        {
+            return InvalidRequest();
+        }
+
+        return RunDeviceAction(module, chamber => chamber.AxisHome(device));
     }
 
-    public Task<RpcResponse> AxisMoveAsync(ChamberAxisMoveRequest request)
+    public Task<RpcResponse> AxisMoveAsync(RpcRequest request)
     {
-        return RunDeviceAction(request.Module, chamber => chamber.AxisMove(request.Axis ?? string.Empty, request.Position, request.Speed));
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Axis, out var axis)
+            || !request.TryGet<double>(RpcParams.Position, out var position))
+        {
+            return InvalidRequest();
+        }
+
+        double speed = request.Get(RpcParams.Speed, 0.0);
+        return RunDeviceAction(module, chamber => chamber.AxisMove(axis, position, speed));
     }
 
-    public Task<RpcResponse> AxisStepAsync(ChamberAxisStepRequest request)
+    public Task<RpcResponse> AxisStepAsync(RpcRequest request)
     {
-        return RunDeviceAction(request.Module, chamber => chamber.AxisStep(request.Axis ?? string.Empty, request.Distance, request.Speed));
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Axis, out var axis)
+            || !request.TryGet<double>(RpcParams.Distance, out var distance))
+        {
+            return InvalidRequest();
+        }
+
+        double speed = request.Get(RpcParams.Speed, 0.0);
+        return RunDeviceAction(module, chamber => chamber.AxisStep(axis, distance, speed));
     }
 
-    public Task<RpcResponse> AxisResetAsync(ChamberDeviceRequest request)
+    public Task<RpcResponse> AxisResetAsync(RpcRequest request)
     {
-        return RunDeviceAction(request.Module, chamber => chamber.AxisReset(request.Device ?? string.Empty));
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Device, out var device))
+        {
+            return InvalidRequest();
+        }
+
+        return RunDeviceAction(module, chamber => chamber.AxisReset(device));
     }
 
-    public Task<RpcResponse> CylinderUpAsync(ChamberDeviceRequest request)
+    public Task<RpcResponse> CylinderUpAsync(RpcRequest request)
     {
-        return RunDeviceAction(request.Module, chamber => chamber.MoveCylinder(request.Device ?? string.Empty, true));
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Device, out var device))
+        {
+            return InvalidRequest();
+        }
+
+        return RunDeviceAction(module, chamber => chamber.MoveCylinder(device, true));
     }
 
-    public Task<RpcResponse> CylinderDownAsync(ChamberDeviceRequest request)
+    public Task<RpcResponse> CylinderDownAsync(RpcRequest request)
     {
-        return RunDeviceAction(request.Module, chamber => chamber.MoveCylinder(request.Device ?? string.Empty, false));
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Device, out var device))
+        {
+            return InvalidRequest();
+        }
+
+        return RunDeviceAction(module, chamber => chamber.MoveCylinder(device, false));
     }
 
     /// <summary>
     /// 点动：发起了就回 Ok（不等），之后按住期间续、松手发停止
     /// </summary>
-    public Task<RpcResponse> AxisJogAsync(ChamberAxisJogRequest request)
+    public Task<RpcResponse> AxisJogAsync(RpcRequest request)
     {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        var module = request.Module ?? string.Empty;
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Axis, out var axis)
+            || !request.TryGet<double>(RpcParams.Speed, out var speed))
+        {
+            return InvalidRequest();
+        }
+
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
         }
 
-        var started = chamber.AxisJog(request.Axis ?? string.Empty, request.Speed);
+        var started = chamber.AxisJog(axis, speed);
         if (!started.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
@@ -163,17 +227,21 @@ public class ChamberService : BaseService, IChamberService
     /// <summary>
     /// 停止：腔体正忙也照发，发出去就回 Ok
     /// </summary>
-    public Task<RpcResponse> AxisStopAsync(ChamberDeviceRequest request)
+    public Task<RpcResponse> AxisStopAsync(RpcRequest request)
     {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        var module = request.Module ?? string.Empty;
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<string>(RpcParams.Device, out var device))
+        {
+            return InvalidRequest();
+        }
+
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
         }
 
-        var sent = chamber.AxisStop(request.Device ?? string.Empty);
+        var sent = chamber.AxisStop(device);
         if (!sent.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(sent.ErrorMessage, [.. sent.Args]));
@@ -183,32 +251,11 @@ public class ChamberService : BaseService, IChamberService
     }
 
     /// <summary>
-    /// 续点动：正按着的就是这根轴回 Ok，否则回 chamber.jog_not_held（界面据此不用再续）。
-    /// </summary>
-    public Task<RpcResponse> AxisJogRenewAsync(ChamberDeviceRequest request)
-    {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        var module = request.Module ?? string.Empty;
-        var chamber = FindModule<IChamber>(module);
-        if (chamber is null)
-        {
-            return ModuleNotFound(module);
-        }
-
-        var path = request.Device ?? string.Empty;
-        return Task.FromResult(chamber.AxisJogRenew(path)
-            ? RpcResponse.Ok()
-            : RpcResponse.Fail(ErrorCodes.ChamberJogNotHeld, [path, nameof(ChamberDeviceAction.Jog)]));
-    }
-
-    /// <summary>
     /// 发设备动作并回包：被拒（找不到设备、参数不对、指令没发出去、状态不允许、已有动作在途）照原样回入口给的错误码 + 参数；
     /// 发起了就同步等设备做完（上限 EC DeviceActionTimeout）
     /// </summary>
-    private Task<RpcResponse> RunDeviceAction(string? module, Func<IChamber, HandleResult<ModuleRoutine>> start)
+    private Task<RpcResponse> RunDeviceAction(string module, Func<IChamber, HandleResult<ModuleRoutine>> start)
     {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
-        module ??= string.Empty;
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
@@ -223,21 +270,32 @@ public class ChamberService : BaseService, IChamberService
     /// <summary>
     /// 切生产 / 维护模式走服务基类（见 <see cref="BaseService.SetProduction{TModule}"/>）
     /// </summary>
-    public Task<RpcResponse> SetProductionAsync(string module)
+    public Task<RpcResponse> SetProductionAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         return SetProduction<IChamber>(module);
     }
 
-    public Task<RpcResponse> SetMaintenanceAsync(string module)
+    public Task<RpcResponse> SetMaintenanceAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         return SetMaintenance<IChamber>(module);
     }
 
     /// <summary>
     /// 状态快照与事件流发布的是同一份 ChamberDto。
     /// </summary>
-    public Task<RpcResponse> GetStateAsync(string module)
+    public Task<RpcResponse> GetStateAsync(RpcRequest request)
     {
+        string module = request.Get(RpcParams.Module, string.Empty);
         var dto = IocHelper.GetServices<IChamber>()
             .Where(chamber => string.IsNullOrWhiteSpace(module)
                               || string.Equals(chamber.Name, module, StringComparison.OrdinalIgnoreCase))

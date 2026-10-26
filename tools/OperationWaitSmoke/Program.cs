@@ -27,7 +27,6 @@ using xyz.Service.Systems;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
-using xyz.Shared.Services;
 using xyz.Tools;
 
 // No host, hardware connection, or configuration-file writes are used by these checks.
@@ -315,40 +314,40 @@ var service = new LoadPortService();
     }
 
     // 发一个动作：摆一个探针动作，等它挂上了按 finish 收尾、推一拍，回服务的回包
-    async Task<RpcResponse> Run(Func<string, Task<RpcResponse>> call, Action<ProbeRoutine> finish)
+    async Task<RpcResponse> Run(Func<RpcRequest, Task<RpcResponse>> call, Action<ProbeRoutine> finish)
     {
         var probe = new ProbeRoutine();
         servicePort.Next = probe;
-        var pending = Task.Run(() => call(servicePort.Name));
+        var pending = Task.Run(() => call(RpcRequest.Of((RpcParams.Module, servicePort.Name))));
         Check(Mounted(probe), "动作应挂上");
         finish(probe);
         servicePort.Tick();
         return await pending;
     }
 
-    foreach (var call in new Func<string, Task<RpcResponse>>[]
+    foreach (var call in new Func<RpcRequest, Task<RpcResponse>>[]
              {
                  portService.UnloadAsync, portService.HomeAsync, portService.ResetAsync, portService.AbortAsync,
              })
     {
-        var missing = await call("missing");
+        var missing = await call(RpcRequest.Of((RpcParams.Module, "missing")));
         Check(!missing.Success && missing.Code == ErrorCodes.ModuleNotFound, "没有这个模块：module.not_found");
     }
 
     // 被拒原样回入口的原因
     servicePort.NoteState(ModuleState.Idle);
-    var refused = await portService.UnloadAsync(servicePort.Name);
+    var refused = await portService.UnloadAsync(RpcRequest.Of((RpcParams.Module, servicePort.Name)));
     Check(!refused.Success && refused.Code == ErrorCodes.ModuleStateNotAllowed
           && refused.Args.SequenceEqual(new[] { servicePort.Name, ModuleState.Idle.ToString() }),
         $"空闲（门关着）点 Unload：回状态不允许带状态码，实际 {refused.Code}");
     servicePort.NoteState(LoadPortState.Loading);
-    refused = await portService.ResetAsync(servicePort.Name);
+    refused = await portService.ResetAsync(RpcRequest.Of((RpcParams.Module, servicePort.Name)));
     Check(!refused.Success && refused.Code == ErrorCodes.ModuleStateNotAllowed
           && refused.Args.SequenceEqual(new[] { servicePort.Name, LoadPortState.Loading.ToString() }),
         $"复位：跟着组件基类回 null 的，服务再问原因（CheckReset），回状态不允许，实际 {refused.Code}");
     servicePort.BlockedAction = LoadPortAction.Home;
     servicePort.NoteState(ModuleState.Idle);
-    refused = await portService.HomeAsync(servicePort.Name);
+    refused = await portService.HomeAsync(RpcRequest.Of((RpcParams.Module, servicePort.Name)));
     Check(!refused.Success && refused.Code == ProbePort.BlockedCode, $"机型的 Home 联锁不过：回机型自己的原因，实际 {refused.Code}");
     servicePort.BlockedAction = null;
 
@@ -367,7 +366,7 @@ var service = new LoadPortService();
     servicePort.HomeTimeout = 0;
     var waiting = new ProbeRoutine();
     servicePort.Next = waiting;
-    response = await portService.HomeAsync(servicePort.Name);
+    response = await portService.HomeAsync(RpcRequest.Of((RpcParams.Module, servicePort.Name)));
     Check(!response.Success && response.Code == ErrorCodes.WaitTimeout && response.Args.SequenceEqual(new[] { "Probe", "0" })
           && waiting.State == RoutineState.Running,
         "等不到结果：回 wait_timeout，动作照样在跑");
@@ -406,17 +405,17 @@ var service = new LoadPortService();
     ComponentLoader.BindAll([loadPort]);
     SmokeIoc.Tree(loadPort);
     var loadService = new LoadPortService();
-    var loadResponse = await loadService.LoadAsync("missing");
+    var loadResponse = await loadService.LoadAsync(RpcRequest.Of((RpcParams.Module, "missing")));
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.ModuleNotFound, "Load：没有这个模块");
 
-    loadResponse = await loadService.LoadAsync(loadPort.Name);
+    loadResponse = await loadService.LoadAsync(RpcRequest.Of((RpcParams.Module, loadPort.Name)));
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.ModuleStateNotAllowed
           && loadResponse.Args.SequenceEqual(new[] { loadPort.Name, ModuleState.NotInit.ToString() })
           && loadPort.State == ModuleState.NotInit && loadPort.Calls == 0,
         $"Load：没初始化，回状态不允许（模块名 + 状态码），不建设备动作，实际 {loadResponse.Code}");
 
     loadPort.NoteState(ModuleState.Idle);
-    loadResponse = await loadService.LoadAsync(loadPort.Name);
+    loadResponse = await loadService.LoadAsync(RpcRequest.Of((RpcParams.Module, loadPort.Name)));
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.CarrierNotArrived
           && loadResponse.Args.SequenceEqual(new[] { loadPort.Name }) && loadPort.State == ModuleState.Idle,
         $"Load：端口上没载具，回联锁的原因，实际 {loadResponse.Code}");
@@ -424,7 +423,7 @@ var service = new LoadPortService();
     loadPort.NotePodPlaced(true);
     loadPort.Tick();
     loadPort.Next = new ProbeRoutine();
-    loadResponse = await loadService.LoadAsync(loadPort.Name);
+    loadResponse = await loadService.LoadAsync(RpcRequest.Of((RpcParams.Module, loadPort.Name)));
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.WaitTimeout && loadPort.State == LoadPortState.Loading
           && ReferenceEquals(loadPort.CurrentRoutine, loadPort.Next),
         "Load：三项都过就发起、进 Loading（探针端口等结果的时间是 0，回等待超时，动作照样在跑）");
@@ -432,32 +431,126 @@ var service = new LoadPortService();
     loadPort.Tick();
     Check(loadPort.State == LoadPortState.Loaded, "Load 做成落 Loaded");
 
-    loadResponse = await loadService.LoadAsync(loadPort.Name);
+    loadResponse = await loadService.LoadAsync(RpcRequest.Of((RpcParams.Module, loadPort.Name)));
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.ModuleStateNotAllowed
           && loadResponse.Args.SequenceEqual(new[] { loadPort.Name, LoadPortState.Loaded.ToString() }),
         "已经 Load 好了再 Load：回状态不允许，带当前状态码");
 
     loadPort.Channel.Close();
     loadPort.NoteState(ModuleState.Idle);
-    loadResponse = await loadService.LoadAsync(loadPort.Name);
+    loadResponse = await loadService.LoadAsync(RpcRequest.Of((RpcParams.Module, loadPort.Name)));
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.ModuleNotConnected && loadPort.State == ModuleState.Idle,
         $"驱动没连上：Load 当场被拒（不发出去再落 Error、报警），实际 {loadResponse.Code}");
+}
+
+// ── RPC 请求参数：服务只收 RpcRequest，参数按名字装在 Parameters（一个 JSON 对象）里，客户端 Of 装、服务端 TryGet / Get 取 ──
+//    各种类型装进去原样取回来，名字不分大小写；没带、是 null、类型对不上、Parameters 是空串都算取不到；
+//    可以不带的取不到用默认值；LoadPort 动作没带 Module 回 rpc.request_invalid，端口不动。
+{
+    var stamp = new DateTime(2026, 10, 26, 8, 30, 15, 123, DateTimeKind.Local);
+    var waferId = Guid.NewGuid();
+    List<string> chartNames = ["Chart1__Door__Speed", "腔体1__温度"];
+    List<SequenceStepDto> steps =
+    [
+        new SequenceStepDto { Group = "LoadPort", Stations = ["LP1", "LP2"] },
+        new SequenceStepDto { Group = "Chamber", Stations = ["PM1"], Recipe = "清洗-A" },
+    ];
+    var head = new Dictionary<string, string> { ["Owner"] = "张三", ["温度"] = "25.5" };
+    var packed = RpcRequest.Of(
+        (RpcParams.Index, 7),
+        ("Total", 9_000_000_000L),
+        (RpcParams.Position, -12.345),
+        (RpcParams.IsEnabled, true),
+        (RpcParams.Name, "清洗 \"A\""),
+        (RpcParams.Start, stamp),
+        (RpcParams.WaferId, waferId),
+        (RpcParams.Names, chartNames),
+        (RpcParams.Steps, steps),
+        (RpcParams.Head, head),
+        ("Note", (string?)null));
+
+    // 各种类型都能来回（Total、Note、Label、Flag、Missing 是只在这里用的名字，不进 RpcParams）
+    Check(packed.TryGet(RpcParams.Index, out int gotIndex) && gotIndex == 7, "int 装进去取得回来");
+    Check(packed.TryGet("Total", out long gotTotal) && gotTotal == 9_000_000_000L, "long（超过 int 的）装进去取得回来");
+    Check(packed.TryGet(RpcParams.Position, out double gotPosition) && gotPosition == -12.345, "double 装进去取得回来");
+    Check(packed.TryGet(RpcParams.IsEnabled, out bool gotEnabled) && gotEnabled, "bool 装进去取得回来");
+    Check(packed.TryGet<string>(RpcParams.Name, out var gotName) && gotName == "清洗 \"A\"", "string（带中文、引号）装进去取得回来");
+    Check(packed.TryGet(RpcParams.Start, out DateTime gotStart) && gotStart == stamp, "DateTime 装进去取得回来");
+    Check(packed.TryGet(RpcParams.WaferId, out Guid gotWaferId) && gotWaferId == waferId, "Guid 装进去取得回来");
+    Check(packed.TryGet<List<string>>(RpcParams.Names, out var gotNames) && gotNames.SequenceEqual(chartNames), "List<string> 装进去取得回来");
+    Check(packed.TryGet<List<SequenceStepDto>>(RpcParams.Steps, out var gotSteps) && gotSteps.Count == 2
+          && gotSteps[0].Group == "LoadPort" && gotSteps[0].Stations.SequenceEqual(["LP1", "LP2"]) && gotSteps[0].Recipe.Length == 0
+          && gotSteps[1].Group == "Chamber" && gotSteps[1].Stations.SequenceEqual(["PM1"]) && gotSteps[1].Recipe == "清洗-A",
+        "List<SequenceStepDto> 装进去取得回来（每一步里的站点表也在）");
+    Check(packed.TryGet<Dictionary<string, string>>(RpcParams.Head, out var gotHead) && gotHead.Count == 2
+          && gotHead["Owner"] == "张三" && gotHead["温度"] == "25.5",
+        "Dictionary<string, string> 装进去取得回来（键照原样，不改大小写）");
+
+    // 名字照常量原样装进去，取的时候不分大小写
+    Check(packed.Parameters.Contains("\"Index\":7", StringComparison.Ordinal)
+          && packed.TryGet("INDEX", out int upperIndex) && upperIndex == 7
+          && packed.TryGet("waferid", out Guid lowerWaferId) && lowerWaferId == waferId,
+        "名字原样装进去（\"Index\"），按名字取不分大小写");
+
+    // 取不到的几种：没带这个名字、带了但值是 null、类型对不上、Parameters 是空串（不是 JSON 对象、坏 JSON 也一样，不抛）
+    Check(!packed.TryGet("Missing", out int _), "没带这个名字：取不到");
+    Check(packed.Parameters.Contains("\"note\":null", StringComparison.OrdinalIgnoreCase) && !packed.TryGet<string>("Note", out _),
+        "带了这个名字、值是 null：取不到");
+    var mismatched = RpcRequest.Of((RpcParams.Count, "abc"), ("Label", 5), ("Flag", 1));
+    Check(!mismatched.TryGet(RpcParams.Count, out int _) && !mismatched.TryGet<string>("Label", out _) && !mismatched.TryGet("Flag", out bool _)
+          && !packed.TryGet(RpcParams.Position, out int _) && !packed.TryGet<List<string>>(RpcParams.Name, out _),
+        "类型对不上（\"abc\" 当 int、数当 string / bool、小数当 int、字符串当列表）：取不到");
+    Check(!new RpcRequest().TryGet(RpcParams.Index, out int _), "Parameters 是空串：取不到");
+    Check(!new RpcRequest { Parameters = "[1, 2]" }.TryGet(RpcParams.Index, out int _)
+          && !new RpcRequest { Parameters = "{\"Index\": " }.TryGet(RpcParams.Index, out int _),
+        "Parameters 不是 JSON 对象、是坏 JSON：取不到，不抛");
+
+    // 可以不带的参数：取不到用给的默认值，取得到用带来的
+    Check(packed.Get("Missing", "默认") == "默认" && packed.Get("Note", "默认") == "默认" && mismatched.Get(RpcParams.Count, 5) == 5
+          && new RpcRequest().Get(RpcParams.Speed, 0.5) == 0.5 && packed.Get(RpcParams.Index, 0) == 7,
+        "Get：没带、是 null、类型对不上、空串都用默认值，带了用带来的");
+
+    // 动作没带 Module：不找模块、不发起，回 rpc.request_invalid；端口摆成带上 Module 就能 Load 的样子，证明它确实没动
+    var rpcPort = new ProbePort("RpcRequestPort");
+    Check(rpcPort.InitComponent(), "参数检查用的端口的组件初始化应成功");
+    ComponentLoader.BindAll([rpcPort]);
+    SmokeIoc.Tree(rpcPort);
+    rpcPort.NoteState(ModuleState.Idle);
+    rpcPort.NotePodPlaced(true);
+    rpcPort.Tick();
+    var callsBefore = rpcPort.Calls;
+    var stateBefore = rpcPort.State;
+    var rpcService = new LoadPortService();
+    var noModule = await rpcService.LoadAsync(new RpcRequest());
+    var otherName = await rpcService.LoadAsync(RpcRequest.Of(("Port", rpcPort.Name)));
+    var numberModule = await rpcService.LoadAsync(RpcRequest.Of((RpcParams.Module, 1)));
+    Check(!noModule.Success && noModule.Code == ErrorCodes.RequestInvalid && noModule.Args.Count == 0
+          && otherName.Code == ErrorCodes.RequestInvalid && numberModule.Code == ErrorCodes.RequestInvalid
+          && rpcPort.Calls == callsBefore && rpcPort.State == stateBefore && rpcPort.CurrentRoutine is null,
+        $"Load 没带 Module（或名字、类型不对）：回 rpc.request_invalid，端口不动，实际 {noModule.Code}");
+    rpcPort.Next = new ProbeRoutine();
+    var withModule = await rpcService.LoadAsync(RpcRequest.Of((RpcParams.Module, rpcPort.Name)));
+    Check(withModule.Code == ErrorCodes.WaitTimeout && rpcPort.State == LoadPortState.Loading
+          && ReferenceEquals(rpcPort.CurrentRoutine, rpcPort.Next),
+        "同一个端口带上 Module 就发起了（探针端口等结果的时间是 0，回等待超时）：上面没动不是因为端口动不了");
+    rpcPort.Next.Succeed();
+    rpcPort.Tick();
 }
 
 // 生产 / 维护只改模块模式 Mode，Auto/Manual 只改 LoadPort 的 Access Mode：
 // 都不经设备协议，置位即成功，不产生操作、不等待，而且互不影响。
 SmokeIoc.Tree(port);
-var modeResponse = await service.SetProductionAsync("missing");
+var modeResponse = await service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, "missing")));
 Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
     "SetProduction must report a missing module.");
-modeResponse = await service.AutoAsync("missing");
+modeResponse = await service.AutoAsync(RpcRequest.Of((RpcParams.Module, "missing")));
 Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
     "Auto must report a missing module.");
 
 Check(port.Mode == ModuleMode.Maintenance && !port.IsAutoMode, "Probe port must start in maintenance and manual mode.");
 var callsBeforeMode = port.Calls;
 var modeSnapshot = port.CreateStateDto();
-modeResponse = await service.SetProductionAsync(port.Name);
+modeResponse = await service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, port.Name)));
 Check(modeResponse.Success && port.Mode == ModuleMode.Production && !port.IsAutoMode,
     "SetProduction must only set the module mode.");
 var onlineSnapshot = port.CreateStateDto();
@@ -465,14 +558,14 @@ Check(onlineSnapshot is not null && onlineSnapshot.Mode == ModuleMode.Production
       && port.CreateStateDto().HasStateChanged(modeSnapshot),
     "The module mode must reach the state snapshot and count as a change.");
 
-modeResponse = await service.AutoAsync(port.Name);
+modeResponse = await service.AutoAsync(RpcRequest.Of((RpcParams.Module, port.Name)));
 Check(modeResponse.Success && port.IsAutoMode && port.Mode == ModuleMode.Production,
     "Auto must only set the access mode.");
-modeResponse = await service.ManualAsync(port.Name);
+modeResponse = await service.ManualAsync(RpcRequest.Of((RpcParams.Module, port.Name)));
 Check(modeResponse.Success && !port.IsAutoMode && port.Mode == ModuleMode.Production,
     "Manual must only clear the access mode.");
 
-modeResponse = await service.SetMaintenanceAsync(port.Name);
+modeResponse = await service.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, port.Name)));
 Check(modeResponse.Success && port.Mode == ModuleMode.Maintenance && port.Calls == callsBeforeMode,
     "SetMaintenance must clear the module mode without starting a device action.");
 
@@ -482,16 +575,16 @@ Check(modeResponse.Success && port.Mode == ModuleMode.Maintenance && port.Calls 
     var modeRobot = new ProbeRobot();
     SmokeIoc.Tree(modeRobot, port);
     var robotService = new RobotService();
-    var robotMode = await robotService.SetProductionAsync("missing");
+    var robotMode = await robotService.SetProductionAsync(RpcRequest.Of((RpcParams.Module, "missing")));
     Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound, "机械手切生产：找不到模块要回 module.not_found");
-    robotMode = await robotService.SetProductionAsync(port.Name);
+    robotMode = await robotService.SetProductionAsync(RpcRequest.Of((RpcParams.Module, port.Name)));
     Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound && port.Mode == ModuleMode.Maintenance,
         "机械手的服务只找机械手，不能把 LoadPort 切成生产");
     Check(modeRobot.Mode == ModuleMode.Maintenance, "机械手开机是维护模式");
-    robotMode = await robotService.SetProductionAsync(modeRobot.Name);
+    robotMode = await robotService.SetProductionAsync(RpcRequest.Of((RpcParams.Module, modeRobot.Name)));
     Check(robotMode.Success && modeRobot.Mode == ModuleMode.Production && modeRobot.CreateStateDto().Mode == ModuleMode.Production,
         "机械手切生产：Mode 变 Production，状态推送里带上");
-    robotMode = await robotService.SetMaintenanceAsync(modeRobot.Name);
+    robotMode = await robotService.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, modeRobot.Name)));
     Check(robotMode.Success && modeRobot.Mode == ModuleMode.Maintenance && modeRobot.CreateStateDto().Mode == ModuleMode.Maintenance,
         "机械手切维护：Mode 变 Maintenance，状态推送里带上");
 }
@@ -2446,37 +2539,39 @@ port.E87Callback = null;
     var sizePort = new ProbePort("SizeLP");
     var sizeChamber = new ProbeChamber("SizePM");
     SmokeIoc.Tree(sizePort, sizeChamber);
-    RpcRequest SizeRequest(string size)
-    {
-        var request = new RpcRequest();
-        request.Parameters[IEquipmentService.WaferSizeKey] = size;
-        return request;
-    }
-
-    RpcResponse SwitchSize(string size)
+    RpcResponse SendSize(RpcRequest request)
     {
         // 跟宿主一样每次调用新建服务：构造时取的是当时登记的晶圆尺寸、晶圆账
-        return new EquipmentService().SetWaferSizeAsync(SizeRequest(size)).Result;
+        return new EquipmentService().SetWaferSizeAsync(request).Result;
     }
 
-    var noSize = SwitchSize("8");
+    RpcResponse SwitchSize(int size)
+    {
+        return SendSize(RpcRequest.Of((RpcParams.Size, size)));
+    }
+
+    var noSize = SwitchSize(8);
     Check(!noSize.Success && noSize.Code == ErrorCodes.WaferSizeNotInstalled && noSize.Args.Count == 0
           && machine.CreateEquipmentStatus().WaferSize == 12,
         "没配晶圆尺寸：切不了，设备总状态按 12 寸");
     var waferSize = new WaferSizeComponent();
     SmokeIoc.Use<IWaferSize>(waferSize);
     machine.Bind(sysModules);
-    var badSize = SwitchSize("6");
+    var badSize = SwitchSize(6);
     Check(!badSize.Success && badSize.Code == ErrorCodes.WaferSizeInvalid && badSize.Args.SequenceEqual(["6"]), "尺寸只能是 8 或 12");
-    Check(!SwitchSize("x").Success && SwitchSize(string.Empty).Code == ErrorCodes.WaferSizeInvalid, "不是数、没给都算尺寸不对");
+    var notNumber = SendSize(RpcRequest.Of((RpcParams.Size, "x")));
+    var noSizeGiven = SendSize(new RpcRequest());
+    Check(!notNumber.Success && notNumber.Code == ErrorCodes.WaferSizeInvalid && notNumber.Args.SequenceEqual([string.Empty])
+          && !noSizeGiven.Success && noSizeGiven.Code == ErrorCodes.WaferSizeInvalid && noSizeGiven.Args.SequenceEqual([string.Empty]),
+        "不是数、没给都算尺寸不对（取不到，参数放空串）");
     sizePort.NoteState(ModuleState.Idle);
-    Check(SwitchSize("12").Success, "跟现在一样直接成功，不查别的");
-    var initialized = SwitchSize("8");
+    Check(SwitchSize(12).Success, "跟现在一样直接成功，不查别的");
+    var initialized = SwitchSize(8);
     Check(!initialized.Success && initialized.Code == ErrorCodes.WaferSizeInitialized && initialized.Args.SequenceEqual(["SizeLP"]) && waferSize.Size == 12,
         "有模块初始化过（不是未初始化）：不让切，尺寸不变");
     sizePort.NoteState(ModuleState.NotInit);
     SmokeIoc.Use<ISystemModule>(machine);
-    var systemInitialized = SwitchSize("8");
+    var systemInitialized = SwitchSize(8);
     Check(machine.State == ModuleState.Idle && !systemInitialized.Success && systemInitialized.Code == ErrorCodes.WaferSizeInitialized
           && systemInitialized.Args.SequenceEqual(["System"]) && waferSize.Size == 12,
         "模块都没初始化、整机初始化过（整机不算模块，单独查）：也不让切");
@@ -2486,11 +2581,11 @@ port.E87Callback = null;
     sizeLedger.RegisterLoadPort("SizeLP", 25);
     sizeLedger.RegisterLocation("SizePM", 1);
     Check(sizeLedger.Create("SizePM", 1) is not null && sizeLedger.Create("SizeLP", 3) is not null, "腔体里一片、LoadPort 上一片");
-    var hasWafer = SwitchSize("8");
+    var hasWafer = SwitchSize(8);
     Check(!hasWafer.Success && hasWafer.Code == ErrorCodes.WaferSizeHasWafer && hasWafer.Args.SequenceEqual(["SizePM"]) && waferSize.Size == 12,
         "机台里（腔体）有片：不让切");
     Check(sizeLedger.Delete("SizePM", 1), "把腔体里的片删掉");
-    var notSaved = SwitchSize("8");
+    var notSaved = SwitchSize(8);
     Check(!notSaved.Success && notSaved.Code == ErrorCodes.WaferSizeSaveFailed && notSaved.Args.Count == 1 && waferSize.Size == 12
           && machine.CreateEquipmentStatus().WaferSize == 12,
         "LoadPort 上的片不挡；写不了 machine.xml 就不换尺寸");
@@ -4442,7 +4537,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(null);
 }
 
-Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the machine.xml switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
+Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the RPC request parameters (RpcRequest.Of packing and TryGet reading back int, long, double, bool, Chinese text, DateTime, Guid, string lists, nested step lists and string dictionaries unchanged; names matched case-insensitively; a missing name, a null value, a type mismatch and empty, non-object or broken Parameters reading as absent; Get falling back to its default; a LoadPort action without Module answered with rpc.request_invalid while the port stays put), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the machine.xml switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
 
 // 假帧通讯：顶替串口 / 网口，连接由测试摆（打不开、断线），发出去的帧体记下来；设备的回复由测试推，
 // 按通道交来的那家解码器解成报文往上交（跟真的接收泵一样），字节级的拆帧不在这里测（见 GatedTransport）。

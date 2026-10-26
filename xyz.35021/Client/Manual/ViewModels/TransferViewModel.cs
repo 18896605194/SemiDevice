@@ -43,8 +43,8 @@ public class TransferViewModel : BaseViewModel, IDisposable
         string moduleName = DefaultModuleName;
         try
         {
-            // module 传空串 = 返回全部 Robot；只有一个时返回单对象，多个返回数组。界面先接第一台。
-            var response = _service.GetStateAsync(string.Empty).GetAwaiter().GetResult();
+            // Module 传空串 = 返回全部 Robot；只有一个时返回单对象，多个返回数组。界面先接第一台。
+            var response = _service.GetStateAsync(RpcRequest.Of((RpcParams.Module, string.Empty))).GetAwaiter().GetResult();
             response.EnsureSuccess();
 
             var json = response.Data?.TrimStart() ?? string.Empty;

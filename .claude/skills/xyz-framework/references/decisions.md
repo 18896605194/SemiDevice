@@ -263,8 +263,10 @@
   不区分在走还是卡住、后端不加"在动"；气缸表"未知"也是红字；轴的三维件——摆臂、旋转盘——跟轴推送的 IsError 走，报错整块变红），到位后再走到头
   （不是命令一发出去就画到头——那样没到位也画成到位了）。
 - **气缸一律叫升 / 降**（参考图上门也是 Up / Down；门本来就是上升打开、下降关闭）：开侧 = 升、关侧 = 降。
-- **点动按住动、松开停**（用户："就是传统的 jog 运动"）：按住期间界面每 200 ms 续一次，腔体 EC `HoldTimeoutMs`（默认 1000）内没续上
-  （界面断了、客户端退了）自己停；按住期间腔体在"手动中"，别的普通动作发不进来；**中止（轴停止）腔体忙也照发**。
+- **点动按住动、松开停**（用户："就是传统的 jog 运动"）：按下发一次 `AxisJog`、松手发 `AxisStop`，中间不发别的；按住期间腔体在"手动中"，别的普通动作发不进来；
+  **中止（轴停止）腔体忙也照发**。原来按住期间界面每 200 ms 续一次（`AxisJogRenew`）、腔体 EC `HoldTimeoutMs`（默认 1000）内没续上自己停，
+  2026-10-26 用户："jog运动正常就是发送一次，然后松开发送停止就行了，不是什么200ms不停发送"，续命、保活超时、`chamber.jog_not_held` 都删了。
+  松手的停止由 HoldButton 发（松开、拖出按钮、禁用、藏起来、页面卸载都发）；客户端崩了、网断了时停止发不出去，轴一直走到有人按停止或到限位。
 - **联锁还没做**（Bowl 升着、Lift 没升也能摆臂），是用户知道并押后的。
 - 不注册逐帧事件（用户："这个肯定得改，不然又性能问题"）：液柱只在摆角 / Lift 高度 / 出液变化时重算。
 - 用户说**不用管**的：开着阀摆过去液柱穿过 Bowl 壁落到底座（"开着阀门就是这样"）；液柱落点常数（"就是动画，不会修改"）；
@@ -1532,8 +1534,9 @@
   `IActionFilterLog` / `ActionFilterLog`（名字用户定："既然是过滤器，肯定是用这两个名字"；容器单例，`AddXyzServices` 里注册，构造注入给 `ActionFilter`），冒烟经接口测 `ActionFilterLog`。中间一度把整个 `ActionFilter` 挪到 xyz.Service 只为能测，
   用户问"放在这里面不行吗"、"你提供一个过滤器的接口不就好了"，就拆成这样。每个调用进来记一条、回包记一条（`操作人@IP 服务.方法 参数JSON` / `→ 成功 | 失败 码 [参数] | 出错` + 用时），
   第一层 `Operation`，只进主日志、不推顶栏（界面自己会提示结果，推了显示两遍）。不在 218 个按钮命令上逐个加：后端一处、局域网多客户端也全、被拒的也有码。
-  - 不记：`Get` / `Query` 开头的（只读，轮询会刷屏），加 `AxisJogRenew`（按住点动客户端自动反复发）、`Subscribe`、`Publish`；切页这类纯界面按钮不经后端，不记（用户："不记录"）。
-  - 参数里名字带 Password 的写 `***`；参数 JSON 中文原样（`JsonHelper.ToLogText`，默认的会转成 \uXXXX）。
+  - 不记：`Get` / `Query` 开头的（只读，轮询会刷屏），加 `Subscribe`、`Publish`（点动续命 `AxisJogRenew` 原来也在这儿，10-26 点动改成只发一次后删了）；切页这类纯界面按钮不经后端，不记（用户："不记录"）。
+  - 参数 JSON 中文原样（`JsonHelper.ToLogText`，默认的会转成 \uXXXX）。密码不打码、照原样记（原来名字带 Password 的写 `***`；2026-10-26 用户问"PasswordField……加密？不需要啊"，
+    说明了它是给操作日志里的密码打码、去掉后日志文件和历史日志页能看到明文密码，用户答"不需要"，就删了）。
 - **操作人走请求头**：客户端 `GrpcClientFactory` 里私有的 `UserHeader`（客户端拦截器）每次调用带 `xyz-user-bin`（UTF-8：登录名可能是中文，普通请求头只能 ASCII）= `ClientSession.UserName`；
   服务里要"谁"的（账单调整、工艺配方、流程配方、建 Job）用 `RpcOperator.Of(context)`，没带记 `Unknown`。**请求 DTO 上的 `Operator` 删了**（用户："删除吧"）：只留一个来源；
   账单调整历史行（查出来的）的 `Operator` 留着。
@@ -1570,3 +1573,36 @@
 - **没收的**：计时（`Stopwatch.GetElapsedTime` 本来就一行，`TankComponent.Elapsed` 留着）、采样对齐 `DataChartComponent.AlignUp`；带业务含义的读法（`IoPointTable.Number` 读点表格子、
   `ChamberProcessRoutine.Number` 读配方字段、`BaseChamberModule.RoundForPush` 按推送位数取整、`AiComponent.ValueText`、`LogService.PositiveOr`）；OPC UA 的换算（`OpcUaHelper`，用户定的）、倍福字节块解码；
   客户端（`DataChartExport`、`RealChartViewModel`、`DataChartViewModel`）和 `xyz.Tools.EventMessage` 里同样的换算（引不到后端工程）。
+
+## 请求只用 RpcRequest，不建请求类（2026-10-26，用户："其实请求啥的我本来打算就是只用RpcRequest这一个的"、"RpcRequest 有了这个 就不需要这个SequenceSaveRequest"、"这个是不是得重新取个名字，因为这个是放参数的吧"、"可以啊，就按照这个修改"）
+- **做成什么样**：`RpcRequest` 跟 `RpcResponse` 对称：参数按名字装在 `Parameters`（一个 JSON 对象字符串，ProtoMember 1；原来的 `Dictionary` 删了，名字用户定的）里。
+  客户端 `RpcRequest.Of((RpcParams.Index, 1), (RpcParams.Name, "A"))`；服务端必带的 `request.TryGet<int>(RpcParams.Index, out var index)`（不分大小写；没带、是 null、类型对不上回 false），
+  可不带的 `request.Get(RpcParams.Keyword, string.Empty)`。一律写 `TryGet<类型>(名字, out var x)`：字符串、列表写成 `out string x` 编译器报可能为 null。
+- **参数名只写一份：`RpcParams`**（同日用户："你前端也写死，后端也写死，本质上写的都是一样的，就是在前后端shared里面放一下，放一个静态的……用一份"）：
+  `xyz.Shared\Rpc\RpcParams.cs` 一个静态类、61 个常量（值就是名字本身，按通用 / 时间段查 / 账号 / 报警 EC 整机 / 腔体 / Job / 配方 / 机械手搬运晶圆账分区），
+  服务端 190 处取参数、客户端和冒烟的装参数全换成它；同一个意思的名字共用一个（各接口的 `Module`、`Index`、`Start` / `End`）。
+  - `Of` 改成收 `(名字, 值)` 元组（`params (string Name, object? Value)[]`），收匿名对象的 `Of<T>` 删了：两个留着的话，只传一个元组时编译器挑泛型那个，
+    把元组整个当对象序列化，元组的 Item1 / Item2 是字段、默认不写，装出来是空的 `{}`，编译不报、运行才取不到。同一个名字给两次以后给的为准。
+  - 名字照常量原样进 JSON（`{"Module":"LoadPort1"}`，以前匿名对象走 camelCase 是 `{"module":…}`）；服务端取的时候本来就不分大小写，两头一起换没有兼容问题，
+    操作日志里看到的名字跟着变成大写开头。
+  - 机制测试里专门造的名字（`Total`、`Note`、`Label`、`Flag`、`Missing`，故意传错的 `Port`）不进 `RpcParams`，照旧写字面量。
+- **请求类全删**：46 个 `XxxRequest` / `XxxQuery`（`SequenceSaveRequest`、`LoginRequest`、`ChamberAxisMoveRequest`、`AlarmHistoryQuery`……）删了，参数名就是原来的属性名；
+  收 `string module` 的 25 个方法（LoadPort / 机械手 / 腔体）也改成收 `RpcRequest`（参数 `Module`）。参数里本身是一组数据的类型（`SequenceStepDto`、`ProcessRecipeStepDto`、
+  `JobSlotDto`、`RolePermissionItem`）留着，回包里也在用。
+- **只剩这几个带 `[ProtoContract]`**：`RpcRequest`、`RpcResponse`，加事件流的 `EventMessage`、`EventSubscription`（事件流这次没动）；别的 DTO 都是普通类、走 JSON。
+- **参数写在契约注释里**：签名上看不出要传什么了，每个方法注释写"参数：名字（类型）"，可选的标"可不带"。
+- **取不到回 `rpc.request_invalid`**（`ErrorCodes.RequestInvalid`，语言包"请求参数不对：客户端和后端的版本可能对不上"）：`BaseService.InvalidRequest()`，不是它派生的服务各有一个同名私有方法，
+  async 方法里 `return await InvalidRequest();`。行为变化：必带参数没带以前落到别的码（模块名空回 `module.not_found [""]` 这类），现在统一回它；带了空串的跟以前一样。
+- **账号组件**：`IAccount` 的建用户、改用户、重置密码、启停用户、建角色、改角色、存权限 7 个方法改成直接收参数（原来收请求类，传输用的东西不进组件）。
+- **常量挪家**：`JobCommandRequest.ControlJobStart` → `IJobService.ControlJobStart`；`IEquipmentService.WaferSizeKey` 删了，参数名就是 `Size`（int，取不到或不支持照旧回 `system.wafer_size_invalid`）。
+- **操作日志**：`ActionFilter` 碰到 `RpcRequest` 直接记 `Parameters` 那段 JSON（重新写一遍让中文原样）；不带参数记 `{}`。密码同日起不打码（见上面「操作日志」一节）。
+- **自己定的细节**（交付时说了）：时间参数走 JSON 带时区偏移（`+08:00`），后端读回来是本机时间，照旧按本机时间换算；客户端发本机时间，别发 UTC 的。
+  机械手手动页的源 / 目标站点绑在下拉框上、选项重建时会被写成 null，调用时补 `?? string.Empty`，后端照旧回"站点不对"的具体原因而不是"请求参数不对"。
+  可不带的参数类型对不上 `Get` 会悄悄用默认值（工艺配方的 Head 有一项不是字符串整张变空表），所以只给真正可选的参数用 `Get`。
+  JSON 写不了无穷大，腔体轴"位置不是有限数"那条冒烟改成传字符串 "Infinity"（Web 默认设置能从字符串读数，读成正无穷，照旧回 `chamber.device_args_invalid`）。
+- **没做的**：事件流的订阅 / 上行发布还是各自的消息类；响应的取法 `DeserializeData`、装法 `Ok(JsonHelper.Serialize(...))` 照旧（问过用户，先不动）。
+- **验证**：副本整编 0 错误、警告还是原来那 9 条；20 个冒烟全过（OperationWaitSmoke 1402 项，新加 20 项 RpcRequest 装取和 LoadPort 不带 Module；DataCenterSmoke 125 项，
+  操作日志按 RpcRequest 测中文原样、密码打星号、不带参数记 `{}`，报警复位不带 Source 回 rpc.request_invalid）；宿主真起起来，探针走真 gRPC 调 8 种接口全对（不带参数、模块名、漏带参数、
+  模块不存在、int、流式导出带 DateTime 和列表、中文参数），操作日志记得对。
+  换成 `RpcParams` 以后又验了一遍：整编 0 错误、还是那 9 条警告；冒烟 OperationWaitSmoke 1402 项、DataCenterSmoke 等全过（去掉密码打码后，测打码的改密码、小写 password 两项删了），
+  HsmsSmoke 第 167 行断开重连、OpcUaSmoke 读值跟随还是老的时序偶发（重跑过，跟 RPC 无关）；探针 8 种调用全对，操作日志里的名字是 `{"Module":"NoSuchPort"}`。

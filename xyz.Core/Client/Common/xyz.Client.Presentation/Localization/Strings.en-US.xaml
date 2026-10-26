@@ -3,6 +3,7 @@
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <!-- Platform language pack (English, fallback language). Keys match xyz.Shared.Errors.ErrorCodes. -->
 
+    <sys:String x:Key="rpc.request_invalid">Invalid request parameters: the client and backend versions may not match</sys:String>
     <sys:String x:Key="module.not_found">Module not found: {0}</sys:String>
     <sys:String x:Key="module.action_rejected">{0} action rejected (state {1} not allowed, or another action in flight)</sys:String>
     <sys:String x:Key="module.wait_timeout">{0} result wait timed out ({1}ms). The outcome is not yet confirmed; check the device state.</sys:String>
@@ -103,7 +104,6 @@
     <sys:String x:Key="chamber.device_command_rejected">{0} {1} was not sent (PLC offline, IO point not configured, or axis not homed / not enabled / busy)</sys:String>
     <sys:String x:Key="chamber.device_action_failed">{0} {1} did not finish (timeout or device error)</sys:String>
     <sys:String x:Key="chamber.device_args_invalid">Invalid arguments for {1} on {0} (not a number, negative speed, or zero jog speed / step)</sys:String>
-    <sys:String x:Key="chamber.jog_not_held">{1} is not being held on {0} (released, stopped or aborted)</sys:String>
     <sys:String x:Key="chamber.action_timeout">{0} did not finish within {1} ms</sys:String>
     <sys:String x:Key="chamber.recipe_steps_missing">{0} cannot run process {1}: no recipe steps (process recipe library not installed)</sys:String>
     <sys:String x:Key="chamber.recipe_not_found">{0}: recipe {1} is not in the process recipe library (it may have been deleted or renamed)</sys:String>

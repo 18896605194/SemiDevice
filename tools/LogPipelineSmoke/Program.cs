@@ -7,6 +7,7 @@ using xyz.Client.Presentation.Models;
 using xyz.Client.Presentation.ViewModels;
 using xyz.Common.Log;
 using xyz.Shared.Dtos;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -26,7 +27,7 @@ if (args.Length > 0 && args[0] == "client")
     await Task.Delay(TimeSpan.FromSeconds(seconds));
 
     var service = GrpcClientFactory.Create<ILogService>();
-    var response = await service.GetRecentAsync(new LogQuery { Count = 10 });
+    var response = await service.GetRecentAsync(RpcRequest.Of((RpcParams.Count, 10)));
     var data = response.Data.Length > 160 ? response.Data[..160] : response.Data;
     Console.WriteLine($"client mode: connected={RemoteEventBus.IsConnected} viewModel.Logs={clientViewModel.Logs.Count} " +
                       $"GetRecent.Success={response.Success} Data={data}");

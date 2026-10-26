@@ -164,7 +164,7 @@ public class AlarmRealtimeViewModel : BaseViewModel
         ClientLog.Info(LogModule, L10n.Get("alarmview.ai_running", alarm.Source, alarm.Text));
         try
         {
-            var response = await _aiService.ExplainAlarmAsync(new AiAlarmRequest { Source = alarm.Source, Code = alarm.Code });
+            var response = await _aiService.ExplainAlarmAsync(RpcRequest.Of((RpcParams.Source, alarm.Source), (RpcParams.Code, alarm.Code)));
             if (!response.Success)
             {
                 string reason = string.IsNullOrEmpty(response.Code) ? response.Message : L10n.Get(response.Code, response.Args);

@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text.Json;
 using xyz.Common.Log;
 using xyz.Shared.Dtos;
 using xyz.Tools;
@@ -6,27 +6,18 @@ using xyz.Tools;
 namespace xyz.Service;
 
 /// <summary>
-/// 操作日志（谁点了什么）：记谁、哪台电脑、调了什么、参数，回包再记结果和用时；第一层 Operation，只进主日志、不推顶栏。
-/// 只读的（Get / Query 开头）和自动反复发的（续点动、订阅推送、上行发布）不记；参数里的密码写成 ***、中文原样
+/// 操作日志拦截器
 /// </summary>
 public sealed class ActionFilter : IActionFilter
 {
     /// <summary>
-    /// 不是 Get / Query 开头、但也不记的：续点动（按住点动按钮时客户端自动反复发）、订阅推送、客户端往后端发事件
+    /// 不是 Get / Query 开头、但也不记的：订阅推送、客户端往后端发事件
     /// </summary>
     private static readonly HashSet<string> Unrecorded = new(StringComparer.Ordinal)
     {
-        "AxisJogRenew",
         "Subscribe",
         "Publish",
     };
-
-    /// <summary>
-    /// 参数 JSON 里名字带 Password 的字段（登录、改密码、重置密码、建账号）
-    /// </summary>
-    private static readonly Regex PasswordField = new(
-        "\"(?<name>[A-Za-z]*Password[A-Za-z]*)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public ActionCall? Begin(string method, string peer, string operatorName, object? request)
     {
@@ -59,7 +50,7 @@ public sealed class ActionFilter : IActionFilter
     }
 
     /// <summary>
-    /// 方法名去掉 Get / Query 开头的、和那几个自动反复发的
+    /// Get / Query 开头的、订阅推送、上行发布不记
     /// </summary>
     private static bool IsRecorded(string action)
     {
@@ -124,14 +115,29 @@ public sealed class ActionFilter : IActionFilter
     }
 
     /// <summary>
-    /// 参数原样转 JSON，密码写成 ***
+    /// 参数原样转 JSON
     /// </summary>
     private static string Arguments(object? request)
     {
         try
         {
-            string json = JsonHelper.ToLogText(request);
-            return PasswordField.Replace(json, match => $"\"{match.Groups["name"].Value}\":\"***\"");
+            string json;
+            if (request is RpcRequest rpc)
+            {
+                json = "{}";
+                if (!string.IsNullOrWhiteSpace(rpc.Parameters))
+                {
+                    // 参数本来就是 JSON：重新写一遍是为了中文原样（客户端装的时候转成了 \uXXXX）
+                    using var document = JsonDocument.Parse(rpc.Parameters);
+                    json = JsonHelper.ToLogText(document.RootElement);
+                }
+            }
+            else
+            {
+                json = JsonHelper.ToLogText(request);
+            }
+
+            return json;
         }
         catch (Exception exception)
         {

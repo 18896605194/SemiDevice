@@ -2,6 +2,7 @@
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -36,7 +37,7 @@ public class UserService : BaseService, IUserService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
     }
 
-    public Task<RpcResponse> CreateUserAsync(UserCreateRequest request, CallContext context = default)
+    public Task<RpcResponse> CreateUserAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -44,7 +45,15 @@ public class UserService : BaseService, IUserService
             return NotInstalled();
         }
 
-        var result = account.CreateUser(request);
+        if (!request.TryGet<string>(RpcParams.UserName, out var userName)
+            || !request.TryGet<long>(RpcParams.RoleId, out var roleId)
+            || !request.TryGet<string>(RpcParams.Password, out var password))
+        {
+            return InvalidRequest();
+        }
+
+        string displayName = request.Get(RpcParams.DisplayName, string.Empty);
+        var result = account.CreateUser(userName, displayName, roleId, password);
         if (!result.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
@@ -53,7 +62,7 @@ public class UserService : BaseService, IUserService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
     }
 
-    public Task<RpcResponse> UpdateUserAsync(UserUpdateRequest request, CallContext context = default)
+    public Task<RpcResponse> UpdateUserAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -61,10 +70,17 @@ public class UserService : BaseService, IUserService
             return NotInstalled();
         }
 
-        return Reply(account.UpdateUser(request));
+        if (!request.TryGet<long>(RpcParams.Id, out var id)
+            || !request.TryGet<long>(RpcParams.RoleId, out var roleId))
+        {
+            return InvalidRequest();
+        }
+
+        string displayName = request.Get(RpcParams.DisplayName, string.Empty);
+        return Reply(account.UpdateUser(id, displayName, roleId));
     }
 
-    public Task<RpcResponse> ResetPasswordAsync(UserPasswordResetRequest request, CallContext context = default)
+    public Task<RpcResponse> ResetPasswordAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -72,10 +88,16 @@ public class UserService : BaseService, IUserService
             return NotInstalled();
         }
 
-        return Reply(account.ResetPassword(request));
+        if (!request.TryGet<long>(RpcParams.Id, out var id)
+            || !request.TryGet<string>(RpcParams.Password, out var password))
+        {
+            return InvalidRequest();
+        }
+
+        return Reply(account.ResetPassword(id, password));
     }
 
-    public Task<RpcResponse> SetEnabledAsync(UserEnableRequest request, CallContext context = default)
+    public Task<RpcResponse> SetEnabledAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -83,10 +105,16 @@ public class UserService : BaseService, IUserService
             return NotInstalled();
         }
 
-        return Reply(account.SetUserEnabled(request));
+        if (!request.TryGet<long>(RpcParams.Id, out var id)
+            || !request.TryGet<bool>(RpcParams.IsEnabled, out var isEnabled))
+        {
+            return InvalidRequest();
+        }
+
+        return Reply(account.SetUserEnabled(id, isEnabled));
     }
 
-    public Task<RpcResponse> DeleteUserAsync(AccountIdRequest request, CallContext context = default)
+    public Task<RpcResponse> DeleteUserAsync(RpcRequest request, CallContext context = default)
     {
         var account = _account;
         if (account is null)
@@ -94,7 +122,12 @@ public class UserService : BaseService, IUserService
             return NotInstalled();
         }
 
-        return Reply(account.DeleteUser(request.Id));
+        if (!request.TryGet<long>(RpcParams.Id, out var id))
+        {
+            return InvalidRequest();
+        }
+
+        return Reply(account.DeleteUser(id));
     }
 
     private static Task<RpcResponse> NotInstalled()

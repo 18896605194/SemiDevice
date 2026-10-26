@@ -4,6 +4,7 @@ using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -38,14 +39,19 @@ public class SequenceService : BaseService, ISequenceService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
 
-    public Task<RpcResponse> GetAsync(SequenceIndexRequest request, CallContext context = default)
+    public Task<RpcResponse> GetAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return Reply(_sequence.Get(request.Index));
+        if (!request.TryGet<int>(RpcParams.Index, out var index))
+        {
+            return InvalidRequest();
+        }
+
+        return Reply(_sequence.Get(index));
     }
 
     public Task<RpcResponse> GetStationGroupsAsync(RpcRequest request, CallContext context = default)
@@ -65,49 +71,74 @@ public class SequenceService : BaseService, ISequenceService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(groups)));
     }
 
-    public Task<RpcResponse> CreateAsync(SequenceCreateRequest request, CallContext context = default)
+    public Task<RpcResponse> CreateAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_sequence.Create(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
+        if (!request.TryGet<int>(RpcParams.Index, out var index)
+            || !request.TryGet<string>(RpcParams.Name, out var name))
+        {
+            return InvalidRequest();
+        }
+
+        return LockedByHost() ?? Reply(_sequence.Create(index, name, RpcOperator.Of(context)));
     }
 
-    public Task<RpcResponse> RenameAsync(SequenceRenameRequest request, CallContext context = default)
+    public Task<RpcResponse> RenameAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_sequence.Rename(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
+        if (!request.TryGet<int>(RpcParams.Index, out var index)
+            || !request.TryGet<string>(RpcParams.Name, out var name))
+        {
+            return InvalidRequest();
+        }
+
+        return LockedByHost() ?? Reply(_sequence.Rename(index, name, RpcOperator.Of(context)));
     }
 
-    public Task<RpcResponse> DeleteAsync(SequenceDeleteRequest request, CallContext context = default)
+    public Task<RpcResponse> DeleteAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_sequence.Delete(request.Index, RpcOperator.Of(context)));
+        if (!request.TryGet<int>(RpcParams.Index, out var index))
+        {
+            return InvalidRequest();
+        }
+
+        return LockedByHost() ?? Reply(_sequence.Delete(index, RpcOperator.Of(context)));
     }
 
-    public Task<RpcResponse> SaveAsync(SequenceSaveRequest request, CallContext context = default)
+    public Task<RpcResponse> SaveAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
             return NotInstalled();
         }
 
-        // protobuf 收到的空列表、空字符串可能是 null，进库之前都换成空的
-        var steps = (request.Steps ?? []).Select(step => new SequenceStep(
+        if (!request.TryGet<int>(RpcParams.Index, out var index)
+            || !request.TryGet<int>(RpcParams.Revision, out var revision)
+            || !request.TryGet<List<SequenceStepDto>>(RpcParams.Steps, out var steps))
+        {
+            return InvalidRequest();
+        }
+
+        string description = request.Get(RpcParams.Description, string.Empty);
+        // 步骤里写成 null 的字段（JSON 里给了 null），进库之前都换成空的
+        var sequenceSteps = steps.Select(step => new SequenceStep(
             step.Group ?? string.Empty,
             (step.Stations ?? []).Select(station => station ?? string.Empty),
             step.Recipe ?? string.Empty)).ToList();
-        return LockedByHost() ?? Reply(_sequence.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, RpcOperator.Of(context)));
+        return LockedByHost() ?? Reply(_sequence.Save(index, revision, description, sequenceSteps, RpcOperator.Of(context)));
     }
 
     private static Task<RpcResponse> Reply(HandleResult result)

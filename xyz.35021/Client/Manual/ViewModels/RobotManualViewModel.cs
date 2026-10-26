@@ -38,7 +38,7 @@ public class RobotManualViewModel : BaseViewModel
 
         try
         { 
-            var response = _service.GetStateAsync(string.Empty).GetAwaiter().GetResult();
+            var response = _service.GetStateAsync(RpcRequest.Of((RpcParams.Module, string.Empty))).GetAwaiter().GetResult();
             response.EnsureSuccess();
 
             var json = response.Data?.TrimStart() ?? string.Empty;

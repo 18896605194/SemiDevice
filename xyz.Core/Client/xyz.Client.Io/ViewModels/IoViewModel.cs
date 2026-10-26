@@ -9,6 +9,7 @@ using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Io.Models;
 using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -217,7 +218,7 @@ public class IoViewModel : BaseViewModel, IDisposable
             return;
         }
 
-        var response = await _service.WriteDoAsync(new IoWriteRequest { Index = point.Index, Value = on ? 1 : 0 });
+        var response = await _service.WriteDoAsync(RpcRequest.Of((RpcParams.Index, point.Index), (RpcParams.Value, on ? 1.0 : 0.0)));
         if (!response.Success)
         {
             ClientLog.Error(_module, L10n.Get(response.Code, response.Args));
@@ -241,7 +242,7 @@ public class IoViewModel : BaseViewModel, IDisposable
             return;
         }
 
-        var response = await _service.WriteAoAsync(new IoWriteRequest { Index = point.Index, Value = value });
+        var response = await _service.WriteAoAsync(RpcRequest.Of((RpcParams.Index, point.Index), (RpcParams.Value, value)));
         if (!response.Success)
         {
             ClientLog.Error(_module, L10n.Get(response.Code, response.Args));

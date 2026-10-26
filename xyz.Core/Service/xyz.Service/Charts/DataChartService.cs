@@ -4,6 +4,7 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -50,10 +51,10 @@ public class DataChartService : IDataChartService
     /// <summary>
     /// 查询，会被多次调用，鼠标滚轮的时候也会查询，整个曲线是一种抽稀的模式
     /// </summary>
-    /// <param name="query"></param>
+    /// <param name="request"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    public Task<RpcResponse> QueryAsync(DataChartQuery query, CallContext context = default)
+    public Task<RpcResponse> QueryAsync(RpcRequest request, CallContext context = default)
     {
         var token = context.CancellationToken;
         return Task.Run(() =>
@@ -63,10 +64,17 @@ public class DataChartService : IDataChartService
                 return RpcResponse.Fail(ErrorCodes.DataChartNotInstalled, []);
             }
 
+            if (!request.TryGet<DateTime>(RpcParams.Start, out var start)
+                || !request.TryGet<DateTime>(RpcParams.End, out var end)
+                || !request.TryGet<List<string>>(RpcParams.Names, out var names))
+            {
+                return RpcResponse.Fail(ErrorCodes.RequestInvalid, []);
+            }
+
             try
             {
-                var names = NamesOf(query, _chart);
-                var result = _chart.Query(names, query.Start, query.End, token); //按照时间
+                var wanted = NamesOf(names, _chart);
+                var result = _chart.Query(wanted, start, end, token); //按照时间
                 return RpcResponse.Ok(JsonHelper.Serialize(_mapper.Map<DataChartResultDto>(result))); //返回json
             }
             catch (OperationCanceledException)
@@ -83,7 +91,7 @@ public class DataChartService : IDataChartService
     /// <summary>
     /// 导出，一段一段读取 不是一起读取 用的yied模式
     /// </summary>
-    public async IAsyncEnumerable<RpcResponse> ExportAsync(DataChartQuery query, CallContext context = default)
+    public async IAsyncEnumerable<RpcResponse> ExportAsync(RpcRequest request, CallContext context = default)
     {
         var token = context.CancellationToken;
         if (_chart is null)
@@ -92,7 +100,15 @@ public class DataChartService : IDataChartService
             yield break;
         }
 
-        using var slices = _chart.Export(NamesOf(query, _chart), query.Start, query.End, token).GetEnumerator();
+        if (!request.TryGet<DateTime>(RpcParams.Start, out var start)
+            || !request.TryGet<DateTime>(RpcParams.End, out var end)
+            || !request.TryGet<List<string>>(RpcParams.Names, out var names))
+        {
+            yield return RpcResponse.Fail(ErrorCodes.RequestInvalid, []);
+            yield break;
+        }
+
+        using var slices = _chart.Export(NamesOf(names, _chart), start, end, token).GetEnumerator();
         while (true)
         {
             var (slice, error) = await Task.Run(() => Next(slices), token);
@@ -114,9 +130,9 @@ public class DataChartService : IDataChartService
     /// <summary>
     /// 要查的名字：去空、去重，超过最多条数的只要前面的
     /// </summary>
-    private static List<string> NamesOf(DataChartQuery query, IDataChart chart)
+    private static List<string> NamesOf(List<string> names, IDataChart chart)
     {
-        return (query.Names ?? [])
+        return names
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(Math.Max(1, chart.QueryMaxSignals))

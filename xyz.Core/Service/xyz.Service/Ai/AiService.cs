@@ -3,6 +3,7 @@ using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -11,7 +12,7 @@ namespace xyz.Service.Ai;
 /// <summary>
 /// AI 助手服务
 /// </summary>
-public class AiService : IAiService
+public class AiService :BaseService, IAiService
 {
     private readonly IAi? _ai;
 
@@ -40,7 +41,7 @@ public class AiService : IAiService
     /// <summary>
     /// 解释一条报警
     /// </summary>
-    public async Task<RpcResponse> ExplainAlarmAsync(AiAlarmRequest request, CallContext context = default)
+    public async Task<RpcResponse> ExplainAlarmAsync(RpcRequest request, CallContext context = default)
     {
         var ai = _ai;
         if (ai is null)
@@ -48,8 +49,14 @@ public class AiService : IAiService
             return RpcResponse.Fail(ErrorCodes.AiNotInstalled, []);
         }
 
+        if (!request.TryGet<string>(RpcParams.Source, out var source)
+            || !request.TryGet<string>(RpcParams.Code, out var code))
+        {
+            return await InvalidRequest();
+        }
+
         string language = _system?.Language ?? string.Empty;
-        var result = await ai.ExplainAlarmAsync(request.Source, request.Code, language, context.CancellationToken);
+        var result = await ai.ExplainAlarmAsync(source, code, language, context.CancellationToken);
         if (!result.IsSuccess)
         {
             return RpcResponse.Fail(result.ErrorMessage, result.Args);
@@ -63,4 +70,6 @@ public class AiService : IAiService
 
         return RpcResponse.Ok(JsonHelper.Serialize(_mapper.Map<AiAnswerDto>(answer)));
     }
+
+  
 }

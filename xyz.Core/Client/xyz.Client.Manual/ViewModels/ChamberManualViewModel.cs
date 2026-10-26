@@ -125,9 +125,6 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     /// <summary>点动按下（参数 "1" 正向、"-1" 反向）：按点动速度一直走。</summary>
     public IRelayCommand<string> JogPressCommand { get; }
 
-    /// <summary>点动按住期间续（HoldButton 每 200 ms 发一次）。</summary>
-    public IRelayCommand<string> JogRenewCommand { get; }
-
     /// <summary>点动松手：发停止。</summary>
     public IRelayCommand<string> JogReleaseCommand { get; }
 
@@ -150,7 +147,6 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         ErrorCodes.ChamberDeviceCommandRejected,
         ErrorCodes.ChamberDeviceActionFailed,
         ErrorCodes.ChamberDeviceArgsInvalid,
-        ErrorCodes.ChamberJogNotHeld,
     ];
 
     private readonly IChamberService _service;
@@ -168,7 +164,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     /// </summary>
     private int _recipeVersion;
 
-    /// <summary>正在点动的轴（按下时选中的那根）；松手、点动没发出去、续不上了置空。</summary>
+    /// <summary>正在点动的轴（按下时选中的那根）；松手、点动没发出去置空。</summary>
     private AxisTabModel? _jogAxis;
 
     /// <summary>点动请求本身：松手先等它回来再发停止，免得停止比点动先到后台。</summary>
@@ -194,7 +190,6 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         AxisResetCommand = new AsyncRelayCommand(DoAxisReset);
         AxisStepCommand = new AsyncRelayCommand<string>(DoAxisStep);
         JogPressCommand = new RelayCommand<string>(DoJogPress);
-        JogRenewCommand = new RelayCommand<string>(DoJogRenew);
         JogReleaseCommand = new RelayCommand<string>(DoJogRelease);
         NextAxisCommand = new RelayCommand(DoNextAxis);
         CylinderOpenCommand = new AsyncRelayCommand<CylinderRowModel>(row => DoCylinder(row, true));
@@ -206,7 +201,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         // 先拉一次当前状态，再订阅推送；只等推送的话页面刚打开会一直是空的。
         try
         {
-            var response = _service.GetStateAsync(ModuleName).GetAwaiter().GetResult();
+            var response = _service.GetStateAsync(RpcRequest.Of((RpcParams.Module, ModuleName))).GetAwaiter().GetResult();
             response.EnsureSuccess();
 
             var json = response.Data?.TrimStart() ?? string.Empty;
@@ -412,39 +407,37 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
 
         // 同步等工艺做完才回包（上限是配方头的超时时间），期间按钮保持不可用；要停就按 Abort。
-        var response = await _service.ProcessAsync(new ChamberProcessRequest
-        {
-            Module = ModuleName,
-            Recipe = Recipe.Trim(),
-        });
+        var response = await _service.ProcessAsync(RpcRequest.Of(
+            (RpcParams.Module, ModuleName),
+            (RpcParams.Recipe, Recipe.Trim())));
         LogFailure(response, "chambermanual.process");
     }
 
     private async Task DoHome()
     {
-        LogFailure(await _service.HomeAsync(ModuleName), "action.home");
+        LogFailure(await _service.HomeAsync(RpcRequest.Of((RpcParams.Module, ModuleName))), "action.home");
     }
 
     private async Task DoAbort()
     {
         // 急停：可顶替在途动作（被顶的调用方收到 module.action_aborted）。
-        LogFailure(await _service.AbortAsync(ModuleName), "action.abort");
+        LogFailure(await _service.AbortAsync(RpcRequest.Of((RpcParams.Module, ModuleName))), "action.abort");
     }
 
     private async Task DoReset()
     {
         // 复位：组件基类先清报警，模块再发设备复位清错。
-        LogFailure(await _service.ResetAsync(ModuleName), "action.reset");
+        LogFailure(await _service.ResetAsync(RpcRequest.Of((RpcParams.Module, ModuleName))), "action.reset");
     }
 
     private async Task DoProduction()
     {
-        LogFailure(await _service.SetProductionAsync(ModuleName), "action.production");
+        LogFailure(await _service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, ModuleName))), "action.production");
     }
 
     private async Task DoMaintenance()
     {
-        LogFailure(await _service.SetMaintenanceAsync(ModuleName), "action.maintenance");
+        LogFailure(await _service.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, ModuleName))), "action.maintenance");
     }
 
     #region 轴
@@ -473,13 +466,11 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
             return;
         }
 
-        var request = new ChamberAxisMoveRequest
-        {
-            Module = ModuleName,
-            Axis = axis.Path,
-            Position = target,
-            Speed = TryNumber(axis.MoveSpeed, out double speed) ? Math.Abs(speed) : 0,
-        };
+        var request = RpcRequest.Of(
+            (RpcParams.Module, ModuleName),
+            (RpcParams.Axis, axis.Path),
+            (RpcParams.Position, target),
+            (RpcParams.Speed, TryNumber(axis.MoveSpeed, out double speed) ? Math.Abs(speed) : 0));
         await RunDeviceAction(axis.Name, "chambermanual.axis.move", () => _service.AxisMoveAsync(request));
     }
 
@@ -517,18 +508,16 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
 
         int sign = SignOf(direction);
-        var request = new ChamberAxisStepRequest
-        {
-            Module = ModuleName,
-            Axis = axis.Path,
-            Distance = sign * Math.Abs(step),
-            Speed = TryNumber(axis.JogSpeed, out double speed) ? Math.Abs(speed) : 0,
-        };
+        var request = RpcRequest.Of(
+            (RpcParams.Module, ModuleName),
+            (RpcParams.Axis, axis.Path),
+            (RpcParams.Distance, sign * Math.Abs(step)),
+            (RpcParams.Speed, TryNumber(axis.JogSpeed, out double speed) ? Math.Abs(speed) : 0));
         await RunDeviceAction(axis.Name, sign > 0 ? "chambermanual.axis.step_plus" : "chambermanual.axis.step_minus",
             () => _service.AxisStepAsync(request));
     }
 
-    /// <summary>点动按下：点动速度必填（取绝对值，方向看按钮），发出去就回，之后续、松手停。</summary>
+    /// <summary>点动按下：点动速度必填（取绝对值，方向看按钮），发一次就回，松手发停止。</summary>
     private void DoJogPress(string? direction)
     {
         var axis = SelectedAxis;
@@ -550,37 +539,11 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     private async Task StartJog(AxisTabModel axis, double speed, string actionKey)
     {
-        var request = new ChamberAxisJogRequest { Module = ModuleName, Axis = axis.Path, Speed = speed };
+        var request = RpcRequest.Of((RpcParams.Module, ModuleName), (RpcParams.Axis, axis.Path), (RpcParams.Speed, speed));
         bool started = await RunDeviceAction(axis.Name, actionKey, () => _service.AxisJogAsync(request));
         if (!started && ReferenceEquals(_jogAxis, axis))
         {
             _jogAxis = null;
-        }
-    }
-
-    /// <summary>点动续：后台回"没在按住"（已经被停止、中止顶掉）就不再续。续不上后台过一会儿自己停。</summary>
-    private void DoJogRenew(string? direction)
-    {
-        var axis = _jogAxis;
-        if (axis is not null)
-        {
-            _ = RenewJog(axis);
-        }
-    }
-
-    private async Task RenewJog(AxisTabModel axis)
-    {
-        try
-        {
-            var response = await _service.AxisJogRenewAsync(DeviceRequest(axis.Path));
-            if (!response.Success && ReferenceEquals(_jogAxis, axis))
-            {
-                _jogAxis = null;
-            }
-        }
-        catch
-        {
-            // 续不上就不续了：后台在 EC HoldTimeoutMs 之后自己停。
         }
     }
 
@@ -649,9 +612,12 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     #endregion
 
-    private ChamberDeviceRequest DeviceRequest(string path)
+    /// <summary>
+    /// 腔体里一个设备（轴、气缸）的动作请求：本腔体模块名 + 设备路径
+    /// </summary>
+    private RpcRequest DeviceRequest(string path)
     {
-        return new ChamberDeviceRequest { Module = ModuleName, Device = path };
+        return RpcRequest.Of((RpcParams.Module, ModuleName), (RpcParams.Device, path));
     }
 
     /// <summary>

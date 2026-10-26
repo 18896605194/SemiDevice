@@ -2,6 +2,7 @@
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -12,8 +13,13 @@ namespace xyz.Service;
 /// </summary>
 public class LoadPortService : BaseService, ILoadPortService
 {
-    public Task<RpcResponse> LoadAsync(string module)
+    public Task<RpcResponse> LoadAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -23,8 +29,13 @@ public class LoadPortService : BaseService, ILoadPortService
         return RunRoutine(module, port, port.Load(), port.LoadTimeout);
     }
 
-    public Task<RpcResponse> UnloadAsync(string module)
+    public Task<RpcResponse> UnloadAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -34,8 +45,13 @@ public class LoadPortService : BaseService, ILoadPortService
         return RunRoutine(module, port, port.UnloadManually(), port.UnloadTimeout);
     }
 
-    public Task<RpcResponse> HomeAsync(string module)
+    public Task<RpcResponse> HomeAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -45,8 +61,13 @@ public class LoadPortService : BaseService, ILoadPortService
         return RunRoutine(module, port, port.Home(), port.HomeTimeout);
     }
 
-    public Task<RpcResponse> ResetAsync(string module)
+    public Task<RpcResponse> ResetAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -56,8 +77,13 @@ public class LoadPortService : BaseService, ILoadPortService
         return RunRoutine(module, port, port.Reset(), port.CheckReset, port.ResetTimeout);
     }
 
-    public Task<RpcResponse> AbortAsync(string module)
+    public Task<RpcResponse> AbortAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -68,18 +94,33 @@ public class LoadPortService : BaseService, ILoadPortService
     }
 
 
-    public Task<RpcResponse> SetProductionAsync(string module)
+    public Task<RpcResponse> SetProductionAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         return SetProduction<ILoadPort>(module);
     }
 
-    public Task<RpcResponse> SetMaintenanceAsync(string module)
+    public Task<RpcResponse> SetMaintenanceAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         return SetMaintenance<ILoadPort>(module);
     }
 
-    public Task<RpcResponse> AutoAsync(string module)
+    public Task<RpcResponse> AutoAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -90,8 +131,13 @@ public class LoadPortService : BaseService, ILoadPortService
         return Task.FromResult(RpcResponse.Ok());
     }
 
-    public Task<RpcResponse> ManualAsync(string module)
+    public Task<RpcResponse> ManualAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -102,8 +148,13 @@ public class LoadPortService : BaseService, ILoadPortService
         return Task.FromResult(RpcResponse.Ok());
     }
 
-    public Task<RpcResponse> ReadCarrierIdAsync(string module)
+    public Task<RpcResponse> ReadCarrierIdAsync(RpcRequest request)
     {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
         var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
@@ -115,8 +166,9 @@ public class LoadPortService : BaseService, ILoadPortService
             : RpcResponse.Fail(ErrorCodes.ReadCarrierIdRejected, [module]));
     }
 
-    public Task<RpcResponse> GetStateAsync(string module)
+    public Task<RpcResponse> GetStateAsync(RpcRequest request)
     {
+        string module = request.Get(RpcParams.Module, string.Empty);
         var dto = IocHelper.GetServices<ILoadPort>()
             .Where(port => string.IsNullOrWhiteSpace(module)
                            || string.Equals(port.Name, module, StringComparison.OrdinalIgnoreCase))

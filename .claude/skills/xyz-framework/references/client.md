@@ -137,7 +137,12 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 
 ### 调后端
 ```csharp
-var response = await _service.MoveAsync(request);
+var response = await _service.MoveAsync(RpcRequest.Of(
+    (RpcParams.FromModule, from),
+    (RpcParams.FromSlot, fromSlot),
+    (RpcParams.ToModule, to),
+    (RpcParams.ToSlot, toSlot),
+    (RpcParams.Reason, reason)));
 if (!response.Success)
 {
     string reason = string.IsNullOrEmpty(response.Code) ? response.Message : L10n.Get(response.Code, response.Args);
@@ -146,6 +151,9 @@ if (!response.Success)
 }
 var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperationException
 ```
+- 请求一律 `RpcRequest`（2026-10-26 起没有请求类）：参数写成 `RpcRequest.Of((RpcParams.名字, 值), ...)`，名字用 `RpcParams`（`xyz.Shared.Rpc`）的常量、
+  跟后端取参数是同一份，不手写字符串；类型照契约注释里的"参数："，必带的一定给，可能是 null 的字符串补 `?? string.Empty`；不带参数的 `new RpcRequest()`。
+  排版：一个参数写在一行里；几个参数一行放得下（150 字以内）就一行，放不下一个参数一行。
 - 错误显示一律"错误码 → 语言包"；没码的老接口才用 `Message`。
 - 结果提示走顶栏日志栏：`ClientLog.Info/Warn/Error(模块名, 句子)`。不弹 MessageBox。
 
@@ -282,8 +290,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `CardWidth` / `CardHeight`（默认 280×233）、`RobotHeight`（默认 360）可设，卡片圆片直径跟着 RobotHeight 算（= 叉上的片）；
   一排放不下时那一排整体缩小（只缩不放），不裁站点。LoadPort 卡底栏六盏灯跟 `LoadPortDto` 走（通讯 / 在位 / 到位 / 报警 / 自动 / 手动），
   腔体卡的"配方"取 `ChamberDto.Recipe`。`ChamberInfoCard` 的五行字段哪一行没有值就整行不显示（2026-10-04 起，后端还没给步骤、时间这些）。
-- **HoldButton**（按住类按钮，点动用）：按下发 `PressCommand`，按住期间每 `RenewMilliseconds`（默认 200）发一次 `RenewCommand`，
-  松开 / 拖出按钮 / 禁用 / 藏起来发 `ReleaseCommand`，三个命令共用 `CommandParameter`；不用 `Command`。样式照普通按钮套。
+- **HoldButton**（按住类按钮，点动用）：按下发一次 `PressCommand`，松开 / 拖出按钮 / 禁用 / 藏起来 / 卸载发 `ReleaseCommand`，中间不发别的
+  （2026-10-26 去掉了每 200 ms 的续命）；两个命令共用 `CommandParameter`；不用 `Command`。样式照普通按钮套。
 - **三维硬件**（`Controls\ThreeD`，说明见那儿的 README）：Arm / Lift / FluidPipe / Bowl / HomeCup / Door / Disk / ChamberBase 组件，
   `ChamberScene` 把它们装成腔体手动页的三维图（`Devices` 绑 `ChamberDeviceDataModel`、`Wafer` 绑晶圆账的片），视角工具栏在图下面。
   LoadPort（`LoadPortVisual3D`）和花篮（`CarrierVisual3D`，片用 Disk）两个公共组件由 `LoadPortScene` 组合成 LoadPort 手动页中间的三维图
@@ -298,7 +306,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `ChamberDeviceDataDto`（结构跟 machine.xml 一样：门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴）——`ChamberDeviceDataModel.Update` 照树取三维要画的；
   VM 从同一份推送取轴页签（卡盘 + 各条摆臂，`AxisTabModel`）和气缸表（门、Bowl、各臂的 Lift，`CylinderRowModel`）。界面不再抄后端的属性名、方法名（2026-10-10 删了 PartValueNames / PartActionNames / PartKinds，Part 的叫法也去掉了）。
   动作调 `IChamberService` 的具体方法（`AxisHomeAsync` / `AxisMoveAsync` / `AxisStepAsync` / `AxisJogAsync` / `AxisStopAsync` / `AxisResetAsync`、`CylinderUpAsync` / `CylinderDownAsync`）；
-  点动用 HoldButton：按下 Jog、续 `AxisJogRenewAsync`、松手先等点动请求回来再发 Stop。轴参数（移动速度、点动速度、步距）默认值取这根轴的 EC，`ClientEc` 拉到后补上空着的。
+  点动用 HoldButton：按下发一次 Jog、松手先等点动请求回来再发 Stop。轴参数（移动速度、点动速度、步距）默认值取这根轴的 EC，`ClientEc` 拉到后补上空着的。
 
 ## 8. 语言包（`Common\xyz.Client.Presentation\Localization`）
 

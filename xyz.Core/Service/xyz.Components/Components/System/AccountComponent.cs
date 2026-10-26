@@ -548,10 +548,10 @@ public class AccountComponent : ComponentBase, IAccount
         }
     }
 
-    public HandleResult<UserDto> CreateUser(UserCreateRequest request)
+    public HandleResult<UserDto> CreateUser(string userName, string displayName, long roleId, string password)
     {
-        string name = (request.UserName ?? string.Empty).Trim();
-        string displayName = (request.DisplayName ?? string.Empty).Trim();
+        string name = (userName ?? string.Empty).Trim();
+        displayName = (displayName ?? string.Empty).Trim();
         HandleResult<UserDto> result;
         lock (_gate)
         {
@@ -566,7 +566,7 @@ public class AccountComponent : ComponentBase, IAccount
 
                 #region 检查：登录名、显示名、角色、密码
 
-                var rejected = CheckUserName(name) ?? CheckDisplayName(displayName) ?? CheckPassword(request.Password);
+                var rejected = CheckUserName(name) ?? CheckDisplayName(displayName) ?? CheckPassword(password);
                 if (rejected is not null)
                 {
                     return HandleResult<UserDto>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
@@ -577,8 +577,8 @@ public class AccountComponent : ComponentBase, IAccount
                     return HandleResult<UserDto>.Fail(ErrorCodes.AccountUserExists, name);
                 }
 
-                var role = db.Queryable<RoleEntity>().InSingle(request.RoleId);
-                var roleRejected = CheckAssignable(role, request.RoleId);
+                var role = db.Queryable<RoleEntity>().InSingle(roleId);
+                var roleRejected = CheckAssignable(role, roleId);
                 if (roleRejected is not null)
                 {
                     return HandleResult<UserDto>.Fail(roleRejected.ErrorMessage, [.. roleRejected.Args]);
@@ -590,8 +590,8 @@ public class AccountComponent : ComponentBase, IAccount
                 {
                     UserName = name,
                     DisplayName = displayName.Length == 0 ? name : displayName,
-                    PasswordHash = HashPassword(request.Password),
-                    RoleId = request.RoleId
+                    PasswordHash = HashPassword(password),
+                    RoleId = roleId
                 };
                 user.Id = db.Insertable(user).ExecuteReturnBigIdentity();
                 var roles = db.Queryable<RoleEntity>().ToList().ToDictionary(item => item.Id);
@@ -608,9 +608,9 @@ public class AccountComponent : ComponentBase, IAccount
         return result;
     }
 
-    public HandleResult UpdateUser(UserUpdateRequest request)
+    public HandleResult UpdateUser(long id, string displayName, long roleId)
     {
-        string displayName = (request.DisplayName ?? string.Empty).Trim();
+        displayName = (displayName ?? string.Empty).Trim();
         lock (_gate)
         {
             if (!_ready)
@@ -621,10 +621,10 @@ public class AccountComponent : ComponentBase, IAccount
             try
             {
                 using var db = CreateDb();
-                var user = db.Queryable<UserEntity>().InSingle(request.Id);
+                var user = db.Queryable<UserEntity>().InSingle(id);
                 if (user is null)
                 {
-                    return HandleResult.Fail(ErrorCodes.AccountUserNotFound, request.Id.ToString(CultureInfo.InvariantCulture));
+                    return HandleResult.Fail(ErrorCodes.AccountUserNotFound, id.ToString(CultureInfo.InvariantCulture));
                 }
 
                 var rejected = CheckDisplayName(displayName);
@@ -633,20 +633,20 @@ public class AccountComponent : ComponentBase, IAccount
                     return rejected;
                 }
 
-                if (user.IsBuiltIn && request.RoleId != user.RoleId)
+                if (user.IsBuiltIn && roleId != user.RoleId)
                 {
                     return HandleResult.Fail(ErrorCodes.AccountBuiltInUser, user.UserName);
                 }
 
-                var role = db.Queryable<RoleEntity>().InSingle(request.RoleId);
-                var roleRejected = CheckAssignable(role, request.RoleId);
+                var role = db.Queryable<RoleEntity>().InSingle(roleId);
+                var roleRejected = CheckAssignable(role, roleId);
                 if (roleRejected is not null)
                 {
                     return roleRejected;
                 }
 
                 user.DisplayName = displayName.Length == 0 ? user.UserName : displayName;
-                user.RoleId = request.RoleId;
+                user.RoleId = roleId;
                 user.UpdatedTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.DisplayName, item.RoleId, item.UpdatedTime }).ExecuteCommand();
                 LogHelper.Info(this, $"改了账号 {user.UserName}：显示名 {user.DisplayName}，角色 {role!.Name}");
@@ -661,7 +661,7 @@ public class AccountComponent : ComponentBase, IAccount
         return HandleResult.Success();
     }
 
-    public HandleResult ResetPassword(UserPasswordResetRequest request)
+    public HandleResult ResetPassword(long id, string password)
     {
         lock (_gate)
         {
@@ -673,19 +673,19 @@ public class AccountComponent : ComponentBase, IAccount
             try
             {
                 using var db = CreateDb();
-                var user = db.Queryable<UserEntity>().InSingle(request.Id);
+                var user = db.Queryable<UserEntity>().InSingle(id);
                 if (user is null)
                 {
-                    return HandleResult.Fail(ErrorCodes.AccountUserNotFound, request.Id.ToString(CultureInfo.InvariantCulture));
+                    return HandleResult.Fail(ErrorCodes.AccountUserNotFound, id.ToString(CultureInfo.InvariantCulture));
                 }
 
-                var rejected = CheckPassword(request.Password);
+                var rejected = CheckPassword(password);
                 if (rejected is not null)
                 {
                     return rejected;
                 }
 
-                user.PasswordHash = HashPassword(request.Password);
+                user.PasswordHash = HashPassword(password);
                 user.UpdatedTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.PasswordHash, item.UpdatedTime }).ExecuteCommand();
                 LogHelper.Info(this, $"重置了账号 {user.UserName} 的密码");
@@ -698,7 +698,7 @@ public class AccountComponent : ComponentBase, IAccount
         }
     }
 
-    public HandleResult SetUserEnabled(UserEnableRequest request)
+    public HandleResult SetUserEnabled(long id, bool isEnabled)
     {
         lock (_gate)
         {
@@ -710,26 +710,26 @@ public class AccountComponent : ComponentBase, IAccount
             try
             {
                 using var db = CreateDb();
-                var user = db.Queryable<UserEntity>().InSingle(request.Id);
+                var user = db.Queryable<UserEntity>().InSingle(id);
                 if (user is null)
                 {
-                    return HandleResult.Fail(ErrorCodes.AccountUserNotFound, request.Id.ToString(CultureInfo.InvariantCulture));
+                    return HandleResult.Fail(ErrorCodes.AccountUserNotFound, id.ToString(CultureInfo.InvariantCulture));
                 }
 
-                if (user.IsBuiltIn && !request.IsEnabled)
+                if (user.IsBuiltIn && !isEnabled)
                 {
                     return HandleResult.Fail(ErrorCodes.AccountBuiltInUser, user.UserName);
                 }
 
-                if (user.IsEnabled == request.IsEnabled)
+                if (user.IsEnabled == isEnabled)
                 {
                     return HandleResult.Success();
                 }
 
-                user.IsEnabled = request.IsEnabled;
+                user.IsEnabled = isEnabled;
                 user.UpdatedTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.IsEnabled, item.UpdatedTime }).ExecuteCommand();
-                LogHelper.Info(this, request.IsEnabled ? $"启用了账号 {user.UserName}" : $"停用了账号 {user.UserName}");
+                LogHelper.Info(this, isEnabled ? $"启用了账号 {user.UserName}" : $"停用了账号 {user.UserName}");
             }
             catch (Exception exception)
             {
@@ -839,10 +839,10 @@ public class AccountComponent : ComponentBase, IAccount
         }
     }
 
-    public HandleResult<RoleDto> CreateRole(RoleSaveRequest request)
+    public HandleResult<RoleDto> CreateRole(string name, string description)
     {
-        string name = (request.Name ?? string.Empty).Trim();
-        string description = (request.Description ?? string.Empty).Trim();
+        name = (name ?? string.Empty).Trim();
+        description = (description ?? string.Empty).Trim();
         HandleResult<RoleDto> result;
         lock (_gate)
         {
@@ -874,10 +874,10 @@ public class AccountComponent : ComponentBase, IAccount
         return result;
     }
 
-    public HandleResult UpdateRole(RoleSaveRequest request)
+    public HandleResult UpdateRole(long id, string name, string description)
     {
-        string name = (request.Name ?? string.Empty).Trim();
-        string description = (request.Description ?? string.Empty).Trim();
+        name = (name ?? string.Empty).Trim();
+        description = (description ?? string.Empty).Trim();
         lock (_gate)
         {
             if (!_ready)
@@ -888,10 +888,10 @@ public class AccountComponent : ComponentBase, IAccount
             try
             {
                 using var db = CreateDb();
-                var role = db.Queryable<RoleEntity>().InSingle(request.Id);
+                var role = db.Queryable<RoleEntity>().InSingle(id);
                 if (role is null)
                 {
-                    return HandleResult.Fail(ErrorCodes.AccountRoleNotFound, request.Id.ToString(CultureInfo.InvariantCulture));
+                    return HandleResult.Fail(ErrorCodes.AccountRoleNotFound, id.ToString(CultureInfo.InvariantCulture));
                 }
 
                 if (role.Kind != (int)RoleKind.Normal)
@@ -1011,7 +1011,7 @@ public class AccountComponent : ComponentBase, IAccount
         }
     }
 
-    public HandleResult SavePermissions(RolePermissionsSaveRequest request)
+    public HandleResult SavePermissions(long roleId, IReadOnlyList<RolePermissionItem> items)
     {
         lock (_gate)
         {
@@ -1023,10 +1023,10 @@ public class AccountComponent : ComponentBase, IAccount
             try
             {
                 using var db = CreateDb();
-                var role = db.Queryable<RoleEntity>().InSingle(request.RoleId);
+                var role = db.Queryable<RoleEntity>().InSingle(roleId);
                 if (role is null)
                 {
-                    return HandleResult.Fail(ErrorCodes.AccountRoleNotFound, request.RoleId.ToString(CultureInfo.InvariantCulture));
+                    return HandleResult.Fail(ErrorCodes.AccountRoleNotFound, roleId.ToString(CultureInfo.InvariantCulture));
                 }
 
                 if (role.Kind == (int)RoleKind.Admin)
@@ -1036,7 +1036,7 @@ public class AccountComponent : ComponentBase, IAccount
 
                 // 同一项给了几次的以最后一次为准
                 var levels = new Dictionary<string, PermissionLevel>(StringComparer.Ordinal);
-                foreach (var item in request.Items)
+                foreach (var item in items)
                 {
                     string code = (item.Code ?? string.Empty).Trim();
                     if (code.Length == 0 || code.Length > CodeMaxLength || !Enum.IsDefined(item.Level))

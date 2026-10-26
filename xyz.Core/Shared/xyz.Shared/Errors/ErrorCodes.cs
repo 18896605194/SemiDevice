@@ -3,6 +3,15 @@
 
 public static class ErrorCodes
 {
+    #region 请求
+
+    /// <summary>
+    /// 请求参数不对：该带的没带、类型对不上（多半是客户端和后端版本不一样）。Args: 无
+    /// </summary>
+    public const string RequestInvalid = "rpc.request_invalid";
+
+    #endregion
+
     #region 模块通用
 
     /// <summary>模块不存在。Args: [模块名]</summary>
@@ -219,9 +228,6 @@ public static class ErrorCodes
 
     /// <summary>设备动作的参数不对：不是有限数、速度是负的、点动速度或步距是 0。Args: [设备路径, 动作（ChamberDeviceAction）]</summary>
     public const string ChamberDeviceArgsInvalid = "chamber.device_args_invalid";
-
-    /// <summary>续点动时没有在按住的点动（已经松手、被停止或中止顶掉了）。Args: [设备路径, 动作（ChamberDeviceAction）]</summary>
-    public const string ChamberJogNotHeld = "chamber.jog_not_held";
 
     /// <summary>设备指令没发出去：PLC 没连上、IO 点没配、轴没回零 / 没使能 / 正忙。Args: [设备路径, 动作（ChamberDeviceAction）]</summary>
     public const string ChamberDeviceCommandRejected = "chamber.device_command_rejected";

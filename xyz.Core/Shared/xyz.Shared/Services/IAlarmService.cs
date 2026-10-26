@@ -4,10 +4,7 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Shared.Services;
 
-/// <summary>
-/// 报警服务契约：当前报警、人工复位、报警历史查询。
-/// 报警的报出与清除实时走事件流（EventBus token = AlarmDto.EventToken）。
-/// </summary>
+
 [ServiceContract]
 public interface IAlarmService
 {
@@ -18,7 +15,7 @@ public interface IAlarmService
     Task<RpcResponse> GetActiveAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 人工复位一个报警来源（连同它的子组件），走那个组件的 Reset。Parameters["Source"] = 来源路径。
+    /// 人工复位一个报警来源（连同它的子组件），走那个组件的 Reset。参数：Source（string，来源路径）
     /// </summary>
     [OperationContract]
     Task<RpcResponse> ResetAsync(RpcRequest request, CallContext context = default);
@@ -31,7 +28,8 @@ public interface IAlarmService
 
     /// <summary>
     /// 按时间段查报警记录。Data 为 HistoryResult&lt;AlarmHistoryDto&gt; 的 JSON（最新的在前）。
+    /// 参数：Start（DateTime，含）、End（DateTime，不含）、Level（string，可不带，空 = 全部）、Keyword（string，可不带）、MaxCount（int，可不带，&lt;=0 按后端配置）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> QueryHistoryAsync(AlarmHistoryQuery query, CallContext context = default);
+    Task<RpcResponse> QueryHistoryAsync(RpcRequest request, CallContext context = default);
 }

@@ -42,7 +42,7 @@ public static class ClientAccount
         try
         {
             var response = await GrpcClientFactory.Create<IAccountService>()
-                .LoginAsync(new LoginRequest { UserName = userName, Password = password });
+                .LoginAsync(RpcRequest.Of((RpcParams.UserName, userName), (RpcParams.Password, password)));
             if (!response.Success)
             {
                 return ErrorText.Of(response);
@@ -84,7 +84,7 @@ public static class ClientAccount
         try
         {
             await GrpcClientFactory.Create<IAccountService>()
-                .LogoutAsync(new LogoutRequest { UserName = userName, IsIdle = isIdle });
+                .LogoutAsync(RpcRequest.Of((RpcParams.UserName, userName), (RpcParams.IsIdle, isIdle)));
         }
         catch
         {
@@ -101,12 +101,10 @@ public static class ClientAccount
     {
         try
         {
-            var response = await GrpcClientFactory.Create<IAccountService>().ChangePasswordAsync(new PasswordChangeRequest
-            {
-                UserName = ClientSession.LoginName,
-                OldPassword = oldPassword,
-                NewPassword = newPassword
-            });
+            var response = await GrpcClientFactory.Create<IAccountService>().ChangePasswordAsync(RpcRequest.Of(
+                (RpcParams.UserName, ClientSession.LoginName),
+                (RpcParams.OldPassword, oldPassword),
+                (RpcParams.NewPassword, newPassword)));
             if (!response.Success)
             {
                 return ErrorText.Of(response);
@@ -135,7 +133,7 @@ public static class ClientAccount
         try
         {
             var response = await GrpcClientFactory.Create<IAccountService>()
-                .GetSessionAsync(new SessionRequest { UserName = userName });
+                .GetSessionAsync(RpcRequest.Of((RpcParams.UserName, userName)));
             if (response.Success)
             {
                 ClientSession.Apply(response.DeserializeData<SessionDto>());

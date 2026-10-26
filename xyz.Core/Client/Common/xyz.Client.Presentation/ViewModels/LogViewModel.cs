@@ -103,7 +103,7 @@ public class LogViewModel : BaseViewModel, IDisposable
         try
         {
             // 后端缓冲里有多少补多少（缓冲条数在 machine.xml 的 Log 节点配）
-            var response = await service.GetRecentAsync(new LogQuery());
+            var response = await service.GetRecentAsync(new RpcRequest());
             if (!response.Success)
             {
                 return;

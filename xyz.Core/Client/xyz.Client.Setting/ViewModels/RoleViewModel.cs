@@ -394,7 +394,7 @@ public class RoleViewModel : BaseViewModel
 
         try
         {
-            var response = await _roleService.GetPermissionsAsync(new AccountIdRequest { Id = role.Id });
+            var response = await _roleService.GetPermissionsAsync(RpcRequest.Of((RpcParams.Id, role.Id)));
             if (!response.Success)
             {
                 ClientLog.Error(LogModule, $"查角色 {role.DisplayName} 的权限失败：{ErrorText.Of(response)}");
@@ -461,7 +461,7 @@ public class RoleViewModel : BaseViewModel
         long createdId = 0;
         bool created = DialogService.ShowRole(L10n.Get("account.role.create_title"), string.Empty, string.Empty, async (name, description) =>
         {
-            var response = await _roleService.CreateRoleAsync(new RoleSaveRequest { Name = name, Description = description });
+            var response = await _roleService.CreateRoleAsync(RpcRequest.Of((RpcParams.Name, name), (RpcParams.Description, description)));
             if (!response.Success)
             {
                 return ErrorText.Of(response);
@@ -489,7 +489,10 @@ public class RoleViewModel : BaseViewModel
 
         bool renamed = DialogService.ShowRole(L10n.Get("account.role.edit_title"), role.Name, role.Description, async (name, description) =>
         {
-            var response = await _roleService.UpdateRoleAsync(new RoleSaveRequest { Id = role.Id, Name = name, Description = description });
+            var response = await _roleService.UpdateRoleAsync(RpcRequest.Of(
+                (RpcParams.Id, role.Id),
+                (RpcParams.Name, name),
+                (RpcParams.Description, description)));
             return response.Success ? null : ErrorText.Of(response);
         });
         if (renamed)
@@ -514,7 +517,7 @@ public class RoleViewModel : BaseViewModel
 
         try
         {
-            var response = await _roleService.DeleteRoleAsync(new AccountIdRequest { Id = role.Id });
+            var response = await _roleService.DeleteRoleAsync(RpcRequest.Of((RpcParams.Id, role.Id)));
             if (!response.Success)
             {
                 ClientLog.Error(LogModule, $"删角色 {role.DisplayName} 没成：{ErrorText.Of(response)}");
@@ -549,7 +552,7 @@ public class RoleViewModel : BaseViewModel
             .ToList();
         try
         {
-            var response = await _roleService.SavePermissionsAsync(new RolePermissionsSaveRequest { RoleId = role.Id, Items = items });
+            var response = await _roleService.SavePermissionsAsync(RpcRequest.Of((RpcParams.RoleId, role.Id), (RpcParams.Items, items)));
             if (!response.Success)
             {
                 ClientLog.Error(LogModule, $"保存角色 {role.DisplayName} 的权限没成：{ErrorText.Of(response)}");

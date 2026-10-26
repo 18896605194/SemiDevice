@@ -8,6 +8,7 @@ using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -116,11 +117,14 @@ public class EquipmentService : BaseService, IEquipmentService
     /// </summary>
     public Task<RpcResponse> SetWaferSizeAsync(RpcRequest request, CallContext context = default)
     {
-        request.Parameters.TryGetValue(IEquipmentService.WaferSizeKey, out string? sizeText);
-        sizeText ??= string.Empty;
-        if (!int.TryParse(sizeText, NumberStyles.None, CultureInfo.InvariantCulture, out int size) || !WaferSizeComponent.IsSupported(size))
+        if (!request.TryGet<int>(RpcParams.Size, out var size))
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInvalid, [sizeText]));
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInvalid, [string.Empty]));
+        }
+
+        if (!WaferSizeComponent.IsSupported(size))
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInvalid, [size.ToString(CultureInfo.InvariantCulture)]));
         }
 
         if (_waferSize is null)

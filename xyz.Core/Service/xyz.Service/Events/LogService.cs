@@ -5,6 +5,7 @@ using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 
 namespace xyz.Service.Events;
@@ -24,13 +25,13 @@ public class LogService : ILogService
     /// <summary>
     /// 多少条
     /// </summary>
-    /// <param name="query"></param>
+    /// <param name="request"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    public Task<RpcResponse> GetRecentAsync(LogQuery query, CallContext context = default)
+    public Task<RpcResponse> GetRecentAsync(RpcRequest request, CallContext context = default)
     {
         var logs = _log?.Recent() ?? [];
-        var count = query.Count;
+        var count = request.Get(RpcParams.Count, 0);
         if (count > 0 && logs.Count > count)
         {
             logs = logs.Skip(logs.Count - count).ToList();
@@ -42,29 +43,36 @@ public class LogService : ILogService
    /// <summary>
    /// 查询的区间，根据日期
    /// </summary>
-   /// <param name="query"></param>
+   /// <param name="request"></param>
    /// <param name="context"></param>
    /// <returns></returns>
-    public Task<RpcResponse> QueryHistoryAsync(LogHistoryQuery query, CallContext context = default)
+    public Task<RpcResponse> QueryHistoryAsync(RpcRequest request, CallContext context = default)
     {
+        if (!request.TryGet<DateTime>(RpcParams.Start, out var start)
+            || !request.TryGet<DateTime>(RpcParams.End, out var end))
+        {
+            return InvalidRequest();
+        }
+
+        string module = request.Get(RpcParams.Module, string.Empty);
+        string level = request.Get(RpcParams.Level, string.Empty);
+        string keyword = request.Get(RpcParams.Keyword, string.Empty);
+        int maxCount = request.Get(RpcParams.MaxCount, 0);
         return Task.Run(() =>
         {
             try
             {
-                var module = query.Module ?? string.Empty;
-                var level = query.Level ?? string.Empty;
-                var keyword = query.Keyword ?? string.Empty;
                 var configured = _log?.HistoryQueryMaxCount ?? 0;
                 if (configured <= 0)
                 {
                     configured = 1000;
                 }
 
-                var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, configured) : configured;
+                var limit = maxCount > 0 ? Math.Min(maxCount, configured) : configured;
 
                 var kept = new Queue<LogItem>();
                 bool truncated = false;
-                foreach (var item in LogFileReader.Read(query.Start, query.End))
+                foreach (var item in LogFileReader.Read(start, end))
                 {
                     if (module.Length > 0 && !string.Equals(item.Module, module, StringComparison.OrdinalIgnoreCase))
                     {
@@ -87,7 +95,7 @@ public class LogService : ILogService
                     }
 
                     kept.Enqueue(item);
-                    if (kept.Count > maxCount)
+                    if (kept.Count > limit)
                     {
                         kept.Dequeue();
                         truncated = true;
@@ -159,5 +167,13 @@ public class LogService : ILogService
     private static int PositiveOr(int? value, int fallback)
     {
         return value > 0 ? value.Value : fallback;
+    }
+
+    /// <summary>
+    /// 请求参数不对回包（rpc.request_invalid）
+    /// </summary>
+    private static Task<RpcResponse> InvalidRequest()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 }

@@ -3,14 +3,14 @@ using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
 namespace xyz.Service;
 
 /// <summary>
-/// IO 输出点手动写入 gRPC 服务（IO 界面开关 DO、下发 AO）：写进 PLC 即回包，实际输出以下一包推送的回读为准。
-/// 每次手动写都记一条日志——强制输出是现场最容易出事的操作，事后要查得到什么时候动了哪个点。
+/// IO  服务
 /// </summary>
 public class IoService : IIoService
 {
@@ -21,23 +21,35 @@ public class IoService : IIoService
         _io = IocHelper.GetService<IIo>();
     }
 
-    public Task<RpcResponse> WriteDoAsync(IoWriteRequest request)
+    public Task<RpcResponse> WriteDoAsync(RpcRequest request)
     {
-        bool on = request.Value != 0;
-        if (_io is null || !_io.WriteDo(request.Index, on))
+        if (!request.TryGet<int>(RpcParams.Index, out var index)
+            || !request.TryGet<double>(RpcParams.Value, out var value))
         {
-            return WriteFailed("DO", request.Index);
+            return InvalidRequest();
+        }
+
+        bool on = value != 0;
+        if (_io is null || !_io.WriteDo(index, on))
+        {
+            return WriteFailed("DO", index);
         }
 
         return Task.FromResult(RpcResponse.Ok());
     }
 
-    public Task<RpcResponse> WriteAoAsync(IoWriteRequest request)
+    public Task<RpcResponse> WriteAoAsync(RpcRequest request)
     {
-        var point = _io?.Ao.Find(request.Index);
+        if (!request.TryGet<int>(RpcParams.Index, out var index)
+            || !request.TryGet<double>(RpcParams.Value, out var value))
+        {
+            return InvalidRequest();
+        }
+
+        var point = _io?.Ao.Find(index);
         if (_io is null || point is null)
         {
-            return WriteFailed("AO", request.Index);
+            return WriteFailed("AO", index);
         }
 
         // 标定过的点按工程量范围卡住：模拟量输出多半是流量、压力、转速设定，给过头了设备会照做。
@@ -45,19 +57,27 @@ public class IoService : IIoService
         {
             double min = Math.Min(point.LogicalMin, point.LogicalMax);
             double max = Math.Max(point.LogicalMin, point.LogicalMax);
-            if (request.Value < min || request.Value > max)
+            if (value < min || value > max)
             {
                 return Task.FromResult(RpcResponse.Fail(ErrorCodes.IoOutOfRange,
-                    [request.Index.ToString(), Format(min), Format(max), point.Unit]));
+                    [index.ToString(), Format(min), Format(max), point.Unit]));
             }
         }
 
-        if (!_io.WriteAo(request.Index, request.Value))
+        if (!_io.WriteAo(index, value))
         {
-            return WriteFailed("AO", request.Index);
+            return WriteFailed("AO", index);
         }
 
         return Task.FromResult(RpcResponse.Ok());
+    }
+
+    /// <summary>
+    /// 请求参数不对回包（rpc.request_invalid）
+    /// </summary>
+    private static Task<RpcResponse> InvalidRequest()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RequestInvalid, []));
     }
 
     private static Task<RpcResponse> WriteFailed(string type, int index)

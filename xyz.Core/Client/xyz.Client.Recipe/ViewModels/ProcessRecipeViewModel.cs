@@ -723,7 +723,7 @@ public class ProcessRecipeViewModel : BaseViewModel
 
         try
         {
-            var response = await _service.GetAsync(new ProcessRecipeIndexRequest { Index = slot.Index });
+            var response = await _service.GetAsync(RpcRequest.Of((RpcParams.Index, slot.Index)));
             if (version != _openVersion || !ReferenceEquals(slot, _selectedSlot))
             {
                 return;
@@ -1163,16 +1163,14 @@ public class ProcessRecipeViewModel : BaseViewModel
             }
         }
 
-        var request = new ProcessRecipeSaveRequest
-        {
-            Index = current.Index,
-            Revision = current.Revision,
-            Type = HeadValue(TypeKey),
-            Timeout = HeadValue(TimeoutKey),
-            Description = HeadValue(DescriptionKey),
-            Head = head,
-            Steps = Steps.Select(step => step.ToDto()).ToList(),
-        };
+        var request = RpcRequest.Of(
+            (RpcParams.Index, current.Index),
+            (RpcParams.Revision, current.Revision),
+            (RpcParams.Type, HeadValue(TypeKey)),
+            (RpcParams.Timeout, HeadValue(TimeoutKey)),
+            (RpcParams.Description, HeadValue(DescriptionKey)),
+            (RpcParams.Head, head),
+            (RpcParams.Steps, Steps.Select(step => step.ToDto()).ToList()));
 
         var response = await Call(() => _service.SaveAsync(request), "recipe.process.save_failed");
         if (response is null)
@@ -1267,11 +1265,9 @@ public class ProcessRecipeViewModel : BaseViewModel
             return;
         }
 
-        var response = await CallInDialog(() => _service.CreateAsync(new ProcessRecipeCreateRequest
-        {
-            Index = slot.Index,
-            Name = DialogName.Trim(),
-        }));
+        var response = await CallInDialog(() => _service.CreateAsync(RpcRequest.Of(
+            (RpcParams.Index, slot.Index),
+            (RpcParams.Name, DialogName.Trim()))));
         if (response is null)
         {
             return;
@@ -1301,11 +1297,9 @@ public class ProcessRecipeViewModel : BaseViewModel
             return;
         }
 
-        var response = await CallInDialog(() => _service.RenameAsync(new ProcessRecipeRenameRequest
-        {
-            Index = current.Index,
-            Name = DialogName.Trim(),
-        }));
+        var response = await CallInDialog(() => _service.RenameAsync(RpcRequest.Of(
+            (RpcParams.Index, current.Index),
+            (RpcParams.Name, DialogName.Trim()))));
         if (response is null)
         {
             return;
@@ -1340,10 +1334,7 @@ public class ProcessRecipeViewModel : BaseViewModel
             return;
         }
 
-        var response = await CallInDialog(() => _service.DeleteAsync(new ProcessRecipeDeleteRequest
-        {
-            Index = current.Index,
-        }));
+        var response = await CallInDialog(() => _service.DeleteAsync(RpcRequest.Of((RpcParams.Index, current.Index))));
         if (response is null)
         {
             return;

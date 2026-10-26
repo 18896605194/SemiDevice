@@ -7,16 +7,13 @@ using xyz.Database.Wafers;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
 namespace xyz.Service.Wafers;
 
-/// <summary>
-/// 晶圆账 gRPC 服务（设置 → 账单调整页）：给界面看账，人按实物移账、删账、补账。只改系统账，不让设备做任何动作。
-/// 能调整的位置跟着配置走：所有机械手 machine.xml 里 Stations 配的站点合并，再加上机械手自己（手指）；
-/// 4 个 LoadPort、2 台机械手、8 个腔体也好，再多 Aligner、Buffer 也好，页面都不用改。
-/// </summary>
+
 public class WaferLedgerService : BaseService, IWaferLedgerService
 {
     private readonly ILedgerManager? _ledger;
@@ -47,15 +44,24 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
 
-    public Task<RpcResponse> MoveAsync(WaferMoveRequest request, CallContext context = default)
+    public Task<RpcResponse> MoveAsync(RpcRequest request, CallContext context = default)
     {
         if (_ledger is null || !_ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
         }
 
-        string from = request.FromModule.Trim(), to = request.ToModule.Trim();
-        var result = _ledger.ManualMove(from, request.FromSlot, to, request.ToSlot, RpcOperator.Of(context), request.Reason);
+        if (!request.TryGet<string>(RpcParams.FromModule, out var fromModule)
+            || !request.TryGet<int>(RpcParams.FromSlot, out var fromSlot)
+            || !request.TryGet<string>(RpcParams.ToModule, out var toModule)
+            || !request.TryGet<int>(RpcParams.ToSlot, out var toSlot))
+        {
+            return InvalidRequest();
+        }
+
+        string reason = request.Get(RpcParams.Reason, string.Empty);
+        string from = fromModule.Trim(), to = toModule.Trim();
+        var result = _ledger.ManualMove(from, fromSlot, to, toSlot, RpcOperator.Of(context), reason);
         switch (result)
         {
             case WaferAdjustResult.Ok:
@@ -71,25 +77,32 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
                 return Fail(ErrorCodes.WaferLocationNotFound, to);
             case WaferAdjustResult.SlotOutOfRange:
-                return SlotOutOfRange(_ledger, from, request.FromSlot, to, request.ToSlot);
+                return SlotOutOfRange(_ledger, from, fromSlot, to, toSlot);
             case WaferAdjustResult.NoWafer:
-                return Fail(ErrorCodes.WaferNoWafer, from, request.FromSlot.ToString());
+                return Fail(ErrorCodes.WaferNoWafer, from, fromSlot.ToString());
             case WaferAdjustResult.SameSlot:
                 return Fail(ErrorCodes.WaferSameSlot);
             default:
-                return Fail(ErrorCodes.WaferSlotOccupied, to, request.ToSlot.ToString(), _ledger.Get(to, request.ToSlot)?.WaferId ?? string.Empty);
+                return Fail(ErrorCodes.WaferSlotOccupied, to, toSlot.ToString(), _ledger.Get(to, toSlot)?.WaferId ?? string.Empty);
         }
     }
 
-    public Task<RpcResponse> DeleteAsync(WaferDeleteRequest request, CallContext context = default)
+    public Task<RpcResponse> DeleteAsync(RpcRequest request, CallContext context = default)
     {
         if (_ledger is null || !_ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
         }
 
-        string module = request.Module.Trim();
-        var result = _ledger.ManualDelete(module, request.Slot, RpcOperator.Of(context), request.Reason);
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<int>(RpcParams.Slot, out var slot))
+        {
+            return InvalidRequest();
+        }
+
+        string reason = request.Get(RpcParams.Reason, string.Empty);
+        module = module.Trim();
+        var result = _ledger.ManualDelete(module, slot, RpcOperator.Of(context), reason);
         switch (result)
         {
             case WaferAdjustResult.Ok:
@@ -99,22 +112,30 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
             case WaferAdjustResult.LocationNotFound:
                 return Fail(ErrorCodes.WaferLocationNotFound, module);
             case WaferAdjustResult.SlotOutOfRange:
-                return Fail(ErrorCodes.WaferSlotOutOfRange, module, request.Slot.ToString(), _ledger.GetSlots(module).Count.ToString());
+                return Fail(ErrorCodes.WaferSlotOutOfRange, module, slot.ToString(), _ledger.GetSlots(module).Count.ToString());
             default:
-                return Fail(ErrorCodes.WaferNoWafer, module, request.Slot.ToString());
+                return Fail(ErrorCodes.WaferNoWafer, module, slot.ToString());
         }
     }
 
-    public Task<RpcResponse> CreateAsync(WaferCreateRequest request, CallContext context = default)
+    public Task<RpcResponse> CreateAsync(RpcRequest request, CallContext context = default)
     {
         if (_ledger is null || !_ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
         }
 
-        string module = request.Module.Trim();
-        string waferId = request.WaferId.Trim();
-        var result = _ledger.ManualCreate(module, request.Slot, waferId, RpcOperator.Of(context), request.Reason);
+        if (!request.TryGet<string>(RpcParams.Module, out var module)
+            || !request.TryGet<int>(RpcParams.Slot, out var slot)
+            || !request.TryGet<string>(RpcParams.WaferId, out var waferId))
+        {
+            return InvalidRequest();
+        }
+
+        string reason = request.Get(RpcParams.Reason, string.Empty);
+        module = module.Trim();
+        waferId = waferId.Trim();
+        var result = _ledger.ManualCreate(module, slot, waferId, RpcOperator.Of(context), reason);
         switch (result)
         {
             case WaferAdjustResult.Ok:
@@ -124,9 +145,9 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
             case WaferAdjustResult.LocationNotFound:
                 return Fail(ErrorCodes.WaferLocationNotFound, module);
             case WaferAdjustResult.SlotOutOfRange:
-                return Fail(ErrorCodes.WaferSlotOutOfRange, module, request.Slot.ToString(), _ledger.GetSlots(module).Count.ToString());
+                return Fail(ErrorCodes.WaferSlotOutOfRange, module, slot.ToString(), _ledger.GetSlots(module).Count.ToString());
             case WaferAdjustResult.SlotOccupied:
-                return Fail(ErrorCodes.WaferSlotOccupied, module, request.Slot.ToString(), _ledger.Get(module, request.Slot)?.WaferId ?? string.Empty);
+                return Fail(ErrorCodes.WaferSlotOccupied, module, slot.ToString(), _ledger.Get(module, slot)?.WaferId ?? string.Empty);
             case WaferAdjustResult.WaferIdRequired:
                 return Fail(ErrorCodes.WaferIdRequired);
             default:

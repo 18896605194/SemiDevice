@@ -1,6 +1,4 @@
-﻿using ProtoBuf;
-
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 一项 EC（在线可调参数）的定义与当前值：EC 设置页列参数、改值，通用输入框按 EcKey 取格式、上下限、单位都用它。
@@ -38,23 +36,4 @@ public class EcItemDto
     /// Enum 的可选值，逗号分隔。
     /// </summary>
     public string? Options { get; set; }
-}
-
-/// <summary>
-/// 改一项 EC 的请求（EC 设置页）。code-first gRPC 的请求参数必须是消息类，故包一层。
-/// </summary>
-[ProtoContract]
-public class EcSetRequest
-{
-    /// <summary>
-    /// 键："组件全路径.参数名"。
-    /// </summary>
-    [ProtoMember(1)]
-    public string Key { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 新值，按不变区域性写（小数点是点号）；布尔写 True / False，枚举写可选值里的一个。
-    /// </summary>
-    [ProtoMember(2)]
-    public string Value { get; set; } = string.Empty;
 }
