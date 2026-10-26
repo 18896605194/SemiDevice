@@ -1,4 +1,5 @@
 ﻿using ProtoBuf.Grpc;
+using xyz.Common;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
@@ -9,7 +10,7 @@ using xyz.Tools;
 namespace xyz.Service.Charts;
 
 /// <summary>
-/// 实时曲线 gRPC 服务：信号表、最近一段都走实时曲线组件（IRealChart）；每帧不走这里，走事件流。
+/// 实时曲线 服务
 /// </summary>
 public class RealChartService : IRealChartService
 {
@@ -68,22 +69,10 @@ public class RealChartService : IRealChartService
             Series = wanted.Select(name => new DataChartSeriesDto
             {
                 Name = name,
-                Values = recent.Select(record => ToFloat(record.Values[indexes[name]])).ToList(),
+                // 转单精度：曲线够用，包小一半
+                Values = recent.Select(record => ValueHelper.ToFloat(record.Values[indexes[name]])).ToList(),
             }).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result)));
-    }
-
-    /// <summary>
-    /// 值转单精度（曲线够用，包小一半）
-    /// </summary>
-    private static float? ToFloat(double? value)
-    {
-        if (value is null)
-        {
-            return null;
-        }
-
-        return (float)value.Value;
     }
 }

@@ -12,7 +12,7 @@ using xyz.Tools;
 namespace xyz.Service.Alarms;
 
 /// <summary>
-/// 报警 gRPC 服务：当前报警与人工复位走报警组件（IAlarm），报警历史查报警记录表。
+/// 报警服务
 /// </summary>
 public class AlarmService : IAlarmService
 {
@@ -26,6 +26,12 @@ public class AlarmService : IAlarmService
         _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
+    /// <summary>
+    /// 获取活跃的报警
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> GetActiveAsync(RpcRequest request, CallContext context = default)
     {
         var alarms = _alarms?.ActiveAlarms.Select(item => _mapper.Map<AlarmDto>(item)).ToList() ?? [];
@@ -33,7 +39,7 @@ public class AlarmService : IAlarmService
     }
 
     /// <summary>
-    /// 复位一个来源：走那个组件的 Reset（模块会顺带发设备复位），报警清掉后经事件流推给界面。
+    /// Reset
     /// </summary>
     public Task<RpcResponse> ResetAsync(RpcRequest request, CallContext context = default)
     {
@@ -51,6 +57,12 @@ public class AlarmService : IAlarmService
         return Task.FromResult(RpcResponse.Ok());
     }
 
+    /// <summary>
+    /// ResetAllAsync
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public Task<RpcResponse> ResetAllAsync(RpcRequest request, CallContext context = default)
     {
         if (_alarms is null)
@@ -62,7 +74,7 @@ public class AlarmService : IAlarmService
     }
 
     /// <summary>
-    /// 查报警记录表（按天分表，只查时间段内已有的日表），再按等级、关键字筛，最新的在前。读库放线程池。
+    /// 查报警记录表
     /// </summary>
     public Task<RpcResponse> QueryHistoryAsync(AlarmHistoryQuery query, CallContext context = default)
     {

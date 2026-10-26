@@ -1,4 +1,5 @@
 ﻿using SqlSugar;
+using xyz.Common;
 using xyz.Components.Models;
 
 namespace xyz.Components.Components;
@@ -117,8 +118,9 @@ internal static class DataRecordQuery
                 continue;
             }
 
-            long dayFrom = Math.Max(from, LocalMilliseconds(day));
-            long dayTo = Math.Min(to, LocalMilliseconds(day.AddDays(1)));
+            // 日表按本机日期分：这张表管本机这一天零点到下一天零点
+            long dayFrom = Math.Max(from, DateTimeHelper.ToUnixMilliseconds(day));
+            long dayTo = Math.Min(to, DateTimeHelper.ToUnixMilliseconds(day.AddDays(1)));
             for (long sliceFrom = dayFrom; sliceFrom < dayTo; sliceFrom += sliceMs)
             {
                 token.ThrowIfCancellationRequested();
@@ -176,19 +178,6 @@ internal static class DataRecordQuery
             Names = names,
             Values = values.Select(list => list.ToArray()).ToArray(),
         };
-    }
-
-    /// <summary>
-    /// 本机日期的零点 → UTC 毫秒（日表按本机日期分）
-    /// </summary>
-    private static long LocalMilliseconds(DateTime day)
-    {
-        return new DateTimeOffset(DateTime.SpecifyKind(day, DateTimeKind.Local)).ToUnixTimeMilliseconds();
-    }
-
-    private static float? ToFloat(double? value)
-    {
-        return value is not null ? (float)value.Value : null;
     }
 
     private struct Stat
@@ -254,7 +243,7 @@ internal static class DataRecordQuery
             _times.Add(time);
             for (int index = 0; index < count; index++)
             {
-                _values[index].Add(ToFloat(row[index]));
+                _values[index].Add(ValueHelper.ToFloat(row[index]));
             }
 
             _last = time;

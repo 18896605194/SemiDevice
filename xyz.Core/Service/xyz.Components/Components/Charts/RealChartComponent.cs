@@ -1,4 +1,5 @@
-﻿using xyz.Common.Log;
+﻿using xyz.Common;
+using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -96,7 +97,7 @@ public class RealChartComponent : ComponentBase, IRealChart
     {
         _subscription?.Dispose();
         _source = source;
-        Session = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        Session = DateTimeHelper.NowUnixMilliseconds();
         _subscription = source.Records.Subscribe(Keep);
         if (!IsRun)
         {

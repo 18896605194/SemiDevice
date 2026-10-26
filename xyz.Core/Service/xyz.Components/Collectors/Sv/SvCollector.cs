@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+﻿using xyz.Common;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
@@ -163,21 +163,7 @@ public sealed class SvCollector
     {
         try
         {
-            object? raw = declaration.Property.GetValue(declaration.Owner);
-            double? value = null;
-            if (raw is bool flag)
-            {
-                value = flag ? 1 : 0;
-            }
-            else if (raw is Enum member)
-            {
-                value = Convert.ToDouble(member, CultureInfo.InvariantCulture);
-            }
-            else if (raw is IConvertible number && raw is not string)
-            {
-                value = number.ToDouble(CultureInfo.InvariantCulture);
-            }
-            return value is not null && double.IsFinite(value.Value) ? value.Value : null;
+            return ValueHelper.ToDouble(declaration.Property.GetValue(declaration.Owner));
         }
         catch
         {

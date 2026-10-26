@@ -1,4 +1,5 @@
 ﻿using Mapster;
+using xyz.Common;
 using xyz.Components.Attributes;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -48,7 +49,7 @@ public class MapperComponent : ComponentBase, IMapper
             .Map(dto => dto.Description, item => item.Description ?? string.Empty)
             .Map(dto => dto.Solution, item => item.Solution ?? string.Empty)
             .Map(dto => dto.RaisedAt, item => item.RaisedAt.LocalDateTime)
-            .Map(dto => dto.ClearedAt, item => LocalTimeOf(item.ClearedAt));
+            .Map(dto => dto.ClearedAt, item => DateTimeHelper.LocalTimeOf(item.ClearedAt));
 
         // DI 信号 → 给界面的信号：名字、触发了没有（读不到是 null）
         _config.NewConfig<IDiSensor, DiSensorDto>()
@@ -84,19 +85,6 @@ public class MapperComponent : ComponentBase, IMapper
         }
 
         return JsonHelper.Deserialize<List<JobWaferDto>>(json) ?? [];
-    }
-
-    /// <summary>
-    /// 清除时间转本机时间，没清除是 null
-    /// </summary>
-    private static DateTime? LocalTimeOf(DateTimeOffset? time)
-    {
-        if (time is null)
-        {
-            return null;
-        }
-
-        return time.Value.LocalDateTime;
     }
 
     /// <summary>

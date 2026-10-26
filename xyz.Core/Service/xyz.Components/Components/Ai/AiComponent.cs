@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.AI;
 using OpenAI;
+using xyz.Common;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
@@ -570,7 +571,7 @@ public class AiComponent : ComponentBase, IAi
     /// </summary>
     private static string Clock(long utcMilliseconds)
     {
-        return DateTimeOffset.FromUnixTimeMilliseconds(utcMilliseconds).LocalDateTime.ToString(ClockFormat, CultureInfo.InvariantCulture);
+        return DateTimeHelper.FromUnixMilliseconds(utcMilliseconds).ToString(ClockFormat, CultureInfo.InvariantCulture);
     }
 
     /// <summary>

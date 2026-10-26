@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Reflection;
+using xyz.Common;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
@@ -492,13 +493,8 @@ public class EcComponent : ComponentBase, IEc
     /// </summary>
     private static bool InRange(double number, EcValueConfig item)
     {
-        return !(TryParseLimit(item.Min, out double min) && number < min)
-               && !(TryParseLimit(item.Max, out double max) && number > max);
-    }
-
-    private static bool TryParseLimit(string? text, out double limit)
-    {
-        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out limit);
+        return !(ValueHelper.TryParseDouble(item.Min, out double min) && number < min)
+               && !(ValueHelper.TryParseDouble(item.Max, out double max) && number > max);
     }
 
     #endregion

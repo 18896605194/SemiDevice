@@ -3,6 +3,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using xyz.Common;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
@@ -358,7 +359,7 @@ public class DataChartComponent : ComponentBase, IDataChart
         }
 
         long interval = Math.Max(100, SampleIntervalMs);
-        long now = NowMs();
+        long now = DateTimeHelper.NowUnixMilliseconds();
         if (_next == 0 || _next - now > interval || now - _next >= interval)
         {
             // 头一拍，或者时钟调过、扫描卡了一个周期以上：从下一个整周期重新对齐，中间的不补
@@ -415,11 +416,6 @@ public class DataChartComponent : ComponentBase, IDataChart
         {
             _rowDone.Set();
         }
-    }
-
-    private static long NowMs()
-    {
-        return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
     private static long AlignUp(long time, long interval)
@@ -482,7 +478,8 @@ public class DataChartComponent : ComponentBase, IDataChart
             CleanupIfDayChanged();
             using var db = XyzDb.Create(Database);
             PrepareDatabase(db);
-            foreach (var day in batch.GroupBy(record => DayOf(record.Time)))
+            // 日表按本机日期分
+            foreach (var day in batch.GroupBy(record => DateTimeHelper.FromUnixMilliseconds(record.Time).Date))
             {
                 string table = DataRecordTable.NameOf(day.Key);
                 EnsureColumns(db, table);
@@ -558,14 +555,6 @@ public class DataChartComponent : ComponentBase, IDataChart
         _checkedTables.Add(table);
     }
 
-    /// <summary>
-    /// UTC 毫秒 → 本机日期：日表按本机日期分。
-    /// </summary>
-    private static DateTime DayOf(long time)
-    {
-        return DateTimeOffset.FromUnixTimeMilliseconds(time).LocalDateTime.Date;
-    }
-
     #endregion
 
     #region 过期清理
@@ -624,8 +613,8 @@ public class DataChartComponent : ComponentBase, IDataChart
         }
 
         // 界面传的是本机时间，走 gRPC 只保留刻度（Kind 丢了），这里按本机时间认。
-        long from = new DateTimeOffset(DateTime.SpecifyKind(start, DateTimeKind.Local)).ToUnixTimeMilliseconds();
-        long to = new DateTimeOffset(DateTime.SpecifyKind(end, DateTimeKind.Local)).ToUnixTimeMilliseconds();
+        long from = DateTimeHelper.ToUnixMilliseconds(start);
+        long to = DateTimeHelper.ToUnixMilliseconds(end);
         using var db = XyzDb.Create(Database);
         return DataRecordQuery.Run(db, names, from, to, start.Date, end.AddTicks(-1).Date,
             QueryMaxPoints, Math.Max(100, SampleIntervalMs), token);
@@ -650,8 +639,8 @@ public class DataChartComponent : ComponentBase, IDataChart
             yield break;
         }
 
-        long from = new DateTimeOffset(DateTime.SpecifyKind(start, DateTimeKind.Local)).ToUnixTimeMilliseconds();
-        long to = new DateTimeOffset(DateTime.SpecifyKind(end, DateTimeKind.Local)).ToUnixTimeMilliseconds();
+        long from = DateTimeHelper.ToUnixMilliseconds(start);
+        long to = DateTimeHelper.ToUnixMilliseconds(end);
         using var db = XyzDb.Create(Database);
         foreach (var slice in DataRecordQuery.Export(db, names, from, to, start.Date, end.AddTicks(-1).Date, ExportSliceMs, token))
         {

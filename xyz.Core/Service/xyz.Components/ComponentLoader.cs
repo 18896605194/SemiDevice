@@ -1,6 +1,6 @@
-﻿using System.Globalization;
-using System.Reflection;
+﻿using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using xyz.Common;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Models;
@@ -316,7 +316,7 @@ public static class ComponentLoader
         foreach (var property in properties)
         {
             var editor = property.GetCustomAttribute<MachineAttribute>()!;
-            property.SetValue(component, ConvertValue(property.PropertyType, editor.DefaultValue));
+            property.SetValue(component, ValueHelper.ConvertTo(property.PropertyType, editor.DefaultValue));
         }
 
         foreach (var value in setting.Values)
@@ -337,7 +337,7 @@ public static class ComponentLoader
 
             try
             {
-                property.SetValue(component, ConvertValue(property.PropertyType, value.Value));
+                property.SetValue(component, ValueHelper.ConvertTo(property.PropertyType, value.Value));
             }
             catch (Exception exception) when (
                 exception is FormatException or ArgumentException or NotSupportedException)
@@ -346,35 +346,5 @@ public static class ComponentLoader
                     $"machine.xml 节点 {setting.Name} 的值 {value.Name}=\"{value.Value}\" 无法转换为 {property.PropertyType.Name}。", exception);
             }
         }
-    }
-
-    private static object ConvertValue(Type targetType, string value)
-    {
-        if (targetType == typeof(int))
-        {
-            return int.Parse(value, CultureInfo.InvariantCulture);
-        }
-
-        if (targetType == typeof(double))
-        {
-            return double.Parse(value, CultureInfo.InvariantCulture);
-        }
-
-        if (targetType == typeof(bool))
-        {
-            return bool.Parse(value);
-        }
-
-        if (targetType == typeof(string))
-        {
-            return value;
-        }
-
-        if (targetType.IsEnum)
-        {
-            return Enum.Parse(targetType, value, ignoreCase: true);
-        }
-
-        throw new NotSupportedException($"{targetType.Name} 不支持的 machine.xml 配置类型。");
     }
 }

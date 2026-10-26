@@ -1556,3 +1556,17 @@
   `QueryRound` 改名 **`QueryDataLoop`**（用户定）；`StatusQueryResult` 改名 `StatusQueryEvent`（`Waiting` → `None`，变量叫 `happened`）——用户看 `var result = …Scan(...)` 以为是查询结果，
   其实只是"这一拍出了什么事"，查到的值在 `QueryDataLoop` 里 yield 后面写；**机械手查询超时、断线跟 LoadPort 一样清空查到的状态**（用户："和 LOADPORT 一样"），以前保留旧值、界面看不出已经不准了。
 - 第三方库、`ModuleRoutine`、PJ / CJ 管理、状态机、开工计数这类不是组件的，把所属组件作为 `ILogSource` 传进去；开机读 machine.xml 写错、GEM 编号表这类记 `Host`。
+
+## 后端帮助类：时间换算 DateTimeHelper、值换算 ValueHelper（2026-10-26，用户贴了 `DataRecordQuery.LocalMilliseconds`："类似这种的你放在后台的Common里面搞一个就是DataTimeHelper这个帮助类里面"；又贴了 `RealChartService.ToFloat`："这种的直接搞一个就是ValueHelper这种关于数据类型以及值转换的"）
+- **放哪**：后端 `xyz.Common` 根目录（命名空间 `xyz.Common`，跟日志同一个工程，组件层、模块层、服务层都引得到）。前后端都要用的帮助类照旧放 `xyz.Tools`（客户端引不到后端工程）。
+  用户说的 DataTimeHelper 按 DateTime 拼成 `DateTimeHelper`（交付时说了）。
+- **以后照这个写**：各文件里不再写私有的时间换算、值换算小方法，用这两个类，缺的往里加；带业务含义的读法（从哪读、读不到怎么办）留在各自的类里。
+- **`DateTimeHelper`**：`ToUnixMilliseconds`（本机时间 → UTC 毫秒，不看 Kind：界面传来的时间走 gRPC 丢了 Kind）、`FromUnixMilliseconds`（UTC 毫秒 → 本机时间）、`NowUnixMilliseconds`、
+  `LocalTimeOf`（`DateTimeOffset?` → 本机时间，空还是空）。收进来的：`DataRecordQuery.LocalMilliseconds`、`DataChartComponent` 的 `NowMs` / `DayOf` 和查询、导出里内联的四行、
+  `RealChartComponent` 的会话号、`AiComponent.Clock` 里的换算、`MapperComponent.LocalTimeOf`。
+- **`ValueHelper`**：`ToFloat`（`double?` → `float?`）、`ToDouble`（对象 → `double?`：开关量 1 / 0、枚举取数、别的数字照转，转不了或不是有限数为空）、`TryParseDouble`（不变区域性解析小数）、
+  `ConvertTo`（字符串按类型转值：int / double / bool / string / 枚举，machine.xml 装配用它，不支持的类型抛 `NotSupportedException`）。收进来的：`RealChartService`、`DataRecordQuery` 两份 `ToFloat`、
+  `SvCollector.ReadNumber` 里的换算（反射读值、读失败给空还在原地）、`EcComponent.TryParseLimit`、`ComponentLoader.ConvertValue`。
+- **没收的**：计时（`Stopwatch.GetElapsedTime` 本来就一行，`TankComponent.Elapsed` 留着）、采样对齐 `DataChartComponent.AlignUp`；带业务含义的读法（`IoPointTable.Number` 读点表格子、
+  `ChamberProcessRoutine.Number` 读配方字段、`BaseChamberModule.RoundForPush` 按推送位数取整、`AiComponent.ValueText`、`LogService.PositiveOr`）；OPC UA 的换算（`OpcUaHelper`，用户定的）、倍福字节块解码；
+  客户端（`DataChartExport`、`RealChartViewModel`、`DataChartViewModel`）和 `xyz.Tools.EventMessage` 里同样的换算（引不到后端工程）。

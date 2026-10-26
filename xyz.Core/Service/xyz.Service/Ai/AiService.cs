@@ -9,7 +9,7 @@ using xyz.Tools;
 namespace xyz.Service.Ai;
 
 /// <summary>
-/// AI 助手 gRPC 服务：转给 AI 组件（IAi），回答用的语言跟界面一样（整机 machine.xml 的 Language）；没配 Ai 节点回 ai.not_installed。
+/// AI 助手服务
 /// </summary>
 public class AiService : IAiService
 {
@@ -38,7 +38,7 @@ public class AiService : IAiService
     }
 
     /// <summary>
-    /// 解释一条当前报警：组件排队、整理材料、问模型；没做成原样回组件给的错误码
+    /// 解释一条报警
     /// </summary>
     public async Task<RpcResponse> ExplainAlarmAsync(AiAlarmRequest request, CallContext context = default)
     {
