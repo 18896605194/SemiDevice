@@ -25,16 +25,10 @@ public class RoleService : BaseService, IRoleService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
-        var result = account.GetRoles();
-        if (!result.IsSuccess)
-        {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
-        }
-
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+        return ReplyData(account.GetRoles());
     }
 
     public Task<RpcResponse> CreateRoleAsync(RpcRequest request, CallContext context = default)
@@ -42,7 +36,7 @@ public class RoleService : BaseService, IRoleService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.Name, out var name))
@@ -51,13 +45,7 @@ public class RoleService : BaseService, IRoleService
         }
 
         string description = request.Get(RpcParams.Description, string.Empty);
-        var result = account.CreateRole(name, description);
-        if (!result.IsSuccess)
-        {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
-        }
-
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+        return ReplyData(account.CreateRole(name, description));
     }
 
     public Task<RpcResponse> UpdateRoleAsync(RpcRequest request, CallContext context = default)
@@ -65,7 +53,7 @@ public class RoleService : BaseService, IRoleService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.Id, out var id)
@@ -83,7 +71,7 @@ public class RoleService : BaseService, IRoleService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.Id, out var id))
@@ -99,7 +87,7 @@ public class RoleService : BaseService, IRoleService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.Id, out var id))
@@ -107,13 +95,7 @@ public class RoleService : BaseService, IRoleService
             return InvalidRequest();
         }
 
-        var result = account.GetPermissions(id);
-        if (!result.IsSuccess)
-        {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
-        }
-
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+        return ReplyData(account.GetPermissions(id));
     }
 
     public Task<RpcResponse> SavePermissionsAsync(RpcRequest request, CallContext context = default)
@@ -121,7 +103,7 @@ public class RoleService : BaseService, IRoleService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.RoleId, out var roleId)
@@ -131,15 +113,5 @@ public class RoleService : BaseService, IRoleService
         }
 
         return Reply(account.SavePermissions(roleId, items));
-    }
-
-    private static Task<RpcResponse> NotInstalled()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.AccountNotInstalled, []));
-    }
-
-    private static Task<RpcResponse> Reply(HandleResult result)
-    {
-        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 }

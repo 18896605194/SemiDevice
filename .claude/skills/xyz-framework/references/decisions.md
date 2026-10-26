@@ -1593,6 +1593,9 @@
 - **参数写在契约注释里**：签名上看不出要传什么了，每个方法注释写"参数：名字（类型）"，可选的标"可不带"。
 - **取不到回 `rpc.request_invalid`**（`ErrorCodes.RequestInvalid`，语言包"请求参数不对：客户端和后端的版本可能对不上"）：`BaseService.InvalidRequest()`，不是它派生的服务各有一个同名私有方法，
   async 方法里 `return await InvalidRequest();`。行为变化：必带参数没带以前落到别的码（模块名空回 `module.not_found [""]` 这类），现在统一回它；带了空串的跟以前一样。
+- **回包的公共方法也收进 BaseService**（用户："这种没安装的是不是可以提出来公共的"）：`NotInstalled(code)`、`Reply(result)` 只回成败、`Reply<T>` 同样只回成败
+  （整机 InitAll / ReturnAll 回的是开起来的动作，不能转 JSON）、`ReplyData<T>` 成功带结果；账号、用户、角色、整机、流程配方、工艺配方服务原来各写一份私有的，删了。
+  流程配方、工艺配方要转 DTO，自己的改叫 `ReplySequence` / `ReplyRecipe`（跟基类同名同参数会盖掉基类的），成功之外交给 `Reply`。JobService 照 10-07 那条内联写，没动。
 - **账号组件**：`IAccount` 的建用户、改用户、重置密码、启停用户、建角色、改角色、存权限 7 个方法改成直接收参数（原来收请求类，传输用的东西不进组件）。
 - **常量挪家**：`JobCommandRequest.ControlJobStart` → `IJobService.ControlJobStart`；`IEquipmentService.WaferSizeKey` 删了，参数名就是 `Size`（int，取不到或不支持照旧回 `system.wafer_size_invalid`）。
 - **操作日志**：`ActionFilter` 碰到 `RpcRequest` 直接记 `Parameters` 那段 JSON（重新写一遍让中文原样）；不带参数记 `{}`。密码同日起不打码（见上面「操作日志」一节）。

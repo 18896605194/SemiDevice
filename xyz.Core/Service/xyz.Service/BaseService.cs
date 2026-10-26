@@ -38,6 +38,43 @@ public abstract class BaseService
     }
 
     /// <summary>
+    /// 组件没装回包：错误码各服务给自己的（account.not_installed 这类），不带参数
+    /// </summary>
+    protected static Task<RpcResponse> NotInstalled(string code)
+    {
+        return Task.FromResult(RpcResponse.Fail(code, []));
+    }
+
+    /// <summary>
+    /// 组件的结果翻成回包：成功回 Ok，失败照原样回错误码和参数
+    /// </summary>
+    protected static Task<RpcResponse> Reply(HandleResult result)
+    {
+        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
+    }
+
+    /// <summary>
+    /// 同上只回成败，结果不带回去（比如开起来的动作）；要带回去用 ReplyData
+    /// </summary>
+    protected static Task<RpcResponse> Reply<T>(HandleResult<T> result)
+    {
+        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
+    }
+
+    /// <summary>
+    /// 组件的结果翻成回包：成功把结果转成 JSON 放进 Data，失败照原样回错误码和参数
+    /// </summary>
+    protected static Task<RpcResponse> ReplyData<T>(HandleResult<T> result)
+    {
+        if (!result.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
+        }
+
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+    }
+
+    /// <summary>
     /// 切生产模式：只在这类模块里按名字找（LoadPort 的服务不会切到同名的别类模块），只改 Mode、不经设备，置位即成功
     /// </summary>
     protected Task<RpcResponse> SetProduction<TModule>(string module) where TModule : class, IModule

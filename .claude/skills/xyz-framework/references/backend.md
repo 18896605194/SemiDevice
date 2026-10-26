@@ -690,6 +690,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - 成功：`RpcResponse.Ok()` / `RpcResponse.Ok(JsonHelper.Serialize(数据))`；客户端 `DeserializeData<T>()`。
 - 失败：`RpcResponse.Fail(ErrorCodes.Xxx, [参数...])`。**坑**：只传一个字符串 `Fail(ErrorCodes.Xxx)` 会绑到"只有消息"的重载，Code 是空的——
   没参数也要传 `[]`（或像 WaferLedgerService 那样包一个 `Fail(code, params string[] args)`）。
+- 组件的结果翻回包、组件没装，用 `BaseService` 的（2026-10-26 起，跟 `InvalidRequest()` 一样不在服务里各写私有的）：`Reply(result)` 只回成败
+  （`HandleResult<T>` 也行，结果不带回去，比如开起来的动作），`ReplyData(result)` 成功把 `HandleResult<T>` 的结果转 JSON 放进 Data，失败都照原样回错误码和参数；
+  没装 `NotInstalled(ErrorCodes.XxxNotInstalled)`。要转 DTO 的自己写一个（`SequenceService.ReplySequence`），成功之外交给 `Reply`。
 - 服务不往客户端抛异常：设备动作走 `BaseService.RunRoutine(...)`（拒绝 → `ActionRejected`、等超时 → `WaitTimeout`、失败 → `Failed(routine)`：动作的 Code/Args，不止一步的带停在第几步）；
   查库、读文件放 `Task.Run` 里 try/catch 转错误码。
 - 找模块：`FindModule<IXxx>(name)`（按接口，`ILoadPort` / `IRobot` / `IChamber`），找不到 `ModuleNotFound(name)`。

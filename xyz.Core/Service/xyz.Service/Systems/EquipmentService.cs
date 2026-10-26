@@ -37,7 +37,7 @@ public class EquipmentService : BaseService, IEquipmentService
     {
         if (_system is null)
         {
-            return SystemNotInstalled();
+            return NotInstalled(ErrorCodes.SystemNotInstalled);
         }
 
         return Reply(_system.InitAll());
@@ -47,7 +47,7 @@ public class EquipmentService : BaseService, IEquipmentService
     {
         if (_system is null)
         {
-            return SystemNotInstalled();
+            return NotInstalled(ErrorCodes.SystemNotInstalled);
         }
 
         return Reply(_system.Auto());
@@ -57,7 +57,7 @@ public class EquipmentService : BaseService, IEquipmentService
     {
         if (_system is null)
         {
-            return SystemNotInstalled();
+            return NotInstalled(ErrorCodes.SystemNotInstalled);
         }
 
         return Reply(_system.Manual());
@@ -67,7 +67,7 @@ public class EquipmentService : BaseService, IEquipmentService
     {
         if (_system is null)
         {
-            return SystemNotInstalled();
+            return NotInstalled(ErrorCodes.SystemNotInstalled);
         }
 
         if (_system.Abort() is not null)
@@ -90,25 +90,10 @@ public class EquipmentService : BaseService, IEquipmentService
     {
         if (_system is null)
         {
-            return SystemNotInstalled();
+            return NotInstalled(ErrorCodes.SystemNotInstalled);
         }
 
         return Reply(_system.ReturnAll());
-    }
-
-    private static Task<RpcResponse> SystemNotInstalled()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.SystemNotInstalled, []));
-    }
-
-    private static Task<RpcResponse> Reply(HandleResult result)
-    {
-        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
-    }
-
-    private static Task<RpcResponse> Reply(HandleResult<ModuleRoutine> result)
-    {
-        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 
     /// <summary>
@@ -129,7 +114,7 @@ public class EquipmentService : BaseService, IEquipmentService
 
         if (_waferSize is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeNotInstalled, []));
+            return NotInstalled(ErrorCodes.WaferSizeNotInstalled);
         }
 
         if (_waferSize.Size == size)
@@ -163,7 +148,6 @@ public class EquipmentService : BaseService, IEquipmentService
             }
         }
 
-        var result = _waferSize.SetSize(size);
-        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
+        return Reply(_waferSize.SetSize(size));
     }
 }

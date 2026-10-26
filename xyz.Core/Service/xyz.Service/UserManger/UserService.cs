@@ -25,16 +25,10 @@ public class UserService : BaseService, IUserService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
-        var result = account.GetUsers();
-        if (!result.IsSuccess)
-        {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
-        }
-
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+        return ReplyData(account.GetUsers());
     }
 
     public Task<RpcResponse> CreateUserAsync(RpcRequest request, CallContext context = default)
@@ -42,7 +36,7 @@ public class UserService : BaseService, IUserService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<string>(RpcParams.UserName, out var userName)
@@ -53,13 +47,7 @@ public class UserService : BaseService, IUserService
         }
 
         string displayName = request.Get(RpcParams.DisplayName, string.Empty);
-        var result = account.CreateUser(userName, displayName, roleId, password);
-        if (!result.IsSuccess)
-        {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
-        }
-
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+        return ReplyData(account.CreateUser(userName, displayName, roleId, password));
     }
 
     public Task<RpcResponse> UpdateUserAsync(RpcRequest request, CallContext context = default)
@@ -67,7 +55,7 @@ public class UserService : BaseService, IUserService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.Id, out var id)
@@ -85,7 +73,7 @@ public class UserService : BaseService, IUserService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.Id, out var id)
@@ -102,7 +90,7 @@ public class UserService : BaseService, IUserService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.Id, out var id)
@@ -119,7 +107,7 @@ public class UserService : BaseService, IUserService
         var account = _account;
         if (account is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.AccountNotInstalled);
         }
 
         if (!request.TryGet<long>(RpcParams.Id, out var id))
@@ -128,15 +116,5 @@ public class UserService : BaseService, IUserService
         }
 
         return Reply(account.DeleteUser(id));
-    }
-
-    private static Task<RpcResponse> NotInstalled()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.AccountNotInstalled, []));
-    }
-
-    private static Task<RpcResponse> Reply(HandleResult result)
-    {
-        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 }

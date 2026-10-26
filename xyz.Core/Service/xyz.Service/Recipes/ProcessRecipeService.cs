@@ -39,7 +39,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     {
         if (_library is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.ProcessRecipeNotInstalled);
         }
 
         var dto = new ProcessRecipeListDto
@@ -60,7 +60,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     {
         if (_library is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.ProcessRecipeNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index))
@@ -68,14 +68,14 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return InvalidRequest();
         }
 
-        return Reply(_library.Get(index));
+        return ReplyRecipe(_library.Get(index));
     }
 
     public Task<RpcResponse> GetOptionsAsync(RpcRequest request, CallContext context = default)
     {
         if (_library is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.ProcessRecipeNotInstalled);
         }
 
         var stationTypes = _library.StationTypes;
@@ -91,7 +91,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     {
         if (_library is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.ProcessRecipeNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index)
@@ -100,14 +100,14 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return InvalidRequest();
         }
 
-        return LockedByHost() ?? Reply(_library.Create(index, name, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplyRecipe(_library.Create(index, name, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> RenameAsync(RpcRequest request, CallContext context = default)
     {
         if (_library is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.ProcessRecipeNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index)
@@ -116,14 +116,14 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return InvalidRequest();
         }
 
-        return LockedByHost() ?? Reply(_library.Rename(index, name, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplyRecipe(_library.Rename(index, name, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> DeleteAsync(RpcRequest request, CallContext context = default)
     {
         if (_library is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.ProcessRecipeNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index))
@@ -131,14 +131,14 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return InvalidRequest();
         }
 
-        return LockedByHost() ?? Reply(_library.Delete(index, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplyRecipe(_library.Delete(index, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> SaveAsync(RpcRequest request, CallContext context = default)
     {
         if (_library is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.ProcessRecipeNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index)
@@ -160,7 +160,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             Head = ToValues(head),
             Steps = steps.Select(step => ToValues(step.Values)).ToList(),
         };
-        return LockedByHost() ?? Reply(_library.Save(index, revision, content, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplyRecipe(_library.Save(index, revision, content, RpcOperator.Of(context)));
     }
 
     private static RecipeStep ToValues(Dictionary<string, string>? values)
@@ -171,15 +171,18 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         };
     }
 
-    private static Task<RpcResponse> Reply(HandleResult result)
+    /// <summary>
+    /// 库的结果翻成回包：成功且带回了工艺配方的转成 DTO 放进 Data，其余照通用的 Reply
+    /// </summary>
+    private static Task<RpcResponse> ReplyRecipe(HandleResult result)
     {
-        if (!result.IsSuccess)
+        var recipe = result.Result as RecipeData;
+        if (!result.IsSuccess || recipe is null)
         {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
+            return Reply(result);
         }
 
-        var recipe = result.Result as RecipeData;
-        return Task.FromResult(recipe is null ? RpcResponse.Ok() : RpcResponse.Ok(JsonHelper.Serialize(ToDto(recipe))));
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(recipe))));
     }
 
     private static ProcessRecipeDto ToDto(RecipeData data)
@@ -255,11 +258,6 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             Default = field.Default,
             Required = field.Required,
         };
-    }
-
-    private static Task<RpcResponse> NotInstalled()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.ProcessRecipeNotInstalled, []));
     }
 
     /// <summary>

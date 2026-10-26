@@ -28,7 +28,7 @@ public class SequenceService : BaseService, ISequenceService
     {
         if (_sequence is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.SequenceNotInstalled);
         }
 
         var dto = new SequenceListDto
@@ -43,7 +43,7 @@ public class SequenceService : BaseService, ISequenceService
     {
         if (_sequence is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.SequenceNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index))
@@ -51,14 +51,14 @@ public class SequenceService : BaseService, ISequenceService
             return InvalidRequest();
         }
 
-        return Reply(_sequence.Get(index));
+        return ReplySequence(_sequence.Get(index));
     }
 
     public Task<RpcResponse> GetStationGroupsAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.SequenceNotInstalled);
         }
 
         var groups = _sequence.StationGroups.Select(group => new SequenceStationGroupDto
@@ -75,7 +75,7 @@ public class SequenceService : BaseService, ISequenceService
     {
         if (_sequence is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.SequenceNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index)
@@ -84,14 +84,14 @@ public class SequenceService : BaseService, ISequenceService
             return InvalidRequest();
         }
 
-        return LockedByHost() ?? Reply(_sequence.Create(index, name, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplySequence(_sequence.Create(index, name, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> RenameAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.SequenceNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index)
@@ -100,14 +100,14 @@ public class SequenceService : BaseService, ISequenceService
             return InvalidRequest();
         }
 
-        return LockedByHost() ?? Reply(_sequence.Rename(index, name, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplySequence(_sequence.Rename(index, name, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> DeleteAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.SequenceNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index))
@@ -115,14 +115,14 @@ public class SequenceService : BaseService, ISequenceService
             return InvalidRequest();
         }
 
-        return LockedByHost() ?? Reply(_sequence.Delete(index, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplySequence(_sequence.Delete(index, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> SaveAsync(RpcRequest request, CallContext context = default)
     {
         if (_sequence is null)
         {
-            return NotInstalled();
+            return NotInstalled(ErrorCodes.SequenceNotInstalled);
         }
 
         if (!request.TryGet<int>(RpcParams.Index, out var index)
@@ -138,18 +138,21 @@ public class SequenceService : BaseService, ISequenceService
             step.Group ?? string.Empty,
             (step.Stations ?? []).Select(station => station ?? string.Empty),
             step.Recipe ?? string.Empty)).ToList();
-        return LockedByHost() ?? Reply(_sequence.Save(index, revision, description, sequenceSteps, RpcOperator.Of(context)));
+        return LockedByHost() ?? ReplySequence(_sequence.Save(index, revision, description, sequenceSteps, RpcOperator.Of(context)));
     }
 
-    private static Task<RpcResponse> Reply(HandleResult result)
+    /// <summary>
+    /// 库的结果翻成回包：成功且带回了流程配方的转成 DTO 放进 Data，其余照通用的 Reply
+    /// </summary>
+    private static Task<RpcResponse> ReplySequence(HandleResult result)
     {
-        if (!result.IsSuccess)
+        var sequence = result.Result as SequenceData;
+        if (!result.IsSuccess || sequence is null)
         {
-            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
+            return Reply(result);
         }
 
-        var sequence = result.Result as SequenceData;
-        return Task.FromResult(sequence is null ? RpcResponse.Ok() : RpcResponse.Ok(JsonHelper.Serialize(ToDto(sequence))));
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(sequence))));
     }
 
     private static SequenceDto ToDto(SequenceData data)
@@ -171,11 +174,6 @@ public class SequenceService : BaseService, ISequenceService
                 Recipe = step.Recipe,
             }).ToList(),
         };
-    }
-
-    private static Task<RpcResponse> NotInstalled()
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.SequenceNotInstalled, []));
     }
 
     /// <summary>
