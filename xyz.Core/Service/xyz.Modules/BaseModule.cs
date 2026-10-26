@@ -1,7 +1,9 @@
-﻿using xyz.Components.Attributes;
+﻿using System.Globalization;
+using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
@@ -22,26 +24,29 @@ public abstract class BaseModule : BaseStateComponent, IModule
     [Machine("", "Module", "站点类型：几台一样的写同一个值（比如腔体 1~4 写 A、5~8 写 B），工艺配方按它挑能跑的站点；空 = 不分类型")]
     public string Type { get; set; } = string.Empty;
 
-    public virtual ModuleRoutine? InitModule()
+    /// <summary>
+    /// 模块初始化：没写初始化的模块算被拒；模块有自己的初始化动作就重写
+    /// </summary>
+    public virtual HandleResult<ModuleRoutine> InitModule()
     {
-        return null;
+        return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>
-    /// 复位：子组件跟着复位、清自己的报警；模块有自己的复位动作就重写
+    /// 复位：子组件跟着复位、清自己的报警就算做完；模块有自己的复位动作就重写
     /// </summary>
-    public override ModuleRoutine? Reset()
+    public override HandleResult<ModuleRoutine> Reset()
     {
         base.Reset();
-        return null;
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Reset"));
     }
 
     /// <summary>
-    /// 中止：子组件跟着中止；模块有自己的中止动作就重写
+    /// 中止：子组件跟着中止就算做完；模块有自己的中止动作就重写
     /// </summary>
-    public override ModuleRoutine? Abort()
+    public override HandleResult<ModuleRoutine> Abort()
     {
         base.Abort();
-        return null;
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Abort"));
     }
 }

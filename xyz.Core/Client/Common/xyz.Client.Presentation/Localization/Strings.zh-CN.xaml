@@ -20,7 +20,6 @@
 
     <!-- 整机（machine.xml 的 System 节点：全部初始化、Auto / Manual、整机停止、全部回片） -->
     <sys:String x:Key="system.not_installed">machine.xml 没配 System 节点（没有整机模块），初始化、Auto / Manual、Stop、全部回片都用不了</sys:String>
-    <sys:String x:Key="system.init_rejected">{0} 的初始化被拒（状态不允许、在忙，或没写初始化），全部初始化没做成</sys:String>
     <sys:String x:Key="system.init_failed">{0} 初始化没做成，全部初始化没做成</sys:String>
     <sys:String x:Key="system.return_incomplete">全部回片有 {0} 片没回去，原因见日志</sys:String>
     <sys:String x:Key="system.return_job_running">有 Job 在跑（执行中、暂停或中止中），不能全部回片</sys:String>

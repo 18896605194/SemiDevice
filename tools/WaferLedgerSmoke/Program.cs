@@ -923,11 +923,11 @@ sealed class LedgerProbeRobot : BaseModule, ITransferRobot
 
     private HandleResult<ModuleRoutine> Refused() => HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    ModuleRoutine? IModule.InitModule() => null;
+    HandleResult<ModuleRoutine> IModule.InitModule() => Refused();
 
-    ModuleRoutine? IModule.Reset() => null;
+    HandleResult<ModuleRoutine> IModule.Reset() => Refused();
 
-    ModuleRoutine? IModule.Abort() => null;
+    HandleResult<ModuleRoutine> IModule.Abort() => Refused();
 
     HandleResult<ModuleRoutine> ITransferRobot.Pick(int arm, string station, int slot) => Refused();
 

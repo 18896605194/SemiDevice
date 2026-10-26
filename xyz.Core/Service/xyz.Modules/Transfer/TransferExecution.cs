@@ -362,7 +362,7 @@ public abstract class TransferExecution : ModuleRoutine
     private void StopRobot(string reason, string station)
     {
         LogRobotError($"{reason}，机械手停在 {station} 里等人工确认");
-        _robotAbort = Robot.Abort();
+        _robotAbort = Robot.Abort().Result;
     }
 
     #endregion
@@ -426,7 +426,7 @@ public abstract class TransferExecution : ModuleRoutine
     {
         if (IsMoving)
         {
-            _robotAbort = Robot.Abort();
+            _robotAbort = Robot.Abort().Result;
         }
 
         ReleaseStations();

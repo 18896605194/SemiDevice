@@ -470,7 +470,7 @@ try
     // 中间几节另装过腔体（换了整棵树），服务按接口在树上找模块，先换回这台
     SmokeIoc.Tree(chamber);
 
-    // 切生产 / 维护走服务基类 → 模块的 SetProduction / SetMaintenance，只改 Mode、不挂动作
+    // 切生产 / 维护：服务找到模块调它的 SetProduction / SetMaintenance，只改 Mode、不挂动作
     var response = Run(() => service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, "Chamber404"))));
     Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "切生产：找不到模块回 module.not_found");
     response = Run(() => service.SetProductionAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
@@ -978,7 +978,7 @@ try
     Check(Disabled(disabledService.HomeAsync(RpcRequest.Of((RpcParams.Module, "Chamber8"))).Result), "停用的腔体回零被拒：module.disabled");
     Check(Disabled(disabledService.ResetAsync(RpcRequest.Of((RpcParams.Module, "Chamber8"))).Result)
           && Disabled(disabledService.AbortAsync(RpcRequest.Of((RpcParams.Module, "Chamber8"))).Result),
-        "停用的腔体复位、中止被拒：服务再问 CheckReset / CheckAbort 拿到原因（module.disabled）");
+        "停用的腔体复位、中止被拒：模块直接带原因回（module.disabled）");
     Check(disabled.State == ModuleState.NotInit && disabled.CurrentRoutine is null, "停用的腔体被拒的动作都没挂上，状态不动");
 
     // 17. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
@@ -999,7 +999,7 @@ try
 
         var fresh = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber7", enabled: true)]).Single();
         var home = fresh.InitModule();
-        Check(home is not null && fresh.State == ChamberState.Homing, "腔体的模块初始化 InitModule = Home：回原点操作挂上，进 Homing");
+        Check(home.IsSuccess && fresh.State == ChamberState.Homing, "腔体的模块初始化 InitModule = Home：回原点操作挂上，进 Homing");
     }
     finally
     {

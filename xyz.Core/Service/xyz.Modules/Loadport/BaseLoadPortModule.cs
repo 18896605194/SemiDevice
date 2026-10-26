@@ -595,7 +595,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// 模块初始化 = Home；门开着、从这个口取出去的片还在机内时不 Home（回片要用这个口），算初始化好了
     /// </summary>
-    public override ModuleRoutine? InitModule()
+    public override HandleResult<ModuleRoutine> InitModule()
     {
         if (State == LoadPortState.Loaded)
         {
@@ -603,17 +603,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             if (outside > 0)
             {
                 LogHelper.Info(this, $"初始化：门开着，从这个口取出去的 {outside} 片还在机内，不 Home（回片要用这个口）");
-                return ModuleRoutine.Done(this, "Init");
+                return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Init"));
             }
         }
 
-        var started = Home();
-        if (!started.IsSuccess)
-        {
-            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
-        }
-
-        return started.Result;
+        return Home();
     }
 
     #region 动作入口：状态 → 资源 → 互锁
@@ -1023,42 +1017,34 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #region Reset / Abort
 
-    public override ModuleRoutine? Reset()
+    public override HandleResult<ModuleRoutine> Reset()
     {
         base.Reset();
         lock (RoutineGate)
         {
-            if (CheckReset() is not null)
+            var rejected = CheckState(LoadPortAction.Reset);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
-            return Begin(LoadPortAction.Reset, CreateResetRoutine());
+            return Started(LoadPortAction.Reset, CreateResetRoutine());
         }
     }
 
-    public HandleResult? CheckReset()
-    {
-        return CheckState(LoadPortAction.Reset);
-    }
-
-    public override ModuleRoutine? Abort()
+    public override HandleResult<ModuleRoutine> Abort()
     {
         base.Abort();
         lock (RoutineGate)
         {
-            if (CheckAbort() is not null)
+            var rejected = CheckState(LoadPortAction.Abort);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
-            return Begin(LoadPortAction.Abort, CreateAbortRoutine());
+            return Started(LoadPortAction.Abort, CreateAbortRoutine());
         }
-    }
-
-    public HandleResult? CheckAbort()
-    {
-        return CheckState(LoadPortAction.Abort);
     }
 
     /// <summary>

@@ -2361,7 +2361,7 @@ try
         Check(bufferIn.State == ModuleState.Idle && bufferIn.Mode == ModuleMode.Production && bufferOut.Mode == ModuleMode.Production
               && ledger.GetSlots("BufferIn").Count == 5 && ledger.GetSlots("BufferOut").Count == 5,
             "buffer 段开机就待命、自己切生产模式（没有手动页），晶圆账各登记 5 个槽");
-        var bufferInit = bufferIn.InitModule();
+        var bufferInit = bufferIn.InitModule().Result;
         Check(bufferInit is not null && bufferInit.IsSuccess && bufferIn.State == ModuleState.Idle,
             "全部初始化调到 buffer：没有要动的机构，直接回待命、算做成");
 
@@ -2525,7 +2525,7 @@ try
         sequences.Bind(alignerModules);
         extraTicks.Add(alignerRobot.Tick);
         extraTicks.Add(aligner.Tick);
-        var alignerInit = aligner.InitModule();
+        var alignerInit = aligner.InitModule().Result;
         Check(alignerInit is not null && RunUntil(() => alignerInit.IsSettled) && aligner.State == ModuleState.Idle,
             "全部初始化调到对准器：回零做完回待命");
         Check(alignerRobot.CreateStateDto().TeachPoints.Single(info => info.Name == "AL1").Kind == StationKind.Aligner,

@@ -20,9 +20,7 @@ public interface ISystemModule
 
     HandleResult Manual();
 
-    ModuleRoutine? Abort();
-
-    HandleResult? CheckAbort();
+    HandleResult<ModuleRoutine> Abort();
 
     HandleResult<ModuleRoutine> ReturnAll();
 }

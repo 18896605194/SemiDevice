@@ -34,19 +34,19 @@ public interface IModule
     ModuleRoutine? CurrentRoutine { get; }
 
     /// <summary>
-    /// 模块初始化（动硬件），被拒是 null
+    /// 模块初始化（动硬件），被拒带原因
     /// </summary>
-    ModuleRoutine? InitModule();
+    HandleResult<ModuleRoutine> InitModule();
 
     /// <summary>
-    /// 复位
+    /// 复位，被拒带原因
     /// </summary>
-    ModuleRoutine? Reset();
+    HandleResult<ModuleRoutine> Reset();
 
     /// <summary>
-    /// 中止
+    /// 中止，被拒带原因
     /// </summary>
-    ModuleRoutine? Abort();
+    HandleResult<ModuleRoutine> Abort();
 
     /// <summary>
     /// 组件全路径（machine.xml 的分组节点也算上，如 Chamber.Chamber1）

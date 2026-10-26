@@ -70,19 +70,7 @@ public class EquipmentService : BaseService, IEquipmentService
             return NotInstalled(ErrorCodes.SystemNotInstalled);
         }
 
-        if (_system.Abort() is not null)
-        {
-            return Task.FromResult(RpcResponse.Ok());
-        }
-
-        // 被拒了再问原因（停止中再按）
-        var rejected = _system.CheckAbort();
-        if (rejected is null)
-        {
-            return Fail(ErrorCodes.ActionRejected, _system.Name, _system.State.ToString(CultureInfo.InvariantCulture));
-        }
-
-        return Reply(rejected);
+        return Reply(_system.Abort());
     }
 
     public Task<RpcResponse> ReturnAllAsync(RpcRequest request, CallContext context = default)

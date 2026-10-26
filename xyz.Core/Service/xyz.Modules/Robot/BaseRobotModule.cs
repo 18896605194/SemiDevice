@@ -714,17 +714,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region IRobot 契约
 
     /// <summary>
-    /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null。
+    /// 模块初始化 = Home
     /// </summary>
-    public override ModuleRoutine? InitModule()
+    public override HandleResult<ModuleRoutine> InitModule()
     {
-        var started = Home();
-        if (!started.IsSuccess)
-        {
-            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
-        }
-
-        return started.Result;
+        return Home();
     }
 
     #region 动作入口：状态 → 资源 → 互锁
@@ -1448,52 +1442,43 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region Reset / Abort
 
     /// <summary>
-    /// 复位：清设备报错。签名跟着组件基类（报警复位、整机复位按返回的动作等设备做完）；只查状态，被拒的原因用 <see cref="CheckReset"/> 问。
+    /// 复位：清设备报错；只查状态，被拒带原因
     /// </summary>
-    public override ModuleRoutine? Reset()
+    public override HandleResult<ModuleRoutine> Reset()
     {
         base.Reset();
         lock (RoutineGate)
         {
-            if (CheckReset() is not null)
+            var rejected = CheckState(RobotAction.Reset);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
             var reset = new ModuleRoutine(this, "Reset", _driver, () => ResetTimeout);
             AddResetSteps(reset);
-            return Begin(RobotAction.Reset, reset);
+            return Started(RobotAction.Reset, reset);
         }
     }
 
-    public HandleResult? CheckReset()
-    {
-        return CheckState(RobotAction.Reset);
-    }
-
     /// <summary>
-    /// 急停：签名跟着组件基类（整机停止、搬运中止按返回的动作等设备停下）；只查状态、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>）。
-    /// 被拒的原因用 <see cref="CheckAbort"/> 问。
+    /// 急停：只查状态、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>），被拒带原因
     /// </summary>
-    public override ModuleRoutine? Abort()
+    public override HandleResult<ModuleRoutine> Abort()
     {
         base.Abort();
         lock (RoutineGate)
         {
-            if (CheckAbort() is not null)
+            var rejected = CheckState(RobotAction.Abort);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
             var abort = new ModuleRoutine(this, "Abort", _driver, () => AbortTimeout);
             AddAbortSteps(abort);
-            return Begin(RobotAction.Abort, abort);
+            return Started(RobotAction.Abort, abort);
         }
-    }
-
-    public HandleResult? CheckAbort()
-    {
-        return CheckState(RobotAction.Abort);
     }
 
     /// <summary>

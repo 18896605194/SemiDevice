@@ -1937,8 +1937,15 @@ public class JobManager : ComponentBase, IJobManager
             .Distinct(StringComparer.OrdinalIgnoreCase);
         foreach (string station in stations)
         {
+            var module = Module(station);
+            if (module is null)
+            {
+                continue;
+            }
+
             // 发不出去（状态不允许）的不等：站内任务照常做完，结束了照样往下走
-            if (Module(station)?.Abort() is ModuleRoutine abort)
+            var abort = module.Abort().Result;
+            if (abort is not null)
             {
                 job.DeviceAborts.Add(abort);
             }

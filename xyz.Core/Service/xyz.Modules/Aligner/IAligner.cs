@@ -15,16 +15,6 @@ public interface IAligner : IModule
     HandleResult<ModuleRoutine> Home();
 
     /// <summary>
-    /// 复位被拒的原因（复位本身是 IModule.Reset）
-    /// </summary>
-    HandleResult? CheckReset();
-
-    /// <summary>
-    /// 中止被拒的原因（中止本身是 IModule.Abort）
-    /// </summary>
-    HandleResult? CheckAbort();
-
-    /// <summary>
     /// 台上那片对好了（放上来以后对准做成了，之后没转过台面）；台上没片为 false
     /// </summary>
     bool IsWaferAligned { get; }

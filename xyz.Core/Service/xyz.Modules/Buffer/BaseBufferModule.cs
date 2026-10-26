@@ -4,6 +4,7 @@ using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Tools;
 
 namespace xyz.Modules;
@@ -55,13 +56,13 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
     }
 
     /// <summary>
-    /// 初始化（全部初始化会调）：没有要动的机构，没在跟机械手交互就直接回待命；正在交互被拒（返回 null）
+    /// 初始化（全部初始化会调）：没有要动的机构，没在跟机械手交互就直接回待命；正在交互被拒（状态不允许）
     /// </summary>
-    public override ModuleRoutine? InitModule()
+    public override HandleResult<ModuleRoutine> InitModule()
     {
         if (!IsEnable)
         {
-            return ModuleRoutine.Done(this, "Init");
+            return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Init"));
         }
 
         lock (RoutineGate)
@@ -69,11 +70,11 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
             int state = State;
             if (state != ModuleState.NotInit && state != ModuleState.Error && state != StandbyState)
             {
-                return null;
+                return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
             }
 
             TransferStep(state, StandbyState);
-            return ModuleRoutine.Done(this, "Init");
+            return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Init"));
         }
     }
 }

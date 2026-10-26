@@ -140,7 +140,8 @@ var refused = aligner.Home();
 Check(!refused.IsSuccess && refused.ErrorMessage == ErrorCodes.ModuleNotConnected && refused.Args.SequenceEqual(["AL1"])
       && aligner.State == ModuleState.NotInit && driver.Sent.Count == 0,
     "驱动没连上：回零当场拒 module.not_connected，不发指令");
-Check(aligner.InitModule() is null, "全部初始化调到它：回零被拒返回 null");
+var initRefused = aligner.InitModule();
+Check(!initRefused.IsSuccess && initRefused.ErrorMessage == ErrorCodes.ModuleNotConnected, "全部初始化调到它：回零被拒，带着原因 module.not_connected");
 driver.IsConnected = true;
 var home = aligner.Home();
 Check(home.IsSuccess && aligner.State == AlignerState.Homing && driver.Sent.Count == 0, "回零挂上了，指令在动作第一拍才发");
@@ -148,7 +149,7 @@ aligner.Tick();
 Check(driver.Sent.SequenceEqual(["Home"]), "台上没片：只发回零");
 var busy = aligner.Home();
 Check(!busy.IsSuccess && busy.ErrorMessage == ErrorCodes.ModuleStateNotAllowed
-      && aligner.CheckReset()?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
+      && aligner.Reset().ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
     "回零中再回零、复位：状态不允许");
 Check(RunUntil(aligner, () => aligner.State == ModuleState.Idle) && !aligner.IsWaferAligned && aligner.CanPrepareTransfer,
     "回零做完回待命，机械手可以来放片");
@@ -212,7 +213,7 @@ Check(RunUntil(aligner, () => aligner.State == ModuleState.Error) && alignFailed
 Check(Active(aligner, aligner.ControlledStopAlarm) && driver.Abandoned == abandoned + 1 && !aligner.IsWaferAligned
       && aligner.CheckPrepareTransfer()?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
     "报对准器动作失败、作废在途指令，片没对好、不让取");
-var reset = aligner.Reset();
+var reset = aligner.Reset().Result;
 Check(reset is not null && RunUntil(aligner, () => reset.IsSettled) && aligner.State == ModuleState.NotInit
       && !Active(aligner, aligner.ControlledStopAlarm) && !aligner.CanPrepareTransfer,
     "复位：清报警、清设备报错，落未初始化（台上片的方向不知道）");
@@ -231,7 +232,7 @@ Check(RunUntil(aligner, () => aligner.State == ModuleState.Error, 100, 50) && ti
     "对准等不到回复：超过 EC AlignTimeout 判超时、落出错、报警");
 driver.Hang = false;
 aligner.AlignTimeout = 30000;
-reset = aligner.Reset();
+reset = aligner.Reset().Result;
 Check(reset is not null && RunUntil(aligner, () => reset.IsSettled) && aligner.Home().IsSuccess
       && RunUntil(aligner, () => aligner.State == ModuleState.Idle) && aligner.IsWaferAligned,
     "复位、回零以后对好");
@@ -245,7 +246,7 @@ Check(aligner.State == ModuleState.Error && Active(aligner, aligner.ControlledSt
       && !aligner.IsWaferAligned,
     "起不了对准：落出错、报警，不发指令，片留在台上没对过");
 driver.IsConnected = true;
-reset = aligner.Reset();
+reset = aligner.Reset().Result;
 Check(reset is not null && RunUntil(aligner, () => reset.IsSettled) && aligner.Home().IsSuccess
       && RunUntil(aligner, () => aligner.State == ModuleState.Idle) && aligner.IsWaferAligned,
     "连上、复位、回零以后对好");
@@ -255,7 +256,7 @@ ClearStage(aligner);
 driver.Ticks = 20;
 PlaceFromCarrier(aligner);
 var aborted = aligner.CurrentRoutine;
-var abort = aligner.Abort();
+var abort = aligner.Abort().Result;
 Check(abort is not null && aborted is not null && aborted.Code == ErrorCodes.Aborted && aligner.State == ModuleState.Aborting,
     "中止顶掉在途的对准");
 driver.Ticks = 2;
@@ -271,7 +272,7 @@ Check(aligner.Home().IsSuccess && RunUntil(aligner, () => aligner.State == Modul
     Check(disabled.InitComponent() && ledger.Locations.All(location => location.Module != "AL2") && disabled.Mode == ModuleMode.Maintenance,
         "停用的对准器：不挂驱动也不抛，不登记晶圆账、不切生产模式");
     var disabledHome = disabled.Home();
-    Check(!disabledHome.IsSuccess && disabledHome.ErrorMessage == ErrorCodes.ModuleDisabled && disabled.CheckAbort()?.ErrorMessage == ErrorCodes.ModuleDisabled,
+    Check(!disabledHome.IsSuccess && disabledHome.ErrorMessage == ErrorCodes.ModuleDisabled && disabled.Abort().ErrorMessage == ErrorCodes.ModuleDisabled,
         "停用的对准器：回零、中止都拒 module.disabled");
 }
 

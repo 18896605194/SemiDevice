@@ -474,7 +474,7 @@ try
     ipa.Tick();
     Check(received.Count == 5 && received[4].Tanks[0].State == (int)TankState.Ready, "槽的状态变了：下一拍推");
     Check(!ipa.IsReady, "IPA 还没初始化：槽就绪了也不能供液");
-    Check(ipa.InitModule() is not null && ipa.State == ModuleState.Idle && received.Count == 5, "IPA 初始化（功能还没做）：直接进空闲");
+    Check(ipa.InitModule().IsSuccess && ipa.State == ModuleState.Idle && received.Count == 5, "IPA 初始化（功能还没做）：直接进空闲");
     ipa.Tick();
     Check(received.Count == 6 && received[5].State == ModuleState.Idle, "IPA 自己的状态变了：也推");
     IpaDto? late = null;

@@ -19,7 +19,6 @@
 
     <!-- Equipment (System node in machine.xml: initialize all, Auto / Manual, stop, return all) -->
     <sys:String x:Key="system.not_installed">The System node is not configured in machine.xml (no equipment module); Init, Auto / Manual, Stop and Return All are unavailable</sys:String>
-    <sys:String x:Key="system.init_rejected">{0} refused to initialize (state not allowed, busy, or no initialization defined); initializing all did not succeed</sys:String>
     <sys:String x:Key="system.init_failed">{0} failed to initialize; initializing all did not succeed</sys:String>
     <sys:String x:Key="system.return_incomplete">Return all left {0} wafer(s) unreturned; see the log for the reasons</sys:String>
     <sys:String x:Key="system.return_job_running">A job is running (executing, paused or aborting); Return All cannot start</sys:String>

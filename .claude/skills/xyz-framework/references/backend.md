@@ -42,8 +42,8 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 - 生命周期：`InitComponent()`（**不动硬件**的开机初始化：连接、登记晶圆账、挂事件、输出回安全态；先子后己、按 InitOrder 递归到每一层子组件，
   一个子组件没做成不耽误别的、汇总返回 `bool`；开机由 `ComponentLoader.InitAll` 对每个根组件按 InitOrder 调一次（PLC 100、IO 200 排最前），
   子组件跟着基类走，**父组件不点名**，组件有事就重写、记得调 base）、
-  `Abort()`（只停，不清报警）、`Reset()`（先子，再清本组件报警）；Abort / Reset 模块把返回类型收窄成 `ModuleRoutine?`。
-  **要动硬件的初始化（回原点）是模块的 `InitModule()`**（`BaseModule`，返回 `ModuleRoutine?`，人或调度才调，开机不调，不递归子组件；
+  `Abort()`（只停，不清报警）、`Reset()`（先子，再清本组件报警）；Abort / Reset 模块把返回类型收窄成 `HandleResult<ModuleRoutine>`（跟别的动作入口一样，被拒带原因）。
+  **要动硬件的初始化（回原点）是模块的 `InitModule()`**（`BaseModule`，返回 `HandleResult<ModuleRoutine>`，人或调度才调，开机不调，不递归子组件；
   LoadPort / Robot / Chamber 基类里 = `Home()`，机型要多做别的步骤就重写）。组件初始化里不放会动轴、动气缸的事——部件怎么回零、什么先后，
   写在所在模块的 Home 操作里去驱动。`BaseModule.Open()` 已经没有了；PLC、IO 在自己的 `InitComponent` 里连，轴在自己的 `InitComponent` 里
   把收发块登记到 PLC 上（装起来的树上两根轴配了同一个命令块就抛），HSMS 由 EAP 在 `OnStarted` 里开；
@@ -150,10 +150,10 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   默认 = 状态是空闲 + 有一个槽就绪或正在供液），存 volatile，别的线程只读。腔体按自己的 machine.xml `Supply`（模块名）开机取到它，起工艺前看（见 decisions.md「模块之间访问」）。
 - `BaseStateComponent : ComponentBase`（2026-10-23 从 BaseModule 拆出来，模块和整机都继承它）：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、
   动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, routine)`（不允许就返回 null，只有 Abort 能顶替在途动作）、动作检查 `CheckState`、挂一个动作和扫描步进、慢扫描 EC。
-  `BaseModule : BaseStateComponent, IModule` 只放模块才有的：`Kind`、站点类型 `Type`、`InitModule()`（动硬件的模块初始化，默认返回 null）。
+  `BaseModule : BaseStateComponent, IModule` 只放模块才有的：`Kind`、站点类型 `Type`、`InitModule()`（动硬件的模块初始化，没重写的算被拒 `module.action_rejected`）；默认的 `Reset()` / `Abort()` 子组件跟着做完就回做完的空动作。
 - **生产 / 维护模式** `IMode`（`Mode`、`SetProduction()`、`SetMaintenance()`；2026-10-23 原来的上线 / 下线改名、从 IModule 拿出来，见 decisions.md「整机不算模块；上线 / 下线改成生产 / 维护模式」）：
   不继承别的接口，要这个能力的类直接实现——`BaseTransferStationModule`（LoadPort、腔体、buffer、对准器）、`BaseRobotModule` 各写一份（虚方法，只改 Mode、不经设备，开机维护）；
-  供液、整机没有。调度、整机推模块表按 `is IMode` 判；LoadPort、腔体、机械手的服务都调 `BaseService.SetProduction<TModule>` / `SetMaintenance<TModule>`，不各写一份。
+  供液、整机没有。调度、整机推模块表按 `is IMode` 判；LoadPort、腔体、机械手的服务各自写切生产 / 维护：按自己的模块接口找到模块、`as IMode` 调 `SetProduction()` / `SetMaintenance()`（服务基类只放通用的回包和找模块，不放具体业务，2026-10-26 用户定）。
 - 状态码（`public const int`，有继承）：`ModuleState` NotInit 10 / Initing 20 / Idle 30 / Aborting 35 / Error 40；
   `TransferModuleState` 50/60/70/80；`LoadPortState` 100~150；`ChamberState` Homing 100 / Processing 110 / Manual 120（部件手动动作中）；`RobotState` 200/210/220。
   同一个码在不同模块意思不同，客户端按模块种类翻（`ModuleStates`）。
@@ -213,13 +213,14 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   每项检查返回 `HandleResult?`：null = 过，不过 = 错误码 + 参数（一种原因一个错误码，中英文语言包各一条）。三项怎么分：
   - **状态**（只看自己）：`BaseModule.CheckState(action)` = `CheckAvailable()`（默认看 `CanBeginAction` → `module.disabled`；有驱动的模块重写加"没连上" → `module.not_connected`；
     **Abort 只查停用、不查连没连上**——没连上也要能把在途动作顶掉）→ 状态表没这一行 `module.state_not_allowed` [模块, 状态码] → 有在途动作 `module.busy`（Abort 不查）。跟 `Begin` 查的是同一套，只是带原因。
-  - **复位、中止**是组件基类的 `Reset()` / `Abort()`（子组件递归、报警复位、整机停止、PJ 中止按 `Abort() is ModuleRoutine` 等设备停下都靠它们），签名不动、返回动作或 null，
-    只查状态（恢复动作不能被资源、互锁卡住）；被拒的原因用 `CheckReset()` / `CheckAbort()` 问，服务层用 `RunRoutine(..., port.Reset(), port.CheckReset, ...)` 被拒了再问。
+  - **复位、中止**重写组件基类的 `Reset()` / `Abort()`（子组件递归、报警复位照旧），返回值收窄成 `HandleResult<ModuleRoutine>`，写法跟别的入口一样：
+    只查状态（恢复动作不能被资源、互锁卡住），不过 `Rejected(原因)`、过了 `Started(...)`；整机停止、PJ 中止要等设备停下的取 `.Result`（被拒是 null）。
+    不另开 `CheckReset` / `CheckAbort` 问原因（2026-10-26 删掉的）。
   - **资源**（这个动作要独占的东西有没有被别人占）：直接问晶圆账、`TransferManager.IsSlotLocked`、`JobManager.OwnerOf`，不另建占用表。
   - **互锁**（周围条件、传感器、别的模块、搬运车）：平台给默认，机型的光幕之类重写、先调 base，用机型自己的错误码。
   - 只跟"谁发的"有关的检查（EAP 要 ON-LINE REMOTE、E87 状态机、Host 认定了载具号才 Load）留在发命令那一层（E87 回 Host 的 CAACK 也在那层翻）；
     判断法：换成操作员在手动页点同一个按钮，这条还该不该拦——该拦放模块入口，不该放发起方。"接了 EAP 才拦、但谁发都拦"（槽图要 Host 认定才让机械手进）看的是设备状态，放模块。
-  - 服务层被拒照原样回入口的码和参数（`BaseService.RunRoutine` 收 `HandleResult<ModuleRoutine>` 的重载），发起了没做成回 `Failed(routine)`（错误码 + 参数，不止一步的带停在第几步）；
+  - 服务层被拒照原样回入口的码和参数（`BaseService.RunRoutine(started, timeout)` 只有这一个，所有模块共用），发起了没做成回 `Failed(routine)`（错误码 + 参数，不止一步的带停在第几步）；
     界面用 `ErrorText.Of(response, ModuleStates.XxxText)`（Presentation 公共的），状态码翻成状态字、带了步号的在前面加"第 n/m 步："（语言包 `routine.step_at`）。
   - 加一个动作照这个顺序：状态表加行 → 资源检查 → 互锁虚方法 → 错误码 + 两个语言包 → 入口照上面写 → 服务只翻结果 → 冒烟每种拒绝原因一项检查。
   **LoadPort 各动作**（入口都在 `BaseLoadPortModule` 的"动作入口"区，`Begin(LoadPortAction)` 只记动作和出发状态、不再查联锁）：
@@ -228,7 +229,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   |---|---|---|---|
   | `Load()` | 账上的片不归没结束的 Job（`loadport.wafers_in_job` [模块, PJ]，Load 会清账重建、片的内部标识全换新）；有片的槽没被搬运占着（`transfer.slot_locked`） | 载具到位（`loadport.carrier_not_arrived`）；E84 交接没在走（`IE84.IsHandoffRunning` → `loadport.handoff_running`） | `AddLoadSteps`（开门；扫片落账平台加） |
   | `Unload()`（自动口径）/ `UnloadManually()`；只查：`CheckUnload()` | 关门的资源（`CheckCloseDoorResource`）：取出去的片都回来了（`loadport.wafers_outside` [模块, 片数]）、片不归没结束的 Job | 不拦 | `AddUnloadSteps`（关门；要对账平台先加扫片） |
-  | `Home()`（`InitModule` = Home，被拒记日志；门开着、从这个口取出去的片还在机内时 `InitModule` 不发 Home、回做完的空操作，全部初始化当它好了，回片要用这个口） | **只在 Loaded（门开着）时**查关门的资源；没初始化 / 出错 / 空闲出发不查——拦住就卡死（端口回不到 Loaded、片也回不来） | 不拦 | `AddHomeSteps` |
+  | `Home()`（`InitModule` = Home，被拒的原因原样回给全部初始化；门开着、从这个口取出去的片还在机内时 `InitModule` 不发 Home、回做完的空操作，全部初始化当它好了，回片要用这个口） | **只在 Loaded（门开着）时**查关门的资源；没初始化 / 出错 / 空闲出发不查——拦住就卡死（端口回不到 Loaded、片也回不来） | 不拦 | `AddHomeSteps` |
   | `Clamp()` / `Unclamp()` | 不碰片和账，不查 | 不拦（现在没有调用方，手动页没按钮） | `AddClampSteps` / `AddUnclampSteps` |
   | `Reset()` / `Abort()` | 不查 | 不设 | `AddResetSteps` / `AddAbortSteps` |
 
@@ -695,7 +696,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - 组件的结果翻回包、组件没装，也用 `BaseService` 的：`Reply(result)` 只回成败（`HandleResult<T>` 也行，结果不带回去，比如开起来的动作），
   `ReplyData(result)` 成功把结果转 JSON 放进 Data（`HandleResult` / `HandleResult<T>` 都行），失败都照原样回错误码和参数；没装 `NotInstalled(ErrorCodes.XxxNotInstalled)`。
   async 方法里写 `return await NotInstalled(...)` / `return await ReplyData(result)`（跟 `InvalidRequest()` 一样）。要转 DTO 的自己写一个（`SequenceService.ReplySequence`），成功之外交给 `Reply`。
-- 服务不往客户端抛异常：设备动作走 `BaseService.RunRoutine(...)`（拒绝 → `ActionRejected`、等超时 → `WaitTimeout`、失败 → `Failed(routine)`：动作的 Code/Args，不止一步的带停在第几步）；
+- 服务不往客户端抛异常：设备动作走 `BaseService.RunRoutine(port.Home(), port.HomeTimeout)`（被拒 → 入口给的错误码 + 参数、等超时 → `WaitTimeout`、失败 → `Failed(routine)`：动作的 Code/Args，不止一步的带停在第几步）；
   查库、读文件放 `Task.Run` 里 try/catch 转错误码。
 - 找模块：`FindModule<IXxx>(name)`（按接口，`ILoadPort` / `IRobot` / `IChamber`），找不到 `ModuleNotFound(name)`。
 - 一次回不完的大数据（数据曲线导出）走服务端流：契约 `IAsyncEnumerable<RpcResponse> ExportAsync(RpcRequest, CallContext)`，一段一条 `RpcResponse.Ok(JSON)`，
@@ -728,7 +729,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   machine.xml `Language`；单例按 `ISystemModule` 找）：
   状态 `SystemState : ModuleState`——NotInit / Initing / Idle（Manual）/ Aborting（停止中）/ Error 直接用基础的，加 AutoIdle 100、AutoRunning 110、Returning 120；
   状态表 `SystemStateTable`。动作入口（在模块锁里查状态再挂）：`InitAll()`（两步 `SystemInitStep`："机械手回原点"先 `IRobot` 的 `InitModule`，收完尾再"其余模块初始化"；
-  被拒 `system.init_rejected` / 没做成 `system.init_failed` [模块]）、`Auto()` / `Manual()`（当场切、不挂动作；拨搬运管理的自动派单，Job 只看那个开关，开关只由整机拨）、
+  被拒照原样回模块给的原因（错误码 + 参数，第一个参数就是模块名）/ 没做成 `system.init_failed` [模块]）、`Auto()` / `Manual()`（当场切、不挂动作；拨搬运管理的自动派单，Job 只看那个开关，开关只由整机拨）、
   `ReturnAll()`（锁里查状态 Idle 和搬运管理、晶圆账开着；锁外 `SystemReturnRoutine.Prepare` 查 Job、每片去处、倒着走的路线、用得到的设备、在位传感器，
   有一条不过当场回原因；进锁再核一遍状态才挂上 `SystemReturnRoutine`：一次一趟、手上的 → 其余站点 → 工艺站，经搬运管理（Recovery）搬，见 decisions.md「全部回片」）、`Abort()` = 整机停止（一步 `SystemStopStep`"等各模块停下"：先进停止中顶掉初始化 / 回片，锁外关自动派单、撤搬运、
   给在做动作的模块发中止（在搬运的机械手、给 Job 做工艺的腔体除外）、Job 全部走中止；等停的那一刻各模块手上的动作和撤掉的搬运都收完尾才回到停之前该在的地方）。

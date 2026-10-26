@@ -67,16 +67,6 @@ public interface ILoadPort : ILoadPortAccess, IJobAccess
     HandleResult<ModuleRoutine> UnloadManually();
 
     /// <summary>
-    /// 现在能不能复位，不能的带原因
-    /// </summary>
-    HandleResult? CheckReset();
-
-    /// <summary>
-    /// 现在能不能中止，不能的带原因
-    /// </summary>
-    HandleResult? CheckAbort();
-
-    /// <summary>
     /// 推给界面的状态
     /// </summary>
     LoadPortDto CreateStateDto();

@@ -40,7 +40,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, chamber, chamber.Home(), chamber.HomeTimeout);
+        return RunRoutine(chamber.Home(), chamber.HomeTimeout);
     }
 
     public Task<RpcResponse> ResetAsync(RpcRequest request)
@@ -56,7 +56,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, chamber, chamber.Reset(), chamber.CheckReset, chamber.ResetTimeout);
+        return RunRoutine(chamber.Reset(), chamber.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(RpcRequest request)
@@ -72,7 +72,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, chamber, chamber.Abort(), chamber.CheckAbort, chamber.AbortTimeout);
+        return RunRoutine(chamber.Abort(), chamber.AbortTimeout);
     }
 
     public Task<RpcResponse> ProcessAsync(RpcRequest request)
@@ -122,7 +122,7 @@ public class ChamberService : BaseService, IChamberService
         // 起了就等到做完为止，上限跟工艺动作一样是配方头的超时时间
         var process = new ProcessRequest { Origin = ProcessOrigin.Manual, RecipeName = recipe, Recipe = snapshot };
         int timeout = snapshot is null ? 0 : snapshot.TimeoutMilliseconds;
-        return RunRoutine(module, chamber, chamber.StartProcess(process), timeout);
+        return RunRoutine(chamber.StartProcess(process), timeout);
     }
 
     #region 设备手动动作（轴、气缸按设备推送里的 Path 找）
@@ -250,14 +250,11 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, chamber, start(chamber), chamber.DeviceActionTimeout);
+        return RunRoutine(start(chamber), chamber.DeviceActionTimeout);
     }
 
     #endregion
 
-    /// <summary>
-    /// 切生产 / 维护模式走服务基类（见 <see cref="BaseService.SetProduction{TModule}"/>）
-    /// </summary>
     public Task<RpcResponse> SetProductionAsync(RpcRequest request)
     {
         if (!request.TryGet<string>(RpcParams.Module, out var module))
@@ -265,7 +262,14 @@ public class ChamberService : BaseService, IChamberService
             return InvalidRequest();
         }
 
-        return SetProduction<IChamber>(module);
+        var chamber = FindModule<IChamber>(module) as IMode;
+        if (chamber is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        chamber.SetProduction();
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     public Task<RpcResponse> SetMaintenanceAsync(RpcRequest request)
@@ -275,7 +279,14 @@ public class ChamberService : BaseService, IChamberService
             return InvalidRequest();
         }
 
-        return SetMaintenance<IChamber>(module);
+        var chamber = FindModule<IChamber>(module) as IMode;
+        if (chamber is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        chamber.SetMaintenance();
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     /// <summary>

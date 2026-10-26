@@ -3,7 +3,7 @@
 namespace xyz.Service;
 
 /// <summary>
-/// 一次要记的调用：谁@哪台电脑 调了什么，和从进来开始的计时（IActionFilter.Begin 建，End / Fault 用）
+/// 方法调用
 /// </summary>
 public sealed class ActionCall
 {
@@ -13,7 +13,7 @@ public sealed class ActionCall
     }
 
     /// <summary>
-    /// "操作人@IP 服务.方法"，比如 张三@192.168.1.20 LoadPort.Load
+    /// "操作人
     /// </summary>
     public string Who { get; }
 

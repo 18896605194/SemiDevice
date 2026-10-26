@@ -245,22 +245,23 @@ public class SystemModule : BaseStateComponent, ISystemModule
     }
 
     /// <summary>
-    /// 整机停止（界面 Stop）：签名跟着组件基类；停止中再按不收，被拒的原因用 <see cref="CheckAbort"/> 问。
+    /// 整机停止（界面 Stop）：停止中再按不收，被拒带原因。
     /// 先进停止中（顶掉在做的全部初始化、全部回片），再在锁外：关自动派单、撤掉所有搬运（机械手正在取放的由搬运管理发设备中止）；
     /// 正在做别的动作的模块直接发中止——正在搬运的机械手、给 Job 做工艺的腔体不在这里发，归搬运管理和 Job 的中止去停；
     /// 最后 Job 全部走中止（等设备确认、核对片位，不是直接删 Job）。等停的那一刻各模块手上的动作都收完尾，回到停之前该在的地方（见状态表）。
     /// </summary>
-    public override ModuleRoutine? Abort()
+    public override HandleResult<ModuleRoutine> Abort()
     {
         base.Abort();
 
         SystemStopStep wait;
-        ModuleRoutine stop;
+        HandleResult<ModuleRoutine> started;
         lock (RoutineGate)
         {
-            if (CheckAbort() is not null)
+            var rejected = CheckState(SystemAction.Abort);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
             var inFlight = new List<ModuleRoutine>();
@@ -274,10 +275,10 @@ public class SystemModule : BaseStateComponent, ISystemModule
             }
 
             wait = new SystemStopStep("等各模块停下", inFlight, _transfers);
-            stop = new ModuleRoutine(this, "Abort").Add(wait);
-            if (Begin(SystemAction.Abort, stop) is null)
+            started = Started(SystemAction.Abort, new ModuleRoutine(this, "Abort").Add(wait));
+            if (!started.IsSuccess)
             {
-                return null;
+                return started;
             }
         }
 
@@ -312,12 +313,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
 
         LogHelper.Info(this, $"整机停止：自动派单已关，搬运已撤，Job 走中止；另有 {aborted} 个模块在做动作，已发中止");
         wait.Issue();
-        return stop;
-    }
-
-    public HandleResult? CheckAbort()
-    {
-        return CheckState(SystemAction.Abort);
+        return started;
     }
 
     /// <summary>

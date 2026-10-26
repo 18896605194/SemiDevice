@@ -26,7 +26,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, port, port.Load(), port.LoadTimeout);
+        return RunRoutine(port.Load(), port.LoadTimeout);
     }
 
     public Task<RpcResponse> UnloadAsync(RpcRequest request)
@@ -42,7 +42,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, port, port.UnloadManually(), port.UnloadTimeout);
+        return RunRoutine(port.UnloadManually(), port.UnloadTimeout);
     }
 
     public Task<RpcResponse> HomeAsync(RpcRequest request)
@@ -58,7 +58,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, port, port.Home(), port.HomeTimeout);
+        return RunRoutine(port.Home(), port.HomeTimeout);
     }
 
     public Task<RpcResponse> ResetAsync(RpcRequest request)
@@ -74,7 +74,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, port, port.Reset(), port.CheckReset, port.ResetTimeout);
+        return RunRoutine(port.Reset(), port.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(RpcRequest request)
@@ -90,7 +90,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, port, port.Abort(), port.CheckAbort, port.AbortTimeout);
+        return RunRoutine(port.Abort(), port.AbortTimeout);
     }
 
 
@@ -101,7 +101,14 @@ public class LoadPortService : BaseService, ILoadPortService
             return InvalidRequest();
         }
 
-        return SetProduction<ILoadPort>(module);
+        var port = FindModule<ILoadPort>(module) as IMode;
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        port.SetProduction();
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     public Task<RpcResponse> SetMaintenanceAsync(RpcRequest request)
@@ -111,7 +118,14 @@ public class LoadPortService : BaseService, ILoadPortService
             return InvalidRequest();
         }
 
-        return SetMaintenance<ILoadPort>(module);
+        var port = FindModule<ILoadPort>(module) as IMode;
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        port.SetMaintenance();
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     public Task<RpcResponse> AutoAsync(RpcRequest request)

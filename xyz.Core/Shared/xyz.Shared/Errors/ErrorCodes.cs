@@ -69,9 +69,6 @@ public static class ErrorCodes
     /// <summary>machine.xml 没配 System 节点（没有整机模块），整机操作都用不了。Args: []</summary>
     public const string SystemNotInstalled = "system.not_installed";
 
-    /// <summary>全部初始化：有模块的初始化被拒（状态不允许、在忙、没写初始化）。Args: [模块名]</summary>
-    public const string SystemInitRejected = "system.init_rejected";
-
     /// <summary>全部初始化：有模块的初始化没做成。Args: [模块名]</summary>
     public const string SystemInitFailed = "system.init_failed";
 

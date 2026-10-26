@@ -39,7 +39,7 @@
   组件层 `ILoadPortAccess : IModule`（名字用户选的，跟 `IJobAccess`、`ICarrierAccess` 一样，Access = 给别的组件用的那一面）只放 E87 / E84 用的：
   载具、槽数、自动模式、IsLoaded / IsIdle、LocalTransferState、Load / Unload / CheckUnload / SetAutoMode、三个 EAP 口子；E87 / E84 的回调参数都是它。
   完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 挪到模块层（跟 `IRobot`、`IChamber` 一样用设备名），放 Home / Clamp / Unclamp 和服务用的（超时、
-  PickOrder、UnloadManually、CheckReset / CheckAbort、CreateStateDto）。**不再继承 `ITransferStation`**（用户：LoadPort 本身是 `BaseTransferStationModule`，再继承是重复）。
+  PickOrder、UnloadManually、CreateStateDto；CheckReset / CheckAbort 10-26 删了，见「复位、中止、初始化跟别的动作一个写法」）。**不再继承 `ITransferStation`**（用户：LoadPort 本身是 `BaseTransferStationModule`，再继承是重复）。
   名字被否过的：`ILoadPortModule`（跟别的模块不统一）、`ICarrierPort`。
 
 ## 组件初始化 InitComponent 和模块初始化 InitModule（2026-10-09，用户定的名和分工）
@@ -52,7 +52,7 @@
 - **InitComponent 的规矩**：按 InitOrder 先子后己、递归到每一层，一个子组件没做成不耽误别的、汇总返回 bool；开机由宿主对每个模块调一次，
   **父组件不点名子组件**；组件有事就重写并调 base（要赶在子组件前做的写在调 base 之前，如 LoadPort 先挂驱动事件、登记槽位，再让基类去连）。
   装机停用的组件自己拦（模块的 `IsEnable`、E84 的 `IsEnable`），因为基类递归会带着它。读头、驱动这一次没连上返回 false 只为开机日志看得到，之后后台重连。
-- **InitModule 的规矩**：`BaseModule` 里默认返回 null；LoadPort / Robot / Chamber 基类里 = `Home()`（Home 就是它们的初始化）；不递归子组件。
+- **InitModule 的规矩**：`BaseModule` 里默认算被拒（10-26 起回 `HandleResult<ModuleRoutine>`，原来是返回 null）；LoadPort / Robot / Chamber 基类里 = `Home()`（Home 就是它们的初始化）；不递归子组件。
   部件（轴、气缸）怎么回零、什么先后是机型的事，写在 Home 操作里去驱动。`ILoadPort` / `IRobot` 里的 `Init()` 改叫 `InitModule()`。
 - **轴不重写 InitComponent**（用户："轴的不需要重写 init，后面即使写也是写 InitComponent，然后也不会有动作的"）：原来轴的 `Init()` 是回零，删了；以后轴的组件初始化也不带动作。
 - **没动的**：模块的 `Close()` 还是手写（`_rfid?.Close(); _driver?.Close();`，现在宿主没有调用点）；PLC、IO、HSMS、轴的 `Open(IPlc)`（现在是 `Open(IPlcBlock)`）仍由装配层按类型调；
@@ -479,7 +479,7 @@
   从这个口取出去的片没回齐 → `loadport.wafers_outside`、片归没结束的 Job → `loadport.wafers_in_job`（提示先中止 Job）。
   10-08 定的"手动卸载不对账"说的是扫图对账，这条是另一件事；账不对（账上记着片在外面、实际没有）就先在账单调整页改账。
   **Home 只在 Loaded 出发时查**（我定的，交付时说了）：没初始化 / 出错 / 空闲出发的不查——出错复位完是 NotInit，机械手进不了站、片回不来，Home 再被拦就卡死了。
-- 复位、中止跟着组件基类的 `Reset()` / `Abort()`，签名不改（报警复位、整机停止、PJ 中止按返回的动作等设备停下都靠它）：只查状态，被拒的原因另外问（`CheckReset` / `CheckAbort`）。
+- 复位、中止只查状态（10-26 起改成跟别的入口一样回 `HandleResult<ModuleRoutine>`、被拒带原因，原来"签名不改、另外问 `CheckReset` / `CheckAbort`"作废，见「复位、中止、初始化跟别的动作一个写法」）。
   中止不查设备连没连上：没连上也要能把在途的动作顶掉，免得它一直等到超时。Clamp / Unclamp 没有调用方，只把入口改成新写法，不加新条件。
 - E87 取消 / 放行回 Host 之前先问端口 `CheckUnload()`，不能卸回 CAACK=2 带原因（以前先回 CAACK=0、真卸的时候被拒只记日志）。
   模块锁里没有反过来拿 E87 锁的路（LoadPort 往 E87 的回调都丢到 EAP 派发线程上排队），所以在 E87 锁里问端口不会互相等锁。
@@ -1258,7 +1258,7 @@
 ## 腔体照 LoadPort / 机械手的写法改（2026-10-20，用户："BaseChamberModule 这个里面很多写法都很奇怪，其次不规范，你按照就是loadport以及robot那边的写法……不要搞什么内部类"；先要了分析，看完说"就按照你说的，改造一下这个腔体这边"）
 - **动作入口统一成 状态 → 资源 → 互锁**：`Home()`、`StartProcess`、手动页的设备动作（`AxisHome` / `AxisMove` / `AxisStep` / `AxisReset` / `MoveCylinder` / `AxisJog`）都回
   `HandleResult<ModuleOperation>`，在模块锁里 `CheckState` → 资源 → `XxxInterlock`，被拒带原因（停用 `module.disabled`、状态不允许 `module.state_not_allowed`[模块, 状态码]、在忙 `module.busy`），
-  入口不 virtual；`AxisStop` 回 `HandleResult`（不看忙不忙、不挂动作）。Reset / Abort 签名跟着组件基类，补了 `CheckReset` / `CheckAbort`，服务层被拒再问原因（跟 LoadPort、机械手一样）。
+  入口不 virtual；`AxisStop` 回 `HandleResult`（不看忙不忙、不挂动作）。Reset / Abort 当时签名跟着组件基类、补了 `CheckReset` / `CheckAbort`（10-26 改掉了，见「复位、中止、初始化跟别的动作一个写法」）。
   原来四种返回（`ModuleOperation?`、自造的 `ProcessRejection`、`ChamberDeviceActionResult` 枚举 + `out`、bool）删了；`IProcessStation.CheckProcess` / `StartProcess` 跟着改成 `HandleResult?` / `HandleResult<ModuleOperation>`。
 - **机型扩展点照 LoadPort / 机械手**：设备做法不一样重写 `CreateHomeOperation` / `CreateResetOperation` / `CreateAbortOperation` / `CreateProcessOperation` / `CreatePrepareTransferOperation`；
   加条件重写 `HomeInterlock` / `ProcessInterlock`（供液就绪挪到这里）/ `DeviceActionInterlock`（平台不拦，Bowl 升着不许摆臂这类联锁用户押后）。
@@ -1613,3 +1613,19 @@
   模块不存在、int、流式导出带 DateTime 和列表、中文参数），操作日志记得对。
   换成 `RpcParams` 以后又验了一遍：整编 0 错误、还是那 9 条警告；冒烟 OperationWaitSmoke 1402 项、DataCenterSmoke 等全过（去掉密码打码后，测打码的改密码、小写 password 两项删了），
   HsmsSmoke 第 167 行断开重连、OpcUaSmoke 读值跟随还是老的时序偶发（重跑过，跟 RPC 无关）；探针 8 种调用全对，操作日志里的名字是 `{"Module":"NoSuchPort"}`。
+
+## 复位、中止、初始化跟别的动作一个写法；服务基类只放通用的（2026-10-26，用户贴了 BaseService 的 SetProduction / SetMaintenance："这个不应该放在BaseSevice"；看了 RunRoutine 每个模块两份："我的意思很简单就应该只用一份……肯定是设计上有问题"、InitModule 一起改"肯定是要改的"、"直接开始修改吧"）
+- **毛病在哪**：别的动作入口回 `HandleResult<ModuleRoutine>`（被拒带原因），复位、中止当初为了跟组件基类 `ComponentBase.Reset()` / `Abort()` 的签名对上只回"动作或 null"，
+  原因另开 `CheckReset` / `CheckAbort` 去问；服务层因此每个模块两个 `RunRoutine` 重载（一个收 `HandleResult`、一个收动作 + 问原因的委托），
+  而且参数写成 `ILoadPort` / `IRobot` / `IChamber`，其实只用 `.State`，三份一模一样。拆两步还有个实际问题：返回 null 和再问原因之间状态可能已经变了，只能回笼统的"动作被拒"。
+- **做成什么样**：`IModule.InitModule()` / `Reset()` / `Abort()`、`ISystemModule.Abort()` 都回 `HandleResult<ModuleRoutine>`；模块里照 Home 的写法：锁里 `CheckState`，
+  不过 `Rejected(原因)`、过了 `Started(...)`（对准器补了一个 `Started`）。组件基类不动（`object?`），模块重写时收窄返回类型，报警复位、子组件递归照旧。
+  `CheckReset` / `CheckAbort` 从 ILoadPort、IRobot、IChamber、IAligner、ISystemModule 和各模块里删了。
+- **服务基类只剩通用的**：`RunRoutine(started, timeout)` 只有一个（被拒原样回码和参数、等超时 `module.wait_timeout`、没做成 `Failed(routine)`），不传模块名和状态；
+  切生产 / 维护挪回 LoadPort、机械手、腔体三个服务各自写（`FindModule<IXxx>(module) as IMode`，找不到 `module.not_found`）。整机停止 `EquipmentService.StopAsync` 直接 `Reply(_system.Abort())`。
+- **调用方**：PJ 中止、搬运就地停机械手取 `.Result`（被拒是 null，跟以前一样不等）；整机停止挨个中止模块不看返回值；全部初始化被拒照原样带模块给的原因
+  （错误码第一个参数都是模块名），笼统的 `system.init_rejected` 连同两份语言包删了。LoadPort、机械手、腔体、对准器 `InitModule` 里"被拒记一条日志"删了，原因交给全部初始化报。
+- **自己定的细节**（交付时说了）：`BaseModule` 默认的复位、中止（buffer、供液这类没自己动作的）子组件跟着做完就回做完的空动作 `ModuleRoutine.Done`（以前回 null，PJ 中止当它被拒不等，
+  现在等一个已经做完的，结果一样）；默认的初始化还是算被拒，回 `module.action_rejected`（平台模块基类都重写了，实际走不到）；buffer 正在交互时初始化被拒回 `module.state_not_allowed`。
+- **验证**：整个 sln Debug 0 错误 0 警告、IoIndexSmoke 单独编过；39 个冒烟全过（OperationWaitSmoke 1403 项，新加 1 项"没自己复位、中止动作的模块回做完的空动作"；
+  JobSmoke 798、EapSmoke 580、ChamberSmoke 270、WaferLedgerSmoke 208、CdsSmoke 148、SequenceSmoke 85、AlignerSmoke 51 等，改的是断言写法、检查数不变）。

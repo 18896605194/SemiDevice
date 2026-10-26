@@ -1318,11 +1318,11 @@ sealed class FakePort : ILoadPortAccess, ILogSource
 
     public HandleResult? CheckUnload() => UnloadRejection;
 
-    public ModuleRoutine? InitModule() => ModuleRoutine.Done(this, "InitModule");
+    public HandleResult<ModuleRoutine> InitModule() => HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "InitModule"));
 
-    public ModuleRoutine? Reset() => ModuleRoutine.Done(this, "Reset");
+    public HandleResult<ModuleRoutine> Reset() => HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Reset"));
 
-    public ModuleRoutine? Abort() => ModuleRoutine.Done(this, "Abort");
+    public HandleResult<ModuleRoutine> Abort() => HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Abort"));
 
     public void SetAutoMode(bool autoMode)
     {

@@ -158,17 +158,11 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     }
 
     /// <summary>
-    /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null
+    /// 模块初始化 = Home
     /// </summary>
-    public override ModuleRoutine? InitModule()
+    public override HandleResult<ModuleRoutine> InitModule()
     {
-        var started = Home();
-        if (!started.IsSuccess)
-        {
-            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
-        }
-
-        return started.Result;
+        return Home();
     }
 
     #endregion
@@ -276,68 +270,62 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
                 return Rejected(rejected);
             }
 
-            var started = BeginAction(AlignerAction.Home, CreateHomeRoutine(WaferOnStage() is not null));
-            if (started is null)
-            {
-                return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
-            }
-
-            return HandleResult<ModuleRoutine>.Success(started);
+            return Started(AlignerAction.Home, CreateHomeRoutine(WaferOnStage() is not null));
         }
     }
 
     /// <summary>
-    /// 复位：先清报警、复位子组件，再挂上清设备报错的动作；只查状态，被拒的原因用 <see cref="CheckReset"/> 问
+    /// 复位：先清报警、复位子组件，再挂上清设备报错的动作；只查状态，被拒带原因
     /// </summary>
-    public override ModuleRoutine? Reset()
+    public override HandleResult<ModuleRoutine> Reset()
     {
         base.Reset();
         lock (RoutineGate)
         {
-            if (CheckReset() is not null)
+            var rejected = CheckState(AlignerAction.Reset);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
             var reset = new ModuleRoutine(this, "Reset", _driver, () => ResetTimeout);
             AddResetSteps(reset);
-            return BeginAction(AlignerAction.Reset, reset);
+            return Started(AlignerAction.Reset, reset);
         }
     }
 
     /// <summary>
-    /// 复位能不能做（只查状态）
+    /// 中止（急停）：先中止子组件，再挂上设备停止；能顶替在途动作，不清报警。只查停用和状态表，被拒带原因
     /// </summary>
-    public HandleResult? CheckReset()
-    {
-        return CheckState(AlignerAction.Reset);
-    }
-
-    /// <summary>
-    /// 中止（急停）：先中止子组件，再挂上设备停止；能顶替在途动作，不清报警。只查停用和状态表，被拒的原因用 <see cref="CheckAbort"/> 问
-    /// </summary>
-    public override ModuleRoutine? Abort()
+    public override HandleResult<ModuleRoutine> Abort()
     {
         base.Abort();
         lock (RoutineGate)
         {
-            if (CheckAbort() is not null)
+            var rejected = CheckState(AlignerAction.Abort);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
             var abort = new ModuleRoutine(this, "Abort", _driver, () => AbortTimeout);
             AddAbortSteps(abort);
-            return BeginAction(AlignerAction.Abort, abort);
+            return Started(AlignerAction.Abort, abort);
         }
     }
 
     /// <summary>
-    /// 中止能不能做（只查停用和状态表）
+    /// 检查都过了，挂上设备动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态
     /// </summary>
-    public HandleResult? CheckAbort()
+    private HandleResult<ModuleRoutine> Started(AlignerAction action, ModuleRoutine routine)
     {
-        return CheckState(AlignerAction.Abort);
+        var started = BeginAction(action, routine);
+        if (started is null)
+        {
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return HandleResult<ModuleRoutine>.Success(started);
     }
 
     /// <summary>

@@ -601,17 +601,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     #region IChamber 契约
 
     /// <summary>
-    /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null
+    /// 模块初始化 = Home
     /// </summary>
-    public override ModuleRoutine? InitModule()
+    public override HandleResult<ModuleRoutine> InitModule()
     {
-        var started = Home();
-        if (!started.IsSuccess)
-        {
-            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
-        }
-
-        return started.Result;
+        return Home();
     }
 
     /// <summary>
@@ -1075,59 +1069,45 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     #region Reset / Abort
 
     /// <summary>
-    /// 复位：先清报警、复位子组件（轴在这一步发驱动器复位），再挂上等设备复位做完的动作。签名跟着组件基类（报警复位、整机复位按返回的动作等做完）；
-    /// 只查状态，被拒的原因用 <see cref="CheckReset"/> 问。卡在交互环里（取放片失败停在 Transferring）也能复位，落 Idle 等于强制脱离这一轮交互
+    /// 复位：先清报警、复位子组件（轴在这一步发驱动器复位），再挂上等设备复位做完的动作；只查状态，被拒带原因。
+    /// 卡在交互环里（取放片失败停在 Transferring）也能复位，落 Idle 等于强制脱离这一轮交互
     /// </summary>
-    public override ModuleRoutine? Reset()
+    public override HandleResult<ModuleRoutine> Reset()
     {
         base.Reset();
         lock (RoutineGate)
         {
-            if (CheckReset() is not null)
+            var rejected = CheckState(ChamberAction.Reset);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
             var reset = new ModuleRoutine(this, "Reset").LimitTo(() => ResetTimeout, ErrorCodes.ChamberActionTimeout);
             AddResetSteps(reset);
-            return Begin(ChamberAction.Reset, reset);
+            return Started(ChamberAction.Reset, reset);
         }
     }
 
     /// <summary>
-    /// 复位能不能做（只查状态）：复位被拒时服务层再问它要原因
+    /// 中止（急停）：先中止子组件（轴在这一步发停止），再挂上设备中止；能顶替在途动作，不清报警。
+    /// 只查停用和状态表、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>），被拒带原因
     /// </summary>
-    public HandleResult? CheckReset()
-    {
-        return CheckState(ChamberAction.Reset);
-    }
-
-    /// <summary>
-    /// 中止（急停）：先中止子组件（轴在这一步发停止），再挂上设备中止；能顶替在途动作，不清报警。签名跟着组件基类（整机停止、搬运中止按返回的动作等停下）；
-    /// 只查状态、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>），被拒的原因用 <see cref="CheckAbort"/> 问
-    /// </summary>
-    public override ModuleRoutine? Abort()
+    public override HandleResult<ModuleRoutine> Abort()
     {
         base.Abort();
         lock (RoutineGate)
         {
-            if (CheckAbort() is not null)
+            var rejected = CheckState(ChamberAction.Abort);
+            if (rejected is not null)
             {
-                return null;
+                return Rejected(rejected);
             }
 
             var abort = new ModuleRoutine(this, "Abort").LimitTo(() => AbortTimeout, ErrorCodes.ChamberActionTimeout);
             AddAbortSteps(abort);
-            return Begin(ChamberAction.Abort, abort);
+            return Started(ChamberAction.Abort, abort);
         }
-    }
-
-    /// <summary>
-    /// 中止能不能做（只查停用和状态表）：中止被拒时服务层再问它要原因
-    /// </summary>
-    public HandleResult? CheckAbort()
-    {
-        return CheckState(ChamberAction.Abort);
     }
 
     /// <summary>

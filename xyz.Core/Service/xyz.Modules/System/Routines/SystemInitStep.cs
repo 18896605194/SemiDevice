@@ -7,7 +7,7 @@ namespace xyz.Modules;
 
 /// <summary>
 /// 全部初始化的一步：这一批模块一起发初始化（各走自己的 <see cref="IModule.InitModule"/>，超时由模块 EC 管），都收完尾算做完。
-/// 有一个被拒（状态不允许、在忙，没写初始化的模块也算）或没做成就失败，已经在做的让它做完
+/// 有一个被拒（照原样带模块给的原因）或没做成就失败，已经在做的让它做完
 /// </summary>
 internal sealed class SystemInitStep : RoutineStep
 {
@@ -43,10 +43,11 @@ internal sealed class SystemInitStep : RoutineStep
     {
         foreach (var module in _modules)
         {
-            var routine = module.InitModule();
-            if (routine is null)
+            var started = module.InitModule();
+            var routine = started.Result;
+            if (!started.IsSuccess || routine is null)
             {
-                Fail(ErrorCodes.SystemInitRejected, $"{module.Name} 初始化被拒", module.Name);
+                Fail(started.ErrorMessage, $"{module.Name} 初始化被拒", [.. started.Args]);
                 return;
             }
 

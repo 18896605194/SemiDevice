@@ -2,6 +2,7 @@
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
+using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
@@ -33,10 +34,10 @@ public abstract class BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess
     /// <summary>
     /// 初始化：功能还没做，直接算做完、进空闲（不动阀），全部初始化不会卡在这儿
     /// </summary>
-    public override ModuleRoutine? InitModule()
+    public override HandleResult<ModuleRoutine> InitModule()
     {
         State = ModuleState.Idle;
-        return ModuleRoutine.Done(this, "Init");
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Init"));
     }
 
     /// <summary>

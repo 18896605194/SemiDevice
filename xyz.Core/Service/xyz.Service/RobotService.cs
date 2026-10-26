@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -30,7 +31,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, robot, robot.Home(), robot.HomeTimeout);
+        return RunRoutine(robot.Home(), robot.HomeTimeout);
     }
 
     public Task<RpcResponse> ResetAsync(RpcRequest request)
@@ -46,7 +47,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, robot, robot.Reset(), robot.CheckReset, robot.ResetTimeout);
+        return RunRoutine(robot.Reset(), robot.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(RpcRequest request)
@@ -62,7 +63,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, robot, robot.Abort(), robot.CheckAbort, robot.AbortTimeout);
+        return RunRoutine(robot.Abort(), robot.AbortTimeout);
     }
 
     /// <summary>
@@ -172,7 +173,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, robot, robot.PowerOn(), robot.PowerTimeout);
+        return RunRoutine(robot.PowerOn(), robot.PowerTimeout);
     }
 
     public Task<RpcResponse> PowerOffAsync(RpcRequest request)
@@ -188,12 +189,9 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunRoutine(module, robot, robot.PowerOff(), robot.PowerTimeout);
+        return RunRoutine(robot.PowerOff(), robot.PowerTimeout);
     }
 
-    /// <summary>
-    /// 切生产 / 维护模式走服务基类（见 <see cref="BaseService.SetProduction{TModule}"/>）
-    /// </summary>
     public Task<RpcResponse> SetProductionAsync(RpcRequest request)
     {
         if (!request.TryGet<string>(RpcParams.Module, out var module))
@@ -201,7 +199,14 @@ public class RobotService : BaseService, IRobotService
             return InvalidRequest();
         }
 
-        return SetProduction<IRobot>(module);
+        var robot = FindModule<IRobot>(module) as IMode;
+        if (robot is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        robot.SetProduction();
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     public Task<RpcResponse> SetMaintenanceAsync(RpcRequest request)
@@ -211,7 +216,14 @@ public class RobotService : BaseService, IRobotService
             return InvalidRequest();
         }
 
-        return SetMaintenance<IRobot>(module);
+        var robot = FindModule<IRobot>(module) as IMode;
+        if (robot is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        robot.SetMaintenance();
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     /// <summary>

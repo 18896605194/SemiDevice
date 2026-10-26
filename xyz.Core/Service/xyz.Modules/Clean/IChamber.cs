@@ -16,16 +16,6 @@ public interface IChamber : IProcessStation
     HandleResult<ModuleRoutine> Home();
 
     /// <summary>
-    /// 复位被拒的原因（复位本身是 IModule.Reset，签名跟着组件基类）
-    /// </summary>
-    HandleResult? CheckReset();
-
-    /// <summary>
-    /// 中止被拒的原因（中止本身是 IModule.Abort，签名跟着组件基类）
-    /// </summary>
-    HandleResult? CheckAbort();
-
-    /// <summary>
     /// 回零等到做完的上限（ms）
     /// </summary>
     int HomeTimeout { get; }
