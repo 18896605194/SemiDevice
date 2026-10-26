@@ -336,7 +336,7 @@ public class WaferLedgerViewModel : BaseViewModel
 
     #region Service
 
-    private readonly IWaferLedgerService _service;
+    private readonly ILedgerService _service;
 
     /// <summary>
     /// 攒账变通知用：第一条来了起表，到点拉一次。
@@ -381,7 +381,7 @@ public class WaferLedgerViewModel : BaseViewModel
 
     public WaferLedgerViewModel()
     {
-        _service = GrpcClientFactory.Create<IWaferLedgerService>();
+        _service = GrpcClientFactory.Create<ILedgerService>();
         SourceLocationsView = GroupByKind(Locations);
         TargetLocationsView = GroupByKind(Locations);
 

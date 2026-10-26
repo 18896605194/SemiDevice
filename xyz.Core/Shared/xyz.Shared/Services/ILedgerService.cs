@@ -8,7 +8,7 @@ namespace xyz.Shared.Services;
 /// 人按实物把账挪过去、删掉或补上。只改系统账，不让设备做任何动作。
 /// </summary>
 [ServiceContract]
-public interface IWaferLedgerService
+public interface ILedgerService
 {
     /// <summary>
     /// 账本全貌：能调整的位置和每个槽上的片。Data 为 WaferLedgerDto 的 JSON。

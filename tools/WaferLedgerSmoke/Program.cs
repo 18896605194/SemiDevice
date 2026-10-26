@@ -632,7 +632,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     serviceLedger.SetWaferId("SvcLP1", 5, "W-LP05");
 
     SmokeIoc.Tree(robot1, robot2);
-    var service = new WaferLedgerService();
+    var service = new LedgerService();
     var view = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     Check(view.IsEnabled && view.Locations.Select(location => location.Name)
               .SequenceEqual(new[] { "SvcRobot1", "SvcRobot2", "SvcLP1", "SvcPM1", "SvcBuffer" }),
@@ -754,7 +754,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         "账没开：位置表是空的，调账给错误码");
 
     SmokeIoc.Use<ILedgerManager>(null);
-    service = new WaferLedgerService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
+    service = new LedgerService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var noLedgerView = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     var noLedgerRecords = (await service.GetAdjustmentsAsync(new RpcRequest())).DeserializeData<List<WaferAdjustmentDto>>();
     Check(!noLedgerView.IsEnabled && noLedgerView.Locations.Count == 0 && noLedgerRecords.Count == 0, "没装账本也不出错");

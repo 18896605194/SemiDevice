@@ -14,11 +14,11 @@ using xyz.Tools;
 namespace xyz.Service.Wafers;
 
 
-public class WaferLedgerService : BaseService, IWaferLedgerService
+public class LedgerService : BaseService, ILedgerService
 {
     private readonly ILedgerManager? _ledger;
 
-    public WaferLedgerService()
+    public LedgerService()
     {
         _ledger = IocHelper.GetService<ILedgerManager>();
     }
