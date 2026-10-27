@@ -4,14 +4,8 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 对准器自己的能力；跟机械手交互走站点基类的 ITransferStation
-/// </summary>
 public interface IAligner : IModule
 {
-    /// <summary>
-    /// 回零：台上有片的接着对一遍；状态 → 互锁查过才挂上，被拒带原因返回
-    /// </summary>
     HandleResult<ModuleRoutine> Home();
 
     /// <summary>
