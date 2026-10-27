@@ -5,9 +5,13 @@
 /// </summary>
 public enum ControlJobAction
 {
-    /// <summary>SAVEJOBS：排队的 PJ 留着（不再归这个 CJ）。</summary>
+    /// <summary>
+    /// SAVEJOBS：排队的 PJ 留着（不再归这个 CJ）
+    /// </summary>
     SaveJobs = 0,
 
-    /// <summary>REMOVEJOBS：排队的 PJ 一起删掉。</summary>
+    /// <summary>
+    /// REMOVEJOBS：排队的 PJ 一起删掉
+    /// </summary>
     RemoveJobs = 1,
 }

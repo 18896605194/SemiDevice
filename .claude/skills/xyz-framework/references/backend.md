@@ -7,10 +7,11 @@
 ```
 Shared\xyz.Tools      EventBus、RemoteEventBus、JsonHelper、XmlHelper、IocHelper、ExcelHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
                       子目录只归类、命名空间都是 xyz.Tools：Events\（进程内 EventBus、跨进程 RemoteEventBus、信封 EventMessage、订阅凭据 Subscription）、
-                      Excel\（ExcelHelper 和它的列、表）；单个文件的帮助类留根目录
+                      Excel\（ExcelHelper 和它的列、表）、Helpers\（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件
 Shared\xyz.Shared     契约：Services\I*Service、Dtos\、Errors\ErrorCodes、Rpc\（→ Tools）
 Service\xyz.Common    日志：LogHelper（后端记日志一律走它）、ILogSource（两层名字）、LogQueue、LogFileReader、NLog.config；
-                      帮助类（根目录，命名空间 xyz.Common）：DateTimeHelper（本机时间 ↔ UTC 毫秒）、ValueHelper（数据类型、值的换算）
+                      帮助类在 Helpers\（只归类，命名空间还是 xyz.Common）：DateTimeHelper（本机时间 ↔ UTC 毫秒）、ValueHelper（数据类型、值的换算）；
+                      日志在 Log\（命名空间 xyz.Common.Log）
 Service\xyz.Configs   machine.xml（读 machine.xml）、配置模型、Paths.json（→ Common、Tools）；machine.xml 本身归机型（如 xyz.35021.Module\Config\machine.xml）
 Service\xyz.Database  SqlSugar：XyzDb、实体、分表
 Service\xyz.Drivers   纯协议/通讯（不引用 Components）
@@ -855,7 +856,8 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 
 2026-10-26 重整（用户定的，见 decisions.md「日志重整」）：
 
-- **后端记日志一律走 `LogHelper`**（不写 Console、ILogger、不直接取 NLog）；第三方库（ASP.NET Core 宿主、OPC UA）的日志经 `Components\Logging\LogHelperLoggerProvider` 转进来（只转 Warn 以上，宿主记 `Host`、OPC UA 记在 PLC 组件下）。客户端是另一个程序，照旧 `ClientLog`。
+- **后端记日志一律走 `LogHelper`**（不写 Console、ILogger、不直接取 NLog）；第三方库（ASP.NET Core 宿主、OPC UA）自己的日志不转、不记（2026-10-27 删了转接头）：宿主只 `ClearProviders()`，OPC UA 给空出口 `DefaultTelemetry.Create(_ => { })`；
+  它们抛出来的错由调用的地方 catch 了用 LogHelper 记（启动失败、崩溃在宿主 `Main`，按钮操作出错在操作日志，PLC 读写失败在组件里）。客户端是另一个程序，照旧 `ClientLog`。
 - **两层名字**（`ILogSource`，组件基类实现，装配时算好）：第一层 `LogModule` = 树上最顶上那个组件的全路径（带外面的分组名，如 `LoadPort.LoadPort1`），第二层 `LogPart` = 往下剩的路径（`Serial`、`RFID.Serial`），模块自己写的为空。
   组件里写 `LogHelper.Info(this, …)`；不是组件的地方写固定名字 `LogHelper.Info(LogHelper.HostModule, …)`（开机、宿主、machine.xml 读错这类记 `Host`）；动作（`ModuleRoutine`）、状态机、Job 管理里的 PJ / CJ 这类跟着谁就把谁作为 `ILogSource` 传进去。
   一行：`【时间】 【级别】 【模块】 【部件】 内容`（没有部件那一格不写；改之前的旧文件照样认）。
@@ -863,7 +865,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   收发原文的级别那一格写方向（`LogHelper.Sent` 发 / `Received` 收）：`LogHelper.Comm`（主日志）、`LogHelper.InfoLoop`（轮询文件）。
 - **操作日志**（谁点了什么）：`xyz.GrpcHost\ActionFilter`（gRPC 服务端拦截器，在 `AddCodeFirstGrpc` 里挂，只做 gRPC 这一层）把方法名、来路、请求头的操作人交给 `xyz.Service\IActionFilter`
   （实现是 `xyz.Service\ActionFilter`，跟宿主的拦截器同名；`AddXyzServices` 注册成单例、构造注入给宿主的 `ActionFilter`；记不记、怎么记都在它里面，冒烟经接口测它）：每个调用进来记一条（`操作人@IP 服务.方法 参数JSON`）、回包记一条（成功 / 失败 错误码 [参数] / 出错，带用时），
-  第一层 `Operation`、只进主日志不推顶栏（`LogHelper.Operation`）。不记：`Get` / `Query` 开头的、`Subscribe` / `Publish`；参数原样记（密码也不打码，2026-10-26 用户定）、中文原样（`JsonHelper.ToLogText`）。
+  第一层 `Operation`、只进主日志不推顶栏（`LogHelper.Operation`）。不记：`Get` / `Query` 开头的、`Subscribe` / `Publish`；参数原样记（密码也不打码，2026-10-26 用户定）、中文原样（`JsonHelper.Options` 本身不转码，客户端装的参数就是中文，2026-10-27）。
   操作人是客户端每次调用带的请求头 `xyz-user-bin`（`RpcHeaders.Operator`，UTF-8），服务里要"谁"的（账单调整、两个配方库、建 Job）也从这儿取：`RpcOperator.Of(context)`，没带记 `Unknown`；请求 DTO 上不再有 `Operator`。
 - Warn 以上的运行日志进 `LogQueue`，由日志组件（`LogComponent`，machine.xml 的 Log 节点）在它的 `Bind` 里接上：留最近 `RecentLogCount` 条（客户端连上补拉），每条推给客户端顶栏；接上之前的日志都在队列里攒着（最多 2000 条），不会丢。操作日志、收发原文不进队列。
 - **保留天数**：日志组件 machine.xml `KeepDays`（默认 30，0 = 不删），`Bind` 时 `LogHelper.SetKeepDays` 设到 NLog 各文件目标的 `MaxArchiveDays` 并把配置重新挂一遍（NLog 只在打开文件时按天数清，不重挂要等换天）；主日志、轮询文件、客户端日志（经 `LogSettingsDto.KeepDays`）共用。

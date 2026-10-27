@@ -1,5 +1,4 @@
-﻿using System.Text.Json;
-using xyz.Common.Log;
+﻿using xyz.Common.Log;
 using xyz.Shared.Dtos;
 using xyz.Tools;
 
@@ -119,25 +118,15 @@ public sealed class ActionFilter : IActionFilter
     /// </summary>
     private static string Arguments(object? request)
     {
+        // 参数本来就是 JSON，客户端装的时候中文就是原样，直接记
+        if (request is RpcRequest rpc)
+        {
+            return string.IsNullOrWhiteSpace(rpc.Parameters) ? "{}" : rpc.Parameters;
+        }
+
         try
         {
-            string json;
-            if (request is RpcRequest rpc)
-            {
-                json = "{}";
-                if (!string.IsNullOrWhiteSpace(rpc.Parameters))
-                {
-                    // 参数本来就是 JSON：重新写一遍是为了中文原样（客户端装的时候转成了 \uXXXX）
-                    using var document = JsonDocument.Parse(rpc.Parameters);
-                    json = JsonHelper.ToLogText(document.RootElement);
-                }
-            }
-            else
-            {
-                json = JsonHelper.ToLogText(request);
-            }
-
-            return json;
+            return JsonHelper.Serialize(request);
         }
         catch (Exception exception)
         {

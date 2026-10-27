@@ -4,9 +4,6 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Shared.Services;
 
-/// <summary>
-/// 角色管理 gRPC 服务契约
-/// </summary>
 [ServiceContract]
 public interface IRoleService
 {

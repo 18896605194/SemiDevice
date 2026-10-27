@@ -1,7 +1,7 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// 人工调整晶圆账（移动、删除、新建）的结果。
+/// 人工调整晶圆账
 /// </summary>
 public enum WaferAdjustResult
 {

@@ -1,7 +1,7 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// 动作（ModuleRoutine）走到哪了
+/// ModuleRoutine走到哪了
 /// </summary>
 public enum RoutineState
 {

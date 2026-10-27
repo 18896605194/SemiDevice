@@ -1,12 +1,12 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// 报警分类，就是 SEMI E5 ALCD（报警码字节）的低 7 位，报 Host 时原样带上；轻重看 AlarmLevel，不看它。
+/// 报警分类
 /// </summary>
 public enum AlarmCategory
 {
     /// <summary>
-    /// 不用（标准留的，报警声明里不选它）
+    /// 不用
     /// </summary>
     NotUsed = 0,
 

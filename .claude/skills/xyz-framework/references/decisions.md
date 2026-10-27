@@ -1550,7 +1550,10 @@
   用户问"放在这里面不行吗"、"你提供一个过滤器的接口不就好了"，就拆成这样。每个调用进来记一条、回包记一条（`操作人@IP 服务.方法 参数JSON` / `→ 成功 | 失败 码 [参数] | 出错` + 用时），
   第一层 `Operation`，只进主日志、不推顶栏（界面自己会提示结果，推了显示两遍）。不在 218 个按钮命令上逐个加：后端一处、局域网多客户端也全、被拒的也有码。
   - 不记：`Get` / `Query` 开头的（只读，轮询会刷屏），加 `Subscribe`、`Publish`（点动续命 `AxisJogRenew` 原来也在这儿，10-26 点动改成只发一次后删了）；切页这类纯界面按钮不经后端，不记（用户："不记录"）。
-  - 参数 JSON 中文原样（`JsonHelper.ToLogText`，默认的会转成 \uXXXX）。密码不打码、照原样记（原来名字带 Password 的写 `***`；2026-10-26 用户问"PasswordField……加密？不需要啊"，
+  - 参数 JSON 中文原样。原来日志单独一套不转码的 `JsonHelper.ToLogText`（默认的会转成 \uXXXX），2026-10-27 用户说"直接就删除好了"：删了它，
+    改成 `JsonHelper.Options` 本身不转码（`Encoder = UnsafeRelaxedJsonEscaping`；Unsafe 只是放进网页不安全，项目里没有网页；以前存的转码 JSON 照样读），
+    客户端装的 `Parameters` 就是中文，`ActionFilter` 直接记。没跟着更新的客户端发来的还是 \uXXXX，日志里照原样。
+    密码不打码、照原样记（原来名字带 Password 的写 `***`；2026-10-26 用户问"PasswordField……加密？不需要啊"，
     说明了它是给操作日志里的密码打码、去掉后日志文件和历史日志页能看到明文密码，用户答"不需要"，就删了）。
 - **操作人走请求头**：客户端 `GrpcClientFactory` 里私有的 `UserHeader`（客户端拦截器）每次调用带 `xyz-user-bin`（UTF-8：登录名可能是中文，普通请求头只能 ASCII）= `ClientSession.UserName`；
   服务里要"谁"的（账单调整、工艺配方、流程配方、建 Job）用 `RpcOperator.Of(context)`，没带记 `Unknown`。**请求 DTO 上的 `Operator` 删了**（用户："删除吧"）：只留一个来源；
@@ -1565,7 +1568,7 @@
     B（谁发谁记、不要标记）讲过：要把原文和到达时刻存到指令上转交、记日志的代码散到三处，用户最后定 A。用户想要的方法名 `InfoLoop`（`LogHelper.InfoLoop` 写轮询文件）。
   - 帧通讯往上交改成 `(帧原文, 报文)`，解不出来的也交（报文 null），通道记"解不出来，丢掉"——以前是悄悄丢的。记帧体不带壳，控制字符写 `<CR>`、`<0x02>`。
 - **后端记日志一律走 LogHelper**（用户："记录日志必须都是用LogHelper"，只管后端，客户端照旧 ClientLog）：删了模板留下的 `Worker.cs`、appsettings 的 Logging；
-  宿主（ASP.NET Core）和 OPC UA 库自己的日志经 `LogHelperLoggerProvider` 转进来（只 Warn 以上，以前一个打控制台、一个直接丢）；HSMS 的报文明文开着时记成收发原文进主日志。
+  宿主（ASP.NET Core）和 OPC UA 库自己的日志经 `LogHelperLoggerProvider` 转进来（只 Warn 以上，以前一个打控制台、一个直接丢；**10-27 转接头删了，不转了**，见「第三方库自己的日志不转」）；HSMS 的报文明文开着时记成收发原文进主日志。
 - **保留天数**放日志组件（用户："这个肯定放到日志组件里面的呀"）：machine.xml `KeepDays` 默认 30，主日志、轮询文件、客户端日志共用；NLog 6 文件名带日期也会按 `MaxArchiveDays` 清
   （实测过），但它只在打开文件时清，所以设完要把配置重新挂一遍，不然要等换天。
 - **NLog 性能**：`async="true"`（设备线程不碰磁盘，队列满了丢不阻塞）、去掉控制台、`autoReload` 关（热加载冲掉代码设的天数）；改成异步以后退出要 `Shutdown`、崩溃要 `Flush`，
@@ -1576,7 +1579,7 @@
 - 第三方库、`ModuleRoutine`、PJ / CJ 管理、状态机、开工计数这类不是组件的，把所属组件作为 `ILogSource` 传进去；开机读 machine.xml 写错、GEM 编号表这类记 `Host`。
 
 ## 后端帮助类：时间换算 DateTimeHelper、值换算 ValueHelper（2026-10-26，用户贴了 `DataRecordQuery.LocalMilliseconds`："类似这种的你放在后台的Common里面搞一个就是DataTimeHelper这个帮助类里面"；又贴了 `RealChartService.ToFloat`："这种的直接搞一个就是ValueHelper这种关于数据类型以及值转换的"）
-- **放哪**：后端 `xyz.Common` 根目录（命名空间 `xyz.Common`，跟日志同一个工程，组件层、模块层、服务层都引得到）。前后端都要用的帮助类照旧放 `xyz.Tools`（客户端引不到后端工程）。
+- **放哪**：后端 `xyz.Common\Helpers`（10-27 从根目录收进来，只归类、命名空间还是 `xyz.Common`；跟日志同一个工程，组件层、模块层、服务层都引得到）。前后端都要用的帮助类照旧放 `xyz.Tools`（客户端引不到后端工程）。
   用户说的 DataTimeHelper 按 DateTime 拼成 `DateTimeHelper`（交付时说了）。
 - **以后照这个写**：各文件里不再写私有的时间换算、值换算小方法，用这两个类，缺的往里加；带业务含义的读法（从哪读、读不到怎么办）留在各自的类里。
 - **`DateTimeHelper`**：`ToUnixMilliseconds`（本机时间 → UTC 毫秒，不看 Kind：界面传来的时间走 gRPC 丢了 Kind）、`FromUnixMilliseconds`（UTC 毫秒 → 本机时间）、`NowUnixMilliseconds`、
@@ -1616,7 +1619,7 @@
   流程配方、工艺配方要转 DTO，自己的改叫 `ReplySequence` / `ReplyRecipe`（跟基类同名同参数会盖掉基类的），成功之外交给 `Reply`。JobService 也换了（10-07 那条跟着改）。
 - **账号组件**：`IAccount` 的建用户、改用户、重置密码、启停用户、建角色、改角色、存权限 7 个方法改成直接收参数（原来收请求类，传输用的东西不进组件）。
 - **常量挪家**：`JobCommandRequest.ControlJobStart` → `IJobService.ControlJobStart`；`IEquipmentService.WaferSizeKey` 删了，参数名就是 `Size`（int，取不到或不支持照旧回 `system.wafer_size_invalid`）。
-- **操作日志**：`ActionFilter` 碰到 `RpcRequest` 直接记 `Parameters` 那段 JSON（重新写一遍让中文原样）；不带参数记 `{}`。密码同日起不打码（见上面「操作日志」一节）。
+- **操作日志**：`ActionFilter` 碰到 `RpcRequest` 直接记 `Parameters` 那段 JSON（10-27 起不再重新写一遍：JSON 本身不转码了）；不带参数记 `{}`。密码同日起不打码（见上面「操作日志」一节）。
 - **自己定的细节**（交付时说了）：时间参数走 JSON 带时区偏移（`+08:00`），后端读回来是本机时间，照旧按本机时间换算；客户端发本机时间，别发 UTC 的。
   机械手手动页的源 / 目标站点绑在下拉框上、选项重建时会被写成 null，调用时补 `?? string.Empty`，后端照旧回"站点不对"的具体原因而不是"请求参数不对"。
   可不带的参数类型对不上 `Get` 会悄悄用默认值（工艺配方的 Head 有一项不是字符串整张变空表），所以只给真正可选的参数用 `Get`。
@@ -1722,3 +1725,19 @@
 - **冒烟**：CdsSmoke 加了模式那几条（默认 Supply、machine.xml 里写了也不认、经 ITank 对调、是 SV、槽上只有基类那一个 Role）。
 - **验证**：整个 sln 0 错误（还是那 10 条警告）；CdsSmoke 153 项（多了 5 项）；35 个冒烟里 33 个一遍过，Hsms 单独重跑过。
   OpcUaSmoke 偶发挂在"PLC 的值变了，读回来跟着变"（连跑 3 次过 2 次），跟槽无关、没改：冒烟改完值马上 Tick，离上次读不到 `ReadIntervalMs`（冒烟设 10 ms）这一拍不读，缓存还是旧值。
+
+## xyz.Tools 分子目录、只归类（2026-10-27，用户："xyz.Tools 这个下面是不是最好分一下类用文件夹"、"这几种Helper 也好一个文件夹整合起来"）
+- `Events\`（EventBus、RemoteEventBus、EventMessage、Subscription）、`Excel\`（ExcelHelper 和它的列、表、读取器）、`Helpers\`（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件。
+  一开始单个文件的 Helper 留在根目录，用户要求也收进一个文件夹。
+- 命名空间都还是 `xyz.Tools`（跟组件 `Components\<类别>`、模块下的 `Enums\` 一样只归类），调用的地方不用改；写进了 SKILL.md 硬规矩第 5 条的例外。
+- 后端 `xyz.Common` 照做（用户："这种后台的也整一下用一个Helpers文件夹"）：`DateTimeHelper`、`ValueHelper` 收进 `Helpers\`，命名空间还是 `xyz.Common`，调用的地方不用改；
+  `Log\` 原来就是 `xyz.Common.Log`，没动。也写进了硬规矩第 5 条的例外。
+
+## 第三方库自己的日志不转（2026-10-27，用户："日志转到LogHelper，我直接都用LogHelper记录不就好了，为什么需要转"、"很简单，转接头都不需要不行吗"）
+- 删了 `xyz.Components\Logging\LogHelperLoggerProvider`（连目录）：宿主只留 `builder.Logging.ClearProviders()`（不清的话框架默认写控制台和 Windows 事件日志），
+  OPC UA 的日志出口给空的 `DefaultTelemetry.Create(_ => { })`（跟 OpcUaSmoke 里的假 PLC 一样）。
+- 删之前查过实际转过来什么：本机 187 个日志文件里宿主那条一次没转过；OPC UA 那条只有一种：`Opc.Ua.Configuration.ApplicationInstance：Application Certificate Validation suppressed BadCertificateUntrusted`
+  （自己生成的客户端证书不在信任列表，库提示一声，不影响连），两天冒烟 60 条。
+- 出错照旧由我们自己的代码直接用 LogHelper 记：启动失败、崩溃在宿主 `Main`，按钮操作出错在操作日志拦截器，PLC 连不上、读写失败、节点不对、写被拒在 `OpcUaPlcComponent` 的 catch 里。
+- 没兜到的：Get / Query 开头的查询、事件流这些不记操作日志的调用，万一在服务里抛异常，后端不留记录（以前框架记了会经转接头进来，实际日志里没出现过）。
+  按规矩服务不该抛（回 `Fail`）；要兜底就在 gRPC 拦截器里 catch 了用 LogHelper 记，用户没定。

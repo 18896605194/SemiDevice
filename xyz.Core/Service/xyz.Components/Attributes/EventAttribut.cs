@@ -1,8 +1,7 @@
 ﻿namespace xyz.Components.Attributes;
 
 /// <summary>
-/// 事件（SEMI E30 的 Collection Event）：标在组件的公开字符串字段（或属性）上，成员的值就是事件代码，
-/// 全名 = 组件全路径.代码，开机由事件采集器编号（EventDefinitions.xml 的 CEID）。组件里调 RaiseEvent(代码, 数据) 报出去。
+/// 事件（SEMI E30 的 Collection Event）
 /// </summary>
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
 public sealed class EventAttribut : Attribute

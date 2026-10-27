@@ -7,7 +7,6 @@ using ProtoBuf.Grpc.Server;
 using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
-using xyz.Components.Logging;
 using xyz.Service;
 using xyz.Tools;
 
@@ -76,13 +75,12 @@ public static class Program
     /// </summary>
     private static void Run(string[] args, HostTrayIcon tray)
     {
-        #region 建宿主、日志转进 LogHelper
+        #region 建宿主、关掉框架自己的日志
 
         var builder = WebApplication.CreateBuilder(args); //启用asp.core
 
-        //用我们自己的日志 模块记录host
+        // 框架自己的日志不要（默认写控制台和 Windows 事件日志）；启动失败、崩溃在 Main 里用 LogHelper 记
         builder.Logging.ClearProviders();
-        builder.Logging.AddProvider(new LogHelperLoggerProvider(LogHelper.HostModule));
 
         #endregion
 

@@ -1,7 +1,6 @@
 ﻿using System.Globalization;
 using System.Numerics;
 using System.Text;
-using Microsoft.Extensions.Logging;
 using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
@@ -9,7 +8,6 @@ using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
-using xyz.Components.Logging;
 
 namespace xyz.Components.Components;
 
@@ -25,18 +23,16 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
     private const int ConnectTimeoutMs = 5000;
 
     private readonly object _deviceGate = new();
-    private readonly ITelemetryContext _telemetry;
+
+    /// <summary>
+    /// 官方库要的日志出口：给空的，库自己的话不记，出了错由这里的 catch 用 LogHelper 记
+    /// </summary>
+    private readonly ITelemetryContext _telemetry = DefaultTelemetry.Create(_ => { });
 
     /// <summary>
     /// 客户端配置：第一次连接时连客户端证书一起建（证书放运行目录 OpcUa\pki），以后重连都用它
     /// </summary>
     private ApplicationConfiguration? _configuration;
-
-    public OpcUaPlcComponent()
-    {
-        // 官方库自己的日志（证书、会话、通讯层出的问题）转进 LogHelper，记在这个组件名下，只转 Warn 以上
-        _telemetry = DefaultTelemetry.Create(builder => builder.AddProvider(new LogHelperLoggerProvider(this)));
-    }
 
     /// <summary>
     /// 官方库的会话，相当于倍福的 AdsClient：连上以后经它读写

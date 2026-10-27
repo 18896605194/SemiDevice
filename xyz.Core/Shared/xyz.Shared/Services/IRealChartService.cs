@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Shared.Services;
 
 /// <summary>
-/// 实时曲线：每帧由后端主动推（RemoteEventBus，token = RealChartFrameDto.EventToken）；这里只拉信号表和最近一段。
+/// 实时曲线
 /// </summary>
 [ServiceContract]
 public interface IRealChartService

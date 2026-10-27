@@ -19,7 +19,7 @@ description: xyz 半导体设备框架的架构分层和编码规范——后端
 ```
 xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、RemoteEventBus、JsonHelper、IocHelper、ExcelHelper，前后端共用的帮助类都放这里）
 xyz.Core\Service  后端：xyz.Components（组件）→ xyz.Modules（模块）→ xyz.Service（gRPC 服务、装配、事件桥）→ xyz.GrpcHost（宿主）
-                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（跟主机、厂里系统通讯的底层：SECS/HSMS、GEM 各标准协议、EDA 引擎；单独的 git 仓库（GitHub 18896605194/Secs），框架只引 Libs\xyz.Secs.dll）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志；后端自己用的帮助类：时间换算 DateTimeHelper、值换算 ValueHelper）
+                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（跟主机、厂里系统通讯的底层：SECS/HSMS、GEM 各标准协议、EDA 引擎；单独的 git 仓库（GitHub 18896605194/Secs），框架只引 Libs\xyz.Secs.dll）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志 Log\；后端自己用的帮助类在 Helpers\：时间换算 DateTimeHelper、值换算 ValueHelper）
 xyz.Core\Client   客户端：xyz.Client（壳）→ 功能模块 Main/Alarm/DataCenter/Io/Manual/Recipe/Setting → Common\xyz.Client.Presentation（控件/样式/语言包）
                   → Common\xyz.Client.Common（RPC/事件/日志）、Common\xyz.Client.DataModels（BaseViewModel）；Common\xyz.Client.Modules（机型模块接口）
 xyz.35021         机型层：继承平台 Base*Module 写具体设备（品牌协议、指令在 Drivers\<品牌>）、机型客户端页面、machine.xml 和 IO 点表；编译后部署到宿主和客户端的 Modules\35021（machine.xml、点表进宿主 Config），运行时扫描加载
@@ -95,7 +95,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    }
    ```
 4. **不留魔法数**：装机、接线、结构性的进 machine.xml（`[Machine]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
-5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>`、`xyz.Tools` 的子目录只归类，例外）。
+5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>`、`xyz.Tools` 的子目录、`xyz.Common\Helpers` 只归类，例外）。
 6. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
 7. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。
    **字段不先接到局部变量再用**（用户 2026-10-27 定）：开机后不变的字段（构造、`InitComponent`、`Bind`、`Attach` 里赋值的，readonly 的）直接 `if (_x is null)`、`_x.Foo()`，
@@ -106,7 +106,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 10. 客户端：模块状态用 `ModuleStateBadge`；输入用 `InputTextBox`（绑 Value）；样式只放 `Presentation\Styles`，颜色、字号用 token（`Dark*`、`SizeNN`）；页面里不写资源、不写死颜色和字号。
 11. 删功能要删干净：界面、逻辑、语言包、样式、DTO 字段、测试一起删，不留没人用的代码。
 12. **后端记日志一律走 `LogHelper`**（用户 2026-10-25 定）：不写 `Console.WriteLine`、`ILogger`、`LogManager.GetLogger`；组件里写 `LogHelper.Info(this, …)`（两层名字：模块、部件），
-    不是组件的写固定名字（`LogHelper.HostModule`）；第三方库的日志用 `LogHelperLoggerProvider` 转进来。客户端照旧 `ClientLog`。见 backend.md §9。
+    不是组件的写固定名字（`LogHelper.HostModule`）；第三方库自己的日志不转、不记（2026-10-27 用户定），它们抛出来的错由调用的地方 catch 了用 LogHelper 记。客户端照旧 `ClientLog`。见 backend.md §9。
 13. **定时查设备状态一律写在模块的 `QueryDataLoop` 里，交给 `StatusQueryLoop` 发**（2026-10-26）：别在扫描里自己定时 `Send`——它发的指令打 `IsPolling`，
     通道才知道把收发原文记到轮询文件，不然会刷满主日志。
 14. **时间换算、值换算用 `xyz.Common` 的 `DateTimeHelper`、`ValueHelper`**（用户 2026-10-26 定）：各文件里不写私有的换算小方法（本机时间 ↔ UTC 毫秒、`double?` → `float?`、
