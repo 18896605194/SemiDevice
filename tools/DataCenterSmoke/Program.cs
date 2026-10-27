@@ -366,7 +366,7 @@ try
     device.Fault();
     var active = JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!;
     Check(active.Count == 1 && active[0].Source == "Tool1" && active[0].Code == "ProbeFault"
-          && active[0].Level == "Alarm1" && active[0].IsActive, "当前报警带来源、代码、等级");
+          && active[0].Level == "Light" && active[0].IsActive, "当前报警带来源、代码、等级");
     Check(active[0].Text == "探针故障" && active[0].Solution == "检查探针后复位", "报警文本与处理建议");
     Check(pushedAlarms.Count == 1 && pushedAlarms[0].Source == "Tool1" && pushedAlarms[0].Code == "ProbeFault" && pushedAlarms[0].IsActive,
         "报警组件自己推给界面：报出来推一条（照映射组件的规则转）");
@@ -402,9 +402,9 @@ try
         db.CodeFirst.SplitTables().InitTables<AlarmHistoryEntity>();
         db.Insertable(new List<AlarmHistoryEntity>
         {
-            new() { Action = "Raised", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "OtherCategories", Level = "Alarm1",
+            new() { Action = "Raised", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "OtherCategories", Level = "Light",
                     RaisedAt = today.AddHours(8), OccurredAt = today.AddHours(8) },
-            new() { Action = "Cleared", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "OtherCategories", Level = "Alarm1",
+            new() { Action = "Cleared", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "OtherCategories", Level = "Light",
                     RaisedAt = today.AddHours(8), OccurredAt = today.AddHours(8).AddMinutes(5) },
             new() { Action = "Raised", Source = "Tool2", Code = "Crash", Text = "撞机", Category = "IrrecoverableError", Level = "Fatal",
                     RaisedAt = today.AddHours(9), OccurredAt = today.AddHours(9) },
@@ -771,10 +771,9 @@ finally
     var services = ServiceExtensions.GrpcServices();
     var contracts = typeof(IAlarmService).Assembly.GetTypes()
         .Where(type => type.IsInterface && type.GetCustomAttribute<ServiceContractAttribute>() is not null)
-        .Where(type => type != typeof(IRpcService))
         .ToList();
     Check(contracts.Count >= 19 && contracts.All(contract => services.Count(service => service.Contract == contract) == 1),
-        "xyz.Service 里的服务一个契约认出一个实现（宿主自己的 RpcService 在宿主程序集里，这里没装）");
+        "xyz.Service 里的服务一个契约认出一个实现");
     Check(services.All(service => service.Implementation.Name == service.Contract.Name[1..] && !service.Implementation.IsAbstract),
         "认出来的都是契约对应的那个类：IAlarmService → AlarmService");
 }
@@ -936,7 +935,7 @@ sealed class ProbeDevice : ComponentBase
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
-    [Alarm("探针故障", AlarmCategory.OtherCategories, AlarmLevel = AlarmLevel.Alarm1, Solution = "检查探针后复位")]
+    [Alarm("探针故障", AlarmCategory.OtherCategories, AlarmLevel = AlarmLevel.Light, Solution = "检查探针后复位")]
     public string ProbeFault = nameof(ProbeFault);
 
     public void Fault() => RaiseAlarm(ProbeFault);

@@ -59,8 +59,10 @@ try
         "EC 全名 = 组件路径.属性名，元数据取自 [VariableMark]");
     Check(gem.Sv.Definitions.Any(row => row.Name == "Tool1._carrier"), "SV 用 [VariableMark] 的 Name 覆盖采集名");
     Check(gem.Alarm.Definitions.Any(row => row.Name == "Tool1.TimeoutAlarm" && row.AlarmText == "动作超时"
-                                           && row.AlarmLevel == "Alarm1" && row.Category == "IrrecoverableError"),
+                                           && row.AlarmLevel == "Light" && row.Category == "IrrecoverableError"),
         "报警全名 = 组件路径.报警代码，文本、等级、分类取自 [Alarm]");
+    Check(new AlarmAttribute("不写等级", AlarmCategory.OtherCategories).AlarmLevel == AlarmLevel.Heavy,
+        "[Alarm] 不写等级默认 Heavy");
     Check(IdOf(gem.Event.Definitions, "Tool1.Arrived") == 70000 && IdOf(gem.Event.Definitions, "Tool2.Arrived") == 70001,
         "组件事件先分号，报警事件跟在后面");
     Check(File.ReadAllText(FileOf(EcCollector.FileName)).Contains("ECID=\"10000\""), "EcDefinitions.xml 按 ECID 写");
@@ -242,7 +244,7 @@ Console.WriteLine($"PASS: {checks} GEM collector checks (fresh generation in fiv
                   "live EC/SV values, broken tables left untouched, legacy IDs kept and range exhaustion).");
 
 /// <summary>
-/// 冒烟用设备：EC、SV、报警（一条 Alarm1、一条 Warn）、事件。
+/// 冒烟用设备：EC、SV、报警（一条 Light、一条 Warn）、事件。
 /// </summary>
 [Component(description: "编号表冒烟用设备")]
 public sealed class ProbeTool : ComponentBase
@@ -267,7 +269,7 @@ public sealed class ProbeTool : ComponentBase
     [VariableMark(VariableType.SV, ValueFormat.String, description: "当前载具号", Name = "_carrier")]
     public string? CarrierId { get; set; }
 
-    [Alarm("动作超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1,
+    [Alarm("动作超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Light,
         Description = "动作没在规定时间内完成", Solution = "检查设备后复位")]
     public string TimeoutAlarm = nameof(TimeoutAlarm);
 

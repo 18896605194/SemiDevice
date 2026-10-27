@@ -49,7 +49,7 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
         Solution = "准备备件、安排换件；换完把已用次数清零再复位报警")]
     public string WarnAlarm = nameof(WarnAlarm);
 
-    [Alarm("寿命到期", AlarmCategory.EquipmentStatusWarning, AlarmLevel = AlarmLevel.Alarm1,
+    [Alarm("寿命到期", AlarmCategory.EquipmentStatusWarning, AlarmLevel = AlarmLevel.Light,
         Description = "这个部件的已用次数到了 EC 设的报警次数",
         Solution = "换件，换完把已用次数清零再复位报警；暂时不换就把 EC AlarmCount 调高")]
     public string ExpiredAlarm = nameof(ExpiredAlarm);

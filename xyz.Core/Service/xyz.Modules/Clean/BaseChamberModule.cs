@@ -116,13 +116,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     #region Alarm
 
     [Alarm("腔体设备报警", AlarmCategory.IrrecoverableError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "腔体控制器上报报错",
         Solution = "查询报错内容，排除故障后复位并重新回原点")]
     public string ChamberDeviceAlarm = nameof(ChamberDeviceAlarm);
 
     [Alarm("腔体受控停止", AlarmCategory.IrrecoverableError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "回原点、工艺等动作失败或超时，腔体进入错误状态",
         Solution = "先确认腔内实际片位与工艺是否跑完，再复位并重新回原点")]
     public string ControlledStopAlarm = nameof(ControlledStopAlarm);

@@ -389,7 +389,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     var alarm = alarms.ActiveAlarms[0];
     Check(alarm.SourcePath == "SmokeLedger" && alarm.AlarmCode == "WaferLedgerAlarm",
         $"报警应带上来源与代码，实际 {alarm.SourcePath}.{alarm.AlarmCode}");
-    Check(alarm.AlarmText == "晶圆账异常" && alarm.Level == AlarmLevel.Alarm1
+    Check(alarm.AlarmText == "晶圆账异常" && alarm.Level == AlarmLevel.Light
           && alarm.Category == AlarmCategory.DataIntegrity,
         "报警文本/等级/分类应来自组件上的 [Alarm] 定义——不用事先注册");
     Check(!string.IsNullOrWhiteSpace(alarm.Solution), "报警应带处理建议，界面要显示给操作员");
@@ -439,7 +439,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
     Check(alarmRows.Select(row => row.Action).SequenceEqual(new[] { "Raised", "Cleared" }),
         "报警应入库：报出、清除各一行，实际: " + string.Join(",", alarmRows.Select(row => row.Action)));
-    Check(alarmRows.All(row => row.Code == "WaferLedgerAlarm" && row.Level == "Alarm1" && row.Text == "晶圆账异常")
+    Check(alarmRows.All(row => row.Code == "WaferLedgerAlarm" && row.Level == "Light" && row.Text == "晶圆账异常")
           && alarmRows[1].RaisedAt == alarmRows[0].RaisedAt && alarmRows[1].OccurredAt >= alarmRows[1].RaisedAt,
         "报警记录应带代码、等级、文本；清除那行带上报出时刻");
 

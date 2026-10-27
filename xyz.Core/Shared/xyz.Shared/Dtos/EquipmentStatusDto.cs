@@ -9,15 +9,23 @@ public class EquipmentStatusDto
 {
     public const string EventToken = "EquipmentStatus";
 
-    /// <summary>有报警（Alarm1 / Alarm2 / Fatal 级，还没被人工清除）→ 红灯。</summary>
+    /// <summary>
+    /// 有报警（Light / Heavy / Fatal 级，还没被人工清除）→ 红灯。
+    /// </summary>
     public bool HasAlarm { get; set; }
 
-    /// <summary>有警告（Warn 级报警还没被人工清除）→ 黄灯。</summary>
+    /// <summary>
+    /// 有警告（Warn 级报警还没被人工清除）→ 黄灯。
+    /// </summary>
     public bool HasWarning { get; set; }
 
-    /// <summary>有模块正在执行动作 → 绿灯。</summary>
+    /// <summary>
+    /// 有模块正在执行动作 → 绿灯。
+    /// </summary>
     public bool IsRunning { get; set; }
 
-    /// <summary>整机做几寸片：8 或 12（主界面系统操作显示、切换）。没配晶圆尺寸时是 12。</summary>
+    /// <summary>
+    /// 整机做几寸片：8 或 12（主界面系统操作显示、切换）。没配晶圆尺寸时是 12。
+    /// </summary>
     public int WaferSize { get; set; }
 }

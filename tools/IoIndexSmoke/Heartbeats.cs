@@ -78,8 +78,8 @@ static class Heartbeats
             Thread.Sleep(250);
             heartbeat.Tick();
             var alarm = alarms.ActiveAlarms.SingleOrDefault(item => item.SourcePath == heartbeat.FullPath && item.AlarmCode == heartbeat.SendFailedAlarm);
-            Check(alarm is not null && alarm.Level == AlarmLevel.Alarm1 && alarm.Category == AlarmCategory.IrrecoverableError && !heartbeat.IsAlive,
-                "写不成报心跳发送失败（Alarm1、通讯故障），IsAlive 变 false");
+            Check(alarm is not null && alarm.Level == AlarmLevel.Light && alarm.Category == AlarmCategory.IrrecoverableError && !heartbeat.IsAlive,
+                "写不成报心跳发送失败（Light、通讯故障），IsAlive 变 false");
             int attempts = plc.Attempts;
             heartbeat.Tick();
             Check(plc.Attempts == attempts, "写不成以后也等满间隔再写");

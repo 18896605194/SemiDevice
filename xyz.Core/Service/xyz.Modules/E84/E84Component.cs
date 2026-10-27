@@ -119,13 +119,13 @@ public class E84Component : ComponentBase, IE84
     #region Alarm
 
     [Alarm("E84 交接超时", AlarmCategory.IrrecoverableError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "E84 握手某一段（TP1–TP5）超时，本次交接中止，输出已全灭",
         Solution = "检查搬运车与端口的 E84 信号和光幕；确认载具实际位置后 Retry 或 Complete，再复位报警")]
     public string E84TimeoutAlarm = nameof(E84TimeoutAlarm);
 
     [Alarm("E84 意外放上 / 拿走载具", AlarmCategory.AttentionFlags,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "端口在 Auto（搬运车交接）模式下，没走 E84 交接，载具被放上或拿走了（多半是有人手动放、拿）",
         Solution = "Auto 模式下别手动放、拿载具，要手动操作先把端口切到 Manual；确认载具实际在不在、晶圆账对不对，再复位报警")]
     public string UnexpectedCarrierAlarm = nameof(UnexpectedCarrierAlarm);

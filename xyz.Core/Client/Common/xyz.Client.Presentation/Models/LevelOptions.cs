@@ -14,7 +14,7 @@ public static class LevelOptions
     public static IReadOnlyList<string> Log => [All, "Debug", "Info", "Warn", "Error"];
 
     /// <summary>报警等级。</summary>
-    public static IReadOnlyList<string> Alarm => [All, "Warn", "Alarm1", "Alarm2", "Fatal"];
+    public static IReadOnlyList<string> Alarm => [All, "Warn", "Light", "Heavy", "Fatal"];
 
     /// <summary>
     /// 下拉框选的值 → 查询条件（"全部"为空串，表示不筛）。

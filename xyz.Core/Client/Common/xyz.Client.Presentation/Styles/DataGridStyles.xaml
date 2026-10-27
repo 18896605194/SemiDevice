@@ -202,7 +202,7 @@
         </Style.Triggers>
     </Style>
 
-    <!--  报警等级单元格（行数据要有 Level 属性）：Warn 黄、Alarm1/Alarm2 橙、Fatal 红  -->
+    <!--  报警等级单元格（行数据要有 Level 属性）：Warn 黄、Light/Heavy 橙、Fatal 红  -->
     <Style
         x:Key="AlarmLevelDataGridTextStyle"
         BasedOn="{StaticResource DefaultDataGridTextStyle}"
@@ -212,10 +212,10 @@
             <DataTrigger Binding="{Binding Level}" Value="Warn">
                 <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
             </DataTrigger>
-            <DataTrigger Binding="{Binding Level}" Value="Alarm1">
+            <DataTrigger Binding="{Binding Level}" Value="Light">
                 <Setter Property="Foreground" Value="{StaticResource DarkAlarmIcon}" />
             </DataTrigger>
-            <DataTrigger Binding="{Binding Level}" Value="Alarm2">
+            <DataTrigger Binding="{Binding Level}" Value="Heavy">
                 <Setter Property="Foreground" Value="{StaticResource DarkAlarmIcon}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Level}" Value="Fatal">

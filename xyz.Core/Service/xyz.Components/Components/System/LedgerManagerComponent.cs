@@ -564,7 +564,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
     #region Alarm
 
     [Alarm("晶圆账异常", AlarmCategory.DataIntegrity,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "账本与实际不符：源位置无片、目标位置已有片，或传感器与账对不上",
         Solution = "在手动界面按实际情况建片/移片/删片，核对后再继续")]
     public string WaferLedgerAlarm = nameof(WaferLedgerAlarm);

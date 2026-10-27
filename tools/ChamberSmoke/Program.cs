@@ -1080,7 +1080,7 @@ try
         plc.WriteDo(8, false);
         life.Tick();
         var expired = alarms.ActiveAlarms.SingleOrDefault(alarm => alarm.SourcePath == life.FullPath && alarm.AlarmCode == life.ExpiredAlarm);
-        Check(life.UsedCount == 3 && expired is not null && expired.Level == AlarmLevel.Alarm1, "到了报警次数（3）报寿命到期报警");
+        Check(life.UsedCount == 3 && expired is not null && expired.Level == AlarmLevel.Light, "到了报警次数（3）报寿命到期报警");
 
         alarms.Reset(life.FullPath);
         Check(!Active(life.WarnAlarm) && !Active(life.ExpiredAlarm), "人工复位两条都清掉");
@@ -1173,7 +1173,7 @@ try
         bath.Clock = bathStarted.AddMinutes(120);
         bath.Tick();
         var bathExpired = alarms.ActiveAlarms.SingleOrDefault(alarm => alarm.SourcePath == "BathLife" && alarm.AlarmCode == bath.ExpiredAlarm);
-        Check(bathExpired is not null && bathExpired.Level == AlarmLevel.Alarm1 && !BathActive(bath.WarnAlarm),
+        Check(bathExpired is not null && bathExpired.Level == AlarmLevel.Light && !BathActive(bath.WarnAlarm),
             "到了报警时间（120 分钟）只报寿命到期报警，不再叠一条警告");
 
         // 重启：关机三天后再开，从库里的起算时间接着算，关机这三天也算进去

@@ -86,7 +86,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     public string AiSensorWarnAlarm = nameof(AiSensorWarnAlarm);
 
     [Alarm("AI 测量值超出允许范围", AlarmCategory.ParameterControlError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "AI 测量值超出允许范围",
         Solution = "检查对应工艺变量及传感器；上下限在 EC AlarmMin/AlarmMax 调整（machine.xml IsPercentOfTarget 为 True 时是目标值的百分比）")]
     public string AiSensorAlarm = nameof(AiSensorAlarm);

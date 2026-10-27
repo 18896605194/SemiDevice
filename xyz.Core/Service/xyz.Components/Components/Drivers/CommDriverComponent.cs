@@ -42,7 +42,7 @@ public abstract class CommDriverComponent : ComponentBase, ICommDriver
     #region Alarm
 
     [Alarm("设备通讯断开，已停止重连", AlarmCategory.IrrecoverableError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "通讯断开后按 EC ReconnectMaxCount 重连了几次都没连上，已停止重连，这一路指令都发不出去",
         Solution = "检查线缆、设备电源和通讯配置（machine.xml 里这个通道节点的串口 / IP / 端口）；好了以后复位，复位会重新开始连")]
     public string ReconnectFailedAlarm = nameof(ReconnectFailedAlarm);

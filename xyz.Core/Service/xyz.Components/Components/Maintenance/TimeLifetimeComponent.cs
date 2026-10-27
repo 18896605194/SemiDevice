@@ -54,7 +54,7 @@ public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
         Solution = "准备换件（换液）；换完把已用时间清零（配了清零 DO 的会自动清）再复位报警")]
     public string WarnAlarm = nameof(WarnAlarm);
 
-    [Alarm("寿命到期", AlarmCategory.EquipmentStatusWarning, AlarmLevel = AlarmLevel.Alarm1,
+    [Alarm("寿命到期", AlarmCategory.EquipmentStatusWarning, AlarmLevel = AlarmLevel.Light,
         Description = "已用时间（从上次清零起；配了计时 DO 的只算它通着的时间）到了 EC 设的报警时间",
         Solution = "换件（换液），换完把已用时间清零（配了清零 DO 的会自动清）再复位报警；暂时不换就把 EC AlarmMinutes 调高")]
     public string ExpiredAlarm = nameof(ExpiredAlarm);

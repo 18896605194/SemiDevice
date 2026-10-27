@@ -8,23 +8,33 @@ namespace xyz.Client.Presentation.Models;
 /// </summary>
 public class AlarmModel
 {
-    /// <summary>报警来源的组件路径，如 LoadPort1、Robot1。</summary>
+    /// <summary>
+    /// 报警来源的组件路径，如 LoadPort1、Robot1。
+    /// </summary>
     public string Source { get; init; } = string.Empty;
 
-    /// <summary>报警代码，同一来源内唯一。</summary>
+    /// <summary>
+    /// 报警代码，同一来源内唯一。
+    /// </summary>
     public string Code { get; init; } = string.Empty;
 
     public string Text { get; init; } = string.Empty;
 
-    /// <summary>分类（AlarmCategory 名字）。</summary>
+    /// <summary>
+    /// 分类（AlarmCategory 名字）。
+    /// </summary>
     public string Category { get; init; } = string.Empty;
 
-    /// <summary>等级：Warn / Alarm1 / Alarm2 / Fatal。</summary>
+    /// <summary>
+    /// 等级：Warn / Light / Heavy / Fatal。
+    /// </summary>
     public string Level { get; init; } = string.Empty;
 
     public string Description { get; init; } = string.Empty;
 
-    /// <summary>处理建议。</summary>
+    /// <summary>
+    /// 处理建议。
+    /// </summary>
     public string Solution { get; init; } = string.Empty;
 
     public DateTime RaisedAt { get; init; }

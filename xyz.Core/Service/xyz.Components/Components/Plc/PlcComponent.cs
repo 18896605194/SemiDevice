@@ -95,7 +95,7 @@ public abstract class PlcComponent : ComponentBase
     #region Alarm
 
     [Alarm("PLC 通讯断开", AlarmCategory.IrrecoverableError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "与 PLC 的连接断开或建立失败，所有 IO 读写停摆",
         Solution = "检查网线、PLC 上电与地址配置（machine.xml 的 Host/Port）；恢复后复位清警（重连次数用完停下来的，复位会重新开始连）")]
     public string PlcOfflineAlarm = nameof(PlcOfflineAlarm);

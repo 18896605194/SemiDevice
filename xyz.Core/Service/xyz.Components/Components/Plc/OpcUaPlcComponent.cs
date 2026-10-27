@@ -92,7 +92,7 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
     #region Alarm
 
     [Alarm("PLC 数据读写失败", AlarmCategory.IrrecoverableError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "连接正常但某个节点读失败，通常是节点名配错、PLC 里没把这个变量开放给 OPC UA，或者类型不对（DI/DO 要 BOOL 数组，AI/AO 要数值数组）",
         Solution = "核对 machine.xml 的 DiDataPath、DoDataPath、AiDataPath、AoDataPath 与 PLC 里的变量；日志里有是哪个节点、什么原因")]
     public string PlcDataErrorAlarm = nameof(PlcDataErrorAlarm);

@@ -47,7 +47,7 @@ public class BeckhoffPlcComponent : PlcComponent, IPlcIo, IPlcBlock
     #region Alarm
 
     [Alarm("PLC 数据块读写失败", AlarmCategory.IrrecoverableError,
-        AlarmLevel = AlarmLevel.Alarm1,
+        AlarmLevel = AlarmLevel.Light,
         Description = "连接正常但某个数据块读或写失败，通常是块名配错或 PLC 侧未定义",
         Solution = "核对数据块名（组件的 PlcDataPath / machine.xml 的 DiDataPath、DoDataPath）与 PLC 程序里的符号")]
     public string PlcDataErrorAlarm = nameof(PlcDataErrorAlarm);

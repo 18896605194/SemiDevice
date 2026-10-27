@@ -20,9 +20,9 @@ public sealed class AlarmAttribute : Attribute
     public AlarmCategory Category { get; }
 
     /// <summary>
-    /// 报警等级，默认 Alarm2。
+    /// 报警等级，默认 Heavy。
     /// </summary>
-    public AlarmLevel AlarmLevel { get; set; } = AlarmLevel.Alarm2;
+    public AlarmLevel AlarmLevel { get; set; } = AlarmLevel.Heavy;
 
     /// <summary>
     /// 详细描述。
