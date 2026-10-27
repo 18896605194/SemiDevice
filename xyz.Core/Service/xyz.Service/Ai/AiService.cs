@@ -1,5 +1,5 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components.Interfaces;
+using xyz.Elements.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -24,7 +24,7 @@ public class AiService : BaseService, IAiService
     {
         _ai = IocHelper.GetService<IAi>();
         _system = IocHelper.GetService<ISystemModule>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     /// <summary>

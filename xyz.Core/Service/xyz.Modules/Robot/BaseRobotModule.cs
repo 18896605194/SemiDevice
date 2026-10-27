@@ -1,11 +1,11 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Configs.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
@@ -180,7 +180,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #endregion
 
-    #region Component
+    #region Element
 
     /// <summary>
     /// 设备通道（machine.xml 里本模块下启用的那条：串口或网口）：项目的机械手类用它发指令
@@ -196,12 +196,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     public IReadOnlyList<IRobotArm> Arms { get; private set; } = Array.Empty<IRobotArm>();
 
     /// <summary>
-    /// 晶圆账：组件初始化时取一次；没配晶圆账、或机械手停用（不登记账）为 null。
+    /// 晶圆账：元件初始化时取一次；没配晶圆账、或机械手停用（不登记账）为 null。
     /// </summary>
     private ILedgerManager? _ledger;
 
     /// <summary>
-    /// 映射组件：组件初始化时取一次，账上的片转给界面用
+    /// 映射元件：元件初始化时取一次，账上的片转给界面用
     /// </summary>
     private IMapper? _mapper;
 
@@ -210,7 +210,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region 示教点表
 
     /// <summary>
-    /// 12 寸示教点的分组名：机械手下一种晶圆尺寸一组，下面挂示教点组件
+    /// 12 寸示教点的分组名：机械手下一种晶圆尺寸一组，下面挂示教点元件
     /// </summary>
     private const string TeachPoints12Name = "Size12";
 
@@ -220,24 +220,24 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     private const string TeachPoints8Name = "Size8";
 
     /// <summary>
-    /// 12 寸的示教点表（machine.xml 里机械手下 Size12 那组）；组件初始化时收好就不变
+    /// 12 寸的示教点表（machine.xml 里机械手下 Size12 那组）；元件初始化时收好就不变
     /// </summary>
     private IReadOnlyDictionary<string, ITeachPoint> _teachPoints12 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 8 寸的示教点表（machine.xml 里机械手下 Size8 那组）；组件初始化时收好就不变
+    /// 8 寸的示教点表（machine.xml 里机械手下 Size8 那组）；元件初始化时收好就不变
     /// </summary>
     private IReadOnlyDictionary<string, ITeachPoint> _teachPoints8 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 整机晶圆尺寸：组件初始化时取一次，示教点表按它选；没配按 12 寸
+    /// 整机晶圆尺寸：元件初始化时取一次，示教点表按它选；没配按 12 寸
     /// </summary>
     private IWaferSize? _waferSize;
 
     /// <summary>
     /// 现在用的示教点表：整机现在几寸就是哪张
     /// </summary>
-    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeComponent.SizeOf(_waferSize));
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeElement.SizeOf(_waferSize));
     private volatile ITeachPoint? _currentTeachPoint;
 
     /// <summary>
@@ -245,7 +245,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size)
     {
-        if (size == WaferSizeComponent.Inch8)
+        if (size == WaferSizeElement.Inch8)
         {
             return _teachPoints8;
         }
@@ -280,7 +280,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 收示教点：下面挂的示教点组件按在 Size12 还是 Size8 组里分成两张表；挂在别处、同一组里重名、同一张表站号重复的开机就报
+    /// 收示教点：下面挂的示教点元件按在 Size12 还是 Size8 组里分成两张表；挂在别处、同一组里重名、同一张表站号重复的开机就报
     /// </summary>
     private void CollectTeachPoints()
     {
@@ -316,7 +316,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         _teachPoints8 = points8;
         if (points12.Count == 0 && points8.Count == 0)
         {
-            LogHelper.Error(this, $"machine.xml 没配示教点：机械手下要有 {TeachPoints12Name} / {TeachPoints8Name} 分组，下面每个站点一个 TeachPointComponent，不然哪儿都去不了");
+            LogHelper.Error(this, $"machine.xml 没配示教点：机械手下要有 {TeachPoints12Name} / {TeachPoints8Name} 分组，下面每个站点一个 TeachPointElement，不然哪儿都去不了");
         }
     }
 
@@ -359,9 +359,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         RegisterTransitions(RobotStateTable.ToModuleTable());
     }
 
-    #region 组件初始化与驱动连接
+    #region 元件初始化与驱动连接
 
-    public override bool InitComponent()
+    public override bool InitElement()
     {
         #region 轴与手指
 
@@ -385,19 +385,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
         if (Axes.Count == 0)
         {
-            LogHelper.Error(this, "machine.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisComponent / RobotArmComponent 节点");
+            LogHelper.Error(this, "machine.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisElement / RobotArmElement 节点");
         }
 
         #endregion
 
         #region 示教点表
 
-        // 别的组件 Bind 时就会按尺寸取示教点表，所以在组件初始化时收表、取整机尺寸
+        // 别的元件 Bind 时就会按尺寸取示教点表，所以在元件初始化时收表、取整机尺寸
         CollectTeachPoints();
 
         // 示教点里配的手指必须存在：配了这台机械手没有的手，开机就报出来，别等取放时才拒；两种尺寸的表都查
-        CheckTeachPointArms(WaferSizeComponent.Inch12);
-        CheckTeachPointArms(WaferSizeComponent.Inch8);
+        CheckTeachPointArms(WaferSizeElement.Inch12);
+        CheckTeachPointArms(WaferSizeElement.Inch8);
         _waferSize = IocHelper.GetService<IWaferSize>();
 
         #endregion
@@ -418,7 +418,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         #region 设备通道
 
         // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有在位主动推送
-        var driver = CommDriverComponent.FindIn(this);
+        var driver = CommDriverElement.FindIn(this);
         if (driver is not null)
         {
             _codec ??= CreateCodec();
@@ -429,7 +429,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
         else
         {
-            LogHelper.Error(this, "machine.xml 没有启用的设备通道：本模块下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
+            LogHelper.Error(this, "machine.xml 没有启用的设备通道：本模块下要挂串口 SerialDriverElement 或网口 TcpDriverElement，并启用一条（IsEnable=True）");
         }
 
         #endregion
@@ -439,7 +439,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         _ledger?.RegisterLocation(Name, Arms.Count);
         _mapper = IocHelper.GetService<IMapper>();
 
-        bool childrenInitialized = base.InitComponent();
+        bool childrenInitialized = base.InitElement();
         return driver is not null && childrenInitialized;
     }
 
@@ -497,14 +497,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     protected void NoteArmPresence(int arm, bool hasWafer)
     {
-        var component = FindArm(arm);
-        if (component is null)
+        var element = FindArm(arm);
+        if (element is null)
         {
             LogHelper.Warn(this, $"收到手指 {arm} 的在位推送，但没配这个手指节点");
             return;
         }
 
-        component.UpdateWaferPresence(hasWafer);
+        element.UpdateWaferPresence(hasWafer);
     }
 
     #endregion
@@ -626,7 +626,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         dto.IsConnected = _driver?.IsConnected ?? false;
 
         // 轴位表按 machine.xml 轴节点整表下发（轴名总在，界面没数据也列得出轴）：
-        // 连上了才带坐标，还没查到或没连上的轴坐标为 null——组件里存的是断线前的旧值，不作数。
+        // 连上了才带坐标，还没查到或没连上的轴坐标为 null——元件里存的是断线前的旧值，不作数。
         bool trusted = dto.IsConnected && IsEnable;
         foreach (var axis in Axes)
         {
@@ -887,8 +887,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return null;
         }
 
-        var armComponent = FindArm(arm);
-        if (armComponent is not null && !armComponent.LedgerHasWafer)
+        var armElement = FindArm(arm);
+        if (armElement is not null && !armElement.LedgerHasWafer)
         {
             return HandleResult.Fail(ErrorCodes.RobotArmNoWafer, Name, arm.ToString(CultureInfo.InvariantCulture));
         }
@@ -1010,10 +1010,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private HandleResult<ModuleRoutine> StartWithLedger(RobotAction action, ModuleRoutine transfer, TransferIntent intent, ITeachPoint config)
     {
-        var armComponent = FindArm(intent.Arm);
-        if (armComponent is not null && armComponent.IsWaferCheckEnabled)
+        var armElement = FindArm(intent.Arm);
+        if (armElement is not null && armElement.IsWaferCheckEnabled)
         {
-            AddSensorStep(transfer, armComponent, intent.Action == RobotAction.Pick);
+            AddSensorStep(transfer, armElement, intent.Action == RobotAction.Pick);
         }
 
         transfer.Do("记账", () => CommitTransferLedger(intent) ?? HandleResult.Success());
@@ -1553,13 +1553,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private HandleResult? CheckArmSensor(int arm, bool expectWafer)
     {
-        var component = FindArm(arm);
-        if (component is null || !component.IsWaferCheckEnabled)
+        var element = FindArm(arm);
+        if (element is null || !element.IsWaferCheckEnabled)
         {
             return null;
         }
 
-        bool? sensed = component.HasWafer;
+        bool? sensed = element.HasWafer;
         if (sensed is null)
         {
             return HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, Name, arm.ToString(CultureInfo.InvariantCulture));
@@ -1612,7 +1612,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             Name, arm.ToString(CultureInfo.InvariantCulture));
     }
 
-    /// <summary>按手指号找手指组件；machine.xml 没配这只手为 null。</summary>
+    /// <summary>按手指号找手指元件；machine.xml 没配这只手为 null。</summary>
     private IRobotArm? FindArm(int arm)
     {
         return Arms.FirstOrDefault(item => item.Number == arm);
@@ -1633,7 +1633,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #endregion
 
     /// <summary>
-    /// 装机停用、或驱动组件没挂起来（装配里组件初始化没做成）都不发动作。
+    /// 装机停用、或驱动元件没挂起来（装配里元件初始化没做成）都不发动作。
     /// </summary>
     protected override bool CanBeginAction => IsEnable && _driver is not null;
 

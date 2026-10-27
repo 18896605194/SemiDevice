@@ -10,7 +10,7 @@ public class LogItem
     public DateTime Time { get; set; } = DateTime.Now;
 
     /// <summary>
-    /// 第一层：模块（组件树上最顶上那个组件的全路径），不是组件的写 Host、Operation 这类固定名字
+    /// 第一层：模块（元件树上最顶上那个元件的全路径），不是元件的写 Host、Operation 这类固定名字
     /// </summary>
     public string Module { get; set; } = string.Empty;
 

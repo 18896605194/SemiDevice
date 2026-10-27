@@ -3,12 +3,12 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using xyz.Common.Log;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
 using xyz._35021.Module.Drivers.Fcd;
 using xyz._35021.Module.Drivers.Fcd.Commands;
 using xyz._35021.Module.Drivers.Fcd.Rfid;
@@ -32,7 +32,7 @@ using xyz.Tools;
 // No host, hardware connection, or configuration-file writes are used by these checks.
 SmokeIoc.Reset();
 SmokeEvents.Loopback(); // 后端推给界面的消息投回本进程收
-SmokeIoc.Use<IMapper>(new MapperComponent()); // 模块推给界面的账上的片走映射组件转（开机必配）
+SmokeIoc.Use<IMapper>(new MapperElement()); // 模块推给界面的账上的片走映射元件转（开机必配）
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -60,8 +60,8 @@ void Throws<T>(Action action) where T : Exception
     throw new InvalidOperationException($"Expected {typeof(T).Name}.");
 }
 
-// EC 只放在本进程内存里：直接 new 的 EC 组件不读也不写 ec.xml，各探针构造时经 EC 属性把值摆进去。
-var ec = new EcComponent();
+// EC 只放在本进程内存里：直接 new 的 EC 元件不读也不写 ec.xml，各探针构造时经 EC 属性把值摆进去。
+var ec = new EcElement();
 SmokeIoc.Use<IEc>(ec);
 
 ModuleRoutine? rejected = null;
@@ -277,21 +277,21 @@ for (var i = 0; i < 200; i++)
     Check(single.Code == ErrorCodes.ModuleBusy && single.StepNumber == 0 && single.StepCount == 0, "只有一步的动作：回包不带步号");
 }
 
-// 跟开机装配一样：晶圆账先装出来，再做组件初始化——端口和载具在组件初始化时取一次账本（_ledger），
-// 载具组件也在这里挂到端口上
-var ledger = new LedgerManagerComponent();
+// 跟开机装配一样：晶圆账先装出来，再做元件初始化——端口和载具在元件初始化时取一次账本（_ledger），
+// 载具元件也在这里挂到端口上
+var ledger = new LedgerManagerElement();
 SmokeIoc.Use<ILedgerManager>(ledger);
 var port = new ProbePort();
-port.InitComponent();
-ComponentLoader.BindAll([port]);
+port.InitElement();
+ElementLoader.BindAll([port]);
 SmokeIoc.Tree(port);
 var service = new LoadPortService();
 // 服务回包（Unload、Home、复位、中止）：入口被拒原样回原因；发起了就等终态，成功 / 设备报错 / 超时 / 被顶替 / 等待超时都翻成对应的码。
 // 走真路径（挂操作、落状态、扫描线程收尾才唤醒等的人），所以用单独的端口，动作挂上以后再收尾、推一拍。Load 见下面一节。
 {
     var servicePort = new ProbePort("ServicePort");
-    Check(servicePort.InitComponent(), "服务回包用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([servicePort]);
+    Check(servicePort.InitElement(), "服务回包用的端口的元件初始化应成功");
+    ElementLoader.BindAll([servicePort]);
     servicePort.HomeTimeout = 5000;
     servicePort.UnloadTimeout = 5000;
     servicePort.ResetTimeout = 5000;
@@ -403,8 +403,8 @@ var service = new LoadPortService();
 // 三项都过才发起。机型（这里是探针端口）只重写设备动作 CreateLoadRoutine，三项检查照样过。
 {
     var loadPort = new ProbePort("ServiceLoadPort");
-    Check(loadPort.InitComponent(), "Load 服务用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([loadPort]);
+    Check(loadPort.InitElement(), "Load 服务用的端口的元件初始化应成功");
+    ElementLoader.BindAll([loadPort]);
     SmokeIoc.Tree(loadPort);
     var loadService = new LoadPortService();
     var loadResponse = await loadService.LoadAsync(RpcRequest.Of((RpcParams.Module, "missing")));
@@ -512,13 +512,13 @@ var service = new LoadPortService();
           && new RpcRequest().Get(RpcParams.Speed, 0.5) == 0.5 && packed.Get(RpcParams.Index, 0) == 7,
         "Get：没带、是 null、类型对不上、空串都用默认值，带了用带来的");
 
-    // IO 服务只翻 IO 组件给的结果：没配 Io 回 io.not_installed，写不成照原样带 IO 组件的原因（这里点表是空的）
+    // IO 服务只翻 IO 元件给的结果：没配 Io 回 io.not_installed，写不成照原样带 IO 元件的原因（这里点表是空的）
     {
         var previousIo = IocHelper.GetService<IIo>();
         SmokeIoc.Use<IIo>(null);
         var noIo = await new IoService().WriteDoAsync(RpcRequest.Of((RpcParams.Index, 5), (RpcParams.Value, 1)));
         Check(noIo.Code == ErrorCodes.IoNotInstalled, $"没配 Io：写 DO 回 io.not_installed，实际 {noIo.Code}");
-        SmokeIoc.Use<IIo>(new IoComponent());
+        SmokeIoc.Use<IIo>(new IoElement());
         var ioService = new IoService();
         var noPoint = await ioService.WriteAoAsync(RpcRequest.Of((RpcParams.Index, 5), (RpcParams.Value, 1.5)));
         var noValue = await ioService.WriteDoAsync(RpcRequest.Of((RpcParams.Index, 5)));
@@ -529,8 +529,8 @@ var service = new LoadPortService();
 
     // 动作没带 Module：不找模块、不发起，回 rpc.request_invalid；端口摆成带上 Module 就能 Load 的样子，证明它确实没动
     var rpcPort = new ProbePort("RpcRequestPort");
-    Check(rpcPort.InitComponent(), "参数检查用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([rpcPort]);
+    Check(rpcPort.InitElement(), "参数检查用的端口的元件初始化应成功");
+    ElementLoader.BindAll([rpcPort]);
     SmokeIoc.Tree(rpcPort);
     rpcPort.NoteState(ModuleState.Idle);
     rpcPort.NotePodPlaced(true);
@@ -606,9 +606,9 @@ Check(modeResponse.Success && port.Mode == ModuleMode.Maintenance && port.Calls 
         "机械手切维护：Mode 变 Maintenance，状态推送里带上");
 }
 
-// EAP 口子：回调走 EAP 的派发组件（宿主里是 machine.xml Eap 下的 Notifier）；本工具不跑扫描循环，正好证明派发不依赖扫描。
-SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
-port.Bind(); // 端口开机 Bind 时取 EAP 的派发组件
+// EAP 口子：回调走 EAP 的派发元件（宿主里是 machine.xml Eap 下的 Notifier）；本工具不跑扫描循环，正好证明派发不依赖扫描。
+SmokeIoc.Use<IEapNotifierElement>(new EapNotifierElement());
+port.Bind(); // 端口开机 Bind 时取 EAP 的派发元件
 var eap = new RecordingE87Callback();
 port.E87Callback = eap;
 port.SetAutoMode(true);
@@ -789,7 +789,7 @@ SmokeIoc.Use<ILedgerManager>(null);
 port.E87Callback = null;
 
 // ── 机械手两种晶圆尺寸各一张示教点表 ────────────────────────────────────────
-// machine.xml 在机械手下配 Size12 / Size8 两组示教点（TeachPointComponent），整机现在几寸就用哪张（站号、取放手、有哪些站点都能不一样）；
+// machine.xml 在机械手下配 Size12 / Size8 两组示教点（TeachPointElement），整机现在几寸就用哪张（站号、取放手、有哪些站点都能不一样）；
 // 只配一种尺寸的，另一种是空表；同名的组配了两个、示教点挂在两组以外、同组重名、站号 / 手指号写错开机就报；两张表配的手指开机都查。
 {
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
@@ -817,13 +817,13 @@ port.E87Callback = null;
         return robot.CreateStateDto().TeachPoints.Select(info => $"{info.Name}:{info.Number}").ToList();
     }
 
-    var waferSize = new WaferSizeComponent();
+    var waferSize = new WaferSizeElement();
     SmokeIoc.Use<IWaferSize>(waferSize);
     var sized = new ProbeRobot();
     sized.NoteTeachPoints(
         SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1")),
         SmokeTeachPoints.Table("Size8", Point("SmokeLP", "11", "1"), Point("SmokePM", "12", "1")));
-    Check(sized.InitComponent(), "两张示教点表的机械手组件初始化");
+    Check(sized.InitElement(), "两张示教点表的机械手元件初始化");
     Check(sized.TryGetTeachPoint("SmokeLP", out var lp12) && lp12.Number == 1 && !sized.TryGetTeachPoint("SmokePM", out _)
           && PushedStations(sized).SequenceEqual(["SmokeLP:1"]),
         "12 寸：用 Size12（站号 1、没有 SmokePM），推给界面的也是这张");
@@ -835,12 +835,12 @@ port.E87Callback = null;
 
     var only12 = new ProbeRobot();
     only12.NoteTeachPoints(SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1")));
-    Check(only12.InitComponent() && only12.TeachPointsOf(12).Count == 1 && only12.TeachPointsOf(8).Count == 0,
+    Check(only12.InitElement() && only12.TeachPointsOf(12).Count == 1 && only12.TeachPointsOf(8).Count == 0,
         "只配 Size12：8 寸那张是空表，切到 8 寸哪儿都到不了，不会拿 12 寸的示教点去取 8 寸片");
 
     var oldName = new ProbeRobot();
     oldName.NoteTeachPoints(SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP", ("Number", "1"), ("Arms", "2"))));
-    Check(oldName.InitComponent() && oldName.TryGetTeachPoint("SmokeLP", out var oldNamePoint)
+    Check(oldName.InitElement() && oldName.TryGetTeachPoint("SmokeLP", out var oldNamePoint)
           && oldNamePoint.PickArmNumbers.Count == 0 && oldNamePoint.AllowsPick(1),
         "示教点上写了不认识的参数（老写法 Arms）：照常开机，那一条没用上（记错误日志），手指还是没限定");
 
@@ -853,32 +853,32 @@ port.E87Callback = null;
 
     var outside = new ProbeRobot();
     outside.NoteTeachPoints(SmokeTeachPoints.Table("Stations12", Point("SmokeLP", "1", "1")));
-    string outsideRefused = RefusedWith(() => outside.InitComponent());
+    string outsideRefused = RefusedWith(() => outside.InitElement());
     Check(outsideRefused.Contains("Stations12.SmokeLP") && outsideRefused.Contains("Size12"),
         "示教点挂在 Size12 / Size8 以外的组里（还用老名字 Stations12）：开机就报，实际 " + outsideRefused);
 
     var duplicated = new ProbeRobot();
     duplicated.NoteTeachPoints(SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1"), Point("smokelp", "2", "1")));
-    string duplicatedRefused = RefusedWith(() => duplicated.InitComponent());
+    string duplicatedRefused = RefusedWith(() => duplicated.InitElement());
     Check(duplicatedRefused.Contains("重复配置"), "同一组里两个示教点同名（不分大小写）：开机就报，实际 " + duplicatedRefused);
 
     var sameNumber = new ProbeRobot();
     sameNumber.NoteTeachPoints(SmokeTeachPoints.Table("Size12", Point("SmokeLP", "3", "1"), Point("SmokePM", "3", "1")));
-    string sameNumberRefused = RefusedWith(() => sameNumber.InitComponent());
+    string sameNumberRefused = RefusedWith(() => sameNumber.InitElement());
     Check(sameNumberRefused.Contains("SmokeLP") && sameNumberRefused.Contains("SmokePM") && sameNumberRefused.Contains("站号都是 3"),
         "同一张表里两个站点站号一样（会被当成同一个工位去取放）：开机就报，实际 " + sameNumberRefused);
 
-    string noNumber = RefusedWith(() => ComponentLoader.Load([SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP"))]));
+    string noNumber = RefusedWith(() => ElementLoader.Load([SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP"))]));
     Check(noNumber.Contains("Size12.SmokeLP") && noNumber.Contains("Number"), "示教点没配站号：装配就报，实际 " + noNumber);
 
-    string badArms = RefusedWith(() => ComponentLoader.Load([SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1,x"))]));
+    string badArms = RefusedWith(() => ElementLoader.Load([SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1,x"))]));
     Check(badArms.Contains("PickArms") && badArms.Contains("\"x\""), "手指号写错：装配就报，实际 " + badArms);
 
     var badArm = new ProbeRobot();
     badArm.NoteTeachPoints(
         SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1")),
         SmokeTeachPoints.Table("Size8", Point("SmokeLP", "1", "3")));
-    string badArmRefused = RefusedWith(() => badArm.InitComponent());
+    string badArmRefused = RefusedWith(() => badArm.InitElement());
     Check(badArmRefused.Contains("8 寸") && badArmRefused.Contains("Arm3"),
         "8 寸那张配了这台机械手没有的手（Arm3）：现在是 12 寸也开机就报，实际 " + badArmRefused);
     SmokeIoc.Use<IWaferSize>(previousWaferSize);
@@ -886,7 +886,7 @@ port.E87Callback = null;
 
 // ── 机械手取放写晶圆账 ──────────────────────────────────────────────────
 {
-    var robotLedger = new LedgerManagerComponent();
+    var robotLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(robotLedger);
     var robot = new ProbeRobot();
     robot.NoteTeachPoints(SmokeTeachPoints.Table("Size12",
@@ -895,16 +895,16 @@ port.E87Callback = null;
     robotLedger.RegisterLocation("SmokeLP", 5);
     var carried = robotLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-ROBOT")!;
 
-    Check(robot.InitComponent(), "探针机械手的组件初始化应成功");
+    Check(robot.InitElement(), "探针机械手的元件初始化应成功");
     Check(robot.TryGetTeachPoint("SmokeLP", out var lpStation) && lpStation.Number == 1
           && lpStation.Direction == RobotDirection.South && lpStation.Y == 20,
-        "示教点从 machine.xml 节点读进来，组件初始化时收进示教点表");
-    ComponentLoader.BindAll([robot]);
+        "示教点从 machine.xml 节点读进来，元件初始化时收进示教点表");
+    ElementLoader.BindAll([robot]);
     Check(robotLedger.GetSlots(robot.Name).Count == robot.Arms.Count,
         $"开机应把手指注册成账本槽位，实际 {robotLedger.GetSlots(robot.Name).Count} 个");
     Check(robot.Arms.Count == 1 && robot.Axes.Count == 4 && robot.Arms[0].Number == 1
           && !robot.Arms[0].IsWaferCheckEnabled,
-        "轴/手指从组件树收出来；没有配置 DI 的默认手指不启用持片检查");
+        "轴/手指从元件树收出来；没有配置 DI 的默认手指不启用持片检查");
 
     robot.NoteState(ModuleState.Idle);
 
@@ -1101,18 +1101,18 @@ port.E87Callback = null;
 
 // ── 机械手手指在位传感器：Arm 下挂了 WaferSensor（DI）的手，取放前后、Home 前跟晶圆账对；没挂的手不查（上面那段） ──────
 {
-    var sensorLedger = new LedgerManagerComponent();
+    var sensorLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(sensorLedger);
     var robot = new ProbeRobot();
     var sensor = new ProbeDi("SmokeRobot.Arm1.WaferSensor") { AlarmEnabled = false, DebounceMs = 0 };
-    var arm1 = robot.FindChild<RobotArmComponent>("Arm1")!;
+    var arm1 = robot.FindChild<RobotArmElement>("Arm1")!;
     arm1.AddChild(sensor);
     robot.NoteTeachPoints(SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP", ("Number", "1"))));
     sensorLedger.RegisterLocation("SmokeLP", 5);
     var wafer = sensorLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-SENSOR")!;
-    Check(robot.InitComponent() && ReferenceEquals(robot.Arms[0].WaferSensor, sensor),
+    Check(robot.InitElement() && ReferenceEquals(robot.Arms[0].WaferSensor, sensor),
         "Arm1 下面名叫 WaferSensor 的 DI 按 IDiSensor 认成这只手的在位传感器");
-    ComponentLoader.BindAll([robot]);
+    ElementLoader.BindAll([robot]);
     Check(!robot.Arms[0].LedgerHasWafer, "取片前账上 Arm1 空着：LedgerHasWafer 为 false");
     robot.NoteState(ModuleState.Idle);
     arm1.WaferSensorTimeoutMs = 1000;
@@ -1226,16 +1226,16 @@ port.E87Callback = null;
 
 // ── 站点在位传感器：站点下面挂了 WaferSensor（DI）的，machine.xml 配了才跟晶圆账比（看到有片 = 账上这个站有片），读不到也算对不上；没配不查 ──
 {
-    var stationLedger = new LedgerManagerComponent();
+    var stationLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(stationLedger);
     var bare = new ProbeAligner("NoSensorStation");
-    Check(bare.InitComponent() && bare.CheckWaferSensors() is null, "站点没配在位传感器：不查");
+    Check(bare.InitElement() && bare.CheckWaferSensors() is null, "站点没配在位传感器：不查");
 
     var station = new ProbeAligner("SensorStation");
     var sensor = new ProbeDi("SensorStation.WaferSensor") { AlarmEnabled = false, DebounceMs = 0 };
     station.AddChild(sensor);
     stationLedger.RegisterLocation("SensorStation", 1);
-    Check(station.InitComponent(), "站点组件初始化：认下面叫 WaferSensor 的 DI");
+    Check(station.InitElement(), "站点元件初始化：认下面叫 WaferSensor 的 DI");
 
     bool StationSensor(string? code)
     {
@@ -1266,18 +1266,18 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(null);
 }
 
-// ── 非 DI 持片反馈：手指组件重写统一契约后，公共 Home / 取放检查与完成确认不再依赖 WaferSensor 对象 ──────
+// ── 非 DI 持片反馈：手指元件重写统一契约后，公共 Home / 取放检查与完成确认不再依赖 WaferSensor 对象 ──────
 {
-    var feedbackLedger = new LedgerManagerComponent();
+    var feedbackLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(feedbackLedger);
     var arm = new ProbeFeedbackArm { Number = 1 };
     var robot = new ProbeRobot(arm);
     robot.NoteTeachPoints(SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP", ("Number", "1"))));
     feedbackLedger.RegisterLocation("SmokeLP", 5);
     var wafer = feedbackLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-FEEDBACK")!;
-    Check(robot.InitComponent() && arm.WaferSensor is null && arm.IsWaferCheckEnabled,
-        "非 DI 手指组件可以独立启用持片检查");
-    ComponentLoader.BindAll([robot]);
+    Check(robot.InitElement() && arm.WaferSensor is null && arm.IsWaferCheckEnabled,
+        "非 DI 手指元件可以独立启用持片检查");
+    ElementLoader.BindAll([robot]);
     robot.NoteState(ModuleState.Idle);
     arm.WaferSensorTimeoutMs = 1000;
 
@@ -1335,9 +1335,9 @@ port.E87Callback = null;
 
 // ── 报警：LoadPort / _robot 出故障要报出来；报出去以后只能人工 Reset 清，源头恢复、动作成功都不清 ──────
 {
-    var alarms = new AlarmComponent();
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
-    bool Active(ComponentBase source, string code) =>
+    bool Active(ElementBase source, string code) =>
         alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
 
     // LoadPort 设备报警：状态查询里的报警位亮就报；查不到、灭了都不清
@@ -1362,7 +1362,7 @@ port.E87Callback = null;
     Check(Active(port, port.LoadPortDeviceAlarm), "条件还在，下个扫描周期应重新报出来");
     port.NoteStatus(new LoadPortStatus { IsDeviceAlarm = false });
     Check(alarms.Reset(port.FullPath) && !Active(port, port.LoadPortDeviceAlarm),
-        "界面按来源复位应走到组件的 Reset、清掉报警");
+        "界面按来源复位应走到元件的 Reset、清掉报警");
     Check(!alarms.Reset("NoSuchSource"), "没报过报警的来源复位返回 false");
 
     // LoadPort 动作失败 → 报动作失败（先放上载具，没载具 Load 发不起来）
@@ -1432,8 +1432,8 @@ port.E87Callback = null;
 
     // _robot 设备报警：有报错就报；报错没了也不清
     var robot = new ProbeRobot();
-    Check(robot.InitComponent(), "探针机械手的组件初始化应成功");
-    ComponentLoader.BindAll([robot]);
+    Check(robot.InitElement(), "探针机械手的元件初始化应成功");
+    ElementLoader.BindAll([robot]);
     robot.NoteDeviceError("40010006#Arm2 No Wafer When Put");
     robot.Tick();
     Check(Active(robot, robot.RobotDeviceAlarm), "设备报错应报 _robot 设备报警");
@@ -1441,7 +1441,7 @@ port.E87Callback = null;
     robot.Tick();
     Check(Active(robot, robot.RobotDeviceAlarm), "报错没了也不自动清——报警只能人工 Reset 清");
 
-    // _robot 的 Reset 重写了组件基类的 Reset：先清报警，再发设备复位清错，把操作交出去等
+    // _robot 的 Reset 重写了元件基类的 Reset：先清报警，再发设备复位清错，把操作交出去等
     robot.Next = new ProbeStep();
     var robotReset = robot.Reset().Result;
     Check(robotReset is not null && ReferenceEquals(robotReset, robot.Next!.Routine) && !Active(robot, robot.RobotDeviceAlarm),
@@ -1456,7 +1456,7 @@ port.E87Callback = null;
     Check(!Active(robot, robot.RobotDeviceAlarm), "没连上时 DeviceError 是旧值，不该据此报警");
 
     // _robot 动作失败 → 受控停止；Home 成功回到 Idle 也不清，只有人工复位清
-    Check(robot.InitComponent(), "重新做一遍组件初始化");
+    Check(robot.InitElement(), "重新做一遍元件初始化");
     robot.NoteDeviceError(null);
     robot.NoteState(ModuleState.Idle);
     robot.Next = new ProbeStep();
@@ -1481,7 +1481,7 @@ port.E87Callback = null;
 
 // ── E84：按 CTC 时序走一遍送盒、取盒，闸门（没开/Manual/维护）、中途打断、超时锁住与人工恢复 ─────
 {
-    var alarms = new AlarmComponent();
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
 
     // 送盒/取盒整程：计时给足，不让超时掺和
@@ -1490,9 +1490,9 @@ port.E87Callback = null;
     lp.AddChild(e84);
     var events = new RecordingE84Callback();
     lp.E84Callback = events;
-    Check(ReferenceEquals(lp.E84, e84), "LoadPort 应能按接口找到 E84 子组件");
-    Check(lp.InitComponent(), "带 E84 的端口的组件初始化应成功");
-    ComponentLoader.BindAll([lp]);
+    Check(ReferenceEquals(lp.E84, e84), "LoadPort 应能按接口找到 E84 子元件");
+    Check(lp.InitElement(), "带 E84 的端口的元件初始化应成功");
+    ElementLoader.BindAll([lp]);
     lp.NoteState(ModuleState.Idle);
 
     lp.Tick();
@@ -1622,8 +1622,8 @@ port.E87Callback = null;
     var bootPort = new ProbePort("E84BootPort");
     var bootE84 = new ProbeE84(bootPort.Name, timeoutMs: 60000);
     bootPort.AddChild(bootE84);
-    Check(bootPort.InitComponent(), "第一拍用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([bootPort]);
+    Check(bootPort.InitElement(), "第一拍用的端口的元件初始化应成功");
+    ElementLoader.BindAll([bootPort]);
     bootPort.NoteState(ModuleState.Idle);
     bootPort.SetProduction();
     bootPort.SetAutoMode(true);
@@ -1636,8 +1636,8 @@ port.E87Callback = null;
     var offPort = new ProbePort("E84OffPort");
     var offE84 = new ProbeE84(offPort.Name, enabled: false);
     offPort.AddChild(offE84);
-    Check(offPort.InitComponent(), "E84 没开的端口组件初始化也应成功");
-    ComponentLoader.BindAll([offPort]);
+    Check(offPort.InitElement(), "E84 没开的端口元件初始化也应成功");
+    ElementLoader.BindAll([offPort]);
     offPort.NoteState(ModuleState.Idle);
     offPort.SetProduction();
     offPort.SetAutoMode(true);
@@ -1650,8 +1650,8 @@ port.E87Callback = null;
     var noE84 = new ProbeE84(noE84Port.Name) { IsEnable = false };
     noE84Port.AddChild(noE84);
     Check(noE84Port.E84 is null, "E84 没装时端口按没有 E84 处理（E84 为 null）");
-    Check(noE84Port.InitComponent() && noE84.Writes == 0, "E84 没装时端口照常初始化，E84 自己拦住不做（一次 IO 都不写）");
-    ComponentLoader.BindAll([noE84Port]);
+    Check(noE84Port.InitElement() && noE84.Writes == 0, "E84 没装时端口照常初始化，E84 自己拦住不做（一次 IO 都不写）");
+    ElementLoader.BindAll([noE84Port]);
     noE84Port.NoteState(ModuleState.Idle);
     noE84Port.SetProduction();
     noE84Port.SetAutoMode(true);
@@ -1661,11 +1661,11 @@ port.E87Callback = null;
     Check(noE84.Writes == 0 && noE84.State == E84State.NotAvailable && noE84.Inputs == default,
         "E84 没装时每拍也不推它：不读输入、不写输出");
 
-    // 组件初始化直接对 E84：装了就把输出写一遍回初始；没装的自己拦住，一次 IO 都不写（端口的基类递归带着它调，端口拦不住）
+    // 元件初始化直接对 E84：装了就把输出写一遍回初始；没装的自己拦住，一次 IO 都不写（端口的基类递归带着它调，端口拦不住）
     var directE84 = new ProbeE84("DirectE84Port");
-    Check(directE84.InitComponent() && directE84.Writes == 1, "E84 的组件初始化：装了就写一遍输出回初始");
+    Check(directE84.InitElement() && directE84.Writes == 1, "E84 的元件初始化：装了就写一遍输出回初始");
     var directOffE84 = new ProbeE84("DirectOffE84Port") { IsEnable = false };
-    Check(directOffE84.InitComponent() && directOffE84.Writes == 0, "E84 没装：组件初始化什么都不写");
+    Check(directOffE84.InitElement() && directOffE84.Writes == 0, "E84 没装：元件初始化什么都不写");
 
     // 超时：计时调短；TP1 没等到 TR_REQ → 锁住、撤输出、报警；Retry 解锁
     var tpPort = new ProbePort("E84TimeoutPort");
@@ -1673,8 +1673,8 @@ port.E87Callback = null;
     tpPort.AddChild(tpE84);
     var tpEvents = new RecordingE84Callback();
     tpPort.E84Callback = tpEvents;
-    Check(tpPort.InitComponent(), "超时用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([tpPort]);
+    Check(tpPort.InitElement(), "超时用的端口的元件初始化应成功");
+    ElementLoader.BindAll([tpPort]);
     tpPort.NoteState(ModuleState.Idle);
     tpPort.SetProduction();
     tpPort.SetAutoMode(true);
@@ -1689,7 +1689,7 @@ port.E87Callback = null;
         "TP1 超时应锁住并撤 L_REQ/HO_AVBL（ES 保持）");
     Check(tpEvents.Wait("HandoffTimeout:True:TP1"), "TP1 超时应上报");
     Check(Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "超时应报 E84 交接超时");
-    Check(tpPort.HasAlarm, "E84 子组件的报警算在端口头上（按路径前缀）");
+    Check(tpPort.HasAlarm, "E84 子元件的报警算在端口头上（按路径前缀）");
     tpE84.Set();
     tpPort.Tick();
     Check(tpE84.State == E84State.TimedOut, "搬运车撤了也不自动解锁，得人工恢复");
@@ -1724,24 +1724,24 @@ port.E87Callback = null;
     Check(tpE84.State == E84State.Available && Active(tpE84, tpE84.E84TimeoutAlarm, alarms),
         "Complete 后回到可交接；报警还在，等人工复位");
     tpPort.Reset();
-    Check(!Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "复位端口连同 E84 子组件一起复位，清掉超时报警");
+    Check(!Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "复位端口连同 E84 子元件一起复位，清掉超时报警");
 
     SmokeIoc.Use<IAlarm>(null);
 
-    static bool Active(ComponentBase source, string code, AlarmComponent alarms) =>
+    static bool Active(ElementBase source, string code, AlarmElement alarms) =>
         alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
 }
 
-// ── DI/AI 报警防抖：持续满 EC 防抖时间才报；公共组件的报警算在装它的模块头上；只能人工复位清 ─────
+// ── DI/AI 报警防抖：持续满 EC 防抖时间才报；公共元件的报警算在装它的模块头上；只能人工复位清 ─────
 {
-    var alarms = new AlarmComponent();
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
-    bool Active(ComponentBase source, string code) =>
+    bool Active(ElementBase source, string code) =>
         alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
 
     var chamber = new ProbeModule();
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(chamber, "SmokeChamber");
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(chamber, "SmokeChamber");
+    typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(chamber, "SmokeChamber");
+    typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(chamber, "SmokeChamber");
     var di = new ProbeDi("SmokeChamber.Di1") { DebounceMs = 200 };
     var ai = new ProbeAi("SmokeChamber.Ai1");
     chamber.AddChild(di);
@@ -1773,7 +1773,7 @@ port.E87Callback = null;
     di.Tick();
     Check(!di.IsTriggered && Active(di, di.SensorAlarm), "离开报警电平触发撤了，报警还在，等人工复位");
 
-    // 复位模块连同子组件：清掉 DI 的报警
+    // 复位模块连同子元件：清掉 DI 的报警
     chamber.Reset();
     Check(!Active(di, di.SensorAlarm) && !chamber.HasAlarm, "复位模块应连同 DI 一起清掉报警");
 
@@ -1817,16 +1817,16 @@ port.E87Callback = null;
 
     foreach (var (text, expected) in new[] { ("true", true), ("false", false), ("True", true), ("False", false) })
     {
-        var loaded = (DiSensorComponent)SmokeIoc.Load([new ModuleConfig
+        var loaded = (DiSensorElement)SmokeIoc.Load([new ModuleConfig
         {
-            Name = "TriggerValueSmoke", Type = typeof(DiSensorComponent).FullName,
+            Name = "TriggerValueSmoke", Type = typeof(DiSensorElement).FullName,
             Values = [new() { Name = "TriggerValue", Value = text }]
         }]).Single();
         Check(loaded.TriggerValue == expected, $"DI 触发电平配置 {text} 应加载为 {expected}");
     }
-    var defaultDi = (DiSensorComponent)SmokeIoc.Load([new ModuleConfig
+    var defaultDi = (DiSensorElement)SmokeIoc.Load([new ModuleConfig
     {
-        Name = "DefaultTriggerSmoke", Type = typeof(DiSensorComponent).FullName
+        Name = "DefaultTriggerSmoke", Type = typeof(DiSensorElement).FullName
     }]).Single();
     Check(defaultDi.TriggerValue, "未配置触发电平时仍默认高电平触发");
     // 只认 bool：旧的 H/L 写法不再兼容，跟乱填的一样拒绝加载
@@ -1837,7 +1837,7 @@ port.E87Callback = null;
         {
             SmokeIoc.Load([new ModuleConfig
             {
-                Name = "InvalidTriggerSmoke", Type = typeof(DiSensorComponent).FullName,
+                Name = "InvalidTriggerSmoke", Type = typeof(DiSensorElement).FullName,
                 Values = [new() { Name = "TriggerValue", Value = invalid }]
             }]);
         }
@@ -1983,8 +1983,8 @@ port.E87Callback = null;
 //    CPU 要隔一个取样周期跟上一次比才有值；没到周期电脑不扫子节点 ─────
 {
     var computer = new ProbeComputer("SmokeComputer");
-    var program = new ProgramUsageComponent();
-    var total = new ComputerUsageComponent();
+    var program = new ProgramUsageElement();
+    var total = new ComputerUsageElement();
     computer.AddChild(program);
     computer.AddChild(total);
     computer.SampleIntervalMs = 200;
@@ -2003,21 +2003,21 @@ port.E87Callback = null;
         "隔了一个取样周期，本程序和整台电脑的 CPU 占用率都有值（0~100）");
 }
 
-// ── EC 组件：属性读写即生效、缺项回退默认值；合并声明补默认、不动已有值；没装时写不生效；ec.xml 往返 ─────
+// ── EC 元件：属性读写即生效、缺项回退默认值；合并声明补默认、不动已有值；没装时写不生效；ec.xml 往返 ─────
 {
     var ecPort = new ProbePort("EcSmokePort");
     Check(ecPort.LoadTimeout == 0 && ec.Get(ecPort.FullPath, nameof(ecPort.LoadTimeout)) == "0",
-        "属性写应落进 EC 组件，读回即是新值");
+        "属性写应落进 EC 元件，读回即是新值");
     Check(ecPort.ClampTimeout == 10000 && ec.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)).Length == 0,
         "没摆过的项读回退 [VariableMark] 默认值");
 
     Check(ec.Merge([ecPort]), "合并声明应补建缺的项");
     Check(ec.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)) == "10000", "合并按声明的 Default 补建");
 
-    // 值一变 EC 组件自己推给界面（EcItemDto，键 = 组件全路径.参数名，不留存）：EC 页、按 EcKey 取范围的输入框跟着走；转 DTO 靠映射组件
+    // 值一变 EC 元件自己推给界面（EcItemDto，键 = 元件全路径.参数名，不留存）：EC 页、按 EcKey 取范围的输入框跟着走；转 DTO 靠映射元件
     var previousMapper = IocHelper.GetService<IMapper>();
-    SmokeIoc.Use<IMapper>(new MapperComponent());
-    ec.Bind(); // EC 组件开机 Bind 时取映射组件
+    SmokeIoc.Use<IMapper>(new MapperElement());
+    ec.Bind(); // EC 元件开机 Bind 时取映射元件
     var pushedEc = new List<EcItemDto>();
     using (RemoteEventBus.Register<EcItemDto>(EcItemDto.EventToken, dto => pushedEc.Add(dto)))
     {
@@ -2027,10 +2027,10 @@ port.E87Callback = null;
     SmokeIoc.Use<IMapper>(previousMapper);
     ec.Bind();
     Check(pushedEc.Count == 1 && pushedEc[0].Key == $"{ecPort.FullPath}.{nameof(ecPort.HomeTimeout)}" && pushedEc[0].Value == "4321",
-        "值一变推一条：键是组件全路径.参数名，带新值");
+        "值一变推一条：键是元件全路径.参数名，带新值");
     Check(ecPort.LoadTimeout == 0, "合并不动已有值");
     Check(!ec.Merge([ecPort]), "再合并一次应没有变化");
-    Check(ec.FilePath.Length == 0, "直接 new 的 EC 组件只在内存里，不落盘");
+    Check(ec.FilePath.Length == 0, "直接 new 的 EC 元件只在内存里，不落盘");
 
     ecPort.LoadTimeout = 1234;
     Check(ecPort.LoadTimeout == 1234, "改完即生效");
@@ -2046,27 +2046,27 @@ port.E87Callback = null;
     var file = Path.Combine(Path.GetTempPath(), $"ec-smoke-{Guid.NewGuid():N}.xml");
     try
     {
-        var stored = new EcComponent();
+        var stored = new EcElement();
         SmokeIoc.Use<IEc>(stored);
         stored.Load(file);
         Check(stored.Merge([ecPort]) && File.Exists(file), "文件不存在时合并应补建并写出 ec.xml");
         Check(stored.Set(ecPort.FullPath, nameof(ecPort.HomeTimeout), "4321"), "改值应写回");
 
-        var reloaded = new EcComponent();
+        var reloaded = new EcElement();
         SmokeIoc.Use<IEc>(reloaded);
         reloaded.Load(file);
         Check(reloaded.Get(ecPort.FullPath, nameof(ecPort.HomeTimeout)) == "4321"
               && reloaded.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)) == "10000",
             "重新读 ec.xml 应拿到改过的值和合并补建的项");
 
-        // 清空了的 ec.xml（文件还在、里面没东西）跟没有一样：照组件树整份重建，不抛
+        // 清空了的 ec.xml（文件还在、里面没东西）跟没有一样：照元件树整份重建，不抛
         File.WriteAllText(file, string.Empty);
-        var emptied = new EcComponent();
+        var emptied = new EcElement();
         SmokeIoc.Use<IEc>(emptied);
         emptied.Load(file);
         Check(emptied.Merge([ecPort]) && emptied.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)) == "10000"
               && new FileInfo(file).Length > 0,
-            "清空了的 ec.xml 当成没有：照组件树整份重建、写回文件");
+            "清空了的 ec.xml 当成没有：照元件树整份重建、写回文件");
     }
     finally
     {
@@ -2074,72 +2074,72 @@ port.E87Callback = null;
         SmokeIoc.Use<IEc>(ec);
     }
 
-    // 分组节点（不写 Type）不生成组件，但名字进组件全路径：EC 的键、EC 页的树都跟 machine.xml 的层级一样
+    // 分组节点（不写 Type）不生成元件，但名字进元件全路径：EC 的键、EC 页的树都跟 machine.xml 的层级一样
     var grouped = SmokeIoc.Load([new ModuleConfig
     {
         Name = "EcGroupSmoke",
-        Children = [new ModuleConfig { Name = "EcGroupedDi", Type = typeof(DiSensorComponent).FullName }]
+        Children = [new ModuleConfig { Name = "EcGroupedDi", Type = typeof(DiSensorElement).FullName }]
     }]);
-    Check(grouped.Count == 1 && grouped[0] is DiSensorComponent && grouped[0].FullPath == "EcGroupSmoke.EcGroupedDi",
-        "分组节点不生成组件，名字进组件全路径");
+    Check(grouped.Count == 1 && grouped[0] is DiSensorElement && grouped[0].FullPath == "EcGroupSmoke.EcGroupedDi",
+        "分组节点不生成元件，名字进元件全路径");
 }
 
-// ── 组件初始化、模块初始化、中止：组件初始化（不动硬件）先处理子组件（按 InitOrder），基类默认什么都不做、不强制重写，
-//    一个子组件没做成不耽误别的；模块初始化 InitModule = Home，不碰子组件；Abort = 子组件 + 设备中止，Abort 不清报警 ───────────
+// ── 元件初始化、模块初始化、中止：元件初始化（不动硬件）先处理子元件（按 InitOrder），基类默认什么都不做、不强制重写，
+//    一个子元件没做成不耽误别的；模块初始化 InitModule = Home，不碰子元件；Abort = 子元件 + 设备中止，Abort 不清报警 ───────────
 {
     var trace = new List<string>();
     var parent = new ProbeChild("Parent", trace);
     parent.AddChild(new ProbeChild("Late", trace, initOrder: 20));
     parent.AddChild(new ProbeChild("Early", trace, initOrder: 10));
     parent.AddChild(new PlainChild());
-    Check(parent.InitComponent() && trace.SequenceEqual(new[] { "InitComponent:Early", "InitComponent:Late", "InitComponent:Parent" }),
-        "组件初始化先按 InitOrder 从小到大初始化子组件，再初始化自己，都成功返回 true");
+    Check(parent.InitElement() && trace.SequenceEqual(new[] { "InitElement:Early", "InitElement:Late", "InitElement:Parent" }),
+        "元件初始化先按 InitOrder 从小到大初始化子元件，再初始化自己，都成功返回 true");
 
-    // 子组件下面的子组件也跟着走：父组件不用点名
+    // 子元件下面的子元件也跟着走：父元件不用点名
     trace.Clear();
     var tree = new ProbeChild("Root", trace);
     var branch = new ProbeChild("Branch", trace);
     branch.AddChild(new ProbeChild("Leaf", trace));
     tree.AddChild(branch);
-    Check(tree.InitComponent() && trace.SequenceEqual(new[] { "InitComponent:Leaf", "InitComponent:Branch", "InitComponent:Root" }),
-        "组件初始化一路递归下去：孙子先于儿子、儿子先于自己");
+    Check(tree.InitElement() && trace.SequenceEqual(new[] { "InitElement:Leaf", "InitElement:Branch", "InitElement:Root" }),
+        "元件初始化一路递归下去：孙子先于儿子、儿子先于自己");
 
-    // 一个子组件没做成：后面的子组件和自己照样初始化，汇总返回 false
+    // 一个子元件没做成：后面的子元件和自己照样初始化，汇总返回 false
     trace.Clear();
     var partlyBroken = new ProbeChild("Partly", trace);
     partlyBroken.AddChild(new ProbeChild("Broken", trace, initOrder: 10) { FailInit = true });
     partlyBroken.AddChild(new ProbeChild("Healthy", trace, initOrder: 20));
-    Check(!partlyBroken.InitComponent()
-          && trace.SequenceEqual(new[] { "InitComponent:Broken", "InitComponent:Healthy", "InitComponent:Partly" }),
-        "一个子组件没做成不耽误别的：后面的子组件和自己照样初始化，汇总返回 false");
+    Check(!partlyBroken.InitElement()
+          && trace.SequenceEqual(new[] { "InitElement:Broken", "InitElement:Healthy", "InitElement:Partly" }),
+        "一个子元件没做成不耽误别的：后面的子元件和自己照样初始化，汇总返回 false");
 
     trace.Clear();
     Check(parent.Abort() is null && trace.SequenceEqual(new[] { "Abort:Late", "Abort:Early", "Abort:Parent" }),
-        "Abort 先按装配顺序中止子组件，再中止自己");
+        "Abort 先按装配顺序中止子元件，再中止自己");
     var plain = new PlainChild();
-    Check(plain.InitComponent() && plain.Abort() is null, "没重写 InitComponent/Abort 的组件照样能调，什么都不做");
+    Check(plain.InitElement() && plain.Abort() is null, "没重写 InitElement/Abort 的元件照样能调，什么都不做");
 
-    var alarms = new AlarmComponent();
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
     var initPort = new ProbePort("InitAbortPort");
     var child = new ProbeChild("Child", trace, fullPath: "InitAbortPort.Child");
     initPort.AddChild(child);
     trace.Clear();
     int calls = initPort.Calls;
-    Check(initPort.InitComponent() && trace.SequenceEqual(new[] { "InitComponent:Child" }) && initPort.Calls == calls,
-        "LoadPort 的组件初始化：驱动和子组件跟着基类递归走，不发 Home（不动硬件）");
-    Check(initPort.Channel.IsConnected, "LoadPort 的组件初始化把品牌驱动连上了（连接写在驱动自己的 InitComponent 里，端口没点名）");
+    Check(initPort.InitElement() && trace.SequenceEqual(new[] { "InitElement:Child" }) && initPort.Calls == calls,
+        "LoadPort 的元件初始化：驱动和子元件跟着基类递归走，不发 Home（不动硬件）");
+    Check(initPort.Channel.IsConnected, "LoadPort 的元件初始化把品牌驱动连上了（连接写在驱动自己的 InitElement 里，端口没点名）");
     trace.Clear();
     initPort.Next = new ProbeRoutine();
     Check(ReferenceEquals(initPort.InitModule().Result, initPort.Next) && initPort.Calls == calls + 1 && trace.Count == 0,
-        "LoadPort 的模块初始化 InitModule = Home，不碰子组件");
+        "LoadPort 的模块初始化 InitModule = Home，不碰子元件");
 
     // 全部初始化碰到门开着、从这个口取出去的片还在机内的 LoadPort：不发 Home（关不了门，回片还要用这个口），给一个做完的空操作
     var previousInitLedger = IocHelper.GetService<ILedgerManager>();
-    var outsideLedger = new LedgerManagerComponent();
+    var outsideLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(outsideLedger);
     var outsidePort = new ProbePort("OutsidePort");
-    Check(outsidePort.InitComponent(), "有片在外面的 LoadPort：组件初始化");
+    Check(outsidePort.InitElement(), "有片在外面的 LoadPort：元件初始化");
     outsideLedger.RegisterLocation("OutsidePM", 1);
     Check(outsideLedger.Create("OutsidePort", 1) is not null && outsideLedger.Move("OutsidePort", 1, "OutsidePM", 1),
         "从这个口取一片出去，放在腔里");
@@ -2156,23 +2156,23 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(previousInitLedger);
 
     var initRobot = new ProbeRobot();
-    Check(initRobot.InitComponent(), "机械手的组件初始化把品牌驱动连上");
+    Check(initRobot.InitElement(), "机械手的元件初始化把品牌驱动连上");
     initRobot.Next = new ProbeStep();
     Check(ReferenceEquals(initRobot.InitModule().Result, initRobot.Next!.Routine), "机械手的模块初始化 InitModule = Home");
 
     var bareModule = new ProbeAligner("InitAligner");
-    Check(bareModule.InitModule().ErrorMessage == ErrorCodes.ActionRejected && bareModule.InitComponent(), "没有自己初始化动作的模块：InitModule 什么都不做，算被拒");
+    Check(bareModule.InitModule().ErrorMessage == ErrorCodes.ActionRejected && bareModule.InitElement(), "没有自己初始化动作的模块：InitModule 什么都不做，算被拒");
     var bareReset = bareModule.Reset().Result;
     var bareAbort = bareModule.Abort().Result;
     Check(bareReset is not null && bareReset.IsSuccess && bareReset.IsSettled && bareAbort is not null && bareAbort.IsSuccess && bareAbort.IsSettled,
-        "没有自己复位、中止动作的模块：子组件跟着做完，回做完的空动作");
+        "没有自己复位、中止动作的模块：子元件跟着做完，回做完的空动作");
 
     child.Fault();
-    Check(child.HasAlarm && initPort.HasAlarm, "子组件报警算在模块头上");
+    Check(child.HasAlarm && initPort.HasAlarm, "子元件报警算在模块头上");
     trace.Clear();
     initPort.Next = new ProbeRoutine();
     Check(ReferenceEquals(initPort.Abort().Result, initPort.Next) && trace.SequenceEqual(new[] { "Abort:Child" }),
-        "LoadPort 的 Abort = 子组件中止 + 设备中止");
+        "LoadPort 的 Abort = 子元件中止 + 设备中止");
     Check(child.HasAlarm, "Abort 不清报警");
     initPort.Next = new ProbeRoutine();
     initPort.Reset();
@@ -2301,7 +2301,7 @@ port.E87Callback = null;
         StationNode("MainPM", "2", "North"),
         StationNode("MainAligner", "3", "East"),
         StationNode("Nowhere", "4", "West")));
-    Check(mainRobot.InitComponent(), "主界面用的探针机械手组件初始化（收示教点表）");
+    Check(mainRobot.InitElement(), "主界面用的探针机械手元件初始化（收示教点表）");
     BaseModule[] mainModules = [mainPort, mainChamber, mainAligner, mainRobot];
 
     // 搬运模块表没绑之前认不出是哪一类（跟槽数一样），一律 Other；绑了之后 LoadPort / 腔体 / 其他分得开，不在表里的还是 Other
@@ -2387,7 +2387,7 @@ port.E87Callback = null;
     Check(sysSettings.Modules.SequenceEqual(["SysRobot", "SysLP", "SysPM"]), "整机不算模块，不进系统设置的模块名单");
     Check(IocHelper.GetServices<IModule>().SequenceEqual(sysModules) && ReferenceEquals(IocHelper.GetService<ISystemModule>(), machine)
         && ReferenceEquals(IocHelper.GetService<ISystemAccess>(), machine),
-        "整机上了树也按模块取不到，按整机接口、给组件用的 ISystemAccess（配方库取界面语言）都取得到");
+        "整机上了树也按模块取不到，按整机接口、给元件用的 ISystemAccess（配方库取界面语言）都取得到");
     Check(machine.State == ModuleState.NotInit && !machine.IsAuto, "开机未初始化（Manual）");
     Check(StateRefused(equipment.AutoAsync(new RpcRequest()).Result, ModuleState.NotInit) && !sysTransfers.IsAutoDispatch,
         "没初始化切不了 Auto（module.state_not_allowed 带整机名和状态码）");
@@ -2526,7 +2526,7 @@ port.E87Callback = null;
     var noLedger = equipment.ReturnAllAsync(new RpcRequest()).Result;
     Check(!noLedger.Success && noLedger.Code == ErrorCodes.WaferLedgerDisabled && machine.State == ModuleState.Idle,
         "没装晶圆账：全部回片回 wafer.ledger_disabled");
-    var sysLedger = new LedgerManagerComponent();
+    var sysLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(sysLedger);
     machine.Bind(sysModules);
     sysLedger.RegisterLocation("SysRobot", 1);
@@ -2576,7 +2576,7 @@ port.E87Callback = null;
     Check(!noSize.Success && noSize.Code == ErrorCodes.WaferSizeNotInstalled && noSize.Args.Count == 0
           && machine.CreateEquipmentStatus().WaferSize == 12,
         "没配晶圆尺寸：切不了，设备总状态按 12 寸");
-    var waferSize = new WaferSizeComponent();
+    var waferSize = new WaferSizeElement();
     SmokeIoc.Use<IWaferSize>(waferSize);
     machine.Bind(sysModules);
     var badSize = SwitchSize(6);
@@ -2598,7 +2598,7 @@ port.E87Callback = null;
           && systemInitialized.Args.SequenceEqual(["System"]) && waferSize.Size == 12,
         "模块都没初始化、整机初始化过（整机不算模块，单独查）：也不让切");
     SmokeIoc.Use<ISystemModule>(previousSystem);
-    var sizeLedger = new LedgerManagerComponent();
+    var sizeLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(sizeLedger);
     sizeLedger.RegisterLoadPort("SizeLP", 25);
     sizeLedger.RegisterLocation("SizePM", 1);
@@ -2628,7 +2628,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ITransferManager>(previousTransfers);
 }
 
-// ── 设备通道：串口、网口各一个组件（参数各带各的），一个设备下面都配上时只认启用的那条；换接法只改 machine.xml 里两边的 IsEnable ─────────
+// ── 设备通道：串口、网口各一个元件（参数各带各的），一个设备下面都配上时只认启用的那条；换接法只改 machine.xml 里两边的 IsEnable ─────────
 {
     string ChannelRefused(Action action)
     {
@@ -2656,13 +2656,13 @@ port.E87Callback = null;
         return node;
     }
 
-    var channels = ComponentLoader.Load([new ModuleConfig
+    var channels = ElementLoader.Load([new ModuleConfig
     {
         Name = "SmokeDevice",
         Children =
         [
-            Channel("Serial", "xyz.Components.Components.SerialDriverComponent", "False", ("PortName", "COM9"), ("BaudRate", "19200")),
-            Channel("Tcp", "xyz.Components.Components.TcpDriverComponent", "True", ("Host", "10.0.0.8"), ("NetPort", "4004")),
+            Channel("Serial", "xyz.Elements.Elements.SerialDriverElement", "False", ("PortName", "COM9"), ("BaudRate", "19200")),
+            Channel("Tcp", "xyz.Elements.Elements.TcpDriverElement", "True", ("Host", "10.0.0.8"), ("NetPort", "4004")),
         ],
     }]);
     var holder = new ChannelHolder();
@@ -2671,32 +2671,32 @@ port.E87Callback = null;
         holder.AddChild(channel);
     }
 
-    var serial = channels.OfType<SerialDriverComponent>().Single();
-    var tcp = channels.OfType<TcpDriverComponent>().Single();
+    var serial = channels.OfType<SerialDriverElement>().Single();
+    var tcp = channels.OfType<TcpDriverElement>().Single();
     Check(serial.PortName == "COM9" && serial.BaudRate == 19200 && !serial.IsEnable
           && tcp.Host == "10.0.0.8" && tcp.NetPort == 4004 && tcp.IsEnable,
-        "串口、网口各是一个组件，参数照 machine.xml 各进各的（串口没启用、网口启用）");
-    Check(ReferenceEquals(CommDriverComponent.FindIn(holder), tcp), "设备只认启用的那条（网口），没启用的串口不管");
+        "串口、网口各是一个元件，参数照 machine.xml 各进各的（串口没启用、网口启用）");
+    Check(ReferenceEquals(CommDriverElement.FindIn(holder), tcp), "设备只认启用的那条（网口），没启用的串口不管");
 
     serial.IsEnable = true;
-    string both = ChannelRefused(() => CommDriverComponent.FindIn(holder));
+    string both = ChannelRefused(() => CommDriverElement.FindIn(holder));
     Check(both.Contains("启用了两条"), "串口、网口都启用：开机就报（不知道该连哪条），实际 " + both);
 
     serial.IsEnable = false;
     tcp.IsEnable = false;
-    Check(CommDriverComponent.FindIn(holder) is null, "一条都没启用：当成没挂通道（设备照没挂通道处理）");
-    Check(serial.InitComponent() && !serial.IsConnected,
+    Check(CommDriverElement.FindIn(holder) is null, "一条都没启用：当成没挂通道（设备照没挂通道处理）");
+    Check(serial.InitElement() && !serial.IsConnected,
         "没启用的通道开机不建、不连：没交解码器也不报错，连接一直是断的");
 
-    string oldType = ChannelRefused(() => ComponentLoader.Load([new ModuleConfig { Name = "Driver", Type = "xyz.Components.Components.CommDriverComponent" }]));
-    Check(oldType.Contains("CommDriverComponent"), "老写法 Type=CommDriverComponent（基类，不能直接配）：装配就报，实际 " + oldType);
+    string oldType = ChannelRefused(() => ElementLoader.Load([new ModuleConfig { Name = "Driver", Type = "xyz.Elements.Elements.CommDriverElement" }]));
+    Check(oldType.Contains("CommDriverElement"), "老写法 Type=CommDriverElement（基类，不能直接配）：装配就报，实际 " + oldType);
 }
 
 // ── LoadPort 在位来源（machine.xml PresenceSource 二选一）和驱动恢复：状态查询超时作废重发、动作没做成作废在途指令、关连接作废、
 //    断线按间隔重连、_rfid 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己那一轮 ─────────────────────────
 {
     var previousLedger = IocHelper.GetService<ILedgerManager>();
-    var presenceLedger = new LedgerManagerComponent();
+    var presenceLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(presenceLedger);
 
     bool WaitUntil(Func<bool> condition, int timeoutMs = 3000)
@@ -2736,8 +2736,8 @@ port.E87Callback = null;
 
     // 1) Query：两位都亮算放好（开机时盒子已在端口上，第一次查到就认），一亮一灭、查不到都不算变化，两位都灭才算拿走；PODON/PODOF 不认
     var queryPort = new ProbePort("PresenceQueryPort", PodPresenceSource.Query);
-    queryPort.InitComponent();
-    ComponentLoader.BindAll([queryPort]);
+    queryPort.InitElement();
+    ElementLoader.BindAll([queryPort]);
     queryPort.NoteState(ModuleState.Idle);
     queryPort.Tick();
     Check(!queryPort._carrier.IsArrived && queryPort._carrier.Info is null, "Query：还没查到状态时当没有载具");
@@ -2764,8 +2764,8 @@ port.E87Callback = null;
 
     // 2) Event：只认 PODON / PODOF，状态查询说什么都不管
     var eventPort = new ProbePort("PresenceEventPort", PodPresenceSource.Event);
-    eventPort.InitComponent();
-    ComponentLoader.BindAll([eventPort]);
+    eventPort.InitElement();
+    ElementLoader.BindAll([eventPort]);
     eventPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true });
     eventPort.Tick();
     Check(!eventPort._carrier.IsArrived && eventPort._carrier.Info is null, "Event：状态查询说有盒也不认");
@@ -2785,8 +2785,8 @@ port.E87Callback = null;
     pollPort.QueryDataTimeOut = 100;
     pollPort.QueryStatusIntervalMs = 500;
     var pollComm = pollPort.Channel.Comm;
-    Check(pollPort.InitComponent(), "状态查询用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([pollPort]);
+    Check(pollPort.InitElement(), "状态查询用的端口的元件初始化应成功");
+    ElementLoader.BindAll([pollPort]);
     pollPort.Tick();
     Check(WaitUntil(() => pollComm.SentCount("GET:STATE") == 1), "连上后扫描一拍就发出第一条状态查询");
     pollComm.Push(StateReply(present: true, placed: true));
@@ -2855,8 +2855,8 @@ port.E87Callback = null;
     var linkPort = new ProbePort("ReconnectPort", PodPresenceSource.Query);
     linkPort.Channel.ReconnectIntervalMs = 10;
     var linkComm = linkPort.Channel.Comm;
-    Check(linkPort.InitComponent() && linkComm.Opens == 1, "重连用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([linkPort]);
+    Check(linkPort.InitElement() && linkComm.Opens == 1, "重连用的端口的元件初始化应成功");
+    ElementLoader.BindAll([linkPort]);
     linkPort.Tick();
     Check(WaitUntil(() => linkComm.SentCount("GET:STATE") == 1), "连着时照常查状态");
     linkComm.Drop();
@@ -2878,14 +2878,14 @@ port.E87Callback = null;
 
     // 6b) 重连满 EC ReconnectMaxCount 次还连不上：停下、报"已停止重连"，不再敲；人工复位以后从头再连（PLC 也是这一套）
     var previousAlarms = IocHelper.GetService<IAlarm>();
-    var reconnectAlarms = new AlarmComponent();
+    var reconnectAlarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(reconnectAlarms);
     var giveUpPort = new ProbePort("GiveUpPort", PodPresenceSource.Query);
     giveUpPort.Channel.ReconnectIntervalMs = 10;
     giveUpPort.Channel.ReconnectMaxCount = 2;
     var giveUpComm = giveUpPort.Channel.Comm;
-    Check(giveUpPort.InitComponent() && giveUpComm.Opens == 1, "停重连用的端口开机连上");
-    ComponentLoader.BindAll([giveUpPort]);
+    Check(giveUpPort.InitElement() && giveUpComm.Opens == 1, "停重连用的端口开机连上");
+    ElementLoader.BindAll([giveUpPort]);
     bool GaveUp() => reconnectAlarms.ActiveAlarms.Any(alarm =>
         alarm.SourcePath == giveUpPort.Channel.FullPath && alarm.AlarmCode == giveUpPort.Channel.ReconnectFailedAlarm);
     giveUpComm.FailOpen = true;
@@ -2909,8 +2909,8 @@ port.E87Callback = null;
     flapPort.Channel.ReconnectIntervalMs = 200;
     flapPort.Channel.ReconnectMaxCount = 2;
     var flapComm = flapPort.Channel.Comm;
-    flapPort.InitComponent();
-    ComponentLoader.BindAll([flapPort]);
+    flapPort.InitElement();
+    ElementLoader.BindAll([flapPort]);
     bool FlapGaveUp() => reconnectAlarms.ActiveAlarms.Any(alarm =>
         alarm.SourcePath == flapPort.Channel.FullPath && alarm.AlarmCode == flapPort.Channel.ReconnectFailedAlarm);
     flapComm.Drop();
@@ -2958,8 +2958,8 @@ port.E87Callback = null;
     var rfidReader = ProbeRfidReader.AddTo(rfidPort, "_rfid");
     rfidReader.Channel.ReconnectIntervalMs = 10;
     rfidReader.Channel.Comm.FailOpen = true;
-    Check(!rfidPort.InitComponent(), "_rfid 连不上时组件初始化返回 false（开机日志看得到）");
-    ComponentLoader.BindAll([rfidPort]);
+    Check(!rfidPort.InitElement(), "_rfid 连不上时元件初始化返回 false（开机日志看得到）");
+    ElementLoader.BindAll([rfidPort]);
     Check(rfidPort.Channel.IsConnected && !rfidReader.IsConnected, "_rfid 连不上也照样打开 LoadPort 的通道");
     Check(presenceLedger.GetSlots(rfidPort.Name).Count == rfidPort.SlotCount, "_rfid 连不上也照样在晶圆账上登记槽位");
     rfidReader.Channel.Comm.FailOpen = false;
@@ -2976,8 +2976,8 @@ port.E87Callback = null;
     autoReader.Channel.Comm.FailOpen = true;
     var autoEvents = new RecordingE87Callback();
     autoPort.E87Callback = autoEvents;
-    autoPort.InitComponent();
-    ComponentLoader.BindAll([autoPort]);
+    autoPort.InitElement();
+    ElementLoader.BindAll([autoPort]);
     autoPort.NotePodPlaced(true);
     autoPort.Tick();
     Check(autoPort._carrier.IsArrived && !autoReader.IsReading, "到位了、读头没连上：读码发不起来");
@@ -2995,8 +2995,8 @@ port.E87Callback = null;
     failReader.Channel.Comm.FailOpen = true;
     var failEvents = new RecordingE87Callback();
     failPort.E87Callback = failEvents;
-    failPort.InitComponent();
-    ComponentLoader.BindAll([failPort]);
+    failPort.InitElement();
+    ElementLoader.BindAll([failPort]);
     failPort.NotePodPlaced(true);
     failPort.Tick();
     Thread.Sleep(150);
@@ -3009,34 +3009,34 @@ port.E87Callback = null;
     var noReaderPort = new ProbePort("NoReaderPort", PodPresenceSource.Event);
     var noReaderEvents = new RecordingE87Callback();
     noReaderPort.E87Callback = noReaderEvents;
-    noReaderPort.InitComponent();
-    ComponentLoader.BindAll([noReaderPort]);
+    noReaderPort.InitElement();
+    ElementLoader.BindAll([noReaderPort]);
     noReaderPort.NotePodPlaced(true);
     noReaderPort.Tick();
     noReaderPort.Tick();
     Check(noReaderPort._carrier.Info is not null && !noReaderEvents.Wait(nameof(IE87Callback.CarrierIdReadFailed), 100),
         "没配读头：本来就不读码，到位后不报读码失败");
 
-    // 7c) 端口下没配 _carrier 子组件：装配错了，组件初始化要抛（开机就暴露），不让端口带着缺口跑
+    // 7c) 端口下没配 _carrier 子元件：装配错了，元件初始化要抛（开机就暴露），不让端口带着缺口跑
     var barePort = new BarePort("BarePort");
     bool bareThrown = false;
     try
     {
-        barePort.InitComponent();
-        ComponentLoader.BindAll([barePort]);
+        barePort.InitElement();
+        ElementLoader.BindAll([barePort]);
     }
     catch (InvalidOperationException exception)
     {
         bareThrown = exception.Message.Contains("_carrier", StringComparison.Ordinal);
     }
 
-    Check(bareThrown, "端口下没配 _carrier 子组件：组件初始化抛 InvalidOperationException（开机就暴露）");
+    Check(bareThrown, "端口下没配 _carrier 子元件：元件初始化抛 InvalidOperationException（开机就暴露）");
 
     // 7d) 装机停用（machine.xml IsEnable=False）的端口：载具照样挂上——停用的口照样扫描、推状态，Job 按载具号找端口也会查它的载具；
     //     不连驱动、不发动作
     var disabledPort = new PlainPort("DisabledPort") { IsEnable = false };
-    Check(disabledPort.InitComponent(), "停用的端口：组件初始化直接算成功");
-    ComponentLoader.BindAll([disabledPort]);
+    Check(disabledPort.InitElement(), "停用的端口：元件初始化直接算成功");
+    ElementLoader.BindAll([disabledPort]);
     Check(disabledPort._carrier is not null && !disabledPort._carrier.IsArrived, "停用的端口：载具照样挂上，上面没载具");
     bool disabledScanned = true;
     try
@@ -3097,7 +3097,7 @@ port.E87Callback = null;
 
     var plain = new PlainPort("PlainPort");
     var plainComm = plain.Channel.Comm;
-    Check(plain.InitComponent(), "35021 LoadPort 用的端口的组件初始化应成功");
+    Check(plain.InitElement(), "35021 LoadPort 用的端口的元件初始化应成功");
     plain.NoteState(ModuleState.Idle);
     var noCarrierLoad = plain.Load();
     Check(!noCarrierLoad.IsSuccess && noCarrierLoad.ErrorMessage == ErrorCodes.CarrierNotArrived
@@ -3139,15 +3139,15 @@ port.E87Callback = null;
 
     // 9b) Load 扫到的 Mapping 不能用：槽数跟 machine.xml 的 SlotCount 对不上（不落账），或者有交叉片、叠片、认不出的槽（账照落）——
     //     Load 判失败、落 Error，机械手进不来，报"Mapping 异常"（不报笼统的动作失败）
-    var mapAlarms = new AlarmComponent();
+    var mapAlarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(mapAlarms);
     bool MapAlarmActive(BaseLoadPortModule port, string code) =>
         mapAlarms.ActiveAlarms.Any(alarm => alarm.SourcePath == port.FullPath && alarm.AlarmCode == code);
 
     ModuleRoutine LoadWithMap(PlainPort port, string mapData)
     {
-        Check(port.InitComponent(), $"{port.Name} 的组件初始化应成功");
-        ComponentLoader.BindAll([port]);
+        Check(port.InitElement(), $"{port.Name} 的元件初始化应成功");
+        ElementLoader.BindAll([port]);
         port.NoteState(ModuleState.Idle);
         port.NotePodPlaced(true);
         port.Tick();
@@ -3190,8 +3190,8 @@ port.E87Callback = null;
     ProbePort CompletedCarrierPort(string name, bool autoUnload)
     {
         var port = new ProbePort(name) { AutoUnload = autoUnload, Next = new ProbeRoutine() };
-        Check(port.InitComponent(), $"{name} 的组件初始化应成功");
-        ComponentLoader.BindAll([port]);
+        Check(port.InitElement(), $"{name} 的元件初始化应成功");
+        ElementLoader.BindAll([port]);
         port.NotePodPlaced(true);
         port.Tick();
         port.NoteState(LoadPortState.Loaded);
@@ -3256,7 +3256,7 @@ port.E87Callback = null;
     offPort.Close();
 
     var turnOffPort = CompletedCarrierPort("AutoUnloadTurnOffPort", autoUnload: true);
-    Check(ec.Get(turnOffPort.FullPath, nameof(turnOffPort.AutoUnload)) == "True" && turnOffPort.AutoUnload, "AutoUnload 是 EC：值放在 EC 组件里");
+    Check(ec.Get(turnOffPort.FullPath, nameof(turnOffPort.AutoUnload)) == "True" && turnOffPort.AutoUnload, "AutoUnload 是 EC：值放在 EC 元件里");
     presenceLedger.RegisterLocation("AutoUnloadTurnOffChamber", 1);
     Check(presenceLedger.Create("AutoUnloadTurnOffPort", 1) is not null
           && presenceLedger.Move("AutoUnloadTurnOffPort", 1, "AutoUnloadTurnOffChamber", 1),
@@ -3276,7 +3276,7 @@ port.E87Callback = null;
 
     // 9c-2) EC 关着时干完对账（照 CTC 参数关着时的干完对账）：不卸、不发设备指令，拿 Load 时的槽图跟晶圆账按片的来处逐槽对——
     //       片按流程配方回到别的 LoadPort、别的 LoadPort 的片回到这盒都不算错；片在账上换了槽报 Mapping 异常，只报警：端口不落 Error、账不改
-    var completeAlarms = new AlarmComponent();
+    var completeAlarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(completeAlarms);
     bool CompleteAlarmActive(BaseLoadPortModule port) =>
         completeAlarms.ActiveAlarms.Any(alarm => alarm.SourcePath == port.FullPath && alarm.AlarmCode == port.SlotMapAlarm);
@@ -3313,13 +3313,13 @@ port.E87Callback = null;
     // 9d) 自动跑货的 Unload 带 Mapping 对账（machine.xml AutoRunMapOnUnload，照老 CTC 的卸载对账）：门关了就扫不了，所以关门前先发 MAPDO 扫、
     //     GET:MAPDT 取槽图跟账对，对得上才发 CULOD 关门、Unload 成功；少片、多片、交叉片都判失败（unload_slot_map_mismatch）、落 Error、门不关，
     //     报 Mapping 异常和晶圆账的账实不符，账不动；扫片没成判失败、不取图不关门；对上了关门没成也判失败；machine.xml 关着只发 CULOD（第 9 节）
-    var unloadMapAlarms = new AlarmComponent();
+    var unloadMapAlarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(unloadMapAlarms);
     PlainPort LoadedMapPort(string name)
     {
         var port = new PlainPort(name) { AutoRunMapOnUnload = true };
-        Check(port.InitComponent(), $"{name} 的组件初始化应成功");
-        ComponentLoader.BindAll([port]);
+        Check(port.InitElement(), $"{name} 的元件初始化应成功");
+        ElementLoader.BindAll([port]);
         port.NoteState(ModuleState.Idle);
         port.NotePodPlaced(true);
         port.Tick();
@@ -3409,15 +3409,15 @@ port.E87Callback = null;
     manualPort.Close();
     SmokeIoc.Use<IAlarm>(null);
 
-    static bool MapAlarmActiveIn(AlarmComponent alarms, BaseLoadPortModule port, string code) =>
+    static bool MapAlarmActiveIn(AlarmElement alarms, BaseLoadPortModule port, string code) =>
         alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == port.FullPath && alarm.AlarmCode == code);
 
     // 10) 复位只清错、中止只停，Idle 一律当"门关好、没 Load"：没初始化、出过错的复位完是 NotInit（要再 Home，照老 CTC），
     //     中止也绕不过复位和 Home；门开着没在动（Loaded、正被机械手取放）的复位 / 中止完按状态查询的门位落 Loaded / Idle，
     //     查不到、门在半路、载具不在，或者打断的是机构在动的动作（Load / Unload / Home / 夹紧），落 NotInit
     var resetPort = new ProbePort("ResetStatePort");
-    Check(resetPort.InitComponent(), "复位用的端口的组件初始化应成功");
-    ComponentLoader.BindAll([resetPort]);
+    Check(resetPort.InitElement(), "复位用的端口的元件初始化应成功");
+    ElementLoader.BindAll([resetPort]);
     var doorOpen = new LoadPortStatus { IsPresent = true, IsPlaced = true, IsDoorOpen = true };
     var doorClosed = new LoadPortStatus { IsPresent = true, IsPlaced = true, IsDoorClosed = true };
 
@@ -3566,8 +3566,8 @@ port.E87Callback = null;
     // 探针有 X / Z / Theta / Arm1 四根轴：没订上时一圈 8 条（订阅、报错、伺服、速度、4 根轴）+ 空一拍 = 9 拍
     var pollRobot = new ProbeRobot();
     var robotComm = pollRobot.Channel.Comm;
-    Check(pollRobot.InitComponent(), "状态查询用的机械手的组件初始化应成功");
-    ComponentLoader.BindAll([pollRobot]);
+    Check(pollRobot.InitElement(), "状态查询用的机械手的元件初始化应成功");
+    ElementLoader.BindAll([pollRobot]);
 
     // 1) 假通道一条都不回：每条都超时作废，下一圈同名查询照样发得出去
     //    （以前超时只丢句柄，驱动里同名查询一直占着在途位，这一种再也查不了）
@@ -3652,14 +3652,14 @@ port.E87Callback = null;
     pollRobot.Close();
     Check(stuckHome.IsCompleted && !stuckHome.IsSuccess && stuckHome.Error == "PortClosed",
         "关连接：在途指令全部作废");
-    Check(pollRobot.InitComponent() && pollRobot.Channel.Send(new RejeHomeCommand()), "重新连上以后同名指令能再发");
+    Check(pollRobot.InitElement() && pollRobot.Channel.Send(new RejeHomeCommand()), "重新连上以后同名指令能再发");
     pollRobot.Close();
 
     // 5) 这台机械手不带手指在位推送（machine.xml WaferEventEnabled = False）：一圈不订阅，一条订阅都不发
     var plainRobot = new ProbeRobot { WaferEventEnabled = false };
     var plainComm = plainRobot.Channel.Comm;
-    Check(plainRobot.InitComponent(), "不带手指在位推送的机械手组件初始化应成功");
-    ComponentLoader.BindAll([plainRobot]);
+    Check(plainRobot.InitElement(), "不带手指在位推送的机械手元件初始化应成功");
+    ElementLoader.BindAll([plainRobot]);
     for (int tick = 0; tick < 16; tick++)
     {
         plainRobot.Tick();
@@ -3673,8 +3673,8 @@ port.E87Callback = null;
     // 6) 查询周期（EC QueryStatusIntervalMs）管的是"圈"：一圈里的各条照旧一拍一条，一圈查完要离这一圈开始满一个周期才开下一圈
     var paceRobot = new ProbeRobot { WaferEventEnabled = false, QueryStatusIntervalMs = 500 };
     var paceComm = paceRobot.Channel.Comm;
-    Check(paceRobot.InitComponent(), "测查询周期的机械手组件初始化应成功");
-    ComponentLoader.BindAll([paceRobot]);
+    Check(paceRobot.InitElement(), "测查询周期的机械手元件初始化应成功");
+    ElementLoader.BindAll([paceRobot]);
     for (int tick = 0; tick < 12; tick++)
     {
         paceRobot.Tick();
@@ -3697,8 +3697,8 @@ port.E87Callback = null;
     var linkRobot = new ProbeRobot { QueryDataTimeOut = 600000 };
     linkRobot.Channel.ReconnectIntervalMs = 10;
     var linkComm = linkRobot.Channel.Comm;
-    Check(linkRobot.InitComponent() && linkComm.Opens == 1, "重连用的机械手组件初始化应成功");
-    ComponentLoader.BindAll([linkRobot]);
+    Check(linkRobot.InitElement() && linkComm.Opens == 1, "重连用的机械手元件初始化应成功");
+    ElementLoader.BindAll([linkRobot]);
     linkRobot.Tick();
     Check(WaitUntil(() => linkComm.SentCount("SubWafer1") == 1), "连着时照常查状态：先订手指在位推送");
     linkComm.Push(">00000000#@SubWafer1");
@@ -3732,8 +3732,8 @@ port.E87Callback = null;
     // 8) 动作等回复超时：那条指令作废、让出在途位，复位、回零以后同一条指令（再取同一槽）还能发
     //    （以前超时只判失败，锐洁按整条指令认在途，回复丢了就一直占着，只能急停或断线才放开）
     var stuckRobot = new ProbeRobot { WaferEventEnabled = false };
-    Check(stuckRobot.InitComponent(), "测动作超时的机械手组件初始化应成功");
-    ComponentLoader.BindAll([stuckRobot]);
+    Check(stuckRobot.InitElement(), "测动作超时的机械手元件初始化应成功");
+    ElementLoader.BindAll([stuckRobot]);
     var stuckPick = new ModuleRoutine(stuckRobot, "Pick", stuckRobot._driver, () => 50).Command("取片", () => new RejePickCommand(1, 3, 5));
     stuckPick.Scan();
     Check(!stuckPick.IsTerminal && !stuckRobot.Channel.Send(new RejePickCommand(1, 3, 5)), "取片指令发出去了（假通讯不回它），同一条还在途时再发被拒");
@@ -3911,8 +3911,8 @@ port.E87Callback = null;
 
     // 真实 LoadPort 恢复路径使用 Abort，而非给传片状态补 Reset。
     var contextPort = new ProbePort("ContextAbortPort");
-    Check(contextPort.InitComponent(), "上下文中止用例端口初始化");
-    ComponentLoader.BindAll([contextPort]);
+    Check(contextPort.InitElement(), "上下文中止用例端口初始化");
+    ElementLoader.BindAll([contextPort]);
     contextPort.NotePodPlaced(true);
     contextPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true, IsDoorOpen = true });
     contextPort.Tick();
@@ -4137,8 +4137,8 @@ port.E87Callback = null;
 // LP-1：载具供 Job 使用与开始一次搬运准备是两种能力；查询只返回原因，实际发起准备仍须重查并独占传片环。
 {
     var accessPort = new ProbePort("CarrierAccessPort");
-    Check(accessPort.InitComponent(), "载具准入测试端口初始化成功");
-    ComponentLoader.BindAll([accessPort]);
+    Check(accessPort.InitElement(), "载具准入测试端口初始化成功");
+    ElementLoader.BindAll([accessPort]);
     IJobAccess jobAccess = accessPort;
     ICarrierAccess carrierAccess = jobAccess.Carrier;
     ITransferStation transferAccess = accessPort;
@@ -4236,10 +4236,10 @@ port.E87Callback = null;
     }
 
     accessPort._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(accessPort, false);
-    RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.ModuleDisabled, "组件停用：载具 Job 查询返回模块停用");
-    Check(!jobAccess.CanUseCarrierForJob, "组件停用：Job 布尔属性与查询一致");
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(accessPort, true);
+    typeof(ElementBase).GetProperty(nameof(ElementBase.IsEnabled))!.SetValue(accessPort, false);
+    RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.ModuleDisabled, "元件停用：载具 Job 查询返回模块停用");
+    Check(!jobAccess.CanUseCarrierForJob, "元件停用：Job 布尔属性与查询一致");
+    typeof(ElementBase).GetProperty(nameof(ElementBase.IsEnabled))!.SetValue(accessPort, true);
 
     RefusesAccess(jobAccess.NotifyJobFinished(" "), ErrorCodes.CarrierIdRequired, "作业结束通知必须携带 Job 保存的载具号");
     var wrongCarrier = jobAccess.NotifyJobFinished("ACCESS-B");
@@ -4298,7 +4298,7 @@ port.E87Callback = null;
 // ── 扫片（IWaferMap）：LoadPort 自己单独扫一遍；机械手开了 MapEnabled 就由它替 LoadPort 扫（扫片用站点原来的 Number），
 //    经搬运管理排队：手上全空、没在搬才扫，排着时手上有片只拒往手上添片的、手上空了新搬运一律不接；维护模式、没初始化直接判失败 ──────
 {
-    var mapLedger = new LedgerManagerComponent();
+    var mapLedger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(mapLedger);
     var ticks = new List<Action>();
 
@@ -4378,8 +4378,8 @@ port.E87Callback = null;
 
     // 1) LoadPort 自己单独扫一遍：只在 Loaded（门开着）、只扫自己；扫到的存进 MapResults，不落账、不动载具槽图
     var ownPort = new PlainPort("OwnMapLP");
-    Check(ownPort.InitComponent(), "自己扫片用的端口组件初始化应成功");
-    ComponentLoader.BindAll([ownPort]);
+    Check(ownPort.InitElement(), "自己扫片用的端口元件初始化应成功");
+    ElementLoader.BindAll([ownPort]);
     ticks.Add(ownPort.Tick);
     ownPort.NoteState(ModuleState.Idle);
     var notLoaded = ownPort.Map("OwnMapLP");
@@ -4405,15 +4405,15 @@ port.E87Callback = null;
 
     // 2) 开机查：开了 MapEnabled 的机械手类得能扫片（声明 IWaferMap）；两台开着扫片的机械手示教点表里都有同一个口，不知道该谁扫
     var notMapper = new ProbeRobot { MapEnabled = true };
-    Check(RefusedBy(() => notMapper.InitComponent()).Contains("MapEnabled"),
-        "机械手类没声明 IWaferMap 却开了 MapEnabled：组件初始化就抛，开机暴露");
+    Check(RefusedBy(() => notMapper.InitElement()).Contains("MapEnabled"),
+        "机械手类没声明 IWaferMap 却开了 MapEnabled：元件初始化就抛，开机暴露");
     var twinA = new MapProbeRobot("TwinRobotA") { MapEnabled = true };
     var twinB = new MapProbeRobot("TwinRobotB") { MapEnabled = true };
     twinA.NoteTeachPoints(MapStations(("TwinLP", "1")));
     twinB.NoteTeachPoints(MapStations(("TwinLP", "2")));
-    Check(twinA.InitComponent() && twinB.InitComponent(), "两台扫片机械手组件初始化（收示教点表）");
+    Check(twinA.InitElement() && twinB.InitElement(), "两台扫片机械手元件初始化（收示教点表）");
     var twinPort = new PlainPort("TwinLP");
-    Check(twinPort.InitComponent(), "两台机械手抢一个口用的端口组件初始化应成功");
+    Check(twinPort.InitElement(), "两台机械手抢一个口用的端口元件初始化应成功");
     SmokeIoc.Tree(twinPort, twinA, twinB);
     string twinError = RefusedBy(() => twinPort.Bind());
     Check(twinError.Contains("TwinRobotA") && twinError.Contains("TwinRobotB"),
@@ -4427,11 +4427,11 @@ port.E87Callback = null;
     var aligner = new ProbeAligner("MapAligner");
     var transfers = new MapProbeTransfers();
     mapLedger.RegisterLocation("MapAligner", 1);
-    Check(robot.InitComponent() && lp.InitComponent() && aligner.InitComponent(), "扫片用的机械手、端口、对准台组件初始化应成功");
+    Check(robot.InitElement() && lp.InitElement() && aligner.InitElement(), "扫片用的机械手、端口、对准台元件初始化应成功");
     SmokeIoc.Use<ITransferManager>(transfers);
     SmokeIoc.Tree(lp, robot, aligner);
     transfers.Bind([lp, robot, aligner]);
-    ComponentLoader.BindAll([lp, robot]);
+    ElementLoader.BindAll([lp, robot]);
     ticks.Add(lp.Tick);
     ticks.Add(robot.Tick);
     ticks.Add(transfers.Tick);
@@ -4559,7 +4559,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(null);
 }
 
-Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort refusals carrying their reason; the IO service passing on the IO component's reason; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the RPC request parameters (RpcRequest.Of packing and TryGet reading back int, long, double, bool, Chinese text, DateTime, Guid, string lists, nested step lists and string dictionaries unchanged; names matched case-insensitively; a missing name, a null value, a type mismatch and empty, non-object or broken Parameters reading as absent; Get falling back to its default; a LoadPort action without Module answered with rpc.request_invalid while the port stays put), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the machine.xml switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
+Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort refusals carrying their reason; the IO service passing on the IO element's reason; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the RPC request parameters (RpcRequest.Of packing and TryGet reading back int, long, double, bool, Chinese text, DateTime, Guid, string lists, nested step lists and string dictionaries unchanged; names matched case-insensitively; a missing name, a null value, a type mismatch and empty, non-object or broken Parameters reading as absent; Get falling back to its default; a LoadPort action without Module answered with rpc.request_invalid while the port stays put), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier element: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC element: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitElement (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver elements connecting themselves from InitElement, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the machine.xml switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
 
 // 假帧通讯：顶替串口 / 网口，连接由测试摆（打不开、断线），发出去的帧体记下来；设备的回复由测试推，
 // 按通道交来的那家解码器解成报文往上交（跟真的接收泵一样），字节级的拆帧不在这里测（见 GatedTransport）。
@@ -4628,8 +4628,8 @@ sealed class FakeFrameCommunication : IFrameCommunication
     public IReadOnlyList<string> Sent => _sent.ToArray();
 }
 
-// 探针通道：平台的通道组件（在途表、重连、握手都是生产代码），只把帧通讯换成假的。
-sealed class ProbeChannel : CommDriverComponent
+// 探针通道：平台的通道元件（在途表、重连、握手都是生产代码），只把帧通讯换成假的。
+sealed class ProbeChannel : CommDriverElement
 {
     /// <summary>
     /// 通道底下的假帧通讯：测试看发出去的帧、往里推回复、模拟断线
@@ -4639,11 +4639,11 @@ sealed class ProbeChannel : CommDriverComponent
     /// <summary>
     /// 挂到设备下面（生产里是 machine.xml 设备节点下的 Driver 节点）
     /// </summary>
-    public static ProbeChannel AddTo(ComponentBase device)
+    public static ProbeChannel AddTo(ElementBase device)
     {
         var channel = new ProbeChannel();
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(channel, "Driver");
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(channel, $"{device.FullPath}.Driver");
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(channel, "Driver");
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(channel, $"{device.FullPath}.Driver");
         device.AddChild(channel);
         return channel;
     }
@@ -4663,8 +4663,8 @@ sealed class ProbeChannel : CommDriverComponent
     }
 }
 
-// 只用来挂通道的空组件：测设备按 IsEnable 认通道
-sealed class ChannelHolder : ComponentBase
+// 只用来挂通道的空元件：测设备按 IsEnable 认通道
+sealed class ChannelHolder : ElementBase
 {
 }
 
@@ -4776,14 +4776,14 @@ sealed class ProbeModule : BaseModule
     }
 }
 
-// 探针端口下挂的载具组件：生产里是 machine.xml 的 _carrier 节点，名字由装配器经 internal setter 设，这里反射设。
+// 探针端口下挂的载具元件：生产里是 machine.xml 的 _carrier 节点，名字由装配器经 internal setter 设，这里反射设。
 static class ProbeCarrier
 {
-    public static CarrierComponent Add(ComponentBase port, PodPresenceSource presence)
+    public static CarrierElement Add(ElementBase port, PodPresenceSource presence)
     {
-        var carrier = new CarrierComponent { PresenceSource = presence };
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(carrier, "_carrier");
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(carrier, $"{port.FullPath}._carrier");
+        var carrier = new CarrierElement { PresenceSource = presence };
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(carrier, "_carrier");
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(carrier, $"{port.FullPath}._carrier");
         port.AddChild(carrier);
         return carrier;
     }
@@ -4803,15 +4803,15 @@ sealed class ProbePort : LoadPortModule
 
     public ProbePort(string name = "WaitSmokePort", PodPresenceSource presence = PodPresenceSource.Event)
     {
-        // Production names are assigned by ComponentLoader through internal setters.
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
+        // Production names are assigned by ElementLoader through internal setters.
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
         Channel = ProbeChannel.AddTo(this);
 
         // 在位默认走设备上报（测试用 NotePodPlaced 摆）；测状态查询的传 Query，用 NoteStatus 或假通道回状态摆。
         ProbeCarrier.Add(this, presence);
 
-        // Seed only the in-memory EC component created at the top; never load or flush a configuration file.
+        // Seed only the in-memory EC element created at the top; never load or flush a configuration file.
         LoadTimeout = 0;
         UnloadTimeout = 0;
         HomeTimeout = 0;
@@ -4875,13 +4875,13 @@ sealed class ProbePort : LoadPortModule
     protected override ModuleRoutine CreateUnclampRoutine() => Take();
 }
 
-// 没挂 _carrier 子组件的端口：验装配错了开机就暴露。
+// 没挂 _carrier 子元件的端口：验装配错了开机就暴露。
 sealed class BarePort : LoadPortModule
 {
     public BarePort(string name)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 }
 
@@ -4892,8 +4892,8 @@ sealed class PlainPort : LoadPortModule
 
     public PlainPort(string name)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
         Channel = ProbeChannel.AddTo(this);
         ProbeCarrier.Add(this, PodPresenceSource.Event);
 
@@ -4916,8 +4916,8 @@ sealed class ProbeRfidReader : FcdRfidReader
 {
     private ProbeRfidReader(string name, string path)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
         Channel = ProbeChannel.AddTo(this);
     }
 
@@ -4929,7 +4929,7 @@ sealed class ProbeRfidReader : FcdRfidReader
     /// <summary>
     /// 挂到端口下面（生产里是 machine.xml LoadPort 节点下的读头节点）
     /// </summary>
-    public static ProbeRfidReader AddTo(ComponentBase port, string name)
+    public static ProbeRfidReader AddTo(ElementBase port, string name)
     {
         var reader = new ProbeRfidReader(name, $"{port.FullPath}.{name}");
         port.AddChild(reader);
@@ -5049,7 +5049,7 @@ sealed class GatedTransport : ICommunication
 }
 
 // 探针 E84：IO 读写层还没接，输入由测试直接摆，输出只记次数；EC 只在本进程内存里种，不落盘。
-sealed class ProbeE84 : E84Component
+sealed class ProbeE84 : E84Element
 {
     private E84Inputs _next;
 
@@ -5057,8 +5057,8 @@ sealed class ProbeE84 : E84Component
 
     public ProbeE84(string portName, int timeoutMs = 60000, bool enabled = true)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "E84");
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, $"{portName}.E84");
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, "E84");
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, $"{portName}.E84");
         E84Enabled = enabled;
         Tp1Timeout = timeoutMs;
         Tp2Timeout = timeoutMs;
@@ -5081,14 +5081,14 @@ sealed class ProbeE84 : E84Component
 }
 
 // 探针 DI/AI：IO 读写层还没接，读数由测试直接摆；EC 只在本进程内存里。
-sealed class ProbeDi : DiSensorComponent
+sealed class ProbeDi : DiSensorElement
 {
     public bool? Level { get; set; }
 
     public ProbeDi(string path)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, path[(path.LastIndexOf('.') + 1)..]);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, path[(path.LastIndexOf('.') + 1)..]);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
         DiIndex = 0;
     }
 
@@ -5098,15 +5098,15 @@ sealed class ProbeDi : DiSensorComponent
     protected override bool? ReadDi() => Level;
 }
 
-sealed class ProbeAi : AiSensorComponent
+sealed class ProbeAi : AiSensorElement
 {
     public double? Reading { get; set; }
     public bool? MonitoringDo { get; set; }
 
     public ProbeAi(string path)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, path[(path.LastIndexOf('.') + 1)..]);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, path[(path.LastIndexOf('.') + 1)..]);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
         AiIndex = 0;
     }
 
@@ -5119,7 +5119,7 @@ sealed class ProbeAi : AiSensorComponent
 }
 
 // 探针 PLC：连接由测试摆（连不上 / 能连），数连了几次；扫描换成测试推。
-sealed class ProbePlc : PlcComponent
+sealed class ProbePlc : PlcElement
 {
     private int _connects;
 
@@ -5150,13 +5150,13 @@ sealed class ProbePlc : PlcComponent
     }
 }
 
-// 探针电脑组件：子节点读的是真的 CPU、内存、线程数，只把扫描换成测试推。
-sealed class ProbeComputer : ComputerComponent
+// 探针电脑元件：子节点读的是真的 CPU、内存、线程数，只把扫描换成测试推。
+sealed class ProbeComputer : ComputerElement
 {
     public ProbeComputer(string path)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, path);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, path);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
     }
 
     /// <summary>顶替扫描线程推一拍。</summary>
@@ -5244,14 +5244,14 @@ sealed class ProbeRobot : RobotModule
     /// </summary>
     public ProbeChannel Channel { get; }
 
-    public ProbeRobot() : this(new RobotArmComponent { Number = 1 })
+    public ProbeRobot() : this(new RobotArmElement { Number = 1 })
     {
     }
 
-    public ProbeRobot(RobotArmComponent arm)
+    public ProbeRobot(RobotArmElement arm)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "SmokeRobot");
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, "SmokeRobot");
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
         QueryDataTimeOut = 0;
         // 查询周期 0：一圈查完下一拍就开下一圈，状态查询那段按拍数数条数；周期本身在那段最后单独测
         QueryStatusIntervalMs = 0;
@@ -5262,18 +5262,18 @@ sealed class ProbeRobot : RobotModule
         AbortTimeout = 0;
         PowerTimeout = 0;
         Channel = ProbeChannel.AddTo(this);
-        // machine.xml 的轴节点：本冒烟装一指（生产里由 ComponentLoader 建，这里直接挂）。
-        AddChild(Named(new RobotAxisComponent(), "X"));
-        AddChild(Named(new RobotAxisComponent(), "Z"));
-        AddChild(Named(new RobotAxisComponent(), "Theta"));
+        // machine.xml 的轴节点：本冒烟装一指（生产里由 ElementLoader 建，这里直接挂）。
+        AddChild(Named(new RobotAxisElement(), "X"));
+        AddChild(Named(new RobotAxisElement(), "Z"));
+        AddChild(Named(new RobotAxisElement(), "Theta"));
         AddChild(Named(arm, "Arm1"));
     }
 
-    private static T Named<T>(T component, string name) where T : ComponentBase
+    private static T Named<T>(T element, string name) where T : ElementBase
     {
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
-        return component;
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(element, name);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(element, name);
+        return element;
     }
 
     /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>
@@ -5283,12 +5283,12 @@ sealed class ProbeRobot : RobotModule
     public void Tick() => OnScan();
 
     /// <summary>
-    /// 灌机械手自己的 machine.xml 节点（生产里由 ComponentLoader 交给 OnSettingLoaded）
+    /// 灌机械手自己的 machine.xml 节点（生产里由 ElementLoader 交给 OnSettingLoaded）
     /// </summary>
     public void NoteSettings(ModuleConfig setting) => OnSettingLoaded(setting);
 
     /// <summary>
-    /// 挂示教点（生产里由 ComponentLoader 照 machine.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
+    /// 挂示教点（生产里由 ElementLoader 照 machine.xml 机械手下的 Size12 / Size8 建）；元件初始化时收进示教点表
     /// </summary>
     public void NoteTeachPoints(params ModuleConfig[] tables) => SmokeTeachPoints.AddTo(this, tables);
 
@@ -5336,23 +5336,23 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
 
     public MapProbeRobot(string name)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
         QueryDataTimeOut = 0;
         QueryStatusIntervalMs = 0;
         Channel = ProbeChannel.AddTo(this);
-        AddChild(Named(new RobotAxisComponent(), "X"));
-        AddChild(Named(new RobotAxisComponent(), "Z"));
-        AddChild(Named(new RobotAxisComponent(), "Theta"));
-        AddChild(Named(new RobotArmComponent { Number = 1 }, "Arm1"));
-        AddChild(Named(new RobotArmComponent { Number = 2 }, "Arm2"));
+        AddChild(Named(new RobotAxisElement(), "X"));
+        AddChild(Named(new RobotAxisElement(), "Z"));
+        AddChild(Named(new RobotAxisElement(), "Theta"));
+        AddChild(Named(new RobotArmElement { Number = 1 }, "Arm1"));
+        AddChild(Named(new RobotArmElement { Number = 2 }, "Arm2"));
     }
 
-    private static T Named<T>(T component, string name) where T : ComponentBase
+    private static T Named<T>(T element, string name) where T : ElementBase
     {
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
-        return component;
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(element, name);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(element, name);
+        return element;
     }
 
     public void NoteState(int state) => State = state;
@@ -5360,7 +5360,7 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
     public void Tick() => OnScan();
 
     /// <summary>
-    /// 挂示教点（生产里由 ComponentLoader 照 machine.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
+    /// 挂示教点（生产里由 ElementLoader 照 machine.xml 机械手下的 Size12 / Size8 建）；元件初始化时收进示教点表
     /// </summary>
     public void NoteTeachPoints(params ModuleConfig[] tables) => SmokeTeachPoints.AddTo(this, tables);
 
@@ -5390,7 +5390,7 @@ sealed class MapProbeTransfers : TransferManager
 }
 
 // 探针手指：模拟机型自己提供的有效持片反馈，不挂 DI 传感器。
-sealed class ProbeFeedbackArm : RobotArmComponent
+sealed class ProbeFeedbackArm : RobotArmElement
 {
     public bool? Feedback { get; set; }
     public override bool IsWaferCheckEnabled => true;
@@ -5402,8 +5402,8 @@ sealed class ProbeChamber : BaseChamberModule
 {
     public ProbeChamber(string name)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
     /// <summary>
@@ -5486,8 +5486,8 @@ sealed class ProbeAligner : BaseTransferStationModule
 {
     public ProbeAligner(string name)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
     public override int State { get; protected set; } = ModuleState.Idle;
@@ -5495,30 +5495,30 @@ sealed class ProbeAligner : BaseTransferStationModule
     public override int SlotCount { get; set; } = 1;
 }
 
-// 探针子组件：记下 InitComponent/Abort 的先后，能报自己的一条报警；FailInit 为真时组件初始化返回 false（模拟没连上）。
-sealed class ProbeChild : ComponentBase
+// 探针子元件：记下 InitElement/Abort 的先后，能报自己的一条报警；FailInit 为真时元件初始化返回 false（模拟没连上）。
+sealed class ProbeChild : ElementBase
 {
     private readonly List<string> _trace;
 
     public ProbeChild(string name, List<string> trace, int initOrder = 10000, string? fullPath = null)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, fullPath ?? name);
-        typeof(ComponentBase).GetProperty(nameof(InitOrder))!.SetValue(this, initOrder);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, fullPath ?? name);
+        typeof(ElementBase).GetProperty(nameof(InitOrder))!.SetValue(this, initOrder);
         _trace = trace;
     }
 
-    [xyz.Components.Attributes.Alarm("探针故障", xyz.Components.Enums.AlarmCategory.OtherCategories)]
+    [xyz.Elements.Attributes.Alarm("探针故障", xyz.Elements.Enums.AlarmCategory.OtherCategories)]
     public string ProbeFault = nameof(ProbeFault);
 
     public bool FailInit { get; init; }
 
     public void Fault() => RaiseAlarm(ProbeFault);
 
-    public override bool InitComponent()
+    public override bool InitElement()
     {
-        bool childrenInitialized = base.InitComponent();
-        _trace.Add($"InitComponent:{Name}");
+        bool childrenInitialized = base.InitElement();
+        _trace.Add($"InitElement:{Name}");
         return childrenInitialized && !FailInit;
     }
 
@@ -5530,8 +5530,8 @@ sealed class ProbeChild : ComponentBase
     }
 }
 
-// 什么都没重写的组件：InitComponent、Abort 照样能调。
-sealed class PlainChild : ComponentBase
+// 什么都没重写的元件：InitElement、Abort 照样能调。
+sealed class PlainChild : ElementBase
 {
 }
 
@@ -5704,8 +5704,8 @@ class SystemProbeModule : BaseModule, IMode
 {
     public SystemProbeModule(string name)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
     public override int State { get; protected set; } = ModuleState.NotInit;
@@ -5790,15 +5790,15 @@ sealed class SmokeSystem : SystemModule
 {
     public SmokeSystem()
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "System");
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, "System");
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, "System");
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, "System");
     }
 
     public void Tick() => OnScan();
 }
 
 /// <summary>
-/// 冒烟里不是组件的地方记日志用的来源：只有第一层
+/// 冒烟里不是元件的地方记日志用的来源：只有第一层
 /// </summary>
 sealed class SmokeLog(string module) : ILogSource
 {

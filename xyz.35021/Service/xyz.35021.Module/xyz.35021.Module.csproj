@@ -33,7 +33,7 @@
           SkipUnchangedFiles="true" />
   </Target>
 
-  <!-- machine.xml（这台机的组件树和装机参数）跟点表一样归机型，编译完拷进宿主的 Config\（宿主旁的 Paths.json 指向它）。
+  <!-- machine.xml（这台机的元件树和装机参数）跟点表一样归机型，编译完拷进宿主的 Config\（宿主旁的 Paths.json 指向它）。
        只在源文件比宿主那份新时才拷（Inputs / Outputs 比时间）：现场在运行目录改过的（ToolBuilder 改、临时切英文）更新，编译不会把它冲掉。 -->
   <Target Name="DeployMachineToHost" AfterTargets="Build"
           Inputs="$(MSBuildThisFileDirectory)Config\machine.xml"

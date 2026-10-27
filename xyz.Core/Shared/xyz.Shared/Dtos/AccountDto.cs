@@ -28,7 +28,7 @@ public class SessionDto
     public Dictionary<string, PermissionLevel> Permissions { get; set; } = [];
 
     /// <summary>
-    /// 键盘鼠标多少分钟没动就自动注销（账号组件的 EC）；0 = 不自动注销
+    /// 键盘鼠标多少分钟没动就自动注销（账号元件的 EC）；0 = 不自动注销
     /// </summary>
     public int IdleLogoutMinutes { get; set; }
 }

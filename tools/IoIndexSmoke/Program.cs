@@ -1,7 +1,7 @@
 ﻿using System.Reflection;
-using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
@@ -13,7 +13,7 @@ var directory = Path.Combine(Path.GetTempPath(), "xyz-io-index-" + Guid.NewGuid(
 Directory.CreateDirectory(directory);
 var previousPlc = IocHelper.GetService<IPlcIo>();
 var previousIo = IocHelper.GetService<IIo>();
-var io = new IoComponent();
+var io = new IoElement();
 SmokeIoc.Use<IIo>(io);
 try
 {
@@ -68,7 +68,7 @@ try
         "csv with no rows still has the header, and no temp file is left");
 
     var plc = new FakePlc();
-    // IO 组件开机准备时读点表、取 PLC：同一份点表放进它的点表目录，先不给 PLC
+    // IO 元件开机准备时读点表、取 PLC：同一份点表放进它的点表目录，先不给 PLC
     string tables = Path.Combine(directory, "main-io");
     Directory.CreateDirectory(tables);
     foreach (string table in new[] { "DI", "DO", "AI", "AO" })
@@ -78,10 +78,10 @@ try
 
     io.PointTableDirectory = tables;
     SmokeIoc.Use<IPlcIo>(null);
-    io.InitComponent();
+    io.InitElement();
     Check(!io.IsCollected && !io.TryReadDi(7, out _), "no PLC means nothing is readable");
     SmokeIoc.Use<IPlcIo>(plc);
-    io.InitComponent();
+    io.InitElement();
     Check(io.IsCollected, "collecting follows the PLC connection");
     Check(io.TryReadAi(7, out var value) && value == 50, "AI must resolve sparse PLC indices and scale");
     Check(io.TryReadDi(7, out var on) && on, "DI index 7");
@@ -105,25 +105,25 @@ try
     io.Di.Load(Path.Combine(directory, "missing.csv"), io);
     Check(io.Di.Points.Count == 0 && io.Di.Find(7) is null, "reload must clear index lookup");
 
-    // IO 组件自己推 IO 界面那一包（IoDto，留存）：在自己的扫描里到了 EC 推送周期才推，骨架只建一次、之后每次只刷值
+    // IO 元件自己推 IO 界面那一包（IoDto，留存）：在自己的扫描里到了 EC 推送周期才推，骨架只建一次、之后每次只刷值
     // 推送周期是 EC：先拨到最长（两拍之间肯定没到），再拨到最短看下一个周期接着推
     var previousEc = IocHelper.GetService<IEc>();
-    var ec = new EcComponent();
+    var ec = new EcElement();
     SmokeIoc.Use<IEc>(ec);
     var scanning = new ScanIo { PointTableDirectory = tables };
     SmokeIoc.Use<IIo>(scanning);
-    scanning.InitComponent();
+    scanning.InitElement();
 
     ec.Merge([scanning]);
     scanning.PublishIntervalMs = 10000;
     Check(scanning.PublishIntervalMs == 10000, "publish interval comes from EC");
     var pushedSnapshots = new List<IoDto>();
     int testThread = Environment.CurrentManagedThreadId;
-    // 订阅收到的是拆包出来的副本（跟真客户端一样），骨架是不是同一个只能看组件里存着的那一份
-    var snapshotField = typeof(IoComponent).GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    // 订阅收到的是拆包出来的副本（跟真客户端一样），骨架是不是同一个只能看元件里存着的那一份
+    var snapshotField = typeof(IoElement).GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance)!;
     using (RemoteEventBus.Register<IoDto>(IoDto.EventToken, dto =>
            {
-               // 前面几节起的 IO 组件还在各自的扫描线程上推，只认这里扫的这一个（RemoteEventBus 在发的那个线程上回调）
+               // 前面几节起的 IO 元件还在各自的扫描线程上推，只认这里扫的这一个（RemoteEventBus 在发的那个线程上回调）
                if (Environment.CurrentManagedThreadId == testThread)
                {
                    pushedSnapshots.Add(dto);
@@ -134,7 +134,7 @@ try
         scanning.Tick();
         scanning.Tick();
         Check(pushedSnapshots.Count == 1 && pushedSnapshots[0].IsCollecting && pushedSnapshots[0].Types.Count == 4,
-            "the IO component pushes its snapshot from its own scan, once per publish interval");
+            "the IO element pushes its snapshot from its own scan, once per publish interval");
         var skeleton = snapshotField.GetValue(scanning);
         scanning.PublishIntervalMs = 100;
         Thread.Sleep(200);
@@ -177,14 +177,14 @@ sealed class FakePlc : IPlcIo
     public bool WriteAo(int index, double value) { LastAo = (index, value); return true; }
 }
 
-// IO 组件顶替扫描线程扫一拍
-sealed class ScanIo : IoComponent
+// IO 元件顶替扫描线程扫一拍
+sealed class ScanIo : IoElement
 {
-    // EC 的键是组件全路径：生产里由 ComponentLoader 填，这里反射设
+    // EC 的键是元件全路径：生产里由 ElementLoader 填，这里反射设
     public ScanIo()
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "ScanIo");
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, "ScanIo");
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, "ScanIo");
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, "ScanIo");
     }
 
     public void Tick()

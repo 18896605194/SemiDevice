@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -81,18 +81,18 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     protected IDiSensor? WaferSensor { get; private set; }
 
     /// <summary>
-    /// 晶圆账（组件初始化时取），在位传感器对账用；没配为 null
+    /// 晶圆账（元件初始化时取），在位传感器对账用；没配为 null
     /// </summary>
     private ILedgerManager? _sensorLedger;
 
     /// <summary>
-    /// 组件初始化：认在位传感器、取晶圆账，子组件交给基类
+    /// 元件初始化：认在位传感器、取晶圆账，子元件交给基类
     /// </summary>
-    public override bool InitComponent()
+    public override bool InitElement()
     {
         WaferSensor = FindChild<IDiSensor>("WaferSensor");
         _sensorLedger = IocHelper.GetService<ILedgerManager>();
-        return base.InitComponent();
+        return base.InitElement();
     }
 
     /// <summary>

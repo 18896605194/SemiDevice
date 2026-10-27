@@ -1,17 +1,17 @@
 ﻿using System.Globalization;
-using xyz.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 
 /// <summary>
-/// 冒烟造机械手示教点：跟 machine.xml 一样写 Size12 / Size8 分组和示教点节点，用 ComponentLoader 照样建出来。各冒烟工程链接这一个文件
+/// 冒烟造机械手示教点：跟 machine.xml 一样写 Size12 / Size8 分组和示教点节点，用 ElementLoader 照样建出来。各冒烟工程链接这一个文件
 /// </summary>
 static class SmokeTeachPoints
 {
     /// <summary>
-    /// 示教点组件的类型全名（machine.xml 的 Type）
+    /// 示教点元件的类型全名（machine.xml 的 Type）
     /// </summary>
-    public const string Type = "xyz.Components.Components.TeachPointComponent";
+    public const string Type = "xyz.Elements.Elements.TeachPointElement";
 
     /// <summary>
     /// 一张示教点表：Size12 / Size8 分组节点，下面挂示教点
@@ -36,11 +36,11 @@ static class SmokeTeachPoints
     }
 
     /// <summary>
-    /// 照这几张表建示教点组件：全路径从分组名起（Size12.LoadPort1），配错跟开机一样当场抛
+    /// 照这几张表建示教点元件：全路径从分组名起（Size12.LoadPort1），配错跟开机一样当场抛
     /// </summary>
-    public static List<ComponentBase> Build(params ModuleConfig[] tables)
+    public static List<ElementBase> Build(params ModuleConfig[] tables)
     {
-        return ComponentLoader.Load(tables);
+        return ElementLoader.Load(tables);
     }
 
     /// <summary>
@@ -65,9 +65,9 @@ static class SmokeTeachPoints
     }
 
     /// <summary>
-    /// 建好挂到机械手下面：机械手组件初始化时按挂在哪一组收进示教点表
+    /// 建好挂到机械手下面：机械手元件初始化时按挂在哪一组收进示教点表
     /// </summary>
-    public static void AddTo(ComponentBase robot, params ModuleConfig[] tables)
+    public static void AddTo(ElementBase robot, params ModuleConfig[] tables)
     {
         foreach (var point in Build(tables))
         {

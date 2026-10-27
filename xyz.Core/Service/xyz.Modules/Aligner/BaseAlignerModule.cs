@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Drivers.Communication;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
@@ -128,22 +128,22 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         RegisterTransitions(AlignerStateTable.ToModuleTable());
     }
 
-    #region 组件初始化
+    #region 元件初始化
 
     /// <summary>
-    /// 组件初始化（开机，不动硬件）：认通道、交解码器、登记晶圆账槽位；没有手动页，跟 buffer 一样开机就切生产模式，全部初始化回零以后调度才会来
+    /// 元件初始化（开机，不动硬件）：认通道、交解码器、登记晶圆账槽位；没有手动页，跟 buffer 一样开机就切生产模式，全部初始化回零以后调度才会来
     /// </summary>
-    public override bool InitComponent()
+    public override bool InitElement()
     {
         if (!IsEnable)
         {
             return true;
         }
 
-        var driver = CommDriverComponent.FindIn(this);
+        var driver = CommDriverElement.FindIn(this);
         if (driver is null)
         {
-            throw new InvalidOperationException($"对准器 {Name} 的 machine.xml 节点下没有启用的设备通道（串口 SerialDriverComponent 或网口 TcpDriverComponent，IsEnable=True）。");
+            throw new InvalidOperationException($"对准器 {Name} 的 machine.xml 节点下没有启用的设备通道（串口 SerialDriverElement 或网口 TcpDriverElement，IsEnable=True）。");
         }
 
         _codec ??= CreateCodec();
@@ -154,7 +154,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLocation(Name, SlotCount);
         SetProduction();
-        return base.InitComponent();
+        return base.InitElement();
     }
 
     /// <summary>
@@ -274,7 +274,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     }
 
     /// <summary>
-    /// 复位：先清报警、复位子组件，再挂上清设备报错的动作；只查状态，被拒带原因
+    /// 复位：先清报警、复位子元件，再挂上清设备报错的动作；只查状态，被拒带原因
     /// </summary>
     public override HandleResult<ModuleRoutine> Reset()
     {
@@ -294,7 +294,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     }
 
     /// <summary>
-    /// 中止（急停）：先中止子组件，再挂上设备停止；能顶替在途动作，不清报警。只查停用和状态表，被拒带原因
+    /// 中止（急停）：先中止子元件，再挂上设备停止；能顶替在途动作，不清报警。只查停用和状态表，被拒带原因
     /// </summary>
     public override HandleResult<ModuleRoutine> Abort()
     {

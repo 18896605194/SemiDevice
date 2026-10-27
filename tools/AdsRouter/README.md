@@ -1,6 +1,6 @@
 ﻿# AdsRouter —— 开发机用的 ADS 路由
 
-没装 TwinCAT 的开发机用它顶替 TwinCAT 的路由服务，仿真器（统一仿真器里的倍福 ADS 服务端）和后端（`BeckhoffPlcComponent` 的 `AdsClient`）都经它通信。
+没装 TwinCAT 的开发机用它顶替 TwinCAT 的路由服务，仿真器（统一仿真器里的倍福 ADS 服务端）和后端（`BeckhoffPlcElement` 的 `AdsClient`）都经它通信。
 用的是倍福官方 NuGet 包 `Beckhoff.TwinCAT.Ads.TcpRouter`，协议跟 TwinCAT 的路由一样，**后端代码和配置不用为它改任何东西**。
 
 **真机上不要装**：TwinCAT 自带路由，两者都占 48898 端口。

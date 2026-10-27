@@ -15,7 +15,7 @@ using xyz.Shared.Services;
 namespace xyz.Client.Setting.ViewModels;
 
 /// <summary>
-/// EC 设置页 ViewModel：左边组件树（层级、先后跟 machine.xml 的组件层级一样），右边列选中组件（含下级）的 EC 参数，一行一项。
+/// EC 设置页 ViewModel：左边元件树（层级、先后跟 machine.xml 的元件层级一样），右边列选中元件（含下级）的 EC 参数，一行一项。
 /// 在那一行的"设定值"里填新值、点"设置"就改：后端按声明的格式、上下限查过才改，写回 ec.xml 并立即生效。
 /// 参数和当前值都取自 ClientEc（连上后端拉全量，之后哪一项变了后端推哪一项），这一页自己不拉。
 /// </summary>
@@ -24,7 +24,7 @@ public class EcViewModel : BaseViewModel
     #region Column
 
     /// <summary>
-    /// 组件树：最上面是"全部"，下面照 machine.xml 的先后一个组件一个节点。
+    /// 元件树：最上面是"全部"，下面照 machine.xml 的先后一个元件一个节点。
     /// </summary>
     public ObservableCollection<EcNodeModel> Nodes { get; } = [];
 
@@ -34,7 +34,7 @@ public class EcViewModel : BaseViewModel
     public ObservableCollection<EcItemModel> Items { get; } = [];
 
     /// <summary>
-    /// 表格里列的：左边选中的组件和它下级的参数。
+    /// 表格里列的：左边选中的元件和它下级的参数。
     /// </summary>
     public ICollectionView ItemsView { get; }
 
@@ -97,7 +97,7 @@ public class EcViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 重建参数表和组件树：组件全路径按点号一级一级长出节点，先后就是后端给的先后；
+    /// 重建参数表和元件树：元件全路径按点号一级一级长出节点，先后就是后端给的先后；
     /// 原来选中、展开的节点还在的话照旧，不在了回到"全部"。
     /// </summary>
     private void Rebuild(IReadOnlyList<EcItemDto> catalog)

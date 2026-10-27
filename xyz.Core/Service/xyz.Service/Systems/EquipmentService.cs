@@ -1,9 +1,9 @@
 ﻿using System.Globalization;
 using ProtoBuf.Grpc;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -94,7 +94,7 @@ public class EquipmentService : BaseService, IEquipmentService
             return Fail(ErrorCodes.WaferSizeInvalid, string.Empty);
         }
 
-        if (!WaferSizeComponent.IsSupported(size))
+        if (!WaferSizeElement.IsSupported(size))
         {
             return Fail(ErrorCodes.WaferSizeInvalid, size.ToString(CultureInfo.InvariantCulture));
         }

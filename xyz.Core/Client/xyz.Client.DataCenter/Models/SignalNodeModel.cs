@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.DataCenter.Models;
 
 /// <summary>
-/// 信号勾选树的一个节点：信号名按点号分层（模块 → 部件 → 属性），跟 machine.xml 的组件层级一个样子。
+/// 信号勾选树的一个节点：信号名按点号分层（模块 → 部件 → 属性），跟 machine.xml 的元件层级一个样子。
 /// 叶子是一个信号（带单位、来源、说明）；中间节点三态勾选：下面全勾 = 勾，部分勾 = 半勾。
 /// 勾选由页面决定（最多几条、勾哪些），这里只把"用户点了"交出去（onToggle），状态由页面用 SetChecked 回写。
 /// </summary>

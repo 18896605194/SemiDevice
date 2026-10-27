@@ -169,7 +169,7 @@ public class IoViewModel : BaseViewModel, IDisposable
             {
                 Index = point.Index,
                 Name = point.Name,
-                Component = point.Component,
+                Element = point.Element,
                 Description = point.Description,
                 Unit = point.Unit,
                 Min = point.Min,

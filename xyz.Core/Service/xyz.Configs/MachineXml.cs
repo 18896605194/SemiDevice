@@ -25,7 +25,7 @@ public static class MachineXml
     public static string ConfigDirectory => Path.GetDirectoryName(FindConfigFile())!;
 
     /// <summary>
-    /// 把一个参数写回 machine.xml（界面上改、改完一直生效的，现在只有 System 的晶圆尺寸）：settingPath 是组件全路径（"System"、"Chamber.Chamber1"，
+    /// 把一个参数写回 machine.xml（界面上改、改完一直生效的，现在只有 System 的晶圆尺寸）：settingPath 是元件全路径（"System"、"Chamber.Chamber1"，
     /// 分组节点的名字也在里面），按它一层层找到 Setting，改下面同名的 Value（不分大小写），没有就照上一行的缩进加一行。
     /// 别的内容、缩进、换行原样不动；先写临时文件再换上去，写到一半出事不会把 machine.xml 写坏。找不到节点、写不了文件就抛，调用方转成错误码。
     /// </summary>

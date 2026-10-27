@@ -1,5 +1,5 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components.Interfaces;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;

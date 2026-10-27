@@ -1,7 +1,7 @@
-﻿using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Tools;
 
 /// <summary>气缸/阀/喷嘴/DI/AI/四色灯经 IO 表读写 PLC：全部用假 PLC，不连真设备。</summary>
@@ -15,7 +15,7 @@ static class ActuatorCommands
         var previousIo = IocHelper.GetService<IIo>();
         try
         {
-            // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+            // 点表放进 IO 元件的点表目录：它开机准备时读点表、取 PLC
             string points =
                 "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +
                 "0,OpenCoil,0,0,0,0\n1,CloseCoil,0,0,0,0\n2,Opened,0,0,0,0\n3,Closed,0,0,0,0\n" +
@@ -25,24 +25,24 @@ static class ActuatorCommands
                 File.WriteAllText(Path.Combine(directory, table + ".csv"), points);
             }
 
-            var io = new IoComponent { PointTableDirectory = directory };
+            var io = new IoElement { PointTableDirectory = directory };
             SmokeIoc.Use<IIo>(io);
             var plc = new StatePlc();
 
-            // 到位反馈是 DI 组件子节点（门 Opened / Closed，阀 Feedback），组件初始化时认
+            // 到位反馈是 DI 元件子节点（门 Opened / Closed，阀 Feedback），元件初始化时认
             var door = new ScanningCylinder { DoOpenIndex = 0, DoCloseIndex = 1 };
-            door.AddChild(Named(new DiSensorComponent { DiIndex = 2, AlarmEnabled = false }, "Opened"));
-            door.AddChild(Named(new DiSensorComponent { DiIndex = 3, AlarmEnabled = false }, "Closed"));
-            door.InitComponent();
+            door.AddChild(Named(new DiSensorElement { DiIndex = 2, AlarmEnabled = false }, "Opened"));
+            door.AddChild(Named(new DiSensorElement { DiIndex = 3, AlarmEnabled = false }, "Closed"));
+            door.InitElement();
             var lift = new ScanningCylinder { DoOpenIndex = 0, DoCloseIndex = 1 };
-            lift.InitComponent();
+            lift.InitElement();
             var valve = new ScanningValve { DoIndex = 4 };
-            valve.AddChild(Named(new DiSensorComponent { DiIndex = 5, AlarmEnabled = false }, "Feedback"));
-            valve.InitComponent();
-            var nozzle = new NozzleComponent { DoIndex = 4, Chemical = "DIW" };
-            nozzle.InitComponent();
+            valve.AddChild(Named(new DiSensorElement { DiIndex = 5, AlarmEnabled = false }, "Feedback"));
+            valve.InitElement();
+            var nozzle = new NozzleElement { DoIndex = 4, Chemical = "DIW" };
+            nozzle.InitElement();
             var normallyOpen = new ScanningValve { DoIndex = 8, NormalState = NormalState.NO };
-            normallyOpen.InitComponent();
+            normallyOpen.InitElement();
 
             // 反馈的防抖是默认 200 ms（这里没装 EC）：改了 DI 先扫一拍、等过防抖再扫一拍才认
             void Settle(Action tick)
@@ -52,13 +52,13 @@ static class ActuatorCommands
                 tick();
             }
 
-            // 阀、气缸、DI 开机 Bind 时取 IO 组件；IO 组件开机准备时取 PLC，先不给 PLC
-            ComponentLoader.BindAll([door, lift, valve, nozzle, normallyOpen]);
+            // 阀、气缸、DI 开机 Bind 时取 IO 元件；IO 元件开机准备时取 PLC，先不给 PLC
+            ElementLoader.BindAll([door, lift, valve, nozzle, normallyOpen]);
             SmokeIoc.Use<IPlcIo>(null);
-            io.InitComponent();
+            io.InitElement();
             Check(!door.Open() && !valve.Open() && !door.IsOpened, "no PLC: nothing writable or readable");
             SmokeIoc.Use<IPlcIo>(plc);
-            io.InitComponent();
+            io.InitElement();
 
             Check(door.Open() && plc.Do[0] && !plc.Do[1] && door.ActionState == ActionState.Running,
                 "open energizes the open coil only and waits for feedback");
@@ -98,9 +98,9 @@ static class ActuatorCommands
 
             // Feedback 挂了但 DiIndex 配成 -1：当没有到位反馈，写完就算完成
             var unwired = new ScanningValve { DoIndex = 4 };
-            unwired.AddChild(Named(new DiSensorComponent { DiIndex = -1, AlarmEnabled = false }, "Feedback"));
-            unwired.InitComponent();
-            ComponentLoader.BindAll([unwired]);
+            unwired.AddChild(Named(new DiSensorElement { DiIndex = -1, AlarmEnabled = false }, "Feedback"));
+            unwired.InitElement();
+            ElementLoader.BindAll([unwired]);
             Check(unwired.Open() && unwired.ActionState == ActionState.Completed && unwired.IsOpened,
                 "feedback with DI index -1 counts as no feedback: completes at once");
 
@@ -122,7 +122,7 @@ static class ActuatorCommands
             pressure.Tick();
             Check(pressure.Value == 50, "AI sensor reads the scaled value through the IO table");
 
-            var light = new LightComponent { DoRedIndex = 7 };
+            var light = new LightElement { DoRedIndex = 7 };
             light.Bind();
             light.SetRed(true);
             Check(plc.Do[7] && light.IsRedOn, "light writes through the IO table");
@@ -131,7 +131,7 @@ static class ActuatorCommands
             door.Tick();
             Check(!nozzle.IsOpened && !nozzle.Close() && !door.IsClosed, "offline PLC: unreadable and unwritable");
             Check(Throws(() => light.SetRed(false)) && light.IsRedOn, "failed light output throws and keeps the last state");
-            Console.WriteLine("PASS: cylinder, valve (NC / NO), nozzle with feedback DI components, DI/AI sensors and light through the IO table");
+            Console.WriteLine("PASS: cylinder, valve (NC / NO), nozzle with feedback DI elements, DI/AI sensors and light through the IO table");
         }
         finally
         {
@@ -142,12 +142,12 @@ static class ActuatorCommands
     }
 
     /// <summary>
-    /// 不走 machine.xml 装配直接 new 的组件起个名（Name 只给装配写，这里用反射）
+    /// 不走 machine.xml 装配直接 new 的元件起个名（Name 只给装配写，这里用反射）
     /// </summary>
-    private static T Named<T>(T component, string name) where T : ComponentBase
+    private static T Named<T>(T element, string name) where T : ElementBase
     {
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        return component;
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(element, name);
+        return element;
     }
 
     private static bool Throws(Action action)
@@ -171,22 +171,22 @@ static class ActuatorCommands
         }
     }
 
-    private sealed class ScanningCylinder : CylinderComponent
+    private sealed class ScanningCylinder : CylinderElement
     {
         public void Tick() => OnScan();
     }
 
-    private sealed class ScanningValve : ValveComponent
+    private sealed class ScanningValve : ValveElement
     {
         public void Tick() => OnScan();
     }
 
-    private sealed class ScanningDi : DiSensorComponent
+    private sealed class ScanningDi : DiSensorElement
     {
         public void Tick() => OnScan();
     }
 
-    private sealed class ScanningAi : AiSensorComponent
+    private sealed class ScanningAi : AiSensorElement
     {
         public void Tick() => OnScan();
     }

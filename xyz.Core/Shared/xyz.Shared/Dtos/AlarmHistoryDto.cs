@@ -8,7 +8,7 @@ public class AlarmHistoryDto
     /// <summary>变化：Raised（报出）/ Cleared（人工清除）。</summary>
     public string Action { get; set; } = string.Empty;
 
-    /// <summary>报警来源的组件路径。</summary>
+    /// <summary>报警来源的元件路径。</summary>
     public string Source { get; set; } = string.Empty;
 
     /// <summary>报警代码，同一来源内唯一。</summary>

@@ -1,4 +1,4 @@
-﻿using xyz.Components.Interfaces;
+﻿using xyz.Elements.Interfaces;
 
 namespace xyz.Modules;
 

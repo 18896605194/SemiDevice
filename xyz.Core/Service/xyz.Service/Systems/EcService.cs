@@ -1,8 +1,8 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Common.Log;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
@@ -47,7 +47,7 @@ public class EcService : BaseService, IEcService
             return InvalidRequest();
         }
 
-        // 键是"组件全路径.参数名"：最后一个点前面是组件，后面是参数。
+        // 键是"元件全路径.参数名"：最后一个点前面是元件，后面是参数。
         key = key.Trim();
         int dot = key.LastIndexOf('.');
         if (dot <= 0 || dot == key.Length - 1)
@@ -83,7 +83,7 @@ public class EcService : BaseService, IEcService
     }
 
     /// <summary>
-    /// 改 EC 的记录（带改之前的值，操作日志里没有）记在 EC 组件名下
+    /// 改 EC 的记录（带改之前的值，操作日志里没有）记在 EC 元件名下
     /// </summary>
     private void LogChange(string message)
     {

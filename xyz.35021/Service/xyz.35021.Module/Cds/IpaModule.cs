@@ -1,5 +1,5 @@
-﻿using xyz.Components.Attributes;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements.Attributes;
+using xyz.Elements.Interfaces;
 using xyz.Modules;
 using xyz.Tools;
 using xyz._35021.Shared.Dtos;
@@ -9,13 +9,13 @@ namespace xyz._35021.Module.Cds;
 /// <summary>
 /// 35021 IPA 供液模块：默认做法都用平台的（BaseCdsModule），这里只推 IPA 自己的那一份（IpaDto）
 /// </summary>
-[Component(description: "35021 IPA 供液模块")]
+[Element(description: "35021 IPA 供液模块")]
 public class IpaModule : BaseCdsModule
 {
     private IpaDto? _lastPublished;
 
     /// <summary>
-    /// 映射组件（开机 Bind 时取）：槽转成给界面的样子
+    /// 映射元件（开机 Bind 时取）：槽转成给界面的样子
     /// </summary>
     private IMapper? _mapper;
 

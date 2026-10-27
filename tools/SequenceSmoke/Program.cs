@@ -1,9 +1,9 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Configs.Models;
 using xyz.Drivers.Communication;
 using xyz.Modules;
@@ -17,7 +17,7 @@ using xyz.Tools;
 // 文件读写（一个编号一个文件、坏文件跳过）、版本冲突、变更事件、gRPC 服务的错误码。不连设备，文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
 SmokeEvents.Loopback(); // 后端推给界面的消息投回本进程收
-SmokeIoc.Use<IMapper>(new MapperComponent()); // 服务转 DTO 走映射组件（开机必配）
+SmokeIoc.Use<IMapper>(new MapperElement()); // 服务转 DTO 走映射元件（开机必配）
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -49,7 +49,7 @@ try
     var machineSettings = XmlHelper.Deserialize<MachineSettings>(Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml"));
     Check(machineSettings is not null, "machine.xml 解析失败");
     var node = machineSettings!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Sequence", StringComparison.OrdinalIgnoreCase));
-    Check(node is not null && node.Type == typeof(SequenceComponent).FullName, "machine.xml 里应有指向 SequenceComponent 的 Sequence 节点");
+    Check(node is not null && node.Type == typeof(SequenceElement).FullName, "machine.xml 里应有指向 SequenceElement 的 Sequence 节点");
     string ValueOf(string name)
     {
         return node!.Values.First(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase)).Value ?? string.Empty;
@@ -60,9 +60,9 @@ try
     node!.Values.First(value => string.Equals(value.Name, "Folder", StringComparison.OrdinalIgnoreCase)).Value = folder;
 
     var roots = SmokeIoc.Load([node]);
-    var library = roots.OfType<SequenceComponent>().Single();
+    var library = roots.OfType<SequenceElement>().Single();
     Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个流程配方库，参数按 machine.xml");
-    Check(ReferenceEquals(IocHelper.GetService<ISequenceComponent>(), library), "装配出来就登记成单例");
+    Check(ReferenceEquals(IocHelper.GetService<ISequenceElement>(), library), "装配出来就登记成单例");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
 
     // 1. 可选站点分组：按 machine.xml 的分组节点（模块全路径的第一层）和下面装的模块，只留能放片、机械手示教点表里有的；顶层直接装的站点自成一组；
@@ -211,11 +211,11 @@ try
     File.WriteAllText(Path.Combine(folder, "005.xml"), "<Sequence Name=");
     File.WriteAllText(Path.Combine(folder, "notes.xml"), "<Sequence Name=\"NOTES\" />");
     File.WriteAllText(Path.Combine(folder, "120.xml"), "<Sequence Name=\"TOO_BIG\" />");
-    var reopened = new SequenceComponent { Folder = folder };
-    SmokeIoc.Use<ISequenceComponent>(reopened);
+    var reopened = new SequenceElement { Folder = folder };
+    SmokeIoc.Use<ISequenceElement>(reopened);
     SmokeIoc.Use<ISequenceLibrary>(reopened);
     reopened.Load();
-    SmokeIoc.Use<ISequenceComponent>(library);
+    SmokeIoc.Use<ISequenceElement>(library);
     var reloaded = reopened.List();
     Check(reloaded.Select(item => item.Index).SequenceEqual(new[] { 1, 2 }), "坏文件、不是编号的、超出个数的都跳过");
     var back = reloaded[0];
@@ -238,12 +238,12 @@ try
     Fails(library.Get(0), ErrorCodes.SequenceIndexOutOfRange, ["0", "99"], "取编号 0");
     Check(changed.SequenceEqual(new[] { 2 }), "删除发一次变更事件");
 
-    // 7b. Host 远程管配方（ISequenceComponent，EAP 的 S7 走它）：按名字列、取（JSON）、存（没有就新建、有就覆盖，检查跟本地一样）、删；
-    //     建、改、删、改名都经 EAP 的派发组件报上报口（改名报旧名删了、新名建了）。这一节建的最后都删掉，后面接着只剩 1 号。
-    SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
-    library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]); // 流程配方库开机 Bind 时取 EAP 的派发组件
+    // 7b. Host 远程管配方（ISequenceElement，EAP 的 S7 走它）：按名字列、取（JSON）、存（没有就新建、有就覆盖，检查跟本地一样）、删；
+    //     建、改、删、改名都经 EAP 的派发元件报上报口（改名报旧名删了、新名建了）。这一节建的最后都删掉，后面接着只剩 1 号。
+    SmokeIoc.Use<IEapNotifierElement>(new EapNotifierElement());
+    library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]); // 流程配方库开机 Bind 时取 EAP 的派发元件
     var eapChanges = new RecordingRecipeCallback();
-    xyz.Components.Interfaces.ISequenceLibrary remote = library;
+    xyz.Elements.Interfaces.ISequenceLibrary remote = library;
     remote.E30Callback = eapChanges;
     Check(remote.SequenceNames.SequenceEqual(new[] { "SC1_LP1_TO_LP2" }), "按名字列");
     string? exported = remote.GetSequenceData("sc1_lp1_to_lp2");
@@ -284,10 +284,10 @@ try
         "JSON 里空着的步骤内容补成空的再查（分组空着：找不到分组），不会出异常");
 
     var tinyFolder = Path.Combine(folder, "tiny");
-    var tiny = new SequenceComponent { Folder = tinyFolder, Capacity = 1 };
-    SmokeIoc.Use<ISequenceComponent>(tiny);
+    var tiny = new SequenceElement { Folder = tinyFolder, Capacity = 1 };
+    SmokeIoc.Use<ISequenceElement>(tiny);
     SmokeIoc.Use<ISequenceLibrary>(tiny);
-    SmokeIoc.Use<ISequenceComponent>(library);
+    SmokeIoc.Use<ISequenceElement>(library);
     tiny.Load();
     HandleResult? full = null;
     if (tiny.Create(1, "ONLY", "Tester").IsSuccess)
@@ -304,11 +304,11 @@ try
     Check(remote.DeleteSequence("HOST_RENAMED", "Host").ErrorMessage == ErrorCodes.SequenceNameNotFound, "再删说没有：sequence.name_not_found");
     Check(eapChanges.WaitFor(5) && eapChanges.Changes.SequenceEqual(new[]
     {
-        ("HOST_NEW", xyz.Components.Enums.ChangeKind.Created),
-        ("HOST_NEW", xyz.Components.Enums.ChangeKind.Edited),
-        ("HOST_NEW", xyz.Components.Enums.ChangeKind.Deleted),
-        ("HOST_RENAMED", xyz.Components.Enums.ChangeKind.Created),
-        ("HOST_RENAMED", xyz.Components.Enums.ChangeKind.Deleted),
+        ("HOST_NEW", xyz.Elements.Enums.ChangeKind.Created),
+        ("HOST_NEW", xyz.Elements.Enums.ChangeKind.Edited),
+        ("HOST_NEW", xyz.Elements.Enums.ChangeKind.Deleted),
+        ("HOST_RENAMED", xyz.Elements.Enums.ChangeKind.Created),
+        ("HOST_RENAMED", xyz.Elements.Enums.ChangeKind.Deleted),
     }), "上报口按先后收到：新建、覆盖、改名（旧名删了、新名建了）、删除；没成的不报");
     remote.E30Callback = null;
 
@@ -363,7 +363,7 @@ try
     var gone = await service.GetAsync(RpcRequest.Of((RpcParams.Index, 3)));
     Check(!gone.Success && gone.Code == ErrorCodes.SequenceNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 
-    SmokeIoc.Use<ISequenceComponent>(null);
+    SmokeIoc.Use<ISequenceElement>(null);
     service = new SequenceService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var notInstalled = await service.GetListAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.SequenceNotInstalled && notInstalled.Args.Count == 0, "没装库：sequence.not_installed");
@@ -388,14 +388,14 @@ try
         var recipeNode = new ModuleConfig
         {
             Name = "ProcessRecipe",
-            Type = typeof(RecipeComponent).FullName,
+            Type = typeof(RecipeElement).FullName,
             Values = [new ValueConfig { Name = "Folder", Value = recipeFolder }],
             Children =
             [
-                new ModuleConfig { Name = RecipeComponent.HeadNodeName, Children = headItems },
+                new ModuleConfig { Name = RecipeElement.HeadNodeName, Children = headItems },
                 new ModuleConfig
                 {
-                    Name = RecipeComponent.FieldsNodeName,
+                    Name = RecipeElement.FieldsNodeName,
                     Children =
                     [
                         FieldNode("Seconds", ("Text", "时间"), ("Type", "Double"), ("Min", "0.1"), ("Default", "10"), ("Required", "true")),
@@ -405,21 +405,21 @@ try
                 },
             ],
         };
-        var recipes = (RecipeComponent)SmokeIoc.Load([recipeNode]).Single();
+        var recipes = (RecipeElement)SmokeIoc.Load([recipeNode]).Single();
         void Mount(ProbeChamber chamber, params string[] chemicals)
         {
-            var arm = new SwingArmComponent();
+            var arm = new SwingArmElement();
             Probe.Name(arm, "Arm1");
             chamber.AddChild(arm);
             foreach (string chemical in chemicals)
             {
-                var nozzle = new NozzleComponent { Chemical = chemical };
+                var nozzle = new NozzleElement { Chemical = chemical };
                 Probe.Name(nozzle, "Nozzle_" + chemical);
                 arm.AddChild(nozzle);
             }
 
-            // 跟开机一样：腔体的组件初始化照树认出装上去的摆臂、喷嘴
-            chamber.InitComponent();
+            // 跟开机一样：腔体的元件初始化照树认出装上去的摆臂、喷嘴
+            chamber.InitElement();
         }
 
         Mount(pm1, "DIW");
@@ -427,7 +427,7 @@ try
         recipes.Bind([pm1, pm2, pm3]);
         // 流程配方库、腔体开机 Bind 时取工艺配方库：装了库以后重新 Bind
         library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
-        ComponentLoader.BindAll([pm1, pm2, pm3]);
+        ElementLoader.BindAll([pm1, pm2, pm3]);
         RecipeStep RecipeStep(string chemical)
         {
             return new RecipeStep { Values = [new("Seconds", "10"), new("Arm", "Arm1"), new("Chemical", chemical)] };
@@ -438,7 +438,7 @@ try
             return new RecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
         }
 
-        Check(ReferenceEquals(IocHelper.GetService<IRecipeComponent>(), recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
+        Check(ReferenceEquals(IocHelper.GetService<IRecipeElement>(), recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
               && recipes.Save(1, 1, RecipeContent("DIW"), "Tester").IsSuccess, "工艺配方库里建一个 SC1_60S（用 DIW）");
         Check(recipes.Create(2, "HF_ONLY", "Tester").IsSuccess && recipes.Save(2, 1, RecipeContent("HF"), "Tester").IsSuccess,
             "再建一个 HF_ONLY（用 HF，只有 SmokePM2 有）");
@@ -455,7 +455,7 @@ try
     }
     finally
     {
-        SmokeIoc.Use<IRecipeComponent>(null);
+        SmokeIoc.Use<IRecipeElement>(null);
         if (Directory.Exists(recipeFolder))
         {
             Directory.Delete(recipeFolder, recursive: true);
@@ -464,7 +464,7 @@ try
 }
 finally
 {
-    SmokeIoc.Use<ISequenceComponent>(null);
+    SmokeIoc.Use<ISequenceElement>(null);
     if (Directory.Exists(folder))
     {
         Directory.Delete(folder, recursive: true);
@@ -479,7 +479,7 @@ Console.WriteLine($"PASS: {checks} sequence checks (machine.xml node, station gr
 static class Probe
 {
     // group：machine.xml 里套在哪个分组节点下（全路径的第一层），顶层直接装的不给
-    public static void Name(ComponentBase component, string name, string? group = null)
+    public static void Name(ElementBase element, string name, string? group = null)
     {
         string path = name;
         if (group is not null)
@@ -487,8 +487,8 @@ static class Probe
             path = group + "." + name;
         }
 
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, path);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(element, name);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(element, path);
     }
 }
 
@@ -608,11 +608,11 @@ sealed class ProbeRobot : BaseModule, ITransferRobot
         _teachPoints8 = SmokeTeachPoints.Numbered(stations);
     }
 
-    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeComponent.SizeOf(IocHelper.GetService<IWaferSize>()));
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeElement.SizeOf(IocHelper.GetService<IWaferSize>()));
 
     public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size)
     {
-        if (size == WaferSizeComponent.Inch8 && _teachPoints8 is not null)
+        if (size == WaferSizeElement.Inch8 && _teachPoints8 is not null)
         {
             return _teachPoints8;
         }
@@ -646,7 +646,7 @@ sealed class ProbeRobot : BaseModule, ITransferRobot
 // 探针晶圆尺寸：切了就换、发 Changed，不写 machine.xml。
 sealed class ProbeWaferSize : IWaferSize
 {
-    public int Size { get; private set; } = WaferSizeComponent.Inch12;
+    public int Size { get; private set; } = WaferSizeElement.Inch12;
 
     public event Action<int>? Changed;
 
@@ -658,19 +658,19 @@ sealed class ProbeWaferSize : IWaferSize
     }
 }
 
-// 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。
-sealed class RecordingRecipeCallback : xyz.Components.Interfaces.IE30Callback
+// 记下配方库报上来的变化（经 EAP 的派发元件在别的线程上调），等到够数为止。
+sealed class RecordingRecipeCallback : xyz.Elements.Interfaces.IE30Callback
 {
-    private readonly System.Collections.Concurrent.ConcurrentQueue<(string Name, xyz.Components.Enums.ChangeKind Change)> _changes = new();
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(string Name, xyz.Elements.Enums.ChangeKind Change)> _changes = new();
 
-    public IEnumerable<(string Name, xyz.Components.Enums.ChangeKind Change)> Changes => _changes;
+    public IEnumerable<(string Name, xyz.Elements.Enums.ChangeKind Change)> Changes => _changes;
 
-    public void SequenceChanged(string name, xyz.Components.Enums.ChangeKind change)
+    public void SequenceChanged(string name, xyz.Elements.Enums.ChangeKind change)
     {
         _changes.Enqueue((name, change));
     }
 
-    public void ProcessRecipeChanged(string name, xyz.Components.Enums.ChangeKind change)
+    public void ProcessRecipeChanged(string name, xyz.Elements.Enums.ChangeKind change)
     {
         throw new InvalidOperationException("Unexpected recipe callback");
     }

@@ -1,8 +1,8 @@
 ﻿using System.Globalization;
 using ProtoBuf.Grpc;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;

@@ -152,7 +152,7 @@ public static class RpcParams
     public const string Code = "Code";
 
     /// <summary>
-    /// EC 的键（组件全路径.参数名）
+    /// EC 的键（元件全路径.参数名）
     /// </summary>
     public const string Key = "Key";
 

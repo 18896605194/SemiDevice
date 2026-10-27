@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
 using xyz.Drivers.Loadport;
@@ -201,7 +201,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #endregion
 
-    #region Component
+    #region Element
 
     /// <summary>
     /// 设备通道（machine.xml 里本端口下启用的那条：串口或网口）：项目的 LoadPort 类用它发指令
@@ -222,7 +222,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     private ILedgerManager? _ledger;
 
     /// <summary>
-    /// 映射组件：组件初始化时取一次，账上的片转给界面用
+    /// 映射元件：元件初始化时取一次，账上的片转给界面用
     /// </summary>
     private IMapper? _mapper;
 
@@ -281,14 +281,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         return CheckCarrierAcceptance();
     }
 
-    #region 组件初始化与驱动连接
+    #region 元件初始化与驱动连接
 
     /// <summary>
-    /// 组件初始化
+    /// 元件初始化
     /// </summary>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    public override bool InitComponent()
+    public override bool InitElement()
     {
         #region 载具
 
@@ -297,7 +297,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var carrier = FindChild<ICarrier>();
         if (carrier is null)
         {
-            throw new InvalidOperationException($"LoadPort {Name} 的 machine.xml 节点下没配 _carrier 子组件（实现 ICarrier 的组件，平台默认 Type=xyz.Components.Components.CarrierComponent）。");
+            throw new InvalidOperationException($"LoadPort {Name} 的 machine.xml 节点下没配 _carrier 子元件（实现 ICarrier 的元件，平台默认 Type=xyz.Elements.Elements.CarrierElement）。");
         }
 
         // 读头交给载具读码用；没配读头为 null（这个端口不读码，ID 由 Host 给）。
@@ -316,7 +316,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         #region 设备通道
 
         // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报
-        var driver = CommDriverComponent.FindIn(this);
+        var driver = CommDriverElement.FindIn(this);
         if (driver is not null)
         {
             _codec ??= CreateCodec();
@@ -327,7 +327,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         }
         else
         {
-            LogHelper.Error(this, "machine.xml 没有启用的设备通道：本端口下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
+            LogHelper.Error(this, "machine.xml 没有启用的设备通道：本端口下要挂串口 SerialDriverElement 或网口 TcpDriverElement，并启用一条（IsEnable=True）");
         }
 
         #endregion
@@ -337,13 +337,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         _ledger?.RegisterLoadPort(Name, SlotCount);
         _mapper = IocHelper.GetService<IMapper>();
 
-        bool childrenInitialized = base.InitComponent();
+        bool childrenInitialized = base.InitElement();
         return driver is not null && childrenInitialized;
     }
 
     private IJobManager? _jobs;
     private ITransferManager? _transfers;
-    private IEapNotifierComponent? _notifier;
+    private IEapNotifierElement? _notifier;
 
     /// <summary>
     /// 替这个口扫片的机械手（machine.xml 开了 MapEnabled、示教点表里有这个口）；没有是 null，自己扫
@@ -354,7 +354,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     {
         _jobs = IocHelper.GetService<IJobManager>();
         _transfers = IocHelper.GetService<ITransferManager>();
-        _notifier = IocHelper.GetService<IEapNotifierComponent>();
+        _notifier = IocHelper.GetService<IEapNotifierElement>();
         _mapRobot = FindMapRobot();
         if (_mapRobot is not null && _transfers is null)
         {
@@ -1807,7 +1807,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// E87 上报放进 EAP 的派发组件
+    /// E87 上报放进 EAP 的派发元件
     /// </summary>
     /// <param name="notification"></param>
     private void EnqueueE87(Action<IE87Callback> notification)
@@ -1828,7 +1828,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// E84 上报放进 EAP 的派发组件
+    /// E84 上报放进 EAP 的派发元件
     /// </summary>
     /// <param name="notification"></param>
     protected void EnqueueE84(Action<IE84Callback> notification)

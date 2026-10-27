@@ -23,7 +23,7 @@ public class ChamberArmModel : ObservableObject
         Update(arm);
     }
 
-    /// <summary>组件全路径，如 "Chamber1.Arm1"。</summary>
+    /// <summary>元件全路径，如 "Chamber1.Arm1"。</summary>
     public string Path { get; }
 
     /// <summary>装在这条臂上的升降气缸；没配时 IsPresent 为 false。</summary>

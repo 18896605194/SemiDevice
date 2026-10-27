@@ -1,8 +1,8 @@
-﻿using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Tools;
 
@@ -19,17 +19,17 @@ static class Heartbeats
         var previousAlarm = IocHelper.GetService<IAlarm>();
         try
         {
-            // 点表放进 IO 组件的点表目录：心跳 DO 是 0 号点
+            // 点表放进 IO 元件的点表目录：心跳 DO 是 0 号点
             string tables = Path.Combine(directory, "heartbeat-io");
             Directory.CreateDirectory(tables);
             File.WriteAllText(Path.Combine(tables, "DO.csv"), "Index,Name\n0,PC_Heartbeat\n");
 
             var plc = new HeartbeatPlc();
             SmokeIoc.Use<IPlcIo>(plc);
-            var io = new IoComponent { PointTableDirectory = tables };
+            var io = new IoElement { PointTableDirectory = tables };
             SmokeIoc.Use<IIo>(io);
-            io.InitComponent();
-            var alarms = new AlarmComponent();
+            io.InitElement();
+            var alarms = new AlarmElement();
             SmokeIoc.Use<IAlarm>(alarms);
 
             // 1. 照 machine.xml 装：挂在 Plc 分组下，DO 号、间隔从 machine.xml 来；没配的用默认值（-1 不发、1000 ms）
@@ -44,7 +44,7 @@ static class Heartbeats
                 ],
             };
             var roots = SmokeIoc.Load([plcGroup]);
-            ComponentLoader.BindAll(roots);
+            ElementLoader.BindAll(roots);
             var heartbeat = (HeartbeatProbe)roots[0];
             var missing = (HeartbeatProbe)roots[1];
             var idle = (HeartbeatProbe)roots[2];
@@ -55,7 +55,7 @@ static class Heartbeats
                 "按 IHeartbeat 找得到，按 machine.xml 先后");
             Check(!heartbeat.IsAlive, "还没写过 IsAlive 是 false");
 
-            bool Active(ComponentBase source)
+            bool Active(ElementBase source)
             {
                 return alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == heartbeat.SendFailedAlarm);
             }
@@ -133,10 +133,10 @@ static class Heartbeats
 }
 
 /// <summary>
-/// 冒烟用心跳组件：Tick 由冒烟线程手动走一拍
+/// 冒烟用心跳元件：Tick 由冒烟线程手动走一拍
 /// </summary>
-[Component(description: "冒烟用心跳组件")]
-public sealed class HeartbeatProbe : HeartbeatComponent
+[Element(description: "冒烟用心跳元件")]
+public sealed class HeartbeatProbe : HeartbeatElement
 {
     public void Tick()
     {

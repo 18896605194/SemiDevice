@@ -1,9 +1,9 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 

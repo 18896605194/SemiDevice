@@ -4,8 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace xyz.Client.Setting.Models;
 
 /// <summary>
-/// EC 设置页左边组件树的一个节点：组件全路径按点号分层（模块 → 部件 → 子部件），跟 machine.xml 的组件层级一个样子。
-/// 点哪个节点，右边就列这个组件和它下级的全部参数；最上面那个"全部"节点（Path 为空）列整机的。
+/// EC 设置页左边元件树的一个节点：元件全路径按点号分层（模块 → 部件 → 子部件），跟 machine.xml 的元件层级一个样子。
+/// 点哪个节点，右边就列这个元件和它下级的全部参数；最上面那个"全部"节点（Path 为空）列整机的。
 /// 列什么由页面定，这里只把"选中了"交出去（onSelected）。
 /// </summary>
 public sealed class EcNodeModel : ObservableObject
@@ -25,7 +25,7 @@ public sealed class EcNodeModel : ObservableObject
     public string Name { get; }
 
     /// <summary>
-    /// 组件全路径（Chamber1.Arm1）；"全部"节点为空串。
+    /// 元件全路径（Chamber1.Arm1）；"全部"节点为空串。
     /// </summary>
     public string Path { get; }
 
@@ -34,7 +34,7 @@ public sealed class EcNodeModel : ObservableObject
     private int _count;
 
     /// <summary>
-    /// 这个组件和它下级一共多少项参数（名字后面那个小字）。
+    /// 这个元件和它下级一共多少项参数（名字后面那个小字）。
     /// </summary>
     public int Count
     {
@@ -68,12 +68,12 @@ public sealed class EcNodeModel : ObservableObject
     }
 
     /// <summary>
-    /// 某个组件的参数归不归这个节点：是它自己的，或者是它下级的。
+    /// 某个元件的参数归不归这个节点：是它自己的，或者是它下级的。
     /// </summary>
-    public bool Contains(string componentPath)
+    public bool Contains(string elementPath)
     {
         return Path.Length == 0
-               || string.Equals(componentPath, Path, StringComparison.OrdinalIgnoreCase)
-               || componentPath.StartsWith(Path + ".", StringComparison.OrdinalIgnoreCase);
+               || string.Equals(elementPath, Path, StringComparison.OrdinalIgnoreCase)
+               || elementPath.StartsWith(Path + ".", StringComparison.OrdinalIgnoreCase);
     }
 }

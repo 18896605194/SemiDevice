@@ -6,11 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <!-- 服务层：登录、用户、角色三个服务和系统设置；组件层（账号组件）、库跟着引进来 -->
+    <!-- 服务层：登录、用户、角色三个服务和系统设置；元件层（账号元件）、库跟着引进来 -->
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
+    <!-- 冒烟共用的容器：元件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
     <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
     <Compile Include="..\SmokeShared\SmokeEvents.cs" Link="SmokeEvents.cs" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />

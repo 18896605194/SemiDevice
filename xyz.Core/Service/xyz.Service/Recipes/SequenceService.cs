@@ -1,7 +1,7 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
@@ -15,15 +15,15 @@ namespace xyz.Service.Recipes;
 /// </summary>
 public class SequenceService : BaseService, ISequenceService
 {
-    private readonly ISequenceComponent? _sequence;
-    private readonly IE30RecipeComponent? _e30Recipe;
+    private readonly ISequenceElement? _sequence;
+    private readonly IE30RecipeElement? _e30Recipe;
     private readonly IMapper _mapper;
 
     public SequenceService()
     {
-        _sequence = IocHelper.GetService<ISequenceComponent>();
-        _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _sequence = IocHelper.GetService<ISequenceElement>();
+        _e30Recipe = IocHelper.GetService<IE30RecipeElement>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)

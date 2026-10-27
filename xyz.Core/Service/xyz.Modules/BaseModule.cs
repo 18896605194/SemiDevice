@@ -1,16 +1,16 @@
 ﻿using System.Globalization;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
 /// <summary>
-/// 模块：状态表、挂动作在 <see cref="BaseStateComponent"/>，这里只放模块才有的
+/// 模块：状态表、挂动作在 <see cref="BaseStateElement"/>，这里只放模块才有的
 /// </summary>
-public abstract class BaseModule : BaseStateComponent, IModule
+public abstract class BaseModule : BaseStateElement, IModule
 {
     /// <summary>
     /// 模块是哪一类：LoadPort、腔体、buffer、机械手的基类各自重写，别的模块默认其他
@@ -33,7 +33,7 @@ public abstract class BaseModule : BaseStateComponent, IModule
     }
 
     /// <summary>
-    /// 复位：子组件跟着复位、清自己的报警就算做完；模块有自己的复位动作就重写
+    /// 复位：子元件跟着复位、清自己的报警就算做完；模块有自己的复位动作就重写
     /// </summary>
     public override HandleResult<ModuleRoutine> Reset()
     {
@@ -42,7 +42,7 @@ public abstract class BaseModule : BaseStateComponent, IModule
     }
 
     /// <summary>
-    /// 中止：子组件跟着中止就算做完；模块有自己的中止动作就重写
+    /// 中止：子元件跟着中止就算做完；模块有自己的中止动作就重写
     /// </summary>
     public override HandleResult<ModuleRoutine> Abort()
     {

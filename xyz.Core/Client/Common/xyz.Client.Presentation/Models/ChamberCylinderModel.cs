@@ -11,7 +11,7 @@ public class ChamberCylinderModel : ObservableObject
 {
     private string _path = string.Empty;
 
-    /// <summary>组件全路径，如 "Chamber1.Door"。</summary>
+    /// <summary>元件全路径，如 "Chamber1.Door"。</summary>
     public string Path
     {
         get => _path;

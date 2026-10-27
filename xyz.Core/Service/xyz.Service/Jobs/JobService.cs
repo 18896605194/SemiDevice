@@ -2,10 +2,10 @@
 using ProtoBuf.Grpc;
 using SqlSugar;
 using xyz.Common.Log;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
-using xyz.Components;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
+using xyz.Elements;
 using xyz.Database.DbProvider;
 using xyz.Database.Jobs;
 using xyz.Modules;
@@ -28,7 +28,7 @@ public class JobService : BaseService, IJobService
     public JobService()
     {
         _jobs = IocHelper.GetService<IJobManager>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     #endregion
@@ -465,7 +465,7 @@ public class JobService : BaseService, IJobService
     }
 
     /// <summary>
-    /// Job 的日志记在 Job 管理名下（它是组件）；不是组件的（冒烟里的假 Job 管理）记在 Host 下
+    /// Job 的日志记在 Job 管理名下（它是元件）；不是元件的（冒烟里的假 Job 管理）记在 Host 下
     /// </summary>
     private void LogJobInfo(string message)
     {

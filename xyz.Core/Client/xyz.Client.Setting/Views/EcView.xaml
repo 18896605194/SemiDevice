@@ -13,7 +13,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <!--  左：组件树（层级、先后跟 machine.xml 的组件层级一样），点哪个节点右边就列哪个组件（含下级）的参数；
+        <!--  左：元件树（层级、先后跟 machine.xml 的元件层级一样），点哪个节点右边就列哪个元件（含下级）的参数；
               右：一行一项 EC，在"设定值"里填新值点"设置"才改  -->
         <Grid Margin="8">
             <Grid.ColumnDefinitions>

@@ -1,13 +1,13 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
 using xyz.Common.Log;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Collectors;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Collectors;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Drivers.Loadport;
@@ -20,8 +20,8 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
 
-// EAP 冒烟（SECS/GEM 各标准组件对假 Host）：Eap 节点按 machine.xml 同款结构装配（Hsms + E30 + E39 + E87 + E90 + E40 + E94），
-// 设备侧用假的 LoadPort（ILoadPortAccess）、真的晶圆账（LedgerManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
+// EAP 冒烟（SECS/GEM 各标准元件对假 Host）：Eap 节点按 machine.xml 同款结构装配（Hsms + E30 + E39 + E87 + E90 + E40 + E94），
+// 设备侧用假的 LoadPort（ILoadPortAccess）、真的晶圆账（LedgerManagerElement）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
 // 验证：E30 通讯建立、控制状态（离线挡报文、上线 / 离线 / 本地 / 远程、操作员上线问 S1F1）、SV / EC / DV / 事件名单、Host 改 EC、
 // 报告定义 / 链接 / 开关和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存（断线进缓存、Host 要了按先后发、清缓存）；
 // Trace（S2F23 设、校验、取消、替换、离线全停，S6F1 按包发、SMPLN / STIME 记包里最后一次）；
@@ -49,20 +49,20 @@ var port = 5600 + Random.Shared.Next(400);
 var alarmNode = new ModuleConfig
 {
     Name = "Alarm",
-    Type = typeof(AlarmComponent).FullName!,
+    Type = typeof(AlarmElement).FullName!,
     Values = { new ValueConfig { Name = "EnableHistory", Value = "False" } },
 };
 var probeNode = new ModuleConfig { Name = "Probe", Type = typeof(AlarmProbe).FullName! };
 var eapNode = new ModuleConfig
 {
     Name = "Eap",
-    Type = typeof(EapComponent).FullName!,
+    Type = typeof(EapElement).FullName!,
     Children =
     {
         new ModuleConfig
         {
             Name = "Hsms",
-            Type = typeof(HsmsComponent).FullName!,
+            Type = typeof(HsmsElement).FullName!,
             Values =
             {
                 new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -74,11 +74,11 @@ var eapNode = new ModuleConfig
                 new ValueConfig { Name = "LogMessages", Value = "False" },
             },
         },
-        new ModuleConfig { Name = "Notifier", Type = typeof(EapNotifierComponent).FullName! },
+        new ModuleConfig { Name = "Notifier", Type = typeof(EapNotifierElement).FullName! },
         new ModuleConfig
         {
             Name = "E30",
-            Type = typeof(E30Component).FullName!,
+            Type = typeof(E30Element).FullName!,
             Values =
             {
                 new ValueConfig { Name = "EquipmentModel", Value = "xyz-35021" },
@@ -86,15 +86,15 @@ var eapNode = new ModuleConfig
                 new ValueConfig { Name = "Database", Value = "EapSmoke" },
             },
         },
-        new ModuleConfig { Name = "E39", Type = typeof(E39Component).FullName! },
-        new ModuleConfig { Name = "Recipe", Type = typeof(E30RecipeComponent).FullName! },
-        new ModuleConfig { Name = "Trace", Type = typeof(E30TraceComponent).FullName! },
-        new ModuleConfig { Name = "E87", Type = typeof(E87Component).FullName! },
-        new ModuleConfig { Name = "E90", Type = typeof(E90Component).FullName! },
+        new ModuleConfig { Name = "E39", Type = typeof(E39Element).FullName! },
+        new ModuleConfig { Name = "Recipe", Type = typeof(E30RecipeElement).FullName! },
+        new ModuleConfig { Name = "Trace", Type = typeof(E30TraceElement).FullName! },
+        new ModuleConfig { Name = "E87", Type = typeof(E87Element).FullName! },
+        new ModuleConfig { Name = "E90", Type = typeof(E90Element).FullName! },
         new ModuleConfig
         {
             Name = "E40",
-            Type = typeof(E40Component).FullName!,
+            Type = typeof(E40Element).FullName!,
             Values =
             {
                 new ValueConfig { Name = "StartCommandName", Value = "HOST_PJ_START" },
@@ -108,25 +108,25 @@ var eapNode = new ModuleConfig
         new ModuleConfig
         {
             Name = "E94",
-            Type = typeof(E94Component).FullName!,
+            Type = typeof(E94Element).FullName!,
             Values = { new ValueConfig { Name = "StartCommandName", Value = "HOST_START" } },
         },
     },
 };
 var roots = SmokeIoc.Load([alarmNode, probeNode, eapNode]);
-var ec = new EcComponent();
+var ec = new EcElement();
 SmokeIoc.Use<IEc>(ec);
 ec.Merge(roots);
 var collectors = new GemCollectors();
 collectors.Merge(roots, directory);
 SmokeIoc.Use(collectors); // E30、Trace 接链路时从容器取 GEM 编号表
 
-var eap = roots.OfType<EapComponent>().Single();
-var gem = eap.FindChild<E30Component>()!;
+var eap = roots.OfType<EapElement>().Single();
+var gem = eap.FindChild<E30Element>()!;
 var probe = roots.OfType<AlarmProbe>().Single();
-var ledger = new LedgerManagerComponent();
+var ledger = new LedgerManagerElement();
 SmokeIoc.Use<ILedgerManager>(ledger);
-ledger.InitComponent(); // 开机准备：取 EAP 的派发组件（E90 的上报经它发）
+ledger.InitElement(); // 开机准备：取 EAP 的派发元件（E90 的上报经它发）
 ledger.RegisterLoadPort("LP1", 5);
 ledger.RegisterLoadPort("LP2", 5);
 ledger.RegisterLocation("Robot", 2);
@@ -167,7 +167,7 @@ int Dvid(string name)
 
 eap.Bind([lp1, lp2], jobs, sequences, processRecipes);
 Check(eap.IsBound && gem.IsAttached, "EAP 接上了：E30 接到链路上");
-Check(ReferenceEquals(lp1.E87Callback, eap.FindChild<E87Component>()) && lp1.E84Provider is not null, "E87 挂到 LoadPort 上（回调 + E84 反查口）");
+Check(ReferenceEquals(lp1.E87Callback, eap.FindChild<E87Element>()) && lp1.E84Provider is not null, "E87 挂到 LoadPort 上（回调 + E84 反查口）");
 Check(ledger.E90Callback is not null && jobs.E40Callback is not null && jobs.E94Callback is not null, "E90 挂到晶圆账、E40 / E94 挂到 Job 管理上");
 Check(gem.CurrentControlState == GemControlState.HostOffline, "开机控制状态按 EC 默认进 HOST OFF-LINE");
 
@@ -790,7 +790,7 @@ var unknownCommand = await Send(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ
 Check(!Acka(unknownCommand.Body!.Items[1]), "不认识的 PJ 命令：ACKA=FALSE");
 
 // PJ 的 machine.xml 别名与默认命令名（含两个启动名称）都通过真实 S16F5 入口解析。
-var e40 = eap.FindChild<E40Component>()!;
+var e40 = eap.FindChild<E40Element>()!;
 Check(e40.StartCommandName == "HOST_PJ_START" && e40.StopCommandName == "HOST_PJ_STOP", "E40 命令字符串从 machine.xml 加载");
 foreach (var command in new[]
 {
@@ -829,15 +829,15 @@ Check(!Acka(pjEmpty.Body!.Items[1]) && jobs.ProcessCommands.Count == pjCommandCo
     "运行期间 PJ 的空名称不接受空字符串命令");
 e40.StartCommandName = "HOST_PJ_START";
 
-E40Component LoadPjSettings(params (string Name, string Value)[] values)
+E40Element LoadPjSettings(params (string Name, string Value)[] values)
 {
-    var node = new ModuleConfig { Name = "E40", Type = typeof(E40Component).FullName! };
+    var node = new ModuleConfig { Name = "E40", Type = typeof(E40Element).FullName! };
     foreach (var value in values)
     {
         node.Values.Add(new ValueConfig { Name = value.Name, Value = value.Value });
     }
 
-    return ComponentLoader.Load([node]).OfType<E40Component>().Single(); // 只测配置校验：不换容器里的树
+    return ElementLoader.Load([node]).OfType<E40Element>().Single(); // 只测配置校验：不换容器里的树
 }
 
 void RejectPjSettings(string reason, params (string Name, string Value)[] values)
@@ -902,7 +902,7 @@ await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A("CjStop"), SecsItem
 Check(jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Stop, ControlJobAction.RemoveJobs), "CjStop 带 RemoveJobs（名字写法也认）");
 var badCommand = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.U1(9), SecsItem.L()));
 Check(!badCommand.Body!.Items[0].GetBooleanArray()[0] && badCommand.Body.Items[1].Count == 2, "不认识的 CJ 命令：ACKA=FALSE 带一条错误");
-var e94 = eap.FindChild<E94Component>()!;
+var e94 = eap.FindChild<E94Element>()!;
 Check(e94.StartCommandName == "HOST_START" && e94.PauseCommandName == "CJPAUSE", "E94 命令字符串从 machine.xml 加载，未配置的使用默认名称");
 var customStart = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A(" host_start "), SecsItem.L()));
 Check(customStart.Body!.Items[0].GetBooleanArray()[0]
@@ -1039,7 +1039,7 @@ mappedControl.State = 3;
 mappedControl.E94State = null;
 
 // ── 配方管理（E30 工艺程序管理，S7）：配方号就是配方名，按名字到两个库里找；新名字看 JSON 的样子分库 ─────────────
-var recipes = eap.FindChild<E30RecipeComponent>()!;
+var recipes = eap.FindChild<E30RecipeElement>()!;
 Check(ReferenceEquals(sequences.E30Callback, recipes) && ReferenceEquals(processRecipes.E30Callback, recipes), "配方管理挂到两个独立的配方库接口上");
 const string SequenceShape = "{\"steps\":[{\"group\":\"LoadPort\"}]}";
 const string RecipeShape = "{\"steps\":[{\"values\":[{\"name\":\"Seconds\",\"value\":\"5\"}]}]}";
@@ -1097,8 +1097,8 @@ connector.Dispose();
 Console.WriteLine($"PASS: {checks} 项检查全部通过");
 
 /// <summary>冒烟用的报警源：一个 [Alarm]，Fire 报出，Reset 清除。</summary>
-[Component(description: "EapSmoke 报警探针")]
-public sealed class AlarmProbe : ComponentBase
+[Element(description: "EapSmoke 报警探针")]
+public sealed class AlarmProbe : ElementBase
 {
     [Alarm("冒烟报警", AlarmCategory.EquipmentSafety)]
     public string ProbeAlarm = "ProbeAlarm";
@@ -1219,11 +1219,11 @@ sealed class HostLog
 /// </summary>
 sealed class FakePort : ILoadPortAccess, ILogSource
 {
-    private readonly LedgerManagerComponent _ledger;
+    private readonly LedgerManagerElement _ledger;
     private bool _loaded;
     private bool _complete;
 
-    public FakePort(string name, LedgerManagerComponent ledger)
+    public FakePort(string name, LedgerManagerElement ledger)
     {
         Name = name;
         _ledger = ledger;
@@ -1627,7 +1627,7 @@ sealed class FakeJobs : IJobManager
 }
 
 // 假配方库：名字 → JSON；内容是 "bad" 当没过库的检查；每一步带 stepKey 这个属性的 JSON 认作自己的（流程配方 group、工艺配方 values）。
-// 跟真的库一样，变了经 EAP 的派发组件调上报口。
+// 跟真的库一样，变了经 EAP 的派发元件调上报口。
 abstract class FakeRecipes(string stepKey)
 {
     public Dictionary<string, string> Items { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -1694,7 +1694,7 @@ sealed class FakeSequences() : FakeRecipes("group"), ISequenceLibrary
         var callback = E30Callback;
         if (callback is not null)
         {
-            IocHelper.GetService<IEapNotifierComponent>()?.Post(() => callback.SequenceChanged(name, change));
+            IocHelper.GetService<IEapNotifierElement>()?.Post(() => callback.SequenceChanged(name, change));
         }
     }
 }
@@ -1716,13 +1716,13 @@ sealed class FakeProcessRecipes() : FakeRecipes("values"), IRecipeLibrary
         var callback = E30Callback;
         if (callback is not null)
         {
-            IocHelper.GetService<IEapNotifierComponent>()?.Post(() => callback.ProcessRecipeChanged(name, change));
+            IocHelper.GetService<IEapNotifierElement>()?.Post(() => callback.ProcessRecipeChanged(name, change));
         }
     }
 }
 
 /// <summary>冒烟用：把 protected internal 的装配钩子露出来，验证 machine.xml 命令名配置校验。</summary>
-sealed class ProbeE94 : E94Component
+sealed class ProbeE94 : E94Element
 {
     public void LoadSetting(ModuleConfig setting)
     {

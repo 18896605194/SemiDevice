@@ -1,0 +1,71 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\xyz.Configs\xyz.Configs.csproj" />
+    <ProjectReference Include="..\xyz.Database\xyz.Database.csproj" />
+    <!-- 品牌驱动元件（RobotDriverElement/RejeRobotElement）按薄壳模式关品牌指令；
+         Drivers 保持纯协议不回引 Elements，引用单向。 -->
+    <ProjectReference Include="..\xyz.Drivers\xyz.Drivers.csproj" />
+    <!-- 契约层（错误码、Job 的 DTO）：模块动作 ModuleOperation 和设备侧给 EAP 的接口（Interfaces）挪到元件层后要用到；
+         xyz.Shared 只引用 xyz.Tools，不会回头引用元件层，不成环。 -->
+    <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
+    <!-- TwinCAT.Ads 的传递依赖 Microsoft.Extensions.Logging.Abstractions / Configuration / Configuration.Binder（10.0 这一档）：
+         DLL 走 Libs 本地引用，NuGet 不知道它依赖谁。原来在这里手动列，2026-10-25 为 xyz.Secs（EDA）引了 ASP.NET Core 框架（见下面），
+         框架引用会传到引用元件层的控制台冒烟里，这几个框架自带，手动列的就删了（留着还原报 NU1510）。 -->
+    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.3" />
+    <PackageReference Include="System.Reactive" Version="6.1.0" />
+    <!-- AI 助手（AiElement）接模型用微软官方的 Microsoft.Extensions.AI（IChatClient）：
+         这个包是它对"兼容 OpenAI 接口格式"服务的适配，厂内网的本地模型服务大多兼容这个格式；换别家只换这一层。 -->
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
+    <!-- OPC UA PLC（OpcUaPlcElement）用 OPC 基金会官方的 UA-.NETStandard：2.x 起是 MIT 许可，可以闭源商用；
+         1.5.x 那一代对非会员是 GPL 2.0（CTC 用的 OpcUaHelper 只能配 1.5），别换回去。
+         它把 Microsoft.Extensions.* 带到 10.0.12，引用到元件层的工程直接钉的版本不能比它低（还原报降级）。 -->
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="2.0.1" />
+  </ItemGroup>
+
+  <!-- ModuleOperation 在元件层，可"动作什么时候算真正做完"（DeferCompletion / NotifyCompletion）只该由模块基类控制：
+       内部方法只对 xyz.Modules 开放，别的工程看不到。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="xyz.Modules" />
+  </ItemGroup>
+
+  <!-- 倍福 ADS（7.0.172 net10.0）：DLL 放在仓库根的 Libs，不走 NuGet 源——
+       现场机器没网也能编译，版本也不会被还原悄悄换掉。 -->
+  <ItemGroup>
+    <Reference Include="TwinCAT.Ads">
+      <HintPath>..\..\..\Libs\TwinCAT.Ads.dll</HintPath>
+    </Reference>
+    <Reference Include="TwinCAT.Ads.Abstractions">
+      <HintPath>..\..\..\Libs\TwinCAT.Ads.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="TwinCAT.Ads.Server">
+      <HintPath>..\..\..\Libs\TwinCAT.Ads.Server.dll</HintPath>
+    </Reference>
+    <Reference Include="TwinCAT.Ads.ConfigurationProviders">
+      <HintPath>..\..\..\Libs\TwinCAT.Ads.ConfigurationProviders.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!-- 跟主机、厂里系统通讯的底层 xyz.Secs（SECS-II / HSMS、EDA 引擎）：单独一个仓库（GitHub Secs，本机 D:\Secs\xyz.Secs），
+       这里只引编好的 DLL（那边编 Release 自动拷到 Libs）。元件层只调它：Eap 下各元件接设备、Job、晶圆账，EdaElement 给 EdaServer 设定、设备侧、存盘、日志。
+       DLL 引用 NuGet 不知道它依赖谁，下面照 xyz.Secs.csproj 列一遍（改版本两边一起改）：EDA 的 Freeze 2 用 CoreWCF 当服务端、WCF 客户端包推数据，
+       EdaServer 自己起 Kestrel 要 ASP.NET Core 框架（框架引用会传给引用元件层的工程）。 -->
+  <ItemGroup>
+    <Reference Include="xyz.Secs">
+      <HintPath>..\..\..\Libs\xyz.Secs.dll</HintPath>
+    </Reference>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="CoreWCF.Http" Version="1.9.1" />
+    <PackageReference Include="CoreWCF.Primitives" Version="1.9.1" />
+    <PackageReference Include="System.ServiceModel.Http" Version="10.1.0" />
+    <PackageReference Include="System.ServiceModel.Primitives" Version="10.1.0" />
+  </ItemGroup>
+
+</Project>

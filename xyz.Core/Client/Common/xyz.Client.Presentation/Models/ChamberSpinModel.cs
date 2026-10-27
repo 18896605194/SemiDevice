@@ -10,7 +10,7 @@ public class ChamberSpinModel : ObservableObject
 {
     private string _path = string.Empty;
 
-    /// <summary>组件全路径，如 "Chamber1.SpinMotor"。</summary>
+    /// <summary>元件全路径，如 "Chamber1.SpinMotor"。</summary>
     public string Path
     {
         get => _path;

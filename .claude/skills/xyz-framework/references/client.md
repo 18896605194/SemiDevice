@@ -102,7 +102,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   Job 的列表、详情、暂停 / 停止 / 中止这些按钮还没有界面（要先给参考图或出样稿）。
 
 ### 数据中心 · 日志（`xyz.Client.DataCenter`，2026-10-26 改，见 decisions.md「日志重整」）
-- 日志历史页工具栏：起止时间、**模块**（下拉：全部 + 日志的第一层，选项是连上后端时取的 `LogSettingsDto.Modules`，machine.xml 的组件树最顶上那层再加 Operation、Host）、
+- 日志历史页工具栏：起止时间、**模块**（下拉：全部 + 日志的第一层，选项是连上后端时取的 `LogSettingsDto.Modules`，machine.xml 的元件树最顶上那层再加 Operation、Host）、
   级别、关键字（模块 / 部件 / 内容）、查询 / 今天 / 最近 7 天；不要"类别"、不要"带通讯原文"的勾（用户定）。只查主日志，轮询文件不查。
 - 表格（历史、实时都是）：时间 | 级别 | 模块 | 部件 | 内容；收发原文的级别显示"发 / 收"。顶栏日志栏模块后面跟部件。
 - 客户端日志 `ClientLog`：NLog 异步写，留几天跟后端（`LogSettingsDto.KeepDays`，`LogViewModel` 连上时设），退出 `ClientLog.Shutdown()`、崩溃 `ClientLog.Flush`。
@@ -119,7 +119,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 2. 模块 `ServiceExtensions` 注册 VM（+ BaseViewModel 别名）和 keyed View。
 3. `PlatformMenuProvider` 加 `ClientMenu`（注意后面的 sort 顺延；编码加进 `PermissionCodes`，只能看的页给 `Access = MenuAccess.ViewOnly`）。
 4. 两个语言包加 `menu.{Code}` 和页面文字；角色页上"管哪些操作"配 `permission.{Code}_tip`。
-5. 页面里会改东西的按钮、输入那一块标 `helpers:Permission.Operate="True"`（不标的话只看的人也能点）；预置角色要不要给这一项改 `AccountComponent.Defaults`。
+5. 页面里会改东西的按钮、输入那一块标 `helpers:Permission.Operate="True"`（不标的话只看的人也能点）；预置角色要不要给这一项改 `AccountElement.Defaults`。
 6. 样式缺的加到 `Presentation\Styles`，不在页面里写资源。
 7. 编译；用离屏预览（见 machine-and-tools.md）出中英文截图看一遍。
 
@@ -238,7 +238,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 ## 7. 控件（`Common\xyz.Client.Presentation\Controls`）
 
 - **InputTextBox**（所有文本、数字输入都用它，不用裸 TextBox）：绑 `Value`（提交后的合法值，默认双向），不绑 `Text`；
-  `DataType` Text/Integer/Decimal；`Minimum`/`Maximum`/`Unit` 只对数字；`EcKey="组件全路径.参数名"` 从 EC 取格式、范围、单位
+  `DataType` Text/Integer/Decimal；`Minimum`/`Maximum`/`Unit` 只对数字；`EcKey="元件全路径.参数名"` 从 EC 取格式、范围、单位
   （界面上写的优先）；边输边查格式，回车/失焦提交时查范围；错了红框提示、Value 保留上次合法值；
   发送类按钮绑 `HasError`（`Mode=OneWayToSource`）错着不发；表格行里加 `materialDesign:ValidationAssist.UsePopup="True"`。
   没写 Style 时自动套 `TextBoxStyles.xaml` 里按类型的隐式样式（= `DefaultTextBoxStyle`）。**自定义控件的默认样式都这么给，别在构造函数里
@@ -300,7 +300,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   供液槽：`TankVisual3D`（透明圆筒 + 液体）由 `TankScene` 装成三维图，`Tank` 绑槽的显示模型（`Models\TankModel`，后端跟着供液模块推：35021 的 `IpaDto` 里带各槽的 `TankDto`，token 是模块名）、
   `WallTransparency` 罐壁透明度；液面跟液位，罐右边的信号灯跟各自的 DI 信号、machine.xml 里没配的不画。还没接进页面（Tank 手动页没做）。
 - **SignalLamp**（信号灯：一盏灯 + 名字，对一个 DI 信号）：`IsActive`（触发亮绿、没触发灭、null 读不到是"不知道"色）、`Text`（machine.xml 节点名原样）、
-  `IsAlarm`（报警位，触发亮红）。灯的颜色、字用 `SignalLampBorderStyle` / `SignalLampTextStyle`。显示 DI 信号都用它（界面件对后台组件的定法见 decisions.md）。
+  `IsAlarm`（报警位，触发亮红）。灯的颜色、字用 `SignalLampBorderStyle` / `SignalLampTextStyle`。显示 DI 信号都用它（界面件对后台元件的定法见 decisions.md）。
   三维对象不在逻辑树里，颜色用 `DarkHardware*` token（XAML 里 StaticResource、代码里 TryFindResource），不注册逐帧事件。
 - **圆片没有右键菜单**：右键建片 / 删片 2026-10-10 删了（二维 `Wafer`、三维 Disk、机械手、各站点卡片、Transfer 页），建片统一在账单调整页做。
 - **腔体手动页**（`xyz.Client.Manual\Views\ChamberManualControl`，布局照用户给的参考图，见 decisions.md）：数据都来自后端的设备状态推送
@@ -333,7 +333,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置自动退出 `Session\IdleLogout`（分钟数是后端 machine.xml，跟会话一起下来；到点退出以后发 `TimedOut`，
   顶栏 `TopBarViewModel` 接着弹登录框（写明原因、登录名填好，取消当访客；开着一个就不再叠）；`MainViewModel` 记着被藏掉的那一页，重新登录看得到了回去；
   闲没闲看 Windows 的 `GetLastInputInfo`，**别改回 WPF 的 `InputManager.PreProcessInput`**——鼠标停在窗口上时界面一刷新 WPF 就补发鼠标移动，永远不算闲着）。
-- EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("组件全路径.参数名")`）、当前报警 `ClientAlarms`。
+- EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("元件全路径.参数名")`）、当前报警 `ClientAlarms`。
 
 ## 10. 旧代码里和规则不一致的地方（2026-10-27 对过代码，下面几处都还在；改到时顺手改，新代码别学）
 

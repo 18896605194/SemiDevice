@@ -6,10 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\xyz.Core\Service\xyz.Components\xyz.Components.csproj" />
+    <ProjectReference Include="..\..\xyz.Core\Service\xyz.Elements\xyz.Elements.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
+    <!-- 冒烟共用的容器：元件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
     <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
   </ItemGroup>

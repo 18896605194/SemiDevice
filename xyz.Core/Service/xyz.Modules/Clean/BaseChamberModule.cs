@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Database.DbProvider;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
@@ -129,9 +129,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     #endregion
 
-    #region Component
+    #region Element
 
-    // 腔体里装的设备：组件初始化时照 machine.xml 认一次存起来（machine.xml 这个腔体节点下面挂的），节点名只标识实例，按接口认用途
+    // 腔体里装的设备：元件初始化时照 machine.xml 认一次存起来（machine.xml 这个腔体节点下面挂的），节点名只标识实例，按接口认用途
 
     /// <summary>
     /// 腔门；没装为 null
@@ -149,7 +149,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     public ISpinMotor? SpinMotor { get; private set; }
 
     /// <summary>
-    /// 摆臂（它上面的 Lift、喷嘴在摆臂组件上），按 machine.xml 的先后
+    /// 摆臂（它上面的 Lift、喷嘴在摆臂元件上），按 machine.xml 的先后
     /// </summary>
     public IReadOnlyList<ISwingArm> Arms { get; private set; } = [];
 
@@ -174,14 +174,14 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     public IReadOnlyList<IChamberLift> Lifts { get; private set; } = [];
 
     /// <summary>
-    /// 晶圆账：组件初始化时取一次；没配晶圆账、或腔体停用（不登记账）为 null
+    /// 晶圆账：元件初始化时取一次；没配晶圆账、或腔体停用（不登记账）为 null
     /// </summary>
     private ILedgerManager? _ledger;
 
     /// <summary>
     /// 工艺配方库（开机 Bind 时取）：配方里的项在界面上叫什么要用；没装是 null
     /// </summary>
-    private IRecipeComponent? _recipes;
+    private IRecipeElement? _recipes;
 
     /// <summary>
     /// 整机（开机 Bind 时取）：界面语言要用；没装是 null
@@ -246,13 +246,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         RegisterTransitions(ChamberStateTable.ToModuleTable());
     }
 
-    #region 组件初始化
+    #region 元件初始化
 
     /// <summary>
-    /// 组件初始化（开机，不动硬件）：照 machine.xml 认一遍腔体里装的设备存起来（停用的腔体也认，推送、手动页照样看得到）；
-    /// 启用的再登记晶圆账槽位，子组件交给基类递归。只能装一个的（腔门、卡盘）配重了开机就报
+    /// 元件初始化（开机，不动硬件）：照 machine.xml 认一遍腔体里装的设备存起来（停用的腔体也认，推送、手动页照样看得到）；
+    /// 启用的再登记晶圆账槽位，子元件交给基类递归。只能装一个的（腔门、卡盘）配重了开机就报
     /// </summary>
-    public override bool InitComponent()
+    public override bool InitElement()
     {
         #region 腔体里装的设备
 
@@ -267,7 +267,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
         #endregion
 
-        // 停用的腔体：不登记晶圆账，子组件也不初始化
+        // 停用的腔体：不登记晶圆账，子元件也不初始化
         if (!IsEnable)
         {
             return true;
@@ -281,7 +281,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
         #endregion
 
-        return base.InitComponent();
+        return base.InitElement();
     }
 
     /// <summary>
@@ -321,7 +321,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// </summary>
     public override void Bind()
     {
-        _recipes = IocHelper.GetService<IRecipeComponent>();
+        _recipes = IocHelper.GetService<IRecipeElement>();
         _system = IocHelper.GetService<ISystemModule>();
         BindSupplies();
 
@@ -1069,7 +1069,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     #region Reset / Abort
 
     /// <summary>
-    /// 复位：先清报警、复位子组件（轴在这一步发驱动器复位），再挂上等设备复位做完的动作；只查状态，被拒带原因。
+    /// 复位：先清报警、复位子元件（轴在这一步发驱动器复位），再挂上等设备复位做完的动作；只查状态，被拒带原因。
     /// 卡在交互环里（取放片失败停在 Transferring）也能复位，落 Idle 等于强制脱离这一轮交互
     /// </summary>
     public override HandleResult<ModuleRoutine> Reset()
@@ -1090,7 +1090,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 中止（急停）：先中止子组件（轴在这一步发停止），再挂上设备中止；能顶替在途动作，不清报警。
+    /// 中止（急停）：先中止子元件（轴在这一步发停止），再挂上设备中止；能顶替在途动作，不清报警。
     /// 只查停用和状态表、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>），被拒带原因
     /// </summary>
     public override HandleResult<ModuleRoutine> Abort()
@@ -1111,7 +1111,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 复位：清错指令在这之前已经发了——腔体 Reset 先走组件基类的复位，一路递归到每根轴，轴自己发驱动器复位；
+    /// 复位：清错指令在这之前已经发了——腔体 Reset 先走元件基类的复位，一路递归到每根轴，轴自己发驱动器复位；
     /// 这里等所有轴把复位做完。气缸、喷嘴的复位只是清报警，不用等。机型不一样就重写
     /// </summary>
     protected virtual void AddResetSteps(ModuleRoutine reset)
@@ -1120,7 +1120,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 中止（急停）：轴的停止在这之前已经发了——腔体 Abort 先走组件基类的中止，一路递归到每根轴，轴自己发停止；
+    /// 中止（急停）：轴的停止在这之前已经发了——腔体 Abort 先走元件基类的中止，一路递归到每根轴，轴自己发停止；
     /// 气缸、阀的中止只是不再等到位、输出保持原样，所以这里把喷嘴全部停液（别中止了还在喷），再等所有轴停下。机型不一样就重写
     /// </summary>
     protected virtual void AddAbortSteps(ModuleRoutine abort)

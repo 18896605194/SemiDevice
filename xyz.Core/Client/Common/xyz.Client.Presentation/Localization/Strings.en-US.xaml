@@ -185,7 +185,7 @@
     <sys:String x:Key="job.task_position_mismatch">Cannot mark {1} done for {0}: the ledger has it at {2}, not where this step leaves it</sys:String>
     <sys:String x:Key="job.wafer_moved">{0} is not where it should be (expected at {1}; ledger changed, carrier removed, or re-mapped)</sys:String>
 
-    <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in machine.xml)</sys:String>
+    <sys:String x:Key="alarm.not_installed">Alarm element is not installed (no Alarm node in machine.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
 
     <sys:String x:Key="history.query_failed">Query failed: {0}</sys:String>
@@ -193,7 +193,7 @@
     <sys:String x:Key="datachart.not_installed">Data chart is not installed (no DataChart node in machine.xml)</sys:String>
     <sys:String x:Key="realchart.not_installed">Real-time chart is not installed (no RealChart node in machine.xml)</sys:String>
 
-    <sys:String x:Key="ec.not_installed">EC component is not installed (no EC node in machine.xml)</sys:String>
+    <sys:String x:Key="ec.not_installed">EC element is not installed (no EC node in machine.xml)</sys:String>
     <sys:String x:Key="ec.not_found">No such EC item: {0}</sys:String>
     <sys:String x:Key="ec.invalid_format">{0}: invalid value (expected {1})</sys:String>
     <sys:String x:Key="ec.out_of_range">{0} is out of range {1} ~ {2} {3}</sys:String>
@@ -259,7 +259,7 @@
     <sys:String x:Key="process_recipe.body_invalid">The content of process recipe {0} cannot be read (it must be JSON in the format this equipment exports)</sys:String>
 
     <!-- Accounts (login, users, roles) -->
-    <sys:String x:Key="account.not_installed">No Account node in machine.xml (no account component); login, users and roles are unavailable</sys:String>
+    <sys:String x:Key="account.not_installed">No Account node in machine.xml (no account element); login, users and roles are unavailable</sys:String>
     <sys:String x:Key="account.login_failed">Wrong user name or password</sys:String>
     <sys:String x:Key="account.user_disabled">Account {0} is disabled and cannot log in</sys:String>
     <sys:String x:Key="account.user_not_found">Account {0} not found (it may have been deleted)</sys:String>
@@ -520,8 +520,8 @@
     <sys:String x:Key="permission.Setting.Role_tip">Managing accounts and roles is always for administrators</sys:String>
     <sys:String x:Key="permission.Io_tip">Write DO and AO; every module's IO page counts</sys:String>
 
-    <!-- Settings page (EC settings): component tree on the left, one EC item per row on the right -->
-    <sys:String x:Key="setting.ec.component">Component</sys:String>
+    <!-- Settings page (EC settings): element tree on the left, one EC item per row on the right -->
+    <sys:String x:Key="setting.ec.component">Element</sys:String>
     <sys:String x:Key="setting.ec.name">Parameter</sys:String>
     <sys:String x:Key="setting.ec.description">Description</sys:String>
     <sys:String x:Key="setting.ec.value">Current</sys:String>

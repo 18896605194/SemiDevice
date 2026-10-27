@@ -1,6 +1,6 @@
-﻿using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;

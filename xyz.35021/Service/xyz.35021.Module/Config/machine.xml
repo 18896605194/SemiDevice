@@ -3,41 +3,41 @@
 	<Setting Name="System" Type="xyz.Modules.SystemModule">
 		<Value Name="IsRun" Value="true" />
 		<Value Name="Language" Value="zh-CN" />
-		<Setting Name="WaferSize" Type="xyz.Components.Components.WaferSizeComponent">
+		<Setting Name="WaferSize" Type="xyz.Elements.Elements.WaferSizeElement">
 			<Value Name="Size" Value="12" />
 		</Setting>
 	</Setting>
-	<Setting Name="Rpc" Type="xyz.Components.Components.RpcComponent">
+	<Setting Name="Rpc" Type="xyz.Elements.Elements.RpcElement">
 		<Value Name="Host" Value="localhost" />
 		<Value Name="Port" Value="5000" />
 		<Value Name="MaxMessageSizeMb" Value="26" />
 	</Setting>
-	<Setting Name="EC" Type="xyz.Components.Components.EcComponent" />
+	<Setting Name="EC" Type="xyz.Elements.Elements.EcElement" />
 	<Setting Name="Database">
-		<Setting Name="Default" Type="xyz.Components.Components.DataBaseComponent">
+		<Setting Name="Default" Type="xyz.Elements.Elements.DataBaseElement">
 			<Value Name="ConnectionString" Value="DataSource=xyz.db" />
 			<Value Name="DbType" Value="Sqlite" />
 		</Setting>
-		<Setting Name="Io" Type="xyz.Components.Components.DataBaseComponent">
+		<Setting Name="Io" Type="xyz.Elements.Elements.DataBaseElement">
 			<Value Name="ConnectionString" Value="DataSource=io.db" />
 			<Value Name="DbType" Value="Sqlite" />
 		</Setting>
 	</Setting>
-	<Setting Name="Alarm" Type="xyz.Components.Components.AlarmComponent">
+	<Setting Name="Alarm" Type="xyz.Elements.Elements.AlarmElement">
 		<Value Name="EnableHistory" Value="True" />
 		<Value Name="HistoryDatabase" Value="Default" />
 		<Value Name="HistoryKeepDays" Value="90" />
 		<Value Name="HistoryQueryMaxCount" Value="1000" />
 	</Setting>
-	<Setting Name="Log" Type="xyz.Components.Components.LogComponent">
+	<Setting Name="Log" Type="xyz.Elements.Elements.LogElement">
 		<Value Name="HistoryQueryMaxCount" Value="1000" />
 		<Value Name="RecentLogCount" Value="200" />
 		<Value Name="RealtimeDisplayMaxCount" Value="2000" />
 		<Value Name="LogBarDisplayMaxCount" Value="500" />
 		<Value Name="KeepDays" Value="30" />
 	</Setting>
-	<Setting Name="Mapper" Type="xyz._35021.Module.Mapper.MapperComponent35021" />
-	<Setting Name="LedgerManager" Type="xyz.Components.Components.LedgerManagerComponent">
+	<Setting Name="Mapper" Type="xyz._35021.Module.Mapper.MapperElement35021" />
+	<Setting Name="LedgerManager" Type="xyz.Elements.Elements.LedgerManagerElement">
 		<Value Name="IsEnable" Value="True" />
 		<Value Name="EnableHistory" Value="True" />
 		<Value Name="IsPersistent" Value="True" />
@@ -46,13 +46,13 @@
 	</Setting>
 	<!-- 账号：用户、角色和各菜单权限；IsEnable=True 客户端启动弹登录框，没登录按访客的权限，False 不登录、不分权限；
 	     IdleLogoutMinutes：键盘鼠标多少分钟没动就自动退出、弹登录框（0 = 不自动退出）；PasswordMinLength：密码最短几位 -->
-	<Setting Name="Account" Type="xyz.Components.Components.AccountComponent">
+	<Setting Name="Account" Type="xyz.Elements.Elements.AccountElement">
 		<Value Name="IsEnable" Value="True" />
 		<Value Name="Database" Value="Default" />
 		<Value Name="IdleLogoutMinutes" Value="15" />
 		<Value Name="PasswordMinLength" Value="4" />
 	</Setting>
-	<Setting Name="Plc" Type="xyz.Components.Components.BeckhoffPlcComponent">
+	<Setting Name="Plc" Type="xyz.Elements.Elements.BeckhoffPlcElement">
 		<Value Name="IsRun" Value="true" />
 		<Value Name="Host" Value="Local" />
 		<Value Name="Port" Value="851" />
@@ -61,103 +61,103 @@
 		<Value Name="AiDataPath" Value=".AnaIn" />
 		<Value Name="AoDataPath" Value=".AnaOut" />
 		<Value Name="IoPointCount" Value="1000" />
-		<Setting Name="Heartbeat" Type="xyz.Components.Components.HeartbeatComponent">
+		<Setting Name="Heartbeat" Type="xyz.Elements.Elements.HeartbeatElement">
 			<Value Name="DoIndex" Value="0" />
 			<Value Name="IntervalMs" Value="1000" />
 		</Setting>
 	</Setting>
-	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
+	<Setting Name="Io" Type="xyz.Elements.Elements.IoElement">
 		<Value Name="IsRun" Value="true" />
 		<Value Name="PointTableDirectory" Value="IO" />
 		<Value Name="StartupDo" Value="" />
 		<Value Name="SaftyIoInterlock" Value="" />
 	</Setting>
 
-	<Setting Name="Safety" Type="xyz.Components.Components.SafetyComponent">
+	<Setting Name="Safety" Type="xyz.Elements.Elements.SafetyElement">
 		<Value Name="IsRun" Value="true" />
-		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="Emo" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="0" />
 			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="FrontDoor" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="FrontDoor" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="1" />
 			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="RearDoor" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="RearDoor" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="2" />
 			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="LeftDoor" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="LeftDoor" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="3" />
 			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="RightDoor" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="RightDoor" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="4" />
 			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="LeakTray" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="LeakTray" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="5" />
 			<Value Name="TriggerValue" Value="true" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="LeakCabinet" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="LeakCabinet" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="6" />
 			<Value Name="TriggerValue" Value="true" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="Smoke" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="Smoke" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="7" />
 			<Value Name="TriggerValue" Value="true" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="CdaOk" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="CdaOk" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="8" />
 			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="ExhaustOk" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="ExhaustOk" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="9" />
 			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="CdaPressure" Type="xyz.Components.Components.AiSensorComponent">
+		<Setting Name="CdaPressure" Type="xyz.Elements.Elements.AiSensorElement">
 			<Value Name="AiIndex" Value="0" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="ExhaustPressure" Type="xyz.Components.Components.AiSensorComponent">
+		<Setting Name="ExhaustPressure" Type="xyz.Elements.Elements.AiSensorElement">
 			<Value Name="AiIndex" Value="1" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="VacuumPressure" Type="xyz.Components.Components.AiSensorComponent">
+		<Setting Name="VacuumPressure" Type="xyz.Elements.Elements.AiSensorElement">
 			<Value Name="AiIndex" Value="2" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="CabinetTemperature" Type="xyz.Components.Components.AiSensorComponent">
+		<Setting Name="CabinetTemperature" Type="xyz.Elements.Elements.AiSensorElement">
 			<Value Name="AiIndex" Value="3" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 	</Setting>
 	<Setting Name="Monitor">
-		<Setting Name="RobotControllerPower" Type="xyz.Components.Components.DiSensorComponent">
+		<Setting Name="RobotControllerPower" Type="xyz.Elements.Elements.DiSensorElement">
 			<Value Name="DiIndex" Value="68" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<Setting Name="Chamber1Exhaust" Type="xyz.Components.Components.AiSensorComponent">
+		<Setting Name="Chamber1Exhaust" Type="xyz.Elements.Elements.AiSensorElement">
 			<Value Name="AiIndex" Value="102" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 	</Setting>
-	<Setting Name="Computer" Type="xyz.Components.Components.ComputerComponent">
+	<Setting Name="Computer" Type="xyz.Elements.Elements.ComputerElement">
 		<Value Name="IsRun" Value="true" />
-		<Setting Name="Program" Type="xyz.Components.Components.ProgramUsageComponent" />
-		<Setting Name="Total" Type="xyz.Components.Components.ComputerUsageComponent" />
+		<Setting Name="Program" Type="xyz.Elements.Elements.ProgramUsageElement" />
+		<Setting Name="Total" Type="xyz.Elements.Elements.ComputerUsageElement" />
 	</Setting>
-	<Setting Name="DataChart" Type="xyz.Components.Components.DataChartComponent">
+	<Setting Name="DataChart" Type="xyz.Elements.Elements.DataChartElement">
 		<Value Name="IsRun" Value="true" />
 		<Value Name="EnableRecord" Value="True" />
 		<Value Name="Database" Value="Io" />
@@ -168,7 +168,7 @@
 		<Value Name="QueryMaxSignals" Value="20" />
 		<Value Name="ScreenshotDirectory" Value="Screenshots" />
 	</Setting>
-	<Setting Name="RealChart" Type="xyz.Components.Components.RealChartComponent">
+	<Setting Name="RealChart" Type="xyz.Elements.Elements.RealChartElement">
 		<Value Name="IsRun" Value="true" />
 		<Value Name="WindowSeconds" Value="3600" />
 	</Setting>
@@ -177,7 +177,7 @@
 			<Value Name="IsRun" Value="true" />
 			<Value Name="SlotCount" Value="25" />
 			<Value Name="AutoRunMapOnUnload" Value="False" />
-			<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+			<Setting Name="Serial" Type="xyz.Elements.Elements.SerialDriverElement">
 				<Value Name="IsEnable" Value="True" />
 				<Value Name="PortName" Value="COM2" />
 				<Value Name="BaudRate" Value="9600" />
@@ -185,7 +185,7 @@
 				<Value Name="DataBits" Value="8" />
 				<Value Name="StopBits" Value="One" />
 			</Setting>
-			<Setting Name="Tcp" Type="xyz.Components.Components.TcpDriverComponent">
+			<Setting Name="Tcp" Type="xyz.Elements.Elements.TcpDriverElement">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="Host" Value="192.168.1.100" />
 				<Value Name="NetPort" Value="4004" />
@@ -193,7 +193,7 @@
 			<Setting Name="RFID" Type="xyz._35021.Module.Drivers.Fcd.Rfid.FcdRfidReader">
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
-				<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+				<Setting Name="Serial" Type="xyz.Elements.Elements.SerialDriverElement">
 					<Value Name="IsEnable" Value="True" />
 					<Value Name="PortName" Value="COM6" />
 					<Value Name="BaudRate" Value="9600" />
@@ -203,10 +203,10 @@
 				</Setting>
 			</Setting>
 		
-			<Setting Name="Carrier" Type="xyz.Components.Components.CarrierComponent">
+			<Setting Name="Carrier" Type="xyz.Elements.Elements.CarrierElement">
 				<Value Name="PresenceSource" Value="Query" />
 			</Setting>
-			<Setting Name="E84" Type="xyz.Components.Components.E84Component">
+			<Setting Name="E84" Type="xyz.Elements.Elements.E84Element">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="34" />
 				<Value Name="DiCs0Index" Value="32" />
@@ -229,7 +229,7 @@
 			<Value Name="IsRun" Value="true" />
 			<Value Name="SlotCount" Value="25" />		
 			<Value Name="AutoRunMapOnUnload" Value="False" />
-			<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+			<Setting Name="Serial" Type="xyz.Elements.Elements.SerialDriverElement">
 				<Value Name="IsEnable" Value="True" />
 				<Value Name="PortName" Value="COM4" />
 				<Value Name="BaudRate" Value="9600" />
@@ -237,7 +237,7 @@
 				<Value Name="DataBits" Value="8" />
 				<Value Name="StopBits" Value="One" />
 			</Setting>
-			<Setting Name="Tcp" Type="xyz.Components.Components.TcpDriverComponent">
+			<Setting Name="Tcp" Type="xyz.Elements.Elements.TcpDriverElement">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="Host" Value="192.168.1.101" />
 				<Value Name="NetPort" Value="4004" />
@@ -245,7 +245,7 @@
 			<Setting Name="RFID" Type="xyz._35021.Module.Drivers.Fcd.Rfid.FcdRfidReader">
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
-				<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+				<Setting Name="Serial" Type="xyz.Elements.Elements.SerialDriverElement">
 					<Value Name="IsEnable" Value="True" />
 					<Value Name="PortName" Value="COM8" />
 					<Value Name="BaudRate" Value="9600" />
@@ -254,10 +254,10 @@
 					<Value Name="StopBits" Value="One" />
 				</Setting>
 			</Setting>
-			<Setting Name="Carrier" Type="xyz.Components.Components.CarrierComponent">
+			<Setting Name="Carrier" Type="xyz.Elements.Elements.CarrierElement">
 				<Value Name="PresenceSource" Value="Query" />
 			</Setting>
-			<Setting Name="E84" Type="xyz.Components.Components.E84Component">
+			<Setting Name="E84" Type="xyz.Elements.Elements.E84Element">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="50" />
 				<Value Name="DiCs0Index" Value="48" />
@@ -280,61 +280,61 @@
 	<Setting Name="Robot">
 		<Setting Type="xyz._35021.Module.Robot.RobotModule" Name="Robot1">
 			<Value Name="IsRun" Value="true" />
-			<Setting Name="Tcp" Type="xyz.Components.Components.TcpDriverComponent">
+			<Setting Name="Tcp" Type="xyz.Elements.Elements.TcpDriverElement">
 				<Value Name="IsEnable" Value="True" />
 				<Value Name="Host" Value="127.0.0.1" />
 				<Value Name="NetPort" Value="9000" />
 			</Setting>
 
 			<Setting Name="Axes">
-				<Setting Name="X" Type="xyz.Components.Components.RobotAxisComponent" />
-				<Setting Name="Z" Type="xyz.Components.Components.RobotAxisComponent" />
-				<Setting Name="Theta" Type="xyz.Components.Components.RobotAxisComponent" />
-				<Setting Name="Arm1" Type="xyz.Components.Components.RobotArmComponent">
+				<Setting Name="X" Type="xyz.Elements.Elements.RobotAxisElement" />
+				<Setting Name="Z" Type="xyz.Elements.Elements.RobotAxisElement" />
+				<Setting Name="Theta" Type="xyz.Elements.Elements.RobotAxisElement" />
+				<Setting Name="Arm1" Type="xyz.Elements.Elements.RobotArmElement">
 					<Value Name="Number" Value="1" />
 				</Setting>
-				<Setting Name="Arm2" Type="xyz.Components.Components.RobotArmComponent">
+				<Setting Name="Arm2" Type="xyz.Elements.Elements.RobotArmElement">
 					<Value Name="Number" Value="2" />
 				</Setting>
 			</Setting>
 		
 			<Setting Name="Size12">
-				<Setting Name="LoadPort1" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="LoadPort1" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="1" />
 					<Value Name="Y" Value="20" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="LoadPort2" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="LoadPort2" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="2" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber1" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber1" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="3" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber2" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber2" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="4" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber3" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber3" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="5" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber4" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber4" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="6" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
@@ -344,42 +344,42 @@
 			</Setting>
 
 			<Setting Name="Size8">
-				<Setting Name="LoadPort1" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="LoadPort1" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="1" />
 					<Value Name="Y" Value="20" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="LoadPort2" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="LoadPort2" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="2" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber1" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber1" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="3" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber2" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber2" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="4" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber3" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber3" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="5" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber4" Type="xyz.Components.Components.TeachPointComponent">
+				<Setting Name="Chamber4" Type="xyz.Elements.Elements.TeachPointElement">
 					<Value Name="Number" Value="6" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
@@ -390,13 +390,13 @@
 		</Setting>
 	</Setting>
 
-	<Setting Name="Sequence" Type="xyz.Components.Components.SequenceComponent">
+	<Setting Name="Sequence" Type="xyz.Elements.Elements.SequenceElement">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Sequence" />
 		<Value Name="NameMaxLength" Value="32" />
 	</Setting>
 	
-	<Setting Name="ProcessRecipe" Type="xyz.Components.Components.RecipeComponent">
+	<Setting Name="ProcessRecipe" Type="xyz.Elements.Elements.RecipeElement">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Process" />
 		<Value Name="NameMaxLength" Value="32" />
@@ -539,27 +539,27 @@
 		</Setting>
 	</Setting>
 	
-	<Setting Name="Dispatch" Type="xyz.Components.Components.DispatchComponent">
+	<Setting Name="Dispatch" Type="xyz.Elements.Elements.DispatchElement">
 		<Value Name="IsRun" Value="true" />
 		
-		<Setting Name="Job" Type="xyz.Components.Components.JobManager">
+		<Setting Name="Job" Type="xyz.Elements.Elements.JobManager">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="ProcessJobAutoStart" Value="True" />
 			<Value Name="ControlJobAutoStart" Value="False" />
 			<Value Name="IsPersistent" Value="True" />
 			<Value Name="Database" Value="Default" />
 			<Value Name="HistoryQueryMaxCount" Value="1000" />
-			<Setting Name="Task" Type="xyz.Components.Components.TaskComponent" />
-			<Setting Name="Scheduler" Type="xyz.Components.Components.SchedulerComponent" />
+			<Setting Name="Task" Type="xyz.Elements.Elements.TaskElement" />
+			<Setting Name="Scheduler" Type="xyz.Elements.Elements.SchedulerElement" />
 		</Setting>
 
-		<Setting Name="Transfer" Type="xyz.Components.Components.TransferManager">
+		<Setting Name="Transfer" Type="xyz.Elements.Elements.TransferManager">
 			<Value Name="IsEnable" Value="True" />
 		</Setting>
 	</Setting>
 	
-	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
-		<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
+	<Setting Name="Eap" Type="xyz.Elements.Elements.EapElement">
+		<Setting Name="Hsms" Type="xyz.Elements.Elements.HsmsElement">
 			<Value Name="IsEnable" Value="False" />
 			<Value Name="IsActive" Value="False" />
 			<Value Name="Host" Value="" />
@@ -567,21 +567,21 @@
 			<Value Name="DeviceId" Value="0" />
 			<Value Name="LogMessages" Value="True" />
 		</Setting>
-		<Setting Name="Notifier" Type="xyz.Components.Components.EapNotifierComponent" />
-		<Setting Name="E30" Type="xyz.Components.Components.E30Component">
+		<Setting Name="Notifier" Type="xyz.Elements.Elements.EapNotifierElement" />
+		<Setting Name="E30" Type="xyz.Elements.Elements.E30Element">
 			<Value Name="EquipmentModel" Value="xyz" />
 			<Value Name="SoftwareRevision" Value="1.0.0" />
 			<Value Name="Database" Value="Default" />
 			<Value Name="ApplyHostTime" Value="False" />
 		</Setting>
-		<Setting Name="E39" Type="xyz.Components.Components.E39Component" />
-		<Setting Name="Recipe" Type="xyz.Components.Components.E30RecipeComponent">
+		<Setting Name="E39" Type="xyz.Elements.Elements.E39Element" />
+		<Setting Name="Recipe" Type="xyz.Elements.Elements.E30RecipeElement">
 			<Value Name="LockLocalEditInRemote" Value="False" />
 		</Setting>
-		<Setting Name="Trace" Type="xyz.Components.Components.E30TraceComponent" />
-		<Setting Name="E87" Type="xyz.Components.Components.E87Component" />
-		<Setting Name="E90" Type="xyz.Components.Components.E90Component" />
-		<Setting Name="E40" Type="xyz.Components.Components.E40Component">
+		<Setting Name="Trace" Type="xyz.Elements.Elements.E30TraceElement" />
+		<Setting Name="E87" Type="xyz.Elements.Elements.E87Element" />
+		<Setting Name="E90" Type="xyz.Elements.Elements.E90Element" />
+		<Setting Name="E40" Type="xyz.Elements.Elements.E40Element">
 			<Value Name="StartCommandName" Value="START" />
 			<Value Name="PauseCommandName" Value="PAUSE" />
 			<Value Name="ResumeCommandName" Value="RESUME" />
@@ -589,7 +589,7 @@
 			<Value Name="AbortCommandName" Value="ABORT" />
 			<Value Name="CancelCommandName" Value="CANCEL" />
 		</Setting>
-		<Setting Name="E94" Type="xyz.Components.Components.E94Component">
+		<Setting Name="E94" Type="xyz.Elements.Elements.E94Element">
 			<Value Name="StartCommandName" Value="CJSTART" />
 			<Value Name="PauseCommandName" Value="CJPAUSE" />
 			<Value Name="ResumeCommandName" Value="CJRESUME" />
@@ -603,8 +603,8 @@
 	
 	<!-- EDA（Interface A，Freeze 2：SOAP 1.2）：给厂里 FDC / APC 采数据的 Web 服务，跟 EAP 互不依赖；IsEnable=True 开机起服务，
 	     客户端先连 http://本机:Port/E132InterfaceDiscovery。EquipmentName 是 EDA 结构树的根名；权限表、持久采集计划存 Database 指的库；
-	     DefaultMaxSessions 最多几个会话。设备自描述照组件树和 GEM 编号表生成，不用配 -->
-	<Setting Name="Eda" Type="xyz.Components.Components.EdaComponent">
+	     DefaultMaxSessions 最多几个会话。设备自描述照元件树和 GEM 编号表生成，不用配 -->
+	<Setting Name="Eda" Type="xyz.Elements.Elements.EdaElement">
 		<Value Name="IsEnable" Value="False" />
 		<Value Name="Host" Value="0.0.0.0" />
 		<Value Name="Port" Value="8790" />
@@ -620,70 +620,70 @@
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 		
-			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
+			<Setting Name="Door" Type="xyz.Elements.Elements.ChamberDoorElement">
 				<Value Name="DoOpenIndex" Value="100" />
 				<Value Name="DoCloseIndex" Value="101" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="100" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="101" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
 		
-			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
+			<Setting Name="Bowl1" Type="xyz.Elements.Elements.ChamberBowlElement">
 				<Value Name="DoOpenIndex" Value="102" />
 				<Value Name="DoCloseIndex" Value="103" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="102" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="103" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
 	
-			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+			<Setting Name="SpinMotor" Type="xyz.Elements.Elements.SpinMotorElement">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[10]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[10]" />
 			</Setting>
 			
-			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
+			<Setting Name="Arm1" Type="xyz.Elements.Elements.SwingArmElement">
 				<Value Name="SendPlcDataPath" Value="Motor_Csharp2Plc[31]" />
 				<Value Name="ReceivePlcDataPath" Value="Motor_Csharp2Plc[31]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
+				<Setting Name="Lift" Type="xyz.Elements.Elements.ChamberLiftElement">
 					<Value Name="DoOpenIndex" Value="108" />
 					<Value Name="DoCloseIndex" Value="109" />
-					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="108" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="109" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_DIW" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="110" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="100" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="110" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="100" />
 						<Value Name="MonitoringDoIndex" Value="110" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -691,18 +691,18 @@
 						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_SC1" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="111" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="101" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="111" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="101" />
 						<Value Name="MonitoringDoIndex" Value="111" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -711,7 +711,7 @@
 					</Setting>
 				</Setting>
 			</Setting>
-			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+			<Setting Name="WaferSensor" Type="xyz.Elements.Elements.DiSensorElement">
 				<Value Name="DiIndex" Value="112" />
 				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
@@ -722,67 +722,67 @@
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
-			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
+			<Setting Name="Door" Type="xyz.Elements.Elements.ChamberDoorElement">
 				<Value Name="DoOpenIndex" Value="140" />
 				<Value Name="DoCloseIndex" Value="141" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="140" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="141" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
-			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
+			<Setting Name="Bowl1" Type="xyz.Elements.Elements.ChamberBowlElement">
 				<Value Name="DoOpenIndex" Value="142" />
 				<Value Name="DoCloseIndex" Value="143" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="142" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="143" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
-			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+			<Setting Name="SpinMotor" Type="xyz.Elements.Elements.SpinMotorElement">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[20]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[20]" />
 			</Setting>
-			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
+			<Setting Name="Arm1" Type="xyz.Elements.Elements.SwingArmElement">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[21]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[21]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
+				<Setting Name="Lift" Type="xyz.Elements.Elements.ChamberLiftElement">
 					<Value Name="DoOpenIndex" Value="148" />
 					<Value Name="DoCloseIndex" Value="149" />
-					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="148" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="149" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_DIW" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="150" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="120" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="150" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="120" />
 						<Value Name="MonitoringDoIndex" Value="150" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -790,18 +790,18 @@
 						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_SC1" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="151" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="121" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="151" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="121" />
 						<Value Name="MonitoringDoIndex" Value="151" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -810,7 +810,7 @@
 					</Setting>
 				</Setting>
 			</Setting>
-			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+			<Setting Name="WaferSensor" Type="xyz.Elements.Elements.DiSensorElement">
 				<Value Name="DiIndex" Value="152" />
 				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
@@ -821,67 +821,67 @@
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
-			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
+			<Setting Name="Door" Type="xyz.Elements.Elements.ChamberDoorElement">
 				<Value Name="DoOpenIndex" Value="180" />
 				<Value Name="DoCloseIndex" Value="181" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="180" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="181" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
-			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
+			<Setting Name="Bowl1" Type="xyz.Elements.Elements.ChamberBowlElement">
 				<Value Name="DoOpenIndex" Value="182" />
 				<Value Name="DoCloseIndex" Value="183" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="182" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="183" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
-			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+			<Setting Name="SpinMotor" Type="xyz.Elements.Elements.SpinMotorElement">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[30]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[30]" />
 			</Setting>
-			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
+			<Setting Name="Arm1" Type="xyz.Elements.Elements.SwingArmElement">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[31]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[31]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
+				<Setting Name="Lift" Type="xyz.Elements.Elements.ChamberLiftElement">
 					<Value Name="DoOpenIndex" Value="188" />
 					<Value Name="DoCloseIndex" Value="189" />
-					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="188" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="189" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_DIW" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="190" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="140" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="190" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="140" />
 						<Value Name="MonitoringDoIndex" Value="190" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -889,18 +889,18 @@
 						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_SC1" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="191" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="141" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="191" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="141" />
 						<Value Name="MonitoringDoIndex" Value="191" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -909,7 +909,7 @@
 					</Setting>
 				</Setting>
 			</Setting>
-			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+			<Setting Name="WaferSensor" Type="xyz.Elements.Elements.DiSensorElement">
 				<Value Name="DiIndex" Value="192" />
 				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
@@ -920,67 +920,67 @@
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
-			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
+			<Setting Name="Door" Type="xyz.Elements.Elements.ChamberDoorElement">
 				<Value Name="DoOpenIndex" Value="220" />
 				<Value Name="DoCloseIndex" Value="221" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="220" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="221" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
-			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
+			<Setting Name="Bowl1" Type="xyz.Elements.Elements.ChamberBowlElement">
 				<Value Name="DoOpenIndex" Value="222" />
 				<Value Name="DoCloseIndex" Value="223" />
-				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="222" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="223" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
 			</Setting>
-			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+			<Setting Name="SpinMotor" Type="xyz.Elements.Elements.SpinMotorElement">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[40]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[40]" />
 			</Setting>
-			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
+			<Setting Name="Arm1" Type="xyz.Elements.Elements.SwingArmElement">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[41]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[41]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
+				<Setting Name="Lift" Type="xyz.Elements.Elements.ChamberLiftElement">
 					<Value Name="DoOpenIndex" Value="228" />
 					<Value Name="DoCloseIndex" Value="229" />
-					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Opened" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="228" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Closed" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="229" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_DIW" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="230" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="160" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="230" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="160" />
 						<Value Name="MonitoringDoIndex" Value="230" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -988,18 +988,18 @@
 						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
-				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+				<Setting Name="Nozzle_SC1" Type="xyz.Elements.Elements.NozzleElement">
 					<Value Name="DoIndex" Value="231" />
 					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="161" />
 					<Value Name="ClearFlowOnStop" Value="True" />
-					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+					<Setting Name="Feedback" Type="xyz.Elements.Elements.DiSensorElement">
 						<Value Name="DiIndex" Value="231" />
 						<Value Name="TriggerValue" Value="true" />
 						<Value Name="AlarmEnabled" Value="False" />
 					</Setting>
-					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+					<Setting Name="Flow" Type="xyz.Elements.Elements.AiSensorElement">
 						<Value Name="AiIndex" Value="161" />
 						<Value Name="MonitoringDoIndex" Value="231" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
@@ -1008,7 +1008,7 @@
 					</Setting>
 				</Setting>
 			</Setting>
-			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+			<Setting Name="WaferSensor" Type="xyz.Elements.Elements.DiSensorElement">
 				<Value Name="DiIndex" Value="232" />
 				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
@@ -1018,93 +1018,93 @@
 	<Setting Name="CDS">
 		<Setting Name="IPA" Type="xyz._35021.Module.Cds.IpaModule">
 			<Value Name="IsRun" Value="true" />
-			<Setting Name="Tank1" Type="xyz.Components.Components.TankComponent">
+			<Setting Name="Tank1" Type="xyz.Elements.Elements.TankElement">
 				<Value Name="FillTo" Value="H" />
-				<Setting Name="LL" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="LL" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="L" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="L" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="H" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="H" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="HH" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="HH" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Overfill" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Overfill" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Fill" Type="xyz.Components.Components.ValveGroupComponent">
-					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+				<Setting Name="Fill" Type="xyz.Elements.Elements.ValveGroupElement">
+					<Setting Name="Valve1" Type="xyz.Elements.Elements.ValveElement">
 						<Value Name="DoIndex" Value="-1" />
 						<Value Name="NormalState" Value="NC" />
 					</Setting>
 				</Setting>
-				<Setting Name="Drain" Type="xyz.Components.Components.ValveGroupComponent">
-					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+				<Setting Name="Drain" Type="xyz.Elements.Elements.ValveGroupElement">
+					<Setting Name="Valve1" Type="xyz.Elements.Elements.ValveElement">
 						<Value Name="DoIndex" Value="-1" />
 						<Value Name="NormalState" Value="NC" />
 					</Setting>
 				</Setting>
-				<Setting Name="Supply" Type="xyz.Components.Components.ValveGroupComponent">
-					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+				<Setting Name="Supply" Type="xyz.Elements.Elements.ValveGroupElement">
+					<Setting Name="Valve1" Type="xyz.Elements.Elements.ValveElement">
 						<Value Name="DoIndex" Value="-1" />
 						<Value Name="NormalState" Value="NC" />
 					</Setting>
 				</Setting>
 			</Setting>
-			<Setting Name="Tank2" Type="xyz.Components.Components.TankComponent">
+			<Setting Name="Tank2" Type="xyz.Elements.Elements.TankElement">
 				<Value Name="FillTo" Value="H" />
-				<Setting Name="LL" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="LL" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="L" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="L" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="H" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="H" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="HH" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="HH" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Overfill" Type="xyz.Components.Components.DiSensorComponent">
+				<Setting Name="Overfill" Type="xyz.Elements.Elements.DiSensorElement">
 					<Value Name="DiIndex" Value="-1" />
 					<Value Name="TriggerValue" Value="true" />
 					<Value Name="AlarmEnabled" Value="False" />
 				</Setting>
-				<Setting Name="Fill" Type="xyz.Components.Components.ValveGroupComponent">
-					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+				<Setting Name="Fill" Type="xyz.Elements.Elements.ValveGroupElement">
+					<Setting Name="Valve1" Type="xyz.Elements.Elements.ValveElement">
 						<Value Name="DoIndex" Value="-1" />
 						<Value Name="NormalState" Value="NC" />
 					</Setting>
 				</Setting>
-				<Setting Name="Drain" Type="xyz.Components.Components.ValveGroupComponent">
-					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+				<Setting Name="Drain" Type="xyz.Elements.Elements.ValveGroupElement">
+					<Setting Name="Valve1" Type="xyz.Elements.Elements.ValveElement">
 						<Value Name="DoIndex" Value="-1" />
 						<Value Name="NormalState" Value="NC" />
 					</Setting>
 				</Setting>
-				<Setting Name="Supply" Type="xyz.Components.Components.ValveGroupComponent">
-					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+				<Setting Name="Supply" Type="xyz.Elements.Elements.ValveGroupElement">
+					<Setting Name="Valve1" Type="xyz.Elements.Elements.ValveElement">
 						<Value Name="DoIndex" Value="-1" />
 						<Value Name="NormalState" Value="NC" />
 					</Setting>

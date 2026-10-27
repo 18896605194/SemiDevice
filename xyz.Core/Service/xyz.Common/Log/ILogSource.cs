@@ -1,12 +1,12 @@
 ﻿namespace xyz.Common.Log;
 
 /// <summary>
-/// 写日志的来源：日志里记两层名字（组件基类实现，machine.xml 装配时算好）
+/// 写日志的来源：日志里记两层名字（元件基类实现，machine.xml 装配时算好）
 /// </summary>
 public interface ILogSource
 {
     /// <summary>
-    /// 第一层：machine.xml 树上最顶上那个组件的全路径（带外面的分组名），比如 LoadPort.LoadPort1
+    /// 第一层：machine.xml 树上最顶上那个元件的全路径（带外面的分组名），比如 LoadPort.LoadPort1
     /// </summary>
     string LogModule { get; }
 

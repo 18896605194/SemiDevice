@@ -1,8 +1,8 @@
 ﻿using xyz.Tools;
 using ProtoBuf.Grpc;
 using xyz.Common.Log;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
@@ -15,11 +15,11 @@ namespace xyz.Service.Events;
 /// </summary>
 public class LogService : BaseService, ILogService
 {
-    private readonly ILogComponent? _log;
+    private readonly ILogElement? _log;
 
     public LogService()
     {
-        _log = IocHelper.GetService<ILogComponent>();
+        _log = IocHelper.GetService<ILogElement>();
     }
 
     /// <summary>

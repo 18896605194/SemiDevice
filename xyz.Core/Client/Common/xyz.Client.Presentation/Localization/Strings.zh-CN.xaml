@@ -186,7 +186,7 @@
     <sys:String x:Key="job.task_position_mismatch">{0} 标记不了 {1} 完成：账上它在 {2}，不在这一步做完该在的地方</sys:String>
     <sys:String x:Key="job.wafer_moved">{0} 不在该在的地方（应该在 {1}；被改了账、载具被拿走或重新 Mapping 过）</sys:String>
 
-    <sys:String x:Key="alarm.not_installed">报警组件没装（machine.xml 没配 Alarm 节点）</sys:String>
+    <sys:String x:Key="alarm.not_installed">报警元件没装（machine.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
 
     <sys:String x:Key="history.query_failed">查询失败：{0}</sys:String>
@@ -194,7 +194,7 @@
     <sys:String x:Key="datachart.not_installed">数据曲线没装（machine.xml 没配 DataChart 节点）</sys:String>
     <sys:String x:Key="realchart.not_installed">实时曲线没装（machine.xml 没配 RealChart 节点）</sys:String>
 
-    <sys:String x:Key="ec.not_installed">EC 组件没装（machine.xml 没配 EC 节点）</sys:String>
+    <sys:String x:Key="ec.not_installed">EC 元件没装（machine.xml 没配 EC 节点）</sys:String>
     <sys:String x:Key="ec.not_found">没有这一项 EC：{0}</sys:String>
     <sys:String x:Key="ec.invalid_format">{0} 的值写法不对（应为 {1}）</sys:String>
     <sys:String x:Key="ec.out_of_range">{0} 超出范围 {1} ~ {2} {3}</sys:String>
@@ -260,7 +260,7 @@
     <sys:String x:Key="process_recipe.body_invalid">工艺配方 {0} 的内容读不出来（要这边给出去的那种 JSON）</sys:String>
 
     <!-- 账号（登录、用户、角色） -->
-    <sys:String x:Key="account.not_installed">machine.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了</sys:String>
+    <sys:String x:Key="account.not_installed">machine.xml 没配 Account 节点（没有账号元件），登录、用户、角色都用不了</sys:String>
     <sys:String x:Key="account.login_failed">登录名或密码不对</sys:String>
     <sys:String x:Key="account.user_disabled">账号 {0} 停用了，登录不了</sys:String>
     <sys:String x:Key="account.user_not_found">没有账号 {0}（可能已经被删了）</sys:String>
@@ -521,8 +521,8 @@
     <sys:String x:Key="permission.Setting.Role_tip">谁能管账号、角色，固定是管理员</sys:String>
     <sys:String x:Key="permission.Io_tip">写 DO、AO；每个模块的 IO 页一起算</sys:String>
 
-    <!-- 设置页（EC 设置）：左边组件树，右边一行一项 EC -->
-    <sys:String x:Key="setting.ec.component">组件</sys:String>
+    <!-- 设置页（EC 设置）：左边元件树，右边一行一项 EC -->
+    <sys:String x:Key="setting.ec.component">元件</sys:String>
     <sys:String x:Key="setting.ec.name">参数</sys:String>
     <sys:String x:Key="setting.ec.description">说明</sys:String>
     <sys:String x:Key="setting.ec.value">当前值</sys:String>

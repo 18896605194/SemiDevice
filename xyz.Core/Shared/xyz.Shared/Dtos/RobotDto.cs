@@ -50,7 +50,7 @@ public class RobotDto
     public List<TeachPointDto> TeachPoints { get; set; } = [];
 
     /// <summary>
-    /// 手指数：machine.xml 本机械手下的 RobotArmComponent 节点个数；界面画几只手臂按它（取放能用哪只手按示教点的 PickArms / PlaceArms）。
+    /// 手指数：machine.xml 本机械手下的 RobotArmElement 节点个数；界面画几只手臂按它（取放能用哪只手按示教点的 PickArms / PlaceArms）。
     /// </summary>
     public int ArmCount { get; set; }
 

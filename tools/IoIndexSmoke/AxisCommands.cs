@@ -1,8 +1,8 @@
 ﻿using System.Runtime.InteropServices;
-using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Models;
 
 static class AxisCommands
 {
@@ -166,7 +166,7 @@ static class AxisCommands
         }
     }
 
-    private sealed class ScanningAxis : AxisComponent
+    private sealed class ScanningAxis : AxisElement
     {
         public void Tick()
         {
@@ -175,7 +175,7 @@ static class AxisCommands
     }
 
     /// <summary>假 PLC：块存字典里，扫描把字典刷进缓存，写记下来。</summary>
-    private sealed class CachePlc : BeckhoffPlcComponent
+    private sealed class CachePlc : BeckhoffPlcElement
     {
         private readonly Dictionary<string, byte[]> _data = [];
         public List<MotionCSharpToPlcCommand> Writes { get; } = [];

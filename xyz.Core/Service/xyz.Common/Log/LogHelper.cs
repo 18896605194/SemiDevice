@@ -7,7 +7,7 @@ namespace xyz.Common.Log;
 
 /// <summary>
 /// 后端统一的日志入口（后端记日志一律走它）：主日志 Log\xyz-日期.log、轮询文件 Log\poll-日期.log，NLog 异步写；
-/// Warn 以上的运行日志另进 <see cref="LogQueue"/>，由日志组件推给界面。每行带两层名字：模块、部件（见 <see cref="ILogSource"/>）
+/// Warn 以上的运行日志另进 <see cref="LogQueue"/>，由日志元件推给界面。每行带两层名字：模块、部件（见 <see cref="ILogSource"/>）
 /// </summary>
 public static class LogHelper
 {
@@ -53,7 +53,7 @@ public static class LogHelper
         LoopLogger = LogManager.GetLogger("Loop");
     }
 
-    #region 运行日志：组件写的带两层名字，不是组件的写固定名字（Host 这类）
+    #region 运行日志：元件写的带两层名字，不是元件的写固定名字（Host 这类）
 
     public static void Debug(ILogSource source, string message)
     {
@@ -131,7 +131,7 @@ public static class LogHelper
     #region 保留天数、收尾
 
     /// <summary>
-    /// 日志文件留多少天（日志组件开机时按 machine.xml 的 KeepDays 设）：每个文件目标按天清掉更早的
+    /// 日志文件留多少天（日志元件开机时按 machine.xml 的 KeepDays 设）：每个文件目标按天清掉更早的
     /// </summary>
     public static void SetKeepDays(int days)
     {

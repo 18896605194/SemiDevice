@@ -40,7 +40,7 @@ public class ChamberDeviceDataDto
 /// </summary>
 public record ChamberAxisDto
 {
-    /// <summary>组件全路径（machine.xml 的组件路径），如 "Chamber1.Arm1"；轴动作按它找轴。</summary>
+    /// <summary>元件全路径（machine.xml 的元件路径），如 "Chamber1.Arm1"；轴动作按它找轴。</summary>
     public string Path { get; set; } = string.Empty;
 
     /// <summary>PLC 状态有效；false 时位置、速度是断线前的旧值，界面显示"—"。</summary>
@@ -107,7 +107,7 @@ public record ChamberArmDto : ChamberAxisDto
 /// </summary>
 public record ChamberCylinderDto
 {
-    /// <summary>组件全路径，如 "Chamber1.Arm1.Lift"；气缸动作按它找气缸。</summary>
+    /// <summary>元件全路径，如 "Chamber1.Arm1.Lift"；气缸动作按它找气缸。</summary>
     public string Path { get; set; } = string.Empty;
 
     /// <summary>在哪一侧：升到位（开侧）、降到位（关侧）、未知。</summary>
@@ -119,7 +119,7 @@ public record ChamberCylinderDto
 /// </summary>
 public record ChamberNozzleDto
 {
-    /// <summary>组件全路径，如 "Chamber1.Arm1.Nozzle_DIW"。</summary>
+    /// <summary>元件全路径，如 "Chamber1.Arm1.Nozzle_DIW"。</summary>
     public string Path { get; set; } = string.Empty;
 
     /// <summary>药液名，照 machine.xml 原样。</summary>

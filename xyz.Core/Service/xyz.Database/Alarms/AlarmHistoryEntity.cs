@@ -4,7 +4,7 @@ namespace xyz.Database.Alarms;
 
 /// <summary>
 /// 报警记录：报警每报出一次、每被人工清除一次各写一行，用来回溯设备出过什么事、多久才处理。
-/// 当前有哪些报警看报警组件本身，这张表只管历史。
+/// 当前有哪些报警看报警元件本身，这张表只管历史。
 /// 按天分表：实际表名是 alarm_history_20260918 这种，按 OccurredAt 分流；
 /// 过期清理直接删整张表，不用逐行删。
 /// </summary>
@@ -22,7 +22,7 @@ public class AlarmHistoryEntity
     [SugarColumn(Length = 16)]
     public string Action { get; set; } = string.Empty;
 
-    /// <summary>报警来源的组件路径，如 LoadPort1、Chamber1.Pressure。</summary>
+    /// <summary>报警来源的元件路径，如 LoadPort1、Chamber1.Pressure。</summary>
     [SugarColumn(Length = 128)]
     public string Source { get; set; } = string.Empty;
 

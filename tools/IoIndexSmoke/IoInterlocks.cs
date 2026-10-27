@@ -1,6 +1,6 @@
-﻿using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Shared.Errors;
 using xyz.Tools;
@@ -30,7 +30,7 @@ static class IoInterlocks
                 Check(rejected, $"invalid rule must fail during assembly: {bad}");
             }
 
-            // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+            // 点表放进 IO 元件的点表目录：它开机准备时读点表、取 PLC
             string tables = Path.Combine(directory, "interlock-io");
             Directory.CreateDirectory(tables);
             File.WriteAllText(Path.Combine(tables, "DI.csv"), "Index,Name\n25,Door\n26,Sensor\n");
@@ -42,7 +42,7 @@ static class IoInterlocks
                 var io = new TestIo { SaftyIoInterlock = rules, PointTableDirectory = tables };
                 SmokeIoc.Use<IIo>(io);
                 io.Load();
-                io.InitComponent();
+                io.InitElement();
                 return io;
             }
 
@@ -138,7 +138,7 @@ static class IoInterlocks
         }
     }
 
-    private sealed class TestIo : IoComponent
+    private sealed class TestIo : IoElement
     {
         public void Load() => OnSettingLoaded(new ModuleConfig());
         public void Tick() => OnScan();

@@ -1,7 +1,7 @@
 ﻿using xyz._35021.Module.Drivers.Fcd;
 using xyz._35021.Module.Drivers.Fcd.Commands;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
 using xyz.Modules;
@@ -13,7 +13,7 @@ namespace xyz._35021.Module.Loadport;
 /// 35021 LoadPort 模块（富创得 LP300）：动作入口、扫片落账对账、在位判断、轮询节奏、推送都是平台的（BaseLoadPortModule），
 /// 这里只写每个动作发哪几条 FCD 指令、一圈查什么、上报怎么认；要加互锁重写 XxxInterlock（先调 base）
 /// </summary>
-[Component(description: "35021 LoadPort 模块（富创得 LP300）")]
+[Element(description: "35021 LoadPort 模块（富创得 LP300）")]
 public class LoadPortModule : BaseLoadPortModule
 {
     protected override IFrameCodec CreateCodec()

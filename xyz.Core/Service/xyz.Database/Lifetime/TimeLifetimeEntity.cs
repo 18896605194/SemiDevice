@@ -3,13 +3,13 @@
 namespace xyz.Database.Lifetime;
 
 /// <summary>
-/// 部件已用时间：一个时间寿命组件一行
+/// 部件已用时间：一个时间寿命元件一行
 /// </summary>
 [SugarTable("time_lifetime")]
 public class TimeLifetimeEntity
 {
     /// <summary>
-    /// 寿命组件的全路径（如 CDS.IPA.Tank1Chemical）
+    /// 寿命元件的全路径（如 CDS.IPA.Tank1Chemical）
     /// </summary>
     [SugarColumn(IsPrimaryKey = true, Length = 256)]
     public string Path { get; set; } = string.Empty;

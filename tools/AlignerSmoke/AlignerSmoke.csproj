@@ -9,7 +9,7 @@
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
+    <!-- 冒烟共用的容器：元件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
     <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
   </ItemGroup>

@@ -88,7 +88,7 @@ public static class ClientLog
     }
 
     /// <summary>
-    /// 日志文件留多少天（连上后端时按后端日志组件的 KeepDays 设），更早的自动删；0 = 不删
+    /// 日志文件留多少天（连上后端时按后端日志元件的 KeepDays 设），更早的自动删；0 = 不删
     /// </summary>
     public static void SetKeepDays(int days)
     {

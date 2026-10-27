@@ -14,7 +14,7 @@ public class IoPointModel : ObservableObject
     public string Name { get; init; } = string.Empty;
 
     /// <summary>归属部件（Door、Bowl1、Nozzle_DIW……）。</summary>
-    public string Component { get; init; } = string.Empty;
+    public string Element { get; init; } = string.Empty;
 
     public string Description { get; init; } = string.Empty;
 

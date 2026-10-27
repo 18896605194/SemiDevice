@@ -1,8 +1,8 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -24,7 +24,7 @@ public class LedgerService : BaseService, ILedgerService
     public LedgerService()
     {
         _ledger = IocHelper.GetService<ILedgerManager>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     public Task<RpcResponse> GetLedgerAsync(RpcRequest request, CallContext context = default)
@@ -174,7 +174,7 @@ public class LedgerService : BaseService, ILedgerService
     }
 
     /// <summary>
-    /// 能调整的位置名：机械手在前（按组件树的先后），再按各机械手 Stations 里的先后列站点，同名只列一次。
+    /// 能调整的位置名：机械手在前（按元件树的先后），再按各机械手 Stations 里的先后列站点，同名只列一次。
     /// </summary>
     private static IEnumerable<string> LocationNames()
     {

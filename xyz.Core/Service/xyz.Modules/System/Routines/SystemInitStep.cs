@@ -1,6 +1,6 @@
 ﻿using xyz.Common.Log;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;

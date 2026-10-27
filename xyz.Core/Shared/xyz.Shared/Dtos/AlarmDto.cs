@@ -7,7 +7,7 @@ public class AlarmDto
 {
     public const string EventToken = "Alarm";
 
-    /// <summary>报警来源的组件路径，如 Robot1、LoadPort1.RFID。</summary>
+    /// <summary>报警来源的元件路径，如 Robot1、LoadPort1.RFID。</summary>
     public string Source { get; set; } = string.Empty;
 
     /// <summary>报警代码，同一来源内唯一。</summary>
@@ -15,7 +15,7 @@ public class AlarmDto
 
     public string Text { get; set; } = string.Empty;
 
-    /// <summary>分类（AlarmCategory 名字）。报警枚举在组件层，契约层不引用组件层，所以用字符串带。</summary>
+    /// <summary>分类（AlarmCategory 名字）。报警枚举在元件层，契约层不引用元件层，所以用字符串带。</summary>
     public string Category { get; set; } = string.Empty;
 
     /// <summary>等级（AlarmLevel 名字）。</summary>

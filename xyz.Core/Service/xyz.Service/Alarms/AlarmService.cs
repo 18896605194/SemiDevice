@@ -1,7 +1,7 @@
 ﻿using ProtoBuf.Grpc;
 using SqlSugar;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
@@ -24,7 +24,7 @@ public class AlarmService : BaseService, IAlarmService
     public AlarmService()
     {
         _alarms = IocHelper.GetService<IAlarm>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     /// <summary>

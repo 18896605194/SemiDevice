@@ -1,7 +1,7 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
@@ -15,9 +15,9 @@ namespace xyz.Service.Recipes;
 /// </summary>
 public class ProcessRecipeService : BaseService, IProcessRecipeService
 {
-    private readonly IRecipeComponent? _library;
+    private readonly IRecipeElement? _library;
 
-    private readonly IE30RecipeComponent? _e30Recipe;
+    private readonly IE30RecipeElement? _e30Recipe;
 
     private readonly IWaferSize? _waferSize;
 
@@ -25,10 +25,10 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
 
     public ProcessRecipeService()
     {
-        _library = IocHelper.GetService<IRecipeComponent>();
-        _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
+        _library = IocHelper.GetService<IRecipeElement>();
+        _e30Recipe = IocHelper.GetService<IE30RecipeElement>();
         _waferSize = IocHelper.GetService<IWaferSize>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
@@ -197,12 +197,12 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     }
 
     /// <summary>
-    /// 字段给界面：映射组件照抄字段表，上限按当前晶圆尺寸取
+    /// 字段给界面：映射元件照抄字段表，上限按当前晶圆尺寸取
     /// </summary>
     private ProcessRecipeFieldDto ToFieldDto(RecipeField field)
     {
         var dto = _mapper.Map<ProcessRecipeFieldDto>(field);
-        dto.Max = field.MaxFor(WaferSizeComponent.SizeOf(_waferSize));
+        dto.Max = field.MaxFor(WaferSizeElement.SizeOf(_waferSize));
         return dto;
     }
 

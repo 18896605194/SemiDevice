@@ -1,9 +1,9 @@
 ﻿using System.Text;
-using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
 using xyz.Modules;
@@ -30,20 +30,20 @@ void Check(bool condition, string message)
     checks++;
 }
 
-var ec = new EcComponent();
+var ec = new EcElement();
 SmokeIoc.Use<IEc>(ec);
-var alarms = new AlarmComponent();
+var alarms = new AlarmElement();
 SmokeIoc.Use<IAlarm>(alarms);
-var ledger = new LedgerManagerComponent();
+var ledger = new LedgerManagerElement();
 SmokeIoc.Use<ILedgerManager>(ledger);
-SmokeIoc.Use<IMapper>(new MapperComponent());
-ledger.InitComponent();
+SmokeIoc.Use<IMapper>(new MapperElement());
+ledger.InitElement();
 
 // 片从料盒来、回料盒去：料盒 25 片都有
 ledger.RegisterLoadPort("LP1", 25);
 ledger.ApplySlotMap("LP1", Enumerable.Repeat<WaferStatus?>(WaferStatus.Normal, 25).ToList(), "C1");
 
-bool Active(ComponentBase source, string code)
+bool Active(ElementBase source, string code)
 {
     return alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
 }
@@ -108,18 +108,18 @@ void ClearStage(SmokeAligner target)
     bool threw = false;
     try
     {
-        bare.InitComponent();
+        bare.InitElement();
     }
     catch (InvalidOperationException)
     {
         threw = true;
     }
 
-    Check(threw, "machine.xml 里对准器下面没挂驱动：组件初始化就抛");
+    Check(threw, "machine.xml 里对准器下面没挂驱动：元件初始化就抛");
 }
 
 var aligner = new SmokeAligner("AL1");
-Check(aligner.InitComponent() && aligner._driver is FakeAlignerDriver, "对准器组件初始化：认下面挂的通道");
+Check(aligner.InitElement() && aligner._driver is FakeAlignerDriver, "对准器元件初始化：认下面挂的通道");
 var driver = (FakeAlignerDriver)aligner._driver!;
 Check(driver.Codec is SmokeAlignerCodec, "开机把对准器自己的解码器交给通道");
 SmokeIoc.Tree(aligner);
@@ -269,7 +269,7 @@ Check(aligner.Home().IsSuccess && RunUntil(aligner, () => aligner.State == Modul
 // 11. 停用：不认驱动、不登记晶圆账、不切生产模式，动作一律拒 module.disabled
 {
     var disabled = new SmokeAligner("AL2", withDriver: false) { IsEnable = false };
-    Check(disabled.InitComponent() && ledger.Locations.All(location => location.Module != "AL2") && disabled.Mode == ModuleMode.Maintenance,
+    Check(disabled.InitElement() && ledger.Locations.All(location => location.Module != "AL2") && disabled.Mode == ModuleMode.Maintenance,
         "停用的对准器：不挂驱动也不抛，不登记晶圆账、不切生产模式");
     var disabledHome = disabled.Home();
     Check(!disabledHome.IsSuccess && disabledHome.ErrorMessage == ErrorCodes.ModuleDisabled && disabled.Abort().ErrorMessage == ErrorCodes.ModuleDisabled,
@@ -323,10 +323,10 @@ sealed class SmokeAligner : BaseAlignerModule
         abort.Command("急停", () => new SmokeAlignerCommand("Stop"));
     }
 
-    private static void SetName(ComponentBase component, string name, string path)
+    private static void SetName(ElementBase element, string name, string path)
     {
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, path);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(element, name);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(element, path);
     }
 }
 
@@ -383,7 +383,7 @@ sealed class SmokeAlignerCodec : IFrameCodec
 }
 
 // 假通道：每条指令过 Ticks 拍做完；FailNext 摆下一条哪种指令报错，Hang 开着一直不回
-sealed class FakeAlignerDriver : ComponentBase, ICommDriver
+sealed class FakeAlignerDriver : ElementBase, ICommDriver
 {
     private readonly List<Pending> _inflight = [];
 

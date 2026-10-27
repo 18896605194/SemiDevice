@@ -3,12 +3,12 @@ using System.Data.Common;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using xyz.Common.Log;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Database.Lifetime;
@@ -28,7 +28,7 @@ using xyz.Tools;
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
 // 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算，或盯计时 DO 只算通着的，
-// 清零 DO 变了就清零重算；警告 / 报警、存库读回、清零）。虚拟 IO（虚拟 DO 按点号读写、不下发 PLC，寿命组件先读它）。
+// 清零 DO 变了就清零重算；警告 / 报警、存库读回、清零）。虚拟 IO（虚拟 DO 按点号读写、不下发 PLC，寿命元件先读它）。
 // 起工艺前看供液就绪（腔体 machine.xml 上配供液模块名，开机按名字取，配错开机报，没就绪挡下，开工后掉了不管，EC 开关能关掉）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数、寿命次数写进临时库。
 
@@ -60,7 +60,7 @@ try
 {
     // 0. 假 PLC、IO 表（0~9 号点）、内存 EC；接线：Door 0/1、Bowl 2/3、Lift 4/5（DO 与 DI 同号），
     //    DIW 喷嘴只有 DO 6（不接反馈）、流量 AO 0，SC1 喷嘴 DO 7 / DI 7、流量 AO 1，两根轴各一对数据块。
-    // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+    // 点表放进 IO 元件的点表目录：它开机准备时读点表、取 PLC
     string points = "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n"
         + string.Concat(Enumerable.Range(0, 10).Select(i => $"{i},P{i},0,0,0,0\n"));
     foreach (string table in new[] { "DI", "DO", "AO" })
@@ -71,10 +71,10 @@ try
     var plc = new FakePlc();
     SmokeIoc.Use<IPlcIo>(plc);
     SmokeIoc.Use<IPlcBlock>(plc);
-    var io = new IoComponent { PointTableDirectory = directory };
+    var io = new IoElement { PointTableDirectory = directory };
     SmokeIoc.Use<IIo>(io);
-    io.InitComponent();
-    SmokeIoc.Use<IEc>(new EcComponent());
+    io.InitElement();
+    SmokeIoc.Use<IEc>(new EcElement());
     plc.Cylinders.Add((0, 1, 0, 1));
     plc.Cylinders.Add((2, 3, 2, 3));
     plc.Cylinders.Add((4, 5, 4, 5));
@@ -86,27 +86,27 @@ try
     plc.AddAxis("Arm.Command", "Arm.Status");
 
     var chamber = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber9", enabled: true)]).Single();
-    var door = Find<ChamberDoorComponent>(chamber, "Door");
-    var bowl = Find<ChamberBowlComponent>(chamber, "Bowl1");
-    var lift = Find<ChamberLiftComponent>(chamber, "Lift");
-    var spin = Find<SpinMotorComponent>(chamber, "SpinMotor");
-    var arm = Find<SwingArmComponent>(chamber, "Arm1");
-    var diw = Find<NozzleComponent>(chamber, "Nozzle_DIW");
-    var sc1 = Find<NozzleComponent>(chamber, "Nozzle_SC1");
+    var door = Find<ChamberDoorElement>(chamber, "Door");
+    var bowl = Find<ChamberBowlElement>(chamber, "Bowl1");
+    var lift = Find<ChamberLiftElement>(chamber, "Lift");
+    var spin = Find<SpinMotorElement>(chamber, "SpinMotor");
+    var arm = Find<SwingArmElement>(chamber, "Arm1");
+    var diw = Find<NozzleElement>(chamber, "Nozzle_DIW");
+    var sc1 = Find<NozzleElement>(chamber, "Nozzle_SC1");
     Check(spin.Open(plc) && arm.Open(plc), "轴登记数据块");
 
-    // 到位反馈、流量开关是子节点，各设备做组件初始化时认（腔体自己的组件初始化在第 17 节测）；反馈防抖设 0，一拍就认
-    foreach (var sensor in chamber.FindChildren<DiSensorComponent>())
+    // 到位反馈、流量开关是子节点，各设备做元件初始化时认（腔体自己的元件初始化在第 17 节测）；反馈防抖设 0，一拍就认
+    foreach (var sensor in chamber.FindChildren<DiSensorElement>())
     {
         sensor.DebounceMs = 0;
     }
 
-    Check(door.InitComponent() && bowl.InitComponent() && lift.InitComponent() && diw.InitComponent() && sc1.InitComponent(),
-        "门、Bowl、Lift、喷嘴的组件初始化：认出到位反馈、流量开关");
-    // 腔体自己的组件初始化（开机由装配器调）：照 machine.xml 认一遍腔体里装的设备存起来；这时没装晶圆账，不登记槽位（第 17 节再测登记）
-    Check(chamber.InitComponent(), "腔体的组件初始化：认出腔体里装的设备");
-    // 开机 Bind：设备取 IO 组件
-    ComponentLoader.BindAll([chamber]);
+    Check(door.InitElement() && bowl.InitElement() && lift.InitElement() && diw.InitElement() && sc1.InitElement(),
+        "门、Bowl、Lift、喷嘴的元件初始化：认出到位反馈、流量开关");
+    // 腔体自己的元件初始化（开机由装配器调）：照 machine.xml 认一遍腔体里装的设备存起来；这时没装晶圆账，不登记槽位（第 17 节再测登记）
+    Check(chamber.InitElement(), "腔体的元件初始化：认出腔体里装的设备");
+    // 开机 Bind：设备取 IO 元件
+    ElementLoader.BindAll([chamber]);
     var service = new ChamberService();
 
     void Tick(int count = 1)
@@ -238,12 +238,12 @@ try
     flexibleConfig.Children[1].Name = "OuterCup";
     var flexibleArm = flexibleConfig.Children[3];
     flexibleArm.Children[0].Name = "VerticalMount";
-    flexibleArm.Children.Insert(0, Node("Lift", typeof(CylinderComponent)));
-    flexibleConfig.Children.Insert(0, Node("Door", typeof(CylinderComponent)));
-    flexibleConfig.Children.Add(Node("Bowl99", typeof(CylinderComponent)));
-    flexibleConfig.Children.Add(Node("InnerCup", typeof(ChamberBowlComponent)));
+    flexibleArm.Children.Insert(0, Node("Lift", typeof(CylinderElement)));
+    flexibleConfig.Children.Insert(0, Node("Door", typeof(CylinderElement)));
+    flexibleConfig.Children.Add(Node("Bowl99", typeof(CylinderElement)));
+    flexibleConfig.Children.Add(Node("InnerCup", typeof(ChamberBowlElement)));
     var flexible = (SmokeChamber)SmokeIoc.Load([flexibleConfig]).Single();
-    Check(flexible.InitComponent(), "改名的腔体组件初始化：照 machine.xml 认设备");
+    Check(flexible.InitElement(), "改名的腔体元件初始化：照 machine.xml 认设备");
     Check(flexible.Door?.Name == "FrontGate", "改名的腔门按接口识别，普通气缸叫 Door 也不会被认成腔门");
     Check(flexible.Bowls.Select(item => item.Name).SequenceEqual(["OuterCup", "InnerCup"]),
         "多层接液杯按接口识别，普通气缸叫 Bowl99 也不会混进来");
@@ -254,11 +254,11 @@ try
         "设备图推送跟着真实实例路径，改名不改变部件位置");
     Check(flexible.Cylinders.Count == 7, "普通气缸仍在手动气缸表里，只是不冒充门、Bowl 或 Lift");
 
-    // 同一接口允许另一种实现：这两个探针不继承 CylinderComponent，动作执行器仍能发、等和推送。
+    // 同一接口允许另一种实现：这两个探针不继承 CylinderElement，动作执行器仍能发、等和推送。
     var interfaceConfig = Node("InterfaceOnly", typeof(SmokeChamber));
     interfaceConfig.Children = [Node("AccessGate", typeof(InterfaceDoorProbe)), Node("Collector", typeof(InterfaceBowlProbe))];
     var interfaceChamber = (SmokeChamber)SmokeIoc.Load([interfaceConfig]).Single();
-    Check(interfaceChamber.InitComponent(), "只提供部件接口的腔体初始化成功");
+    Check(interfaceChamber.InitElement(), "只提供部件接口的腔体初始化成功");
     var interfaceHome = interfaceChamber.Home().Result;
     for (int index = 0; index < 8; index++)
     {
@@ -287,7 +287,7 @@ try
         var rejected = (SmokeChamber)SmokeIoc.Load([config]).Single();
         try
         {
-            rejected.InitComponent();
+            rejected.InitElement();
             Check(false, message);
         }
         catch (InvalidOperationException exception)
@@ -297,13 +297,13 @@ try
     }
 
     var duplicateDoor = ChamberConfig("DuplicateDoor", enabled: true);
-    duplicateDoor.Children.Add(Node("OtherGate", typeof(ChamberDoorComponent)));
+    duplicateDoor.Children.Add(Node("OtherGate", typeof(ChamberDoorElement)));
     RejectDuplicate(duplicateDoor, nameof(IChamberDoor), "同一腔体配置两个腔门，开机报错");
     var duplicateSpin = ChamberConfig("DuplicateSpin", enabled: true);
-    duplicateSpin.Children.Add(Node("OtherSpin", typeof(SpinMotorComponent)));
+    duplicateSpin.Children.Add(Node("OtherSpin", typeof(SpinMotorElement)));
     RejectDuplicate(duplicateSpin, nameof(ISpinMotor), "同一腔体配置两个卡盘，开机报错");
     var duplicateLift = ChamberConfig("DuplicateLift", enabled: true);
-    duplicateLift.Children[3].Children.Add(Node("OtherLift", typeof(ChamberLiftComponent)));
+    duplicateLift.Children[3].Children.Add(Node("OtherLift", typeof(ChamberLiftElement)));
     RejectDuplicate(duplicateLift, nameof(IChamberLift), "同一摆臂配置两个升降部件，开机报错");
     var duplicateBlock = ChamberConfig("DuplicateBlock", enabled: true);
     duplicateBlock.Children[3].Values[0].Value = "Spin.Command";
@@ -378,7 +378,7 @@ try
     SetSpinSpeed(0);
     Check(!SpinDto().IsBusy, "停了不报忙，不算在转");
 
-    // 摆臂：回零后 0 位 = Home；示教位默认 Edge12 = 0（第一个边缘，跟 Home 重合）、Center = 150（晶圆中心）；没配晶圆尺寸组件按 12 寸
+    // 摆臂：回零后 0 位 = Home；示教位默认 Edge12 = 0（第一个边缘，跟 Home 重合）、Center = 150（晶圆中心）；没配晶圆尺寸元件按 12 寸
     double Reach()
     {
         return ArmDto().Reach;
@@ -391,7 +391,7 @@ try
 
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
     SmokeIoc.Use<IWaferSize>(null);
-    // 摆臂开机 Bind 时取晶圆尺寸组件：换了要重新 Bind
+    // 摆臂开机 Bind 时取晶圆尺寸元件：换了要重新 Bind
     arm.Bind();
     Check(Near(arm.Center, 150) && Near(arm.Edge12, 0) && Near(arm.Edge, 0) && Near(arm.Edge8, 50),
         "示教位默认 Center = 150、Edge12 = 0（轴位置按 12 寸晶圆坐标走）、Edge8 = 50（12 寸边缘往里 50）；没配晶圆尺寸用 Edge12");
@@ -430,16 +430,16 @@ try
     SetArm(0);
     Check(Reach() == 0 && Near(EdgeReach(), 0.5), "回到 0 位，示教位恢复");
 
-    // 8 寸 / 12 寸：边缘示教位各一个、Center 共用；半径 8 寸 100、12 寸 150，按晶圆尺寸组件现在的尺寸换算
-    var waferSize = new WaferSizeComponent { Size = WaferSizeComponent.Inch8 };
+    // 8 寸 / 12 寸：边缘示教位各一个、Center 共用；半径 8 寸 100、12 寸 150，按晶圆尺寸元件现在的尺寸换算
+    var waferSize = new WaferSizeElement { Size = WaferSizeElement.Inch8 };
     SmokeIoc.Use<IWaferSize>(waferSize);
     arm.Bind();
-    Check(IocHelper.GetService<IWaferSize>() == waferSize && WaferSizeComponent.SizeOf(waferSize) == 8, "配了晶圆尺寸组件就按它的尺寸");
+    Check(IocHelper.GetService<IWaferSize>() == waferSize && WaferSizeElement.SizeOf(waferSize) == 8, "配了晶圆尺寸元件就按它的尺寸");
     arm.Edge8 = 125;
     Check(Near(arm.Edge, 125) && Near(arm.ToAxisPosition(0), 125) && Near(arm.ToAxisPosition(100), 200) && Near(arm.ToAxisPosition(50), 162.5),
         "8 寸：配方 0 → Edge8，100（8 寸中心）→ Center，中间线性");
     Check(Near(EdgeReach(), 125.0 / 200), "8 寸：三维图的边缘按 Edge8 画");
-    waferSize.Size = WaferSizeComponent.Inch12;
+    waferSize.Size = WaferSizeElement.Inch12;
     Check(Near(arm.Edge, 100) && Near(arm.ToAxisPosition(0), 100) && Near(arm.ToAxisPosition(150), 200) && Near(EdgeReach(), 0.5),
         "切回 12 寸：按 Edge12 和半径 150，8 寸的示教位留着不动");
     SmokeIoc.Use<IWaferSize>(previousWaferSize);
@@ -479,7 +479,7 @@ try
     response = Run(() => service.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, "Chamber9"))));
     Check(response.Success && chamber.Mode == ModuleMode.Maintenance, "腔体切维护：Mode 变 Maintenance");
 
-    // 5. 设备动作出错：找不到（轴的动作给了气缸路径、不是轴也不是气缸的组件）、参数不对、模块不存在
+    // 5. 设备动作出错：找不到（轴的动作给了气缸路径、不是轴也不是气缸的元件）、参数不对、模块不存在
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Nope")));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceNotFound
         && response.Args.SequenceEqual(["Chamber9", "Chamber9.Nope"]), "找不到设备：chamber.device_not_found [模块, 路径]");
@@ -968,7 +968,7 @@ try
 
     // 16. 停用的腔体不发设备动作
     var disabled = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber8", enabled: false)]).Single();
-    Check(disabled.InitComponent() && disabled.Door is not null, "停用的腔体也做组件初始化：照样认设备（推送、手动页看得到），不占账");
+    Check(disabled.InitElement() && disabled.Door is not null, "停用的腔体也做元件初始化：照样认设备（推送、手动页看得到），不占账");
     var disabledService = new ChamberService();
     bool Disabled(RpcResponse reply)
     {
@@ -982,21 +982,21 @@ try
         "停用的腔体复位、中止被拒：模块直接带原因回（module.disabled）");
     Check(disabled.State == ModuleState.NotInit && disabled.CurrentRoutine is null, "停用的腔体被拒的动作都没挂上，状态不动");
 
-    // 17. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
+    // 17. 元件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
     //     模块初始化 InitModule 就是 Home（人或调度才调）；停用的腔体连账都不占
     var previousLedger = IocHelper.GetService<ILedgerManager>();
-    var ledger = new LedgerManagerComponent();
+    var ledger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(ledger);
     try
     {
         var armBefore = arm.ActionState;
         var spinBefore = spin.ActionState;
-        Check(chamber.InitComponent(), "腔体的组件初始化应成功（设备都没有自己的开机动作）");
+        Check(chamber.InitElement(), "腔体的元件初始化应成功（设备都没有自己的开机动作）");
         Check(ledger.IsRegistered("Chamber9") && ledger.GetSlots("Chamber9").Count == chamber.SlotCount,
-            "腔体的组件初始化登记了晶圆账槽位");
+            "腔体的元件初始化登记了晶圆账槽位");
         Check(arm.ActionState == armBefore && spin.ActionState == spinBefore && chamber.CurrentRoutine is null,
-            "组件初始化一路递归下去也不动轴：摆臂和卡盘的动作状态没变，腔体没挂操作");
-        Check(disabled.InitComponent() && !ledger.IsRegistered("Chamber8"), "停用的腔体：组件初始化连账都不占");
+            "元件初始化一路递归下去也不动轴：摆臂和卡盘的动作状态没变，腔体没挂操作");
+        Check(disabled.InitElement() && !ledger.IsRegistered("Chamber8"), "停用的腔体：元件初始化连账都不占");
 
         var fresh = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber7", enabled: true)]).Single();
         var home = fresh.InitModule();
@@ -1007,20 +1007,20 @@ try
         SmokeIoc.Use<ILedgerManager>(previousLedger);
     }
 
-    // 18. 部件寿命（次数）：寿命组件挂在气缸下面、盯它开侧的 DO 8，气缸本身一行不改；DO 每变一次算一次（断→通、通→断各一次），
+    // 18. 部件寿命（次数）：寿命元件挂在气缸下面、盯它开侧的 DO 8，气缸本身一行不改；DO 每变一次算一次（断→通、通→断各一次），
     //     读不到不算、重新读到那一拍只记下；到警告次数报警告、到报警次数报报警；已用次数按"加一"写库、开机读回接着数，清零连库一起清
     var previousAlarm = IocHelper.GetService<IAlarm>();
-    var alarms = new AlarmComponent();
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
     try
     {
-        var gateConfig = With(Node("Gate", typeof(CylinderComponent), Value("DoOpenIndex", "8"), Value("DoCloseIndex", "9")),
+        var gateConfig = With(Node("Gate", typeof(CylinderElement), Value("DoOpenIndex", "8"), Value("DoCloseIndex", "9")),
             Node("Lifetime", typeof(CountLifetimeProbe), Value("DoIndex", "8")));
-        var gate = (CylinderComponent)SmokeIoc.Load([gateConfig]).Single();
+        var gate = (CylinderElement)SmokeIoc.Load([gateConfig]).Single();
         var life = Find<CountLifetimeProbe>(gate, "Lifetime");
-        ComponentLoader.BindAll([gate]);
+        ElementLoader.BindAll([gate]);
         Check(ReferenceEquals(IocHelper.GetServices<ICountLifetime>().Single(), life) && life.FullPath == "Gate.Lifetime",
-            "寿命组件按 ICountLifetime 找得到，路径挂在气缸下面");
+            "寿命元件按 ICountLifetime 找得到，路径挂在气缸下面");
 
         bool Active(string code)
         {
@@ -1089,9 +1089,9 @@ try
         Check(WaitLifetime(3), "已用次数写进库：Gate.Lifetime 那行 3 次");
 
         // 重启：同一棵树再装一遍，开机读回接着数
-        var reloadedGate = (CylinderComponent)SmokeIoc.Load([gateConfig]).Single();
+        var reloadedGate = (CylinderElement)SmokeIoc.Load([gateConfig]).Single();
         var reloadedLife = Find<CountLifetimeProbe>(reloadedGate, "Lifetime");
-        ComponentLoader.BindAll([reloadedGate]);
+        ElementLoader.BindAll([reloadedGate]);
         Check(reloadedLife.UsedCount == 3, "重启读回来：从 3 次接着数");
 
         // 写库只给那行加一、不写总数：库里那行被改成 100，再变一次是 101，不按内存里的 4 冲掉
@@ -1122,9 +1122,9 @@ try
         var bathStarted = new DateTime(2026, 10, 1, 8, 0, 0);
         var bath = (TimeLifetimeProbe)SmokeIoc.Load([bathConfig]).Single();
         bath.Clock = bathStarted;
-        ComponentLoader.BindAll([bath]);
+        ElementLoader.BindAll([bath]);
         Check(ReferenceEquals(IocHelper.GetServices<ITimeLifetime>().Single(), bath) && bath.UsedTime == TimeSpan.Zero,
-            "时间寿命组件按 ITimeLifetime 找得到；刚开机已用时间是 0");
+            "时间寿命元件按 ITimeLifetime 找得到；刚开机已用时间是 0");
 
         bool BathActive(string code)
         {
@@ -1179,7 +1179,7 @@ try
         // 重启：关机三天后再开，从库里的起算时间接着算，关机这三天也算进去
         var reloadedBath = (TimeLifetimeProbe)SmokeIoc.Load([bathConfig]).Single();
         reloadedBath.Clock = bathStarted.AddDays(3);
-        ComponentLoader.BindAll([reloadedBath]);
+        ElementLoader.BindAll([reloadedBath]);
         Check(reloadedBath.UsedTime == TimeSpan.FromDays(3), "重启读回起算时间：关机的三天也算进去");
 
         var cleared = bathStarted.AddDays(3).AddMinutes(5);
@@ -1196,16 +1196,16 @@ try
         reloadedBath.Tick();
         Check(!BathActive(reloadedBath.WarnAlarm) && !BathActive(reloadedBath.ExpiredAlarm), "时间配 0 不管，不报");
 
-        // 20. 虚拟 IO：下面挂虚拟 DO（5000~5999），按点号读写，只在内存里、不下发 PLC，PLC 断了照样读写，IO 组件不知道它；
-        //     次数寿命组件先问虚拟 IO 有没有这个点号，有就读它（程序计数时翻一下，就跟真 DO 一样计次），没有照旧读真 DO；
+        // 20. 虚拟 IO：下面挂虚拟 DO（5000~5999），按点号读写，只在内存里、不下发 PLC，PLC 断了照样读写，IO 元件不知道它；
+        //     次数寿命元件先问虚拟 IO 有没有这个点号，有就读它（程序计数时翻一下，就跟真 DO 一样计次），没有照旧读真 DO；
         //     点号越界装配时报，点号重复开机 Bind 时报
         var virtualTree = SmokeIoc.Load([
-            With(Node("VirtualIo", typeof(VirtualIoComponent)),
-                Node("PickCount", typeof(VirtualDoComponent), Value("Index", "5000")),
-                Node("PlaceCount", typeof(VirtualDoComponent), Value("Index", "5001"))),
+            With(Node("VirtualIo", typeof(VirtualIoElement)),
+                Node("PickCount", typeof(VirtualDoElement), Value("Index", "5000")),
+                Node("PlaceCount", typeof(VirtualDoElement), Value("Index", "5001"))),
             Node("PickLife", typeof(CountLifetimeProbe), Value("DoIndex", "5000")),
             Node("ValveLife", typeof(CountLifetimeProbe), Value("DoIndex", "8"))]);
-        ComponentLoader.BindAll(virtualTree);
+        ElementLoader.BindAll(virtualTree);
         var virtualIo = IocHelper.GetService<IVirtualIo>()!;
         var pickLife = (CountLifetimeProbe)virtualTree[1];
         var valveLife = (CountLifetimeProbe)virtualTree[2];
@@ -1220,7 +1220,7 @@ try
         virtualIo.ToggleDo(5000);
         pickLife.Tick();
         Check(pickLife.UsedCount == 2 && !plc.ReadDo(5000) && !io.TryReadDo(5000, out _),
-            "翻两次，寿命组件计 2 次；没往 PLC 下发，IO 组件也不知道这个点");
+            "翻两次，寿命元件计 2 次；没往 PLC 下发，IO 元件也不知道这个点");
         plc.IsConnected = false;
         virtualIo.ToggleDo(5000);
         pickLife.Tick();
@@ -1235,7 +1235,7 @@ try
         string outOfRange = string.Empty;
         try
         {
-            SmokeIoc.Load([With(Node("VirtualIo", typeof(VirtualIoComponent)), Node("BadIndex", typeof(VirtualDoComponent), Value("Index", "4000")))]);
+            SmokeIoc.Load([With(Node("VirtualIo", typeof(VirtualIoElement)), Node("BadIndex", typeof(VirtualDoElement), Value("Index", "4000")))]);
         }
         catch (InvalidOperationException exception)
         {
@@ -1244,13 +1244,13 @@ try
 
         Check(outOfRange.Contains("5000~5999"), "点号不在 5000~5999：装配时就报");
 
-        var duplicateTree = SmokeIoc.Load([With(Node("VirtualIo", typeof(VirtualIoComponent)),
-            Node("PickA", typeof(VirtualDoComponent), Value("Index", "5003")),
-            Node("PickB", typeof(VirtualDoComponent), Value("Index", "5003")))]);
+        var duplicateTree = SmokeIoc.Load([With(Node("VirtualIo", typeof(VirtualIoElement)),
+            Node("PickA", typeof(VirtualDoElement), Value("Index", "5003")),
+            Node("PickB", typeof(VirtualDoElement), Value("Index", "5003")))]);
         string duplicated = string.Empty;
         try
         {
-            ComponentLoader.BindAll(duplicateTree);
+            ElementLoader.BindAll(duplicateTree);
         }
         catch (InvalidOperationException exception)
         {
@@ -1266,9 +1266,9 @@ try
         //     两个配成同一个 DO 装配时就报。时间由探针摆
         ModuleConfig[] timeConfigs =
         [
-            With(Node("VirtualIo", typeof(VirtualIoComponent)),
-                Node("PumpRun", typeof(VirtualDoComponent), Value("Index", "5010")),
-                Node("NewChemical", typeof(VirtualDoComponent), Value("Index", "5011"))),
+            With(Node("VirtualIo", typeof(VirtualIoElement)),
+                Node("PumpRun", typeof(VirtualDoElement), Value("Index", "5010")),
+                Node("NewChemical", typeof(VirtualDoElement), Value("Index", "5011"))),
             Node("PumpLife", typeof(TimeLifetimeProbe), Value("DoIndex", "5010")),
             Node("ChemicalLife", typeof(TimeLifetimeProbe), Value("ClearDoIndex", "5011")),
             Node("HeaterLife", typeof(TimeLifetimeProbe), Value("DoIndex", "8")),
@@ -1282,7 +1282,7 @@ try
         pump.Clock = timeStarted;
         chemical.Clock = timeStarted;
         heater.Clock = timeStarted;
-        ComponentLoader.BindAll(timeTree);
+        ElementLoader.BindAll(timeTree);
 
         // 库里那行等后台写成想要的样子（"没有这张表"当没写到，见 18 节）
         bool WaitTimeRow(string path, Func<TimeLifetimeEntity, bool> match)
@@ -1378,7 +1378,7 @@ try
         var reloadedChemical = (TimeLifetimeProbe)reloadedTimeTree[2];
         reloadedPump.Clock = timeStarted.AddDays(9);
         reloadedChemical.Clock = timeStarted.AddDays(4);
-        ComponentLoader.BindAll(reloadedTimeTree);
+        ElementLoader.BindAll(reloadedTimeTree);
         reloadedPump.Tick();
         reloadedPump.Uptime += TimeSpan.FromHours(1);
         reloadedPump.Tick();
@@ -1486,7 +1486,7 @@ try
         + "process by recipe: lift / bowl up, rpm, arm to wafer position, nozzle by chemical with flow, Time / Scan, finish, "
         + "missing steps, recipe mismatch, rpm over limit, timeout, abort; process starts counted per day in the database (adding one to the day, "
         + "never overwriting it) and read back, start timestamps on the monotonic clock, "
-        + "process percent by recipe step times; disabled chamber, component init and module init = Home; "
+        + "process percent by recipe step times; disabled chamber, element init and module init = Home; "
         + "part lifetime by count (every change of a DO, stored by adding one) and by time (since the last clear, through shutdowns), "
         + "warn / alarm thresholds, read back, clear on part change; a time lifetime counting only while a DO is on (monotonic clock, "
         + "saved by adding whole seconds, read back) or restarted by every change of a DO, the same DO for both refused at load; "
@@ -1513,7 +1513,7 @@ finally
     }
 }
 
-static T Find<T>(ComponentBase root, string name) where T : class
+static T Find<T>(ElementBase root, string name) where T : class
 {
     var found = root.FindChild<T>(name);
     if (found is null)
@@ -1534,10 +1534,10 @@ static ModuleConfig Node(string name, Type type, params ValueConfig[] values)
     return new ModuleConfig { Name = name, Type = type.FullName, Values = [.. values] };
 }
 
-// 到位反馈 / 流量开关：一个 DI 组件子节点（高电平触发、不自己报警）
+// 到位反馈 / 流量开关：一个 DI 元件子节点（高电平触发、不自己报警）
 static ModuleConfig Feedback(string name, int di)
 {
-    return Node(name, typeof(DiSensorComponent), Value("DiIndex", di.ToString()), Value("TriggerValue", "true"), Value("AlarmEnabled", "False"));
+    return Node(name, typeof(DiSensorElement), Value("DiIndex", di.ToString()), Value("TriggerValue", "true"), Value("AlarmEnabled", "False"));
 }
 
 static ModuleConfig With(ModuleConfig node, params ModuleConfig[] children)
@@ -1549,26 +1549,26 @@ static ModuleConfig With(ModuleConfig node, params ModuleConfig[] children)
 static ModuleConfig ChamberConfig(string name, bool enabled)
 {
     // SC1 下面挂流量开关（Feedback，DI 7）和流量计（监控使能 DO 填它的阀 DO 7）；DIW 都不挂，当没流量开关、没流量计的一路
-    var sc1Node = With(Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("NormalState", "NC"), Value("Chemical", "SC1"), Value("AoIndex", "1")),
+    var sc1Node = With(Node("Nozzle_SC1", typeof(NozzleElement), Value("DoIndex", "7"), Value("NormalState", "NC"), Value("Chemical", "SC1"), Value("AoIndex", "1")),
         Feedback("Feedback", 7),
-        Node("Flow", typeof(AiSensorComponent), Value("AiIndex", "0"), Value("MonitoringDoIndex", "7"), Value("IsPercentOfTarget", "True")));
-    var arm = With(Node("Arm1", typeof(SwingArmComponent), Value("SendPlcDataPath", "Arm.Command"), Value("ReceivePlcDataPath", "Arm.Status")),
-        With(Node("Lift", typeof(ChamberLiftComponent), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5")),
+        Node("Flow", typeof(AiSensorElement), Value("AiIndex", "0"), Value("MonitoringDoIndex", "7"), Value("IsPercentOfTarget", "True")));
+    var arm = With(Node("Arm1", typeof(SwingArmElement), Value("SendPlcDataPath", "Arm.Command"), Value("ReceivePlcDataPath", "Arm.Status")),
+        With(Node("Lift", typeof(ChamberLiftElement), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5")),
             Feedback("Opened", 4), Feedback("Closed", 5)),
-        Node("Nozzle_DIW", typeof(NozzleComponent), Value("DoIndex", "6"), Value("NormalState", "NC"), Value("Chemical", "DIW"), Value("AoIndex", "0")),
+        Node("Nozzle_DIW", typeof(NozzleElement), Value("DoIndex", "6"), Value("NormalState", "NC"), Value("Chemical", "DIW"), Value("AoIndex", "0")),
         sc1Node);
     return With(Node(name, typeof(SmokeChamber), Value("IsEnable", enabled.ToString())),
-        With(Node("Door", typeof(ChamberDoorComponent), Value("DoOpenIndex", "0"), Value("DoCloseIndex", "1")),
+        With(Node("Door", typeof(ChamberDoorElement), Value("DoOpenIndex", "0"), Value("DoCloseIndex", "1")),
             Feedback("Opened", 0), Feedback("Closed", 1)),
-        With(Node("Bowl1", typeof(ChamberBowlComponent), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3")),
+        With(Node("Bowl1", typeof(ChamberBowlElement), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3")),
             Feedback("Opened", 2), Feedback("Closed", 3)),
-        Node("SpinMotor", typeof(SpinMotorComponent), Value("SendPlcDataPath", "Spin.Command"), Value("ReceivePlcDataPath", "Spin.Status")),
+        Node("SpinMotor", typeof(SpinMotorElement), Value("SendPlcDataPath", "Spin.Command"), Value("ReceivePlcDataPath", "Spin.Status")),
         arm,
-        Node("WaferSensor", typeof(DiSensorComponent), Value("DiIndex", "8"), Value("AlarmEnabled", "False")));
+        Node("WaferSensor", typeof(DiSensorElement), Value("DiIndex", "8"), Value("AlarmEnabled", "False")));
 }
 
 /// <summary>冒烟用腔体：跟机型一样什么都不写，回零、复位、中止、工艺全用平台的；Tick 由冒烟线程手动走一拍。</summary>
-[Component(description: "冒烟用腔体")]
+[Element(description: "冒烟用腔体")]
 public sealed class SmokeChamber : BaseChamberModule
 {
     public void Tick()
@@ -1578,10 +1578,10 @@ public sealed class SmokeChamber : BaseChamberModule
 }
 
 /// <summary>
-/// 冒烟用寿命组件：读真 IO 组件，Tick 由冒烟线程手动走一拍
+/// 冒烟用寿命元件：读真 IO 元件，Tick 由冒烟线程手动走一拍
 /// </summary>
-[Component(description: "冒烟用寿命组件")]
-public sealed class CountLifetimeProbe : CountLifetimeComponent
+[Element(description: "冒烟用寿命元件")]
+public sealed class CountLifetimeProbe : CountLifetimeElement
 {
     public void Tick()
     {
@@ -1590,10 +1590,10 @@ public sealed class CountLifetimeProbe : CountLifetimeComponent
 }
 
 /// <summary>
-/// 冒烟用时间寿命组件：现在几点、开机计时由冒烟摆，Tick 由冒烟线程手动走一拍
+/// 冒烟用时间寿命元件：现在几点、开机计时由冒烟摆，Tick 由冒烟线程手动走一拍
 /// </summary>
-[Component(description: "冒烟用时间寿命组件")]
-public sealed class TimeLifetimeProbe : TimeLifetimeComponent
+[Element(description: "冒烟用时间寿命元件")]
+public sealed class TimeLifetimeProbe : TimeLifetimeElement
 {
     /// <summary>
     /// 冒烟摆的现在时间
@@ -1622,7 +1622,7 @@ public sealed class TimeLifetimeProbe : TimeLifetimeComponent
 }
 
 /// <summary>只实现气缸接口的探针，不借用气缸具体类，动作立即完成。</summary>
-public abstract class InterfaceCylinderProbe : ComponentBase, ICylinder
+public abstract class InterfaceCylinderProbe : ElementBase, ICylinder
 {
     private bool _opened;
 
@@ -1651,13 +1651,13 @@ public abstract class InterfaceCylinderProbe : ComponentBase, ICylinder
 }
 
 /// <summary>腔门的另一种实现，证明模块按接口而不是具体类执行。</summary>
-[Component(description: "接口腔门探针")]
+[Element(description: "接口腔门探针")]
 public sealed class InterfaceDoorProbe : InterfaceCylinderProbe, IChamberDoor
 {
 }
 
 /// <summary>接液杯的另一种实现，证明整腔操作按接口控制升降。</summary>
-[Component(description: "接口接液杯探针")]
+[Element(description: "接口接液杯探针")]
 public sealed class InterfaceBowlProbe : InterfaceCylinderProbe, IChamberBowl
 {
     /// <summary>模拟升到位。</summary>
@@ -1676,8 +1676,8 @@ public sealed class InterfaceBowlProbe : InterfaceCylinderProbe, IChamberBowl
 /// <summary>
 /// 冒烟用的供液模块：只实现给别的模块用的那一面，名字照 machine.xml 节点名，就绪由冒烟摆；证明腔体按接口、按 machine.xml 配的名字取
 /// </summary>
-[Component(description: "冒烟用供液模块")]
-public sealed class SupplyProbe : ComponentBase, ISupplyAccess
+[Element(description: "冒烟用供液模块")]
+public sealed class SupplyProbe : ElementBase, ISupplyAccess
 {
     /// <summary>
     /// 能不能供液：冒烟摆
@@ -2000,7 +2000,7 @@ public sealed class FakePlc : IPlcIo, IPlcBlock
 }
 
 /// <summary>
-/// 冒烟里不是组件的地方记日志用的来源：只有第一层
+/// 冒烟里不是元件的地方记日志用的来源：只有第一层
 /// </summary>
 sealed class SmokeLog(string module) : ILogSource
 {

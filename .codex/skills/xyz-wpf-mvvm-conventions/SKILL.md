@@ -9,12 +9,12 @@ Use these rules for WPF client work in the xyz repository.
 
 ## Architecture / layering
 
-- This is a front-end/back-end separated project. Client/UI projects must not reference any backend project (`xyz.Service`, `xyz.Modules`, `xyz.Components`, ...); they only use the contracts in `xyz.Shared`.
+- This is a front-end/back-end separated project. Client/UI projects must not reference any backend project (`xyz.Service`, `xyz.Modules`, `xyz.Elements`, ...); they only use the contracts in `xyz.Shared`.
 - Client calls the backend through the code-first gRPC contracts in `xyz.Shared/Services`, getting the proxy from `GrpcClientFactory.Create<IXxxService>()` (`xyz.Client.Common`, it wraps `CreateGrpcService<T>()`); do not build channels or proxies yourself.
 - Every call takes `RpcRequest` and returns `RpcResponse`; there are no per-call request classes. Parameters go by name into `RpcRequest.Parameters`, and the names are the constants in `xyz.Shared.Rpc.RpcParams`: client `RpcRequest.Of((RpcParams.Module, name))`, server `request.TryGet<int>(RpcParams.Index, out var index)`.
 - Service interfaces and DTOs belong in the contract layer `xyz.Shared`. Do not define service interfaces in Client projects.
 - Keep `xyz.Shared` organized: service contracts in `xyz.Shared/Services`, DTOs (including `RpcRequest`, `RpcResponse`, `HandleResult`) in `xyz.Shared/Dtos`, error codes in `xyz.Shared/Errors`, permission codes in `xyz.Shared/Permissions`, `RpcParams` / `RpcHeaders` in `xyz.Shared/Rpc`.
-- Mapping uses Mapster. Client: `dto.Adapt<XxxModel>()` turns a contract DTO into a display model. Backend: go through the mapper component (`IMapper`; platform rules in `MapperComponent.AddRules`, which projects override) instead of hand-written `ToDto` methods. Example chain: `RoleEntity` (database, `xyz.Database`) -> DTO in `xyz.Shared/Dtos` -> `RoleModel` (client display). Keep identity properties aligned (`long Id`) so mapping stays simple.
+- Mapping uses Mapster. Client: `dto.Adapt<XxxModel>()` turns a contract DTO into a display model. Backend: go through the mapper element (`IMapper`; platform rules in `MapperElement.AddRules`, which projects override) instead of hand-written `ToDto` methods. Example chain: `RoleEntity` (database, `xyz.Database`) -> DTO in `xyz.Shared/Dtos` -> `RoleModel` (client display). Keep identity properties aligned (`long Id`) so mapping stays simple.
 - A service contract looks like `IRoleService`: `[ServiceContract]`, each method `[OperationContract] Task<RpcResponse> XxxAsync(RpcRequest request, CallContext context = default)`.
 - `xyz.Service` holds the service implementations; they inherit `BaseService` and reply with its `Reply` / `ReplyData` / `Fail` / `NotInstalled` / `InvalidRequest`. `xyz.GrpcHost` finds the one implementation of each contract and maps it at startup, so adding a service needs no registration.
 
@@ -69,7 +69,7 @@ Use these rules for WPF client work in the xyz repository.
 - Use `xyz.Client.Presentation.Controls.InputTextBox` for every text or number input; do not add bare `TextBox` input fields.
 - Bind `Value` (the committed legal value, two-way by default), never `Text` (`Text` is the raw text being typed and carries the control's validation).
 - Set `DataType` (`Text` / `Integer` / `Decimal`). Range limits (`Minimum` / `Maximum`) and `Unit` only apply to numbers; `Text` has no range.
-- For EC-backed parameters set `EcKey="<component full path>.<parameter name>"` (e.g. `LoadPort1.LoadTimeout`); type, limits and unit come from the EC definition. Values written in XAML override EC; nothing configured means no validation.
+- For EC-backed parameters set `EcKey="<element full path>.<parameter name>"` (e.g. `LoadPort1.LoadTimeout`); type, limits and unit come from the EC definition. Values written in XAML override EC; nothing configured means no validation.
 - Validation: format is checked while typing (only input that can never become valid is flagged); range is checked on commit (Enter / focus loss). Invalid input shows the red error and is not passed to `Value`, which keeps the last legal value.
 - When a command sends the value (e.g. a "send" button), bind `HasError` with `Mode=OneWayToSource` and do not send while it is true. Inside table rows set `materialDesign:ValidationAssist.UsePopup="True"` so the message is not clipped.
 

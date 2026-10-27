@@ -135,7 +135,7 @@ public class InputTextBox : TextBox
     }
 
     /// <summary>
-    /// 从哪项 EC 取类型、范围、单位："组件全路径.参数名"，如 LoadPort1.LoadTimeout、Chamber1.Door.ActionTimeoutMs。
+    /// 从哪项 EC 取类型、范围、单位："元件全路径.参数名"，如 LoadPort1.LoadTimeout、Chamber1.Door.ActionTimeoutMs。
     /// 可以绑定（按模块拼出来的键）；EC 里没有这项就当没配。
     /// </summary>
     public string EcKey

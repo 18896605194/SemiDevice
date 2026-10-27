@@ -9,7 +9,7 @@ namespace xyz.Client.Presentation.Models;
 public class AlarmModel
 {
     /// <summary>
-    /// 报警来源的组件路径，如 LoadPort1、Robot1。
+    /// 报警来源的元件路径，如 LoadPort1、Robot1。
     /// </summary>
     public string Source { get; init; } = string.Empty;
 

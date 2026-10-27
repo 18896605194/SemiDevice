@@ -141,7 +141,7 @@ lock (gate)
         "LogHelper 入队内容被改变。");
 }
 
-// 4.1) 组件写的带两层名字：第一层模块、第二层部件
+// 4.1) 元件写的带两层名字：第一层模块、第二层部件
 var beforeSource = DeliveredCount();
 LogHelper.Warn(new SmokeSource("LoadPort.LoadPort1", "RFID.Serial"), "读码超时");
 Check(WaitFor(beforeSource + 1), "带两层名字的日志没入队。");

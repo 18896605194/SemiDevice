@@ -1,7 +1,7 @@
-﻿using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+﻿using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -16,13 +16,13 @@ namespace xyz.Service;
 /// </summary>
 public class ChamberService : BaseService, IChamberService
 {
-    private readonly IRecipeComponent? _recipes;
+    private readonly IRecipeElement? _recipes;
     private readonly ILedgerManager? _wafers;
     private readonly IJobManager? _jobs;
 
     public ChamberService()
     {
-        _recipes = IocHelper.GetService<IRecipeComponent>();
+        _recipes = IocHelper.GetService<IRecipeElement>();
         _wafers = IocHelper.GetService<ILedgerManager>();
         _jobs = IocHelper.GetService<IJobManager>();
     }

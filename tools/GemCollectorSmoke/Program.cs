@@ -1,9 +1,9 @@
-﻿using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Collectors;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Collectors;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Tools;
 
@@ -21,7 +21,7 @@ void Check(bool condition, string message)
     checks++;
 }
 
-List<ComponentBase> Build(params string[] names) =>
+List<ElementBase> Build(params string[] names) =>
     SmokeIoc.Load(names.Select(name => new ModuleConfig { Name = name, Type = typeof(ProbeTool).FullName }).ToList());
 
 int IdOf<T>(IReadOnlyList<T> rows, string name) where T : IDefinitionRow => rows.Single(row => row.Name == name).Id;
@@ -50,21 +50,21 @@ try
     Check(Ids(gem.Ec.Definitions).SequenceEqual(Enumerable.Range(10000, 4)), "ECID 从 10000 连续分");
     Check(Ids(gem.Sv.Definitions).SequenceEqual(Enumerable.Range(30000, 4)), "SVID 从 30000 连续分");
     Check(Ids(gem.Alarm.Definitions).SequenceEqual(Enumerable.Range(50000, 4)), "ALID 从 50000 连续分（Warn 级也有 ALID）");
-    Check(Ids(gem.Event.Definitions).SequenceEqual(Enumerable.Range(70000, 6)), "CEID 从 70000 连续分：2 个组件事件 + 2 条报警×报出/清除");
+    Check(Ids(gem.Event.Definitions).SequenceEqual(Enumerable.Range(70000, 6)), "CEID 从 70000 连续分：2 个元件事件 + 2 条报警×报出/清除");
     Check(Ids(gem.Dv.Definitions).SequenceEqual(Enumerable.Range(90000, 6)), "DVID 从 90000 连续分：报警事件带的 6 个 DV");
     Check(IdOf(gem.Ec.Definitions, "Tool1.ActionTimeout") < IdOf(gem.Ec.Definitions, "Tool2.ActionTimeout"),
         "按装配顺序分号：Tool1 在 Tool2 前面");
     Check(gem.Ec.Definitions.Any(row => row.Name == "Tool1.ActionTimeout" && row.Format == "Int" && row.Unit == "ms"
                                         && row.Min == "100" && row.Max == "60000" && row.Default == "3000"),
-        "EC 全名 = 组件路径.属性名，元数据取自 [VariableMark]");
+        "EC 全名 = 元件路径.属性名，元数据取自 [VariableMark]");
     Check(gem.Sv.Definitions.Any(row => row.Name == "Tool1._carrier"), "SV 用 [VariableMark] 的 Name 覆盖采集名");
     Check(gem.Alarm.Definitions.Any(row => row.Name == "Tool1.TimeoutAlarm" && row.AlarmText == "动作超时"
                                            && row.AlarmLevel == "Light" && row.Category == "IrrecoverableError"),
-        "报警全名 = 组件路径.报警代码，文本、等级、分类取自 [Alarm]");
+        "报警全名 = 元件路径.报警代码，文本、等级、分类取自 [Alarm]");
     Check(new AlarmAttribute("不写等级", AlarmCategory.OtherCategories).AlarmLevel == AlarmLevel.Heavy,
         "[Alarm] 不写等级默认 Heavy");
     Check(IdOf(gem.Event.Definitions, "Tool1.Arrived") == 70000 && IdOf(gem.Event.Definitions, "Tool2.Arrived") == 70001,
-        "组件事件先分号，报警事件跟在后面");
+        "元件事件先分号，报警事件跟在后面");
     Check(File.ReadAllText(FileOf(EcCollector.FileName)).Contains("ECID=\"10000\""), "EcDefinitions.xml 按 ECID 写");
 
     // ── 2. 报警的报出/清除事件：非 Warn 每条两个，带 6 个报警 DV；CEID 回填进报警表；Warn 什么都没有 ───────
@@ -83,7 +83,7 @@ try
     Check(warn is not null && warn.SetEventId == 0 && warn.ClearEventId == 0
           && gem.Event.Definitions.All(row => !row.Name.StartsWith($"System.Alarm.{warn.Id}.")),
         "Warn 级报警不生成事件，事件编号填 0");
-    Check(gem.Event.Definitions.Single(row => row.Name == "Tool1.Arrived").Payloads.Count == 0, "组件事件目前不带 DV");
+    Check(gem.Event.Definitions.Single(row => row.Name == "Tool1.Arrived").Payloads.Count == 0, "元件事件目前不带 DV");
     var alarmXml = File.ReadAllText(FileOf(AlarmCollector.FileName));
     Check(alarmXml.Contains($"SetEventId=\"{setEvent.Id}\"") && alarmXml.Contains($"ClearEventId=\"{clearEvent.Id}\""),
         "AlarmDefinitions.xml 写着报出/清除 CEID");
@@ -152,8 +152,8 @@ try
     Check(refreshedRow.Description == "动作超时", "描述按代码替换回来");
     Check(!refreshedRow.Visible, "现场改的 Visible 不被代码覆盖");
 
-    // ── 8. 一键采集：EC、SV 带当前值；值在 ec.xml（EC 组件），编号表里不存值 ───────────
-    var ec = new EcComponent();
+    // ── 8. 一键采集：EC、SV 带当前值；值在 ec.xml（EC 元件），编号表里不存值 ───────────
+    var ec = new EcElement();
     SmokeIoc.Use<IEc>(ec);
     var tool1 = tools.OfType<ProbeTool>().Single(tool => tool.Name == "Tool1");
     tool1.ActionTimeout = 4567;
@@ -162,7 +162,7 @@ try
     var snapshot = refreshed.CollectAll();
     Check(snapshot.Ecs.Count == 8 && snapshot.Svs.Count == 8 && snapshot.Alarms.Count == 8
           && snapshot.Events.Count == 12 && snapshot.Dvs.Count == 6,
-        "五类一次取全（事件 = 4 个组件事件 + 4 条报警×2）");
+        "五类一次取全（事件 = 4 个元件事件 + 4 条报警×2）");
     var one = snapshot.Ecs.Single(item => item.Name == "Tool1.ActionTimeout");
     Check(one.Value == "4567" && !one.Visible
           && one.Ecid == refreshedRow.Id, "EC 采集带编号和当前值");
@@ -175,7 +175,7 @@ try
           && snapshot.Alarms.Single(item => item.Name == "Tool1.HotWarn").SetEventId == 0, "报警采集带报出/清除 CEID");
     Check(snapshot.Events.Single(item => item.Ceid == setEvent.Id).Dvids.SequenceEqual(Enumerable.Range(90000, 6)),
         "事件采集带 DVID");
-    Check(ec.Get("Tool1", nameof(ProbeTool.ActionTimeout)) == "4567", "EC 的值在 EC 组件里");
+    Check(ec.Get("Tool1", nameof(ProbeTool.ActionTimeout)) == "4567", "EC 的值在 EC 元件里");
     Check(!File.ReadAllText(ecPath).Contains("4567"), "EcDefinitions.xml 不存值");
 
     // ── 9. 表坏了：不覆盖、这一类本次不可用，别的照常 ─────────────────────────────────
@@ -246,8 +246,8 @@ Console.WriteLine($"PASS: {checks} GEM collector checks (fresh generation in fiv
 /// <summary>
 /// 冒烟用设备：EC、SV、报警（一条 Light、一条 Warn）、事件。
 /// </summary>
-[Component(description: "编号表冒烟用设备")]
-public sealed class ProbeTool : ComponentBase
+[Element(description: "编号表冒烟用设备")]
+public sealed class ProbeTool : ElementBase
 {
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "60000", @default: "3000", description: "动作超时")]
     public int ActionTimeout
@@ -283,8 +283,8 @@ public sealed class ProbeTool : ComponentBase
 /// <summary>
 /// 只有一条 Warn 级报警的设备。
 /// </summary>
-[Component(description: "只有 Warn 报警的冒烟用设备")]
-public sealed class ProbeWarnOnly : ComponentBase
+[Element(description: "只有 Warn 报警的冒烟用设备")]
+public sealed class ProbeWarnOnly : ElementBase
 {
     [Alarm("仅提示", AlarmCategory.AttentionFlags, AlarmLevel = AlarmLevel.Warn)]
     public string OnlyWarn = nameof(OnlyWarn);

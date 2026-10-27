@@ -1,8 +1,8 @@
-﻿using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Shared.Dtos;
@@ -44,7 +44,7 @@ var previousAlarm = IocHelper.GetService<IAlarm>();
 try
 {
     // 0. 假 PLC、IO 表（0~19 号点）、内存 EC、报警
-    // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+    // 点表放进 IO 元件的点表目录：它开机准备时读点表、取 PLC
     string points = "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n"
         + string.Concat(Enumerable.Range(0, 20).Select(i => $"{i},P{i},0,0,0,0\n"));
     foreach (string table in new[] { "DI", "DO", "AI" })
@@ -54,14 +54,14 @@ try
 
     var plc = new FakePlc();
     SmokeIoc.Use<IPlcIo>(plc);
-    var io = new IoComponent { PointTableDirectory = directory };
+    var io = new IoElement { PointTableDirectory = directory };
     SmokeIoc.Use<IIo>(io);
-    io.InitComponent();
-    SmokeIoc.Use<IEc>(new EcComponent());
-    var alarms = new AlarmComponent();
+    io.InitElement();
+    SmokeIoc.Use<IEc>(new EcElement());
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
 
-    bool Active(ComponentBase source, string code)
+    bool Active(ElementBase source, string code)
     {
         return alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
     }
@@ -69,8 +69,8 @@ try
     // 1. 装配：CDS、IPA 是分组，Tank1 挂五个信号；LL 配成低电平触发，别的高电平触发
     var tank = Load("Tank1", ("LL", 0, false), ("L", 1, true), ("H", 2, true), ("HH", 3, true), ("Overfill", 4, true));
     Check(tank.FullPath == "CDS.IPA.Tank1", "槽的全路径带上分组 CDS.IPA");
-    Check(tank.FindChild<DiSensorComponent>("LL")!.TriggerValue == false
-        && tank.FindChild<DiSensorComponent>("L")!.TriggerValue, "信号的触发值照 machine.xml 配的电平装上");
+    Check(tank.FindChild<DiSensorElement>("LL")!.TriggerValue == false
+        && tank.FindChild<DiSensorElement>("L")!.TriggerValue, "信号的触发值照 machine.xml 配的电平装上");
     Check(tank.Level == TankLevel.Unknown, "还没扫过，液位不知道");
 
     // 液面到了哪几个信号：按各自的触发值摆 DI
@@ -203,7 +203,7 @@ try
     Check(shared.Level == TankLevel.Normal && shared.FullPath == "CDS.IPA.Tank1", "ITank 拿得到液位和路径");
 
     // 11. 三条报警各有防抖时间（EC）：条件一直成立满这么久才报，中间断了重新计时；液位本身不等
-    var defaults = new TankComponent();
+    var defaults = new TankElement();
     Check(defaults.LevelSensorDebounceMs == 3000 && defaults.HighHighDebounceMs == 1000 && defaults.OverfillDebounceMs == 1000,
         "防抖默认值：信号异常 3000 ms、高高 1000 ms、溢流 1000 ms");
 
@@ -409,17 +409,17 @@ try
     Check(badTargetRejected, "FillTo 配成 HH：开机就报");
 
     // 模式 Mode：工艺过程中一直在变，由上面的模组经 ITank 对调，不在 machine.xml 配（写了也不认）；默认 Supply（只有一个槽的一直是它）；
-    // 也是 SV，EAP 读得到哪个槽在供液；不盖住基类的 Role（父组件给子组件声明的角色）
+    // 也是 SV，EAP 读得到哪个槽在供液；不盖住基类的 Role（父元件给子元件声明的角色）
     Check(lowTarget.Mode == TankMode.Supply, "Mode 默认 Supply");
     var configured = LoadMode("Tank15", "Pre");
     Check(configured.Mode == TankMode.Supply, "machine.xml 里写了 Mode 也不认：模式只在工艺过程中变");
     ITank rotating = configured;
     rotating.Mode = TankMode.Pre;
     Check(configured.Mode == TankMode.Pre, "上面的模组经 ITank 对调模式");
-    var modeMark = (VariableMarkAttribute?)typeof(TankComponent).GetProperty(nameof(TankComponent.Mode))!
+    var modeMark = (VariableMarkAttribute?)typeof(TankElement).GetProperty(nameof(TankElement.Mode))!
         .GetCustomAttributes(typeof(VariableMarkAttribute), false).SingleOrDefault();
     Check(modeMark is not null && modeMark.Type == VariableType.SV, "模式是 SV：EAP 读得到哪个槽在供液");
-    Check(typeof(TankComponent).GetProperties().Count(property => property.Name == nameof(ComponentBase.Role)) == 1,
+    Check(typeof(TankElement).GetProperties().Count(property => property.Name == nameof(ElementBase.Role)) == 1,
         "槽上只有基类那一个 Role，没被盖住");
 
     // 阀组里有阀开不了（DO 99 点表里没有）：拒绝，开了的全关回去
@@ -433,7 +433,7 @@ try
     // 下面阀的报警也算槽出错：供液阀等到位反馈（DI 19 一直不来）超时
     var feedback = LoadTank("Tank15", null, [("LL", 14, true), ("L", 15, true), ("H", 16, true)],
         fill: [(8, -1)], drain: [], supply: [(7, 19)]);
-    var supplyValve = feedback.FindChild<ValveComponent>("V7")!;
+    var supplyValve = feedback.FindChild<ValveElement>("V7")!;
     supplyValve.ActionTimeoutMs = 100;
     plc.SetDi(16, true);
     feedback.Tick();
@@ -456,17 +456,17 @@ try
     using var subscription = RemoteEventBus.Register<IpaDto>(ipa.Name, dto => received.Add(dto));
     plc.SetDi(10, true);
     plc.SetDi(11, false);
-    // IPA 开机 Bind 时取映射组件：换了要重新 Bind
+    // IPA 开机 Bind 时取映射元件：换了要重新 Bind
     SmokeIoc.Use<IMapper>(null);
     ipa.Bind();
     ipa.Tick();
-    Check(received.Count == 0, "没装映射组件：不推（开机时映射组件是必配的）");
-    var mapper = new MapperComponent35021();
+    Check(received.Count == 0, "没装映射元件：不推（开机时映射元件是必配的）");
+    var mapper = new MapperElement35021();
     SmokeIoc.Use<IMapper>(mapper);
     ipa.Bind();
     ipa.Tick();
     Check(received.Count == 1 && received[0].Module == "IPA" && received[0].State == ModuleState.NotInit && received[0].Tanks.Count == 1,
-        "第一拍：推一条，带 IPA 的名字、状态和下面的槽（整份 IpaDto 走 35021 映射组件自己加的规则，槽按接口拿到的也照槽的规则转）");
+        "第一拍：推一条，带 IPA 的名字、状态和下面的槽（整份 IpaDto 走 35021 映射元件自己加的规则，槽按接口拿到的也照槽的规则转）");
     var first = received[0].Tanks[0];
     Check(first.Path == "CDS.IPA.Tank16" && first.Level == (int)TankLevel.L && first.State == (int)TankState.Idle,
         "槽带全路径、液位、状态");
@@ -512,13 +512,13 @@ try
 
     // 14. AI 液位计：LL～Overfill 都挂 AI 液位信号、读同一个 AI（0 号），触发值 5 / 6 / 18 / 20 / 22 L；
     // 补液阀 DO 10、排液阀 DO 11、供液阀 DO 12
-    var levelDefaults = new AiLevelComponent();
+    var levelDefaults = new AiLevelElement();
     Check(levelDefaults.TriggerValue == 0 && levelDefaults.Tolerance == 0.2 && levelDefaults.DebounceMs == 200 && !levelDefaults.IsConfigured,
         "AI 液位信号默认：触发值没设（0）、容错 0.2 L、防抖 200 ms、没配 AI 点");
 
     var meter = LoadTank("Tank20", null, [], fill: [(10, -1)], drain: [(11, -1)], supply: [(12, -1)],
         levels: [("LL", 0, 5), ("L", 0, 6), ("H", 0, 18), ("HH", 0, 20), ("Overfill", 0, 22)]);
-    Check(meter.LL is AiLevelComponent && meter.Overfill is AiLevelComponent,
+    Check(meter.LL is AiLevelElement && meter.Overfill is AiLevelElement,
         "LL～Overfill 挂 AI 液位信号：槽照样按节点名认（都走 IDiSensor）");
 
     void Meter(double liters)
@@ -560,7 +560,7 @@ try
 
     Meter(5.79);
     Check(meter.Level == TankLevel.L, "掉到 5.8 L 以下：才算没到 L");
-    var lowSignal = meter.FindChild<AiLevelComponent>("L")!;
+    var lowSignal = meter.FindChild<AiLevelElement>("L")!;
     lowSignal.Tolerance = 0;
     Meter(6.05);
     Meter(5.95);
@@ -578,7 +578,7 @@ try
     Check(meter.Level == TankLevel.Normal, "读回来了：液位跟着读数");
 
     // 补液：防抖防读数冒尖（不然补液时冒一下就提前停了），一直到了 H 满防抖才关阀、就绪
-    var highSignal = meter.FindChild<AiLevelComponent>("H")!;
+    var highSignal = meter.FindChild<AiLevelElement>("H")!;
     highSignal.DebounceMs = 200;
     Check(meter.Fill().IsSuccess && meter.State == TankState.Filling && plc.Do(10), "10 L 补液：开补液阀");
     Meter(18.5);
@@ -616,7 +616,7 @@ try
     meter.Tick();
     Check(meter.State == TankState.Idle && !plc.Do(11), "掉到 4.8 L 以下满排空延时：关排液阀、回空闲");
 
-    // 推送：AI 液位信号跟 DI 信号一样转成带节点名和触发状态的信号（映射组件的规则），界面信号灯照旧
+    // 推送：AI 液位信号跟 DI 信号一样转成带节点名和触发状态的信号（映射元件的规则），界面信号灯照旧
     Meter(7.3);
     var meterDto = mapper.Map<TankDto>(meter);
     Check(meterDto.Level == (int)TankLevel.Normal
@@ -628,7 +628,7 @@ try
     var unset = LoadTank("Tank21", null, [], [], [], [], levels: [("L", 0, 0), ("H", 0, 18), ("HH", -1, 20)]);
     unset.Tick();
     Check(unset.Level == TankLevel.Unknown && unset.L!.IsActive is null, "L 的触发值没设：当读不到，液位不知道");
-    unset.FindChild<AiLevelComponent>("L")!.TriggerValue = 6;
+    unset.FindChild<AiLevelElement>("L")!.TriggerValue = 6;
     unset.Tick();
     Check(unset.Level == TankLevel.Normal && unset.HH is null, "在线设上触发值：下一拍生效（7.3 L 是 Normal）；HH 的 AiIndex 配成 -1 当没有这个点");
 
@@ -652,7 +652,7 @@ try
     // 15. 混着用：LL～HH 读液位计（AI 1），Overfill 是单独的 DI 浮球（DI 19）；补液阀 DO 14、排液阀 DO 15
     var mixed = LoadTank("Tank23", null, [("Overfill", 19, true)], fill: [(14, -1)], drain: [(15, -1)], supply: [],
         levels: [("LL", 1, 5), ("L", 1, 6), ("H", 1, 18), ("HH", 1, 20)]);
-    Check(mixed.Overfill is DiSensorComponent && mixed.HH is AiLevelComponent, "混着用：Overfill 是 DI 信号，别的是 AI 液位信号");
+    Check(mixed.Overfill is DiSensorElement && mixed.HH is AiLevelElement, "混着用：Overfill 是 DI 信号，别的是 AI 液位信号");
     mixed.DrainDelayMs = 0;
     plc.SetDi(19, false);
     plc.SetAi(1, 10);
@@ -727,8 +727,8 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
     };
     var loaded = (SmokeTank)SmokeIoc.Load([group]).Single();
     NoDebounce(loaded, levels);
-    loaded.InitComponent();
-    ComponentLoader.BindAll([loaded]);
+    loaded.InitElement();
+    ElementLoader.BindAll([loaded]);
     return loaded;
 }
 
@@ -745,8 +745,8 @@ static SmokeIpa LoadIpa(string name, (string Signal, int Di, bool Trigger)[] sig
     };
     var ipa = (SmokeIpa)SmokeIoc.Load([group]).Single();
     NoDebounce(ipa.FindChild<SmokeTank>(name)!, null);
-    ipa.InitComponent();
-    ComponentLoader.BindAll([ipa]);
+    ipa.InitElement();
+    ElementLoader.BindAll([ipa]);
     return ipa;
 }
 
@@ -768,7 +768,7 @@ static ModuleConfig TankNode(string name, string? fillTo, (string Signal, int Di
         tank.Children.Add(new ModuleConfig
         {
             Name = item.Signal,
-            Type = typeof(DiSensorComponent).FullName,
+            Type = typeof(DiSensorElement).FullName,
             Values =
             [
                 new() { Name = "DiIndex", Value = item.Di.ToString() },
@@ -783,7 +783,7 @@ static ModuleConfig TankNode(string name, string? fillTo, (string Signal, int Di
         tank.Children.Add(new ModuleConfig
         {
             Name = item.Signal,
-            Type = typeof(AiLevelComponent).FullName,
+            Type = typeof(AiLevelElement).FullName,
             Values = [new() { Name = "AiIndex", Value = item.Ai.ToString() }]
         });
     }
@@ -794,14 +794,14 @@ static ModuleConfig TankNode(string name, string? fillTo, (string Signal, int Di
 // 防抖都设 0，一拍就认；AI 液位信号的触发值照给的摆上
 static void NoDebounce(SmokeTank loaded, (string Signal, int Ai, double Trigger)[]? levels)
 {
-    foreach (var sensor in loaded.FindChildren<DiSensorComponent>())
+    foreach (var sensor in loaded.FindChildren<DiSensorElement>())
     {
         sensor.DebounceMs = 0;
     }
 
     foreach (var item in levels ?? [])
     {
-        var level = loaded.FindChild<AiLevelComponent>(item.Signal)!;
+        var level = loaded.FindChild<AiLevelElement>(item.Signal)!;
         level.TriggerValue = item.Trigger;
         level.DebounceMs = 0;
     }
@@ -811,7 +811,7 @@ static void NoDebounce(SmokeTank loaded, (string Signal, int Ai, double Trigger)
     loaded.OverfillDebounceMs = 0;
 }
 
-// 一个阀组：ValveGroupComponent 下面每个阀按 (DO 号, 到位 DI 号) 挂，到位 DI 号 -1 = 不挂 Feedback；一个阀都没有就不挂这个阀组
+// 一个阀组：ValveGroupElement 下面每个阀按 (DO 号, 到位 DI 号) 挂，到位 DI 号 -1 = 不挂 Feedback；一个阀都没有就不挂这个阀组
 static void AddGroup(ModuleConfig tank, string name, (int Do, int Di)[] valves)
 {
     if (valves.Length == 0)
@@ -819,13 +819,13 @@ static void AddGroup(ModuleConfig tank, string name, (int Do, int Di)[] valves)
         return;
     }
 
-    var group = new ModuleConfig { Name = name, Type = typeof(ValveGroupComponent).FullName };
+    var group = new ModuleConfig { Name = name, Type = typeof(ValveGroupElement).FullName };
     foreach (var valve in valves)
     {
         var node = new ModuleConfig
         {
             Name = "V" + valve.Do,
-            Type = typeof(ValveComponent).FullName,
+            Type = typeof(ValveElement).FullName,
             Values =
             [
                 new() { Name = "DoIndex", Value = valve.Do.ToString() },
@@ -837,7 +837,7 @@ static void AddGroup(ModuleConfig tank, string name, (int Do, int Di)[] valves)
             node.Children.Add(new ModuleConfig
             {
                 Name = "Feedback",
-                Type = typeof(DiSensorComponent).FullName,
+                Type = typeof(DiSensorElement).FullName,
                 Values =
                 [
                     new() { Name = "DiIndex", Value = valve.Di.ToString() },
@@ -856,7 +856,7 @@ static void AddGroup(ModuleConfig tank, string name, (int Do, int Di)[] valves)
 /// <summary>
 /// 测试用的 IPA：顶替扫描线程推一拍（下面的槽跟着扫）
 /// </summary>
-[Component(description: "冒烟用的 IPA")]
+[Element(description: "冒烟用的 IPA")]
 public sealed class SmokeIpa : IpaModule
 {
     public void Tick()
@@ -868,8 +868,8 @@ public sealed class SmokeIpa : IpaModule
 /// <summary>
 /// 测试用的槽：顶替扫描线程推一拍
 /// </summary>
-[Component(description: "冒烟用的槽")]
-public sealed class SmokeTank : TankComponent
+[Element(description: "冒烟用的槽")]
+public sealed class SmokeTank : TankElement
 {
     public void Tick()
     {

@@ -138,7 +138,7 @@ public class TopBarViewModel : BaseViewModel
     #region Command
 
     /// <summary>
-    /// 整机复位：复位全部有报警的来源（各组件走自己的 Reset，模块顺带发设备复位）。没连上后端时不可点。
+    /// 整机复位：复位全部有报警的来源（各元件走自己的 Reset，模块顺带发设备复位）。没连上后端时不可点。
     /// </summary>
     public IAsyncRelayCommand ResetCommand { get; }
 

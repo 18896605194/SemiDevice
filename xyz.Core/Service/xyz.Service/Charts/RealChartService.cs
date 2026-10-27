@@ -1,7 +1,7 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Common;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
@@ -25,7 +25,7 @@ public class RealChartService : BaseService, IRealChartService
     {
         _realChart = IocHelper.GetService<IRealChart>();
         _dataChart = IocHelper.GetService<IDataChart>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     public Task<RpcResponse> GetLayoutAsync(RpcRequest request, CallContext context = default)

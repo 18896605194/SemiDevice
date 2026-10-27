@@ -48,7 +48,7 @@ public class IoPointDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>归属部件（Door、Bowl1、Nozzle_DIW……）。</summary>
-    public string Component { get; set; } = string.Empty;
+    public string Element { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
 

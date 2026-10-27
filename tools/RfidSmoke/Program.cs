@@ -2,8 +2,8 @@
 using RfidSmoke;
 using xyz._35021.Module.Drivers.Fcd.Rfid;
 using xyz._35021.Module.Drivers.Fcd.Rfid.Commands;
-using xyz.Components;
-using xyz.Components.Components;
+using xyz.Elements;
+using xyz.Elements.Elements;
 using xyz.Drivers.Communication;
 using xyz.Shared.Dtos;
 
@@ -125,19 +125,19 @@ void Check(bool condition, string message)
     bool threw = false;
     try
     {
-        bare.InitComponent();
+        bare.InitElement();
     }
     catch (InvalidOperationException)
     {
         threw = true;
     }
 
-    Check(threw, "machine.xml 里读头下面没挂通道：组件初始化就抛");
+    Check(threw, "machine.xml 里读头下面没挂通道：元件初始化就抛");
 }
 
 // ── 5. 读码正常路径 ─────────────────────────────────────────────────────
 var (reader, channel, device) = Build();
-Check(reader.InitComponent(), "读头组件初始化：认下面的通道、交解码器，通道在自己的初始化里连上");
+Check(reader.InitElement(), "读头元件初始化：认下面的通道、交解码器，通道在自己的初始化里连上");
 Check(reader.IsConnected && channel.IsConnected, "通道处于已连接");
 
 Check(reader.StartReadCarrierId(), "应能发起读码");
@@ -168,7 +168,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
     sliced.IdStart = 5;
     sliced.IdLength = 4;
     tag.TagMemory = Encoding.ASCII.GetBytes("FOUP-0001       ");
-    sliced.InitComponent();
+    sliced.InitElement();
     sliced.StartReadCarrierId();
     var slicedResult = PumpUntilResult(sliced);
     Check(slicedResult is not null && slicedResult.IsSuccess && slicedResult.Result == "0001",
@@ -179,7 +179,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
 {
     var (padded, _, tag) = Build();
     tag.TagMemory = Encoding.ASCII.GetBytes("ABC\0\0\0\0\0\0\0\0\0\0\0\0\0");
-    padded.InitComponent();
+    padded.InitElement();
     padded.StartReadCarrierId();
     var paddedResult = PumpUntilResult(padded);
     Check(paddedResult is not null && paddedResult.IsSuccess && paddedResult.Result == "ABC",
@@ -190,7 +190,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
 {
     var (failing, _, tag) = Build();
     tag.ErrorCode = 0x02;
-    failing.InitComponent();
+    failing.InitElement();
     failing.StartReadCarrierId();
     var errorResult = PumpUntilResult(failing);
     Check(errorResult is not null && !errorResult.IsSuccess, "错误块应落读码失败");
@@ -203,7 +203,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
 {
     var (rejected, _, tag) = Build();
     tag.RejectCommand = true;
-    rejected.InitComponent();
+    rejected.InitElement();
     rejected.StartReadCarrierId();
     var nakResult = PumpUntilResult(rejected);
     Check(nakResult is not null && !nakResult.IsSuccess && nakResult.ErrorMessage == "NAK",
@@ -214,7 +214,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
 {
     var (corrupt, _, tag) = Build();
     tag.CorruptChecksum = true;
-    corrupt.InitComponent();
+    corrupt.InitElement();
     corrupt.StartReadCarrierId();
     Pump(corrupt, 500);
     Check(Volatile.Read(ref tag.HostNakCount) > 0, "校验不过的块主机应回 NAK");
@@ -226,7 +226,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
 {
     var (listening, listeningChannel, tag) = Build();
     var events = new List<FcdRfidMessage>();
-    listening.InitComponent();
+    listening.InitElement();
     listeningChannel.Reported += message =>
     {
         if (message is FcdRfidMessage rfid)
@@ -253,7 +253,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
 {
     var (silent, _, tag) = Build();
     tag.SwallowResult = true;
-    silent.InitComponent();
+    silent.InitElement();
     Check(silent.StartReadCarrierId(), "应能发起读码");
 
     int timeout = silent.ReadCarrierIdTimeout;
@@ -269,7 +269,7 @@ Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "�
 // ── 12. 其它指令：版本与状态（直接经通道发）────────────────────────────────
 {
     var (other, otherChannel, _) = Build();
-    other.InitComponent();
+    other.InitElement();
 
     var version = new FcdGetVersionCommand();
     Check(otherChannel.Send(version), "应能下发取版本指令");
@@ -316,10 +316,10 @@ static (SmokeRfidReader Reader, SmokeChannel Channel, FakeFcdReader Device) Buil
     return (reader, channel, device);
 }
 
-static void Name(ComponentBase component, string name, string path)
+static void Name(ElementBase element, string name, string path)
 {
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, path);
+    typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(element, name);
+    typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(element, path);
 }
 
 static string Text(byte[] bytes)
@@ -379,7 +379,7 @@ namespace RfidSmoke
     /// <summary>
     /// 平台通道的冒烟版：只把串口换成假读头，收发、在途表、握手都是生产代码
     /// </summary>
-    internal sealed class SmokeChannel(FakeFcdReader device) : CommDriverComponent
+    internal sealed class SmokeChannel(FakeFcdReader device) : CommDriverElement
     {
         protected override ICommunication CreateTransport()
         {

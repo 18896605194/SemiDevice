@@ -1,4 +1,4 @@
-using xyz.Components.Components;
+using xyz.Elements.Elements;
 
 static class SinglePointWrites
 {
@@ -76,7 +76,7 @@ static class SinglePointWrites
         }
     }
 
-    private sealed class RecordingBeckhoff : BeckhoffPlcComponent
+    private sealed class RecordingBeckhoff : BeckhoffPlcElement
     {
         private readonly object _gate = new();
         private readonly byte[] _digital = new byte[16];

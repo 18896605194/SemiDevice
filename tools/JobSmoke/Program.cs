@@ -2,11 +2,11 @@
 using System.Reflection;
 using System.Text;
 using xyz.Common.Log;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
-using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
+using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Database.Jobs;
@@ -29,7 +29,7 @@ using xyz.Tools;
 // CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、
 // 料没到先建 PJ（载具到了、Load 好、接了 EAP 时槽图被认定才定片；同一载具的槽和 CJ 不能重；定不了片报警、PJ 留在排队）、整机停止走 Job 中止、
 // 对准器（片放上来自己对准、对好了才让取，调度不用改）、服务层错误码、重启收场、指挥层 Dispatch（machine.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）、
-// Job 是标准件（任务组件、调度引擎都是平台的，不给机型留重写的口子）。
+// Job 是标准件（任务元件、调度引擎都是平台的，不给机型留重写的口子）。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
 
@@ -53,17 +53,17 @@ static bool IsDone(JobWaferDto wafer) => wafer.Tasks.All(task => task.State == "
 static bool IsNotRun(JobWaferDto wafer) => wafer.Tasks.All(task => task.State == "Cancelled");
 
 // EC 只放在本进程内存里：不读也不写 ec.xml。
-var ec = new EcComponent();
+var ec = new EcElement();
 SmokeIoc.Use<IEc>(ec);
 string folder = Path.Combine(Path.GetTempPath(), "xyz-job-smoke-" + Guid.NewGuid().ToString("N"));
 string jobDb = folder + ".db";
 try
 {
     // 0. 装一台假机器：两个 LoadPort、两个腔体、一台两指机械手（四个站点都到得了），再加一个机械手到不了的腔体。
-    var ledger = new LedgerManagerComponent();
+    var ledger = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(ledger);
-    SmokeIoc.Use<IMapper>(new MapperComponent()); // 人工移账的调整记录靠它转
-    ledger.InitComponent(); // 开机准备：取映射组件
+    SmokeIoc.Use<IMapper>(new MapperElement()); // 人工移账的调整记录靠它转
+    ledger.InitElement(); // 开机准备：取映射元件
     var lp1 = new SmokePort("LP1");
     var lp2 = new SmokePort("LP2");
     var pm1 = new SmokeChamber("PM1");
@@ -73,7 +73,7 @@ try
     BaseModule[] modules = [lp1, lp2, robot, pm1, pm2, pm9];
     foreach (var module in modules)
     {
-        Check(module.InitComponent(), $"{module.Name} 的组件初始化应成功");
+        Check(module.InitElement(), $"{module.Name} 的元件初始化应成功");
     }
 
     robot.NoteState(ModuleState.Idle);
@@ -106,19 +106,19 @@ try
 
     // 指挥层：Job、搬运管理挂在 Dispatch 下面共用一条扫描线程，先 Job 后 Transfer；顶层不再单独挂这两个
     var dispatchNode = machineSettings!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Dispatch", StringComparison.OrdinalIgnoreCase));
-    Check(dispatchNode is not null && dispatchNode.Type == typeof(DispatchComponent).FullName
+    Check(dispatchNode is not null && dispatchNode.Type == typeof(DispatchElement).FullName
           && dispatchNode.Children.Select(child => child.Name).SequenceEqual(["Job", "Transfer"])
           && dispatchNode.Children[1].Type == typeof(TransferManager).FullName
           && machineSettings.Modules.All(setting => setting.Name != "Job" && setting.Name != "Transfer"),
-        "machine.xml 里应有 Dispatch 节点（DispatchComponent），下面先挂 Job、再挂 Transfer（TransferManager），顶层不再单独挂这两个");
+        "machine.xml 里应有 Dispatch 节点（DispatchElement），下面先挂 Job、再挂 Transfer（TransferManager），顶层不再单独挂这两个");
 
     var jobNode = dispatchNode!.Children.FirstOrDefault(setting => string.Equals(setting.Name, "Job", StringComparison.OrdinalIgnoreCase));
     Check(jobNode is not null && jobNode.Type == typeof(JobManager).FullName
-          && jobNode.Children.Any(child => child.Name == "Task" && child.Type == typeof(TaskComponent).FullName)
-          && jobNode.Children.Any(child => child.Name == "Scheduler" && child.Type == typeof(SchedulerComponent).FullName),
-        "machine.xml 里应有 Job 节点（JobManager），下面挂 Task（平台的 TaskComponent）和 Scheduler（SchedulerComponent）");
+          && jobNode.Children.Any(child => child.Name == "Task" && child.Type == typeof(TaskElement).FullName)
+          && jobNode.Children.Any(child => child.Name == "Scheduler" && child.Type == typeof(SchedulerElement).FullName),
+        "machine.xml 里应有 Job 节点（JobManager），下面挂 Task（平台的 TaskElement）和 Scheduler（SchedulerElement）");
 
-    // Job 是标准件：任务组件、调度引擎、Job 管理都不给机型留重写的口子（不是抽象类，没有自己开的 virtual）
+    // Job 是标准件：任务元件、调度引擎、Job 管理都不给机型留重写的口子（不是抽象类，没有自己开的 virtual）
     static bool IsStandard(Type type)
     {
         var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
@@ -126,25 +126,25 @@ try
             && !type.GetMethods(flags).Any(method => method.IsVirtual && !method.IsFinal && method.GetBaseDefinition().DeclaringType == type);
     }
 
-    Check(IsStandard(typeof(TaskComponent)) && IsStandard(typeof(SchedulerComponent)) && IsStandard(typeof(JobManager)),
-        "Job 是标准件：任务组件、调度引擎、Job 管理不是抽象类，也没有自己开的 virtual");
+    Check(IsStandard(typeof(TaskElement)) && IsStandard(typeof(SchedulerElement)) && IsStandard(typeof(JobManager)),
+        "Job 是标准件：任务元件、调度引擎、Job 管理不是抽象类，也没有自己开的 virtual");
 
-    // 宿主开机就是装配器照 machine.xml 的 Type 建组件：这两个节点要认得出平台类（认不出开机就抛"未找到组件类"）
+    // 宿主开机就是装配器照 machine.xml 的 Type 建元件：这两个节点要认得出平台类（认不出开机就抛"未找到元件类"）
     var jobParts = SmokeIoc.Load(jobNode!.Children.Where(child => child.Name is "Task" or "Scheduler"));
-    Check(jobParts.Count == 2 && jobParts.OfType<TaskComponent>().Count() == 1 && jobParts.OfType<SchedulerComponent>().Count() == 1,
-        "装配器照 machine.xml 建得出 Task（TaskComponent）、Scheduler（SchedulerComponent）");
+    Check(jobParts.Count == 2 && jobParts.OfType<TaskElement>().Count() == 1 && jobParts.OfType<SchedulerElement>().Count() == 1,
+        "装配器照 machine.xml 建得出 Task（TaskElement）、Scheduler（SchedulerElement）");
     Check(jobNode!.Values.Any(value => value.Name == nameof(JobManager.ProcessJobAutoStart) && value.Value == "True")
           && jobNode.Values.Any(value => value.Name == nameof(JobManager.ControlJobAutoStart) && value.Value == "False"),
         "machine.xml 配置 PJ 自动开始、CJ 等待 Start，创建请求不传启动方式");
 
     var libraryRoots = SmokeIoc.Load([Node("Sequence"), Node("ProcessRecipe")]);
-    var sequences = libraryRoots.OfType<SequenceComponent>().Single();
-    var recipes = libraryRoots.OfType<RecipeComponent>().Single();
+    var sequences = libraryRoots.OfType<SequenceElement>().Single();
+    var recipes = libraryRoots.OfType<RecipeElement>().Single();
     recipes.Bind(modules);
     sequences.Bind(modules);
     SmokeIoc.Tree(modules); // 上面装配器装过两回，整棵树换回这台假机器（服务按接口在树上找模块）
-    SmokeIoc.Use<ISequenceComponent>(sequences); // 两个配方库不在这棵树上，单独登记着
-    SmokeIoc.Use<IRecipeComponent>(recipes);
+    SmokeIoc.Use<ISequenceElement>(sequences); // 两个配方库不在这棵树上，单独登记着
+    SmokeIoc.Use<IRecipeElement>(recipes);
     Check(recipes.Create(1, "R1", "Smoke").IsSuccess && recipes.Create(2, "R2", "Smoke").IsSuccess, "建两个工艺配方");
 
     SequenceStep Step(string group, string recipe, params string[] stations)
@@ -164,7 +164,7 @@ try
     Sequence(3, "SEQ_C", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1", "PM2"), Step("LoadPort", "", "LP2"));
     Sequence(4, "SEQ_D", Step("LoadPort", "", "LP2"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP2"));
 
-    // Job 节点下没配 Task（任务组件）是配错了：开机就抛，不能悄悄没有任务表
+    // Job 节点下没配 Task（任务元件）是配错了：开机就抛，不能悄悄没有任务表
     var bare = new BareJobs();
     SmokeIoc.Use<IJobManager>(bare);
     Probe.Name(bare, "Job");
@@ -188,10 +188,10 @@ try
     Probe.Name(jobs, "Job");
     jobs.Database = "JobSmoke";
     jobs.Bind(modules);
-    // 开机 Bind（生产里 BindAll 照 machine.xml 先后挨个调）：Job 下面的任务组件、搬运管理（这时才有 Job 管理）、各模块都在这里取单例
-    ComponentLoader.BindAll(jobs.Children);
+    // 开机 Bind（生产里 BindAll 照 machine.xml 先后挨个调）：Job 下面的任务元件、搬运管理（这时才有 Job 管理）、各模块都在这里取单例
+    ElementLoader.BindAll(jobs.Children);
     transfers.Bind(modules);
-    ComponentLoader.BindAll(modules);
+    ElementLoader.BindAll(modules);
 
     // CJ 管理按参考用对象提交事件，注册与入队分开，实体和状态机不对外暴露。
     ICjManager controls = new CjManager(new SmokeLog("Job"));
@@ -380,7 +380,7 @@ try
     var stateFlow = new SmokeStateMachine();
     var flowTrace = new List<string>();
     bool ready = false;
-    var flowTransition = new xyz.Components.Components.StateTransition<ControlJobState>
+    var flowTransition = new xyz.Elements.Elements.StateTransition<ControlJobState>
     {
         TargetState = ControlJobState.Queued,
         ProcessState = ControlJobState.Selected,
@@ -492,9 +492,9 @@ try
     Check(afterFault.Wait(2000) && afterFault.Result.ErrorMessage == ErrorCodes.JobNotFound,
         "异常后释放锁，其他线程仍能执行 Job 命令");
 
-    // 上报口直接挂假的 EAP；上报都经 EAP 的派发组件发（宿主里是 machine.xml Eap 下的 Notifier）
-    SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
-    jobs.Bind(modules); // Job 管理开机 Bind 时取 EAP 的派发组件
+    // 上报口直接挂假的 EAP；上报都经 EAP 的派发元件发（宿主里是 machine.xml Eap 下的 Notifier）
+    SmokeIoc.Use<IEapNotifierElement>(new EapNotifierElement());
+    jobs.Bind(modules); // Job 管理开机 Bind 时取 EAP 的派发元件
     var events = new RecordingJobEvents();
     jobs.E40Callback = events;
     jobs.E94Callback = events;
@@ -936,7 +936,7 @@ try
         var rejectedQueue = Do(jobs.CreateProcessJobAsync("LP1", "PJ-QUEUE-FAIL", [1], "SEQ_A", null));
         Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.OperationFaulted
               && processManager.Get("PJ-QUEUE-FAIL") is null && jobs.OwnerOf(first.Id) is null
-              && !jobs.FindChild<TaskComponent>()!.Rows.Any(row => row.Owner == "PJ-QUEUE-FAIL"),
+              && !jobs.FindChild<TaskElement>()!.Rows.Any(row => row.Owner == "PJ-QUEUE-FAIL"),
             "PJ 入队失败返回失败并移除注册、任务行和晶圆归属");
     }
     finally
@@ -1034,7 +1034,7 @@ try
     Check(Do(jobs.StartControlJobAsync("LOT-A")).IsSuccess
           && CjOf("LOT-A")?.State == (int)ControlJobState.Executing, "Auto 下启动：EXECUTING（#7）");
 
-    var liveRow = jobs.FindChild<TaskComponent>()!.Rows.First(row => row.Owner == "LOT-A-1" && row.SourceSlot == 1);
+    var liveRow = jobs.FindChild<TaskElement>()!.Rows.First(row => row.Owner == "LOT-A-1" && row.SourceSlot == 1);
     Check(RunUntil(() => liveRow.Current?.Kind == StationTaskAction.Pick && liveRow.Current.State == WaferTaskState.Running), "执行器开始当前取片任务");
     var liveTransfer = liveRow.Tasks[0].Routine;
     Check(liveTransfer is TransferRoutine && liveRow.Tasks[1].State == WaferTaskState.Waiting
@@ -1407,7 +1407,7 @@ try
     robot.FailNextPlace = true;
     Check(Create("LOT-V", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-V");
     Check(RunUntil(() => PjOf("LOT-V-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "放片失败后当前任务出错");
-    var placeRow = jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.Owner == "LOT-V-1");
+    var placeRow = jobs.FindChild<TaskElement>()!.Rows.Single(row => row.Owner == "LOT-V-1");
     Check(placeRow.Tasks[0].State == WaferTaskState.Done && placeRow.Tasks[1].State == WaferTaskState.Error
           && placeRow.Tasks[1].Code == ErrorCodes.TransferFailed && placeRow.Tasks[1].Args.SequenceEqual(new[] { "Robot1", "Place" })
           && placeRow.Tasks[2].State == WaferTaskState.Waiting && placeRow.Tasks.All(task => task.Routine is null),
@@ -1515,7 +1515,7 @@ try
     Check(Pump(jobService.CreateProcessJobAsync(manualPj)).Success, "取消后可以再次创建同名 PJ");
     Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-M2", new[] { 2 }, "SEQ_B", "LOT-MANUAL")).IsSuccess,
         "参数形式创建第二个 PJ");
-    var manualRows = jobs.FindChild<TaskComponent>()!.Rows.Where(row => row.Owner is "PJ-M1" or "PJ-M2").ToList();
+    var manualRows = jobs.FindChild<TaskElement>()!.Rows.Where(row => row.Owner is "PJ-M1" or "PJ-M2").ToList();
     var manualTasks = manualRows.SelectMany(row => row.Tasks).ToList();
     var assembled = RpcRequest.Of(
         (RpcParams.LoadPort, "LP1"),
@@ -1532,7 +1532,7 @@ try
     Check(assembledReply.Success && assembledReply.DeserializeData<JobCreatedDto>() is JobCreatedDto assembledJob
           && assembledJob.ControlJob == "CJ-MANUAL" && assembledJob.ProcessJobs.SequenceEqual(new[] { "PJ-M1", "PJ-M2" })
           && CjOf("CJ-MANUAL")?.LotId == "LOT-MANUAL", "CreateJob 使用 PJ 名称集合创建 CJ，批次号可从 PJ 取得");
-    Check(manualRows.All(row => jobs.FindChild<TaskComponent>()!.Rows.Contains(row))
+    Check(manualRows.All(row => jobs.FindChild<TaskElement>()!.Rows.Contains(row))
           && manualTasks.SequenceEqual(manualRows.SelectMany(row => row.Tasks))
           && PjOf("PJ-M1")?.ControlJob == "CJ-MANUAL" && PjOf("PJ-M2")?.ControlJob == "CJ-MANUAL",
         "已有 PJ 和每片任务原样复用，一个 CJ 关联多个 PJ");
@@ -1624,7 +1624,7 @@ try
     Check(RunUntil(() => CjOf("CJ-EARLY") is null, 20), "载具拿走 CJ 删掉（#13）");
 
     // 定不了片：报警，PJ 留在排队、CJ 等着，片一片不动；问题还在复位了会再报；Host 停掉 CJ（连带删掉排队的 PJ）收场
-    var materialAlarms = new AlarmComponent();
+    var materialAlarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(materialAlarms);
     bool MaterialAlarm() => materialAlarms.ActiveAlarms.Any(alarm => alarm.AlarmCode == jobs.MaterialUnusableAlarm);
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-BAD", [5], "SEQ_A", null, "CAR-B")).IsSuccess
@@ -1792,8 +1792,8 @@ try
 
     // 17b. 调度只用搬运管理的实时占用：第一台无空手时尝试下一台；两台同时工作也不能抢同一站点。
     secondRobot = new SmokeRobot("Robot2", "LP1", "LP2", "PM1", "PM2");
-    Check(secondRobot.InitComponent(), "第二台机械手的组件初始化");
-    ComponentLoader.BindAll([secondRobot]);
+    Check(secondRobot.InitElement(), "第二台机械手的元件初始化");
+    ElementLoader.BindAll([secondRobot]);
     secondRobot.NoteState(ModuleState.Idle);
     secondRobot.SetProduction();
     transfers.Bind([.. modules, secondRobot]);
@@ -1816,7 +1816,7 @@ try
     Check(Create("LOT-M1", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-M1");
     Check(Create("LOT-M2", "LP2", true, (1, "SEQ_F")).IsSuccess, "建 LOT-M2");
     Check(RunUntil(() => transfers.IsRobotInTransfer("Robot1") && transfers.IsRobotInTransfer("Robot2")), "不同站点可由两台机械手并行执行");
-    var parallelRows = jobs.FindChild<TaskComponent>()!.Rows;
+    var parallelRows = jobs.FindChild<TaskElement>()!.Rows;
     Check(parallelRows.Count(row => row.HasRunning) == 2
           && parallelRows.Single(row => row.Owner == "LOT-M1-1" && row.SourceSlot == 2).IsWaiting
           && !transfers.IsSlotLocked("LP1", 2), "同一来源站点的第二片等待，不会因没有本拍占用集合而重复派出");
@@ -1855,7 +1855,7 @@ try
     //      调度没有交换、预取开关，换不换看机械手的手：预取只取不放、留一只空手给旧片、同一个站只预取一片，许可不对称、旧片没去处都不预取；
     //      Job 中止时交换里它的旧片已经取出来了，就让交换把另一片放完，Job 等交换收尾才结束。
     {
-        TaskRow RowOf(Guid waferId) => jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.WaferId == waferId);
+        TaskRow RowOf(Guid waferId) => jobs.FindChild<TaskElement>()!.Rows.Single(row => row.WaferId == waferId);
 
         bool HoldsFor(int ticks, Func<bool> condition)
         {
@@ -2003,8 +2003,8 @@ try
         // （只看加工那 30 拍里的 20 拍：加工完旧片正常回片要上 1 号手，不算预取）
         var leftArms = new Dictionary<string, string> { ["LP1"] = "1" };
         var lefty = new SmokeRobot("Robot3", leftArms, leftArms, "LP1", "LP2", "PM1", "PM2");
-        Check(lefty.InitComponent(), "许可不对称的机械手组件初始化");
-        ComponentLoader.BindAll([lefty]);
+        Check(lefty.InitElement(), "许可不对称的机械手元件初始化");
+        ElementLoader.BindAll([lefty]);
         lefty.NoteState(ModuleState.Idle);
         lefty.SetProduction();
         transfers.Bind([lp1, lp2, lefty, pm1, pm2, pm9]);
@@ -2024,8 +2024,8 @@ try
 
         // 单手机械手：挑不出第二只手，腔满着也不预取、不交换，一片一片跑完——换不换由机械手的手定，调度没有开关
         var single = new SmokeRobot("Robot7", 1, "LP1", "LP2", "PM1", "PM2");
-        Check(single.InitComponent() && single.Arms.Count == 1 && ledger.GetSlots("Robot7").Count == 1, "单手机械手组件初始化（账上一只手）");
-        ComponentLoader.BindAll([single]);
+        Check(single.InitElement() && single.Arms.Count == 1 && ledger.GetSlots("Robot7").Count == 1, "单手机械手元件初始化（账上一只手）");
+        ElementLoader.BindAll([single]);
         single.NoteState(ModuleState.Idle);
         single.SetProduction();
         transfers.Bind([lp1, lp2, single, pm1, pm2, pm9]);
@@ -2110,8 +2110,8 @@ try
             "开机查：PM1 配了中途交接，Robot1 不能分段取放（没声明 ITransferRobotStep），搬运管理认表就报错");
 
         var stepper = new SmokeStepRobot("Robot4", "LP1", "LP2", "PM1", "PM2");
-        Check(stepper.InitComponent(), "能分段取放的机械手（类上声明 ITransferRobotStep）组件初始化");
-        ComponentLoader.BindAll([stepper]);
+        Check(stepper.InitElement(), "能分段取放的机械手（类上声明 ITransferRobotStep）元件初始化");
+        ElementLoader.BindAll([stepper]);
         stepper.NoteState(ModuleState.Idle);
         stepper.SetProduction();
         transfers.Bind([lp1, lp2, stepper, pm1, pm2, pm9]);
@@ -2241,15 +2241,15 @@ try
     //      一趟搬运用的手要源站许取、目标站许放。LP1 取片只许 1 号、放片只许 2 号；PM1 放片只许 1 号、取片只许 2 号：
     //      没洗的片进腔用 1 号手，洗完的回料盒用 2 号手；交换时取旧片 2 号、放新片 1 号。开机查：配了这台机械手没有的手就报错。
     {
-        TaskRow RowOf(Guid waferId) => jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.WaferId == waferId);
+        TaskRow RowOf(Guid waferId) => jobs.FindChild<TaskElement>()!.Rows.Single(row => row.WaferId == waferId);
 
-        // 开机查：两只手的机械手，PM1 的 PlaceArms 配了 Arm3，组件初始化就报错
+        // 开机查：两只手的机械手，PM1 的 PlaceArms 配了 Arm3，元件初始化就报错
         var badPlace = new Dictionary<string, string> { ["PM1"] = "3" };
         var bad = new SmokeRobot("Robot6", new Dictionary<string, string>(), badPlace, "LP1", "PM1");
         string initRefused = string.Empty;
         try
         {
-            bad.InitComponent();
+            bad.InitElement();
         }
         catch (InvalidOperationException exception)
         {
@@ -2257,13 +2257,13 @@ try
         }
 
         Check(initRefused.Contains("PM1") && initRefused.Contains("PlaceArms") && initRefused.Contains("Arm3"),
-            "开机查：示教点配了这台机械手没有的手（PM1 的 PlaceArms 配了 Arm3），组件初始化就报错");
+            "开机查：示教点配了这台机械手没有的手（PM1 的 PlaceArms 配了 Arm3），元件初始化就报错");
 
         var cleanPick = new Dictionary<string, string> { ["LP1"] = "1", ["PM1"] = "2" };
         var cleanPlace = new Dictionary<string, string> { ["LP1"] = "2", ["PM1"] = "1" };
         var clean = new SmokeRobot("Robot5", cleanPick, cleanPlace, "LP1", "LP2", "PM1", "PM2");
-        Check(clean.InitComponent(), "取放分开配的机械手组件初始化");
-        ComponentLoader.BindAll([clean]);
+        Check(clean.InitElement(), "取放分开配的机械手元件初始化");
+        ElementLoader.BindAll([clean]);
         clean.NoteState(ModuleState.Idle);
         clean.SetProduction();
         transfers.Bind([lp1, lp2, clean, pm1, pm2, pm9]);
@@ -2357,7 +2357,7 @@ try
     {
         var bufferIn = new SmokeBuffer("BufferIn", 5);
         var bufferOut = new SmokeBuffer("BufferOut", 5);
-        Check(bufferIn.InitComponent() && bufferOut.InitComponent(), "两段 buffer 的组件初始化");
+        Check(bufferIn.InitElement() && bufferOut.InitElement(), "两段 buffer 的元件初始化");
         Check(bufferIn.State == ModuleState.Idle && bufferIn.Mode == ModuleMode.Production && bufferOut.Mode == ModuleMode.Production
               && ledger.GetSlots("BufferIn").Count == 5 && ledger.GetSlots("BufferOut").Count == 5,
             "buffer 段开机就待命、自己切生产模式（没有手动页），晶圆账各登记 5 个槽");
@@ -2371,8 +2371,8 @@ try
             "LP1", "BufferIn", "BufferOut");
         var robotB = new SmokeRobot("RobotB", noArms, noArms, new Dictionary<string, int> { ["BufferIn"] = 7, ["BufferOut"] = 8, ["PM1"] = 3, ["PM2"] = 4 },
             "BufferIn", "BufferOut", "PM1", "PM2");
-        Check(robotA.InitComponent() && robotB.InitComponent(), "两台 buffer 机械手组件初始化");
-        ComponentLoader.BindAll([robotA, robotB]);
+        Check(robotA.InitElement() && robotB.InitElement(), "两台 buffer 机械手元件初始化");
+        ElementLoader.BindAll([robotA, robotB]);
         foreach (var bufferRobot in new[] { robotA, robotB })
         {
             bufferRobot.NoteState(ModuleState.Idle);
@@ -2404,7 +2404,7 @@ try
         // 跑的时候记下：谁在哪个站交换过、有没有片从进片段被提前拿到 B 手上等着进腔（预取的片停在手上、放片还等着）
         pm1.ProcessTicks = 30;
         pm2.ProcessTicks = 30;
-        var bufferTasks = jobs.FindChild<TaskComponent>()!;
+        var bufferTasks = jobs.FindChild<TaskElement>()!;
         var swapStations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var swapRobots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         bool prefetchedFromBuffer = false;
@@ -2512,11 +2512,11 @@ try
     //      调度、任务表、搬运管理都不用改：对准中站点不在待命，调度就不来取；机械手放下片就走，不在旁边等对准
     {
         var aligner = new SmokeJobAligner("AL1");
-        Check(aligner.InitComponent() && aligner.Mode == ModuleMode.Production && ledger.GetSlots("AL1").Count == 1,
-            "对准器组件初始化：开机就是生产模式、晶圆账一个槽");
+        Check(aligner.InitElement() && aligner.Mode == ModuleMode.Production && ledger.GetSlots("AL1").Count == 1,
+            "对准器元件初始化：开机就是生产模式、晶圆账一个槽");
         var alignerRobot = new SmokeRobot("RobotAL", "LP1", "AL1", "PM1", "PM2");
-        Check(alignerRobot.InitComponent(), "这一节的机械手（到得了对准器）组件初始化");
-        ComponentLoader.BindAll([alignerRobot, aligner]);
+        Check(alignerRobot.InitElement(), "这一节的机械手（到得了对准器）元件初始化");
+        ElementLoader.BindAll([alignerRobot, aligner]);
         alignerRobot.NoteState(ModuleState.Idle);
         alignerRobot.SetProduction();
         robot.SetMaintenance(); // 这一节只让到得了对准器的那台干活
@@ -2640,7 +2640,7 @@ finally
     }
 }
 
-// ── 指挥层 Dispatch：每拍按挂上的先后逐个扫子组件，前一个抛异常也照扫后一个 ──────────
+// ── 指挥层 Dispatch：每拍按挂上的先后逐个扫子元件，前一个抛异常也照扫后一个 ──────────
 {
     // 下面会有两条"[Job] OnScan 异常"的 WARN，是探针故意抛的，预期内
     var trace = new List<string>();
@@ -2681,13 +2681,13 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
 // ── 假件 ─────────────────────────────────────────────────────────────
 
 // 探针指挥层：顶替扫描线程推一拍。
-sealed class ProbeDispatch : DispatchComponent
+sealed class ProbeDispatch : DispatchElement
 {
     public void Tick() => OnScan();
 }
 
-// 探针子组件：被扫到就记下名字；Fail 为真时记完就抛异常，看 Dispatch 会不会因此漏扫后面的。
-sealed class ScanProbe : ComponentBase
+// 探针子元件：被扫到就记下名字；Fail 为真时记完就抛异常，看 Dispatch 会不会因此漏扫后面的。
+sealed class ScanProbe : ElementBase
 {
     private readonly List<string> _trace;
     private readonly bool _fail;
@@ -2709,11 +2709,11 @@ sealed class ScanProbe : ComponentBase
     }
 }
 
-// 名字、路径：生产里由 ComponentLoader 经内部 setter 填。
+// 名字、路径：生产里由 ElementLoader 经内部 setter 填。
 static class Probe
 {
     // group：machine.xml 里套在哪个分组节点下（全路径的第一层，流程配方按它分组），顶层直接装的不给
-    public static void Name(ComponentBase component, string name, string? group = null)
+    public static void Name(ElementBase element, string name, string? group = null)
     {
         string path = name;
         if (group is not null)
@@ -2721,31 +2721,31 @@ static class Probe
             path = group + "." + name;
         }
 
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, path);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(element, name);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(element, path);
     }
 
-    public static void Enabled(ComponentBase component, bool enabled)
+    public static void Enabled(ElementBase element, bool enabled)
     {
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(component, enabled);
+        typeof(ElementBase).GetProperty(nameof(ElementBase.IsEnabled))!.SetValue(element, enabled);
     }
 
-    // 端口下挂的载具组件：生产里是 machine.xml 的 _carrier 节点。
-    public static CarrierComponent Carrier(ComponentBase port, PodPresenceSource presence)
+    // 端口下挂的载具元件：生产里是 machine.xml 的 _carrier 节点。
+    public static CarrierElement Carrier(ElementBase port, PodPresenceSource presence)
     {
-        var carrier = new CarrierComponent { PresenceSource = presence };
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(carrier, "_carrier");
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(carrier, $"{port.FullPath}._carrier");
+        var carrier = new CarrierElement { PresenceSource = presence };
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(carrier, "_carrier");
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(carrier, $"{port.FullPath}._carrier");
         port.AddChild(carrier);
         return carrier;
     }
 
     // 设备下挂的通道：生产里是 machine.xml 的 Driver 节点。
-    public static SmokeChannel Channel(ComponentBase device)
+    public static SmokeChannel Channel(ElementBase device)
     {
         var channel = new SmokeChannel();
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(channel, "Driver");
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(channel, $"{device.FullPath}.Driver");
+        typeof(ElementBase).GetProperty(nameof(ElementBase.Name))!.SetValue(channel, "Driver");
+        typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(channel, $"{device.FullPath}.Driver");
         device.AddChild(channel);
         return channel;
     }
@@ -2757,26 +2757,26 @@ sealed class SmokeTransfers : TransferManager
     public void Tick() => OnScan();
 }
 
-// Job 管理下面挂任务组件（生产里是 machine.xml 的 Task 子节点）。
+// Job 管理下面挂任务元件（生产里是 machine.xml 的 Task 子节点）。
 sealed class SmokeJobs : JobManager
 {
     public SmokeJobs()
     {
-        var tasks = new TaskComponent();
+        var tasks = new TaskElement();
         Probe.Name(tasks, "Task");
         AddChild(tasks);
-        Scheduler = new SchedulerComponent();
+        Scheduler = new SchedulerElement();
         Probe.Name(Scheduler, "Scheduler");
         AddChild(Scheduler);
     }
 
     // 调度挂在 Job 下面（生产里是 machine.xml 的 Scheduler 子节点），测试直接拨它的 PreferIdleStation 开关。
-    public SchedulerComponent Scheduler { get; }
+    public SchedulerElement Scheduler { get; }
 
     public void Tick() => OnScan();
 }
 
-// 没挂任务组件的 Job 管理：装配时应该就抛。
+// 没挂任务元件的 Job 管理：装配时应该就抛。
 sealed class BareJobs : JobManager
 {
 }
@@ -2843,19 +2843,19 @@ class SmokeRobot : BaseRobotModule
     // armCount：几只手（machine.xml Axes 下几个 Arm 节点），不给的都是两只。
     // pickArms / placeArms：站点 → 取片 / 放片许用的手（machine.xml 示教点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
     // numbers：站点 → 站号（machine.xml 示教点的 Number）；没写的站点按先后 1、2、3……
-    // 示教点都挂在 Size12 组下（生产里由 ComponentLoader 照 machine.xml 建），组件初始化时收进示教点表。
+    // 示教点都挂在 Size12 组下（生产里由 ElementLoader 照 machine.xml 建），元件初始化时收进示教点表。
     public SmokeRobot(string name, int armCount, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
         IReadOnlyDictionary<string, int> numbers, params string[] stations)
     {
         Probe.Name(this, name);
         Probe.Channel(this);
-        // machine.xml 的轴节点（生产里由 ComponentLoader 建，这里直接挂）。
-        AddChild(Named(new RobotAxisComponent(), "X"));
-        AddChild(Named(new RobotAxisComponent(), "Z"));
-        AddChild(Named(new RobotAxisComponent(), "Theta"));
+        // machine.xml 的轴节点（生产里由 ElementLoader 建，这里直接挂）。
+        AddChild(Named(new RobotAxisElement(), "X"));
+        AddChild(Named(new RobotAxisElement(), "Z"));
+        AddChild(Named(new RobotAxisElement(), "Theta"));
         for (int arm = 1; arm <= armCount; arm++)
         {
-            AddChild(Named(new RobotArmComponent { Number = arm }, "Arm" + arm.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            AddChild(Named(new RobotArmElement { Number = arm }, "Arm" + arm.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
 
         var points = new List<ModuleConfig>();
@@ -2887,10 +2887,10 @@ class SmokeRobot : BaseRobotModule
         SmokeTeachPoints.AddTo(this, SmokeTeachPoints.Table("Size12", [.. points]));
     }
 
-    private static T Named<T>(T component, string name) where T : ComponentBase
+    private static T Named<T>(T element, string name) where T : ElementBase
     {
-        Probe.Name(component, name);
-        return component;
+        Probe.Name(element, name);
+        return element;
     }
 
     public bool FailNextPick { get; set; }
@@ -2982,7 +2982,7 @@ sealed class SmokeJobAligner : BaseAlignerModule
 }
 
 // 假通道：一直连着；发来的指令过 5 拍做完（对准器用），按先后记下名字。机械手、LoadPort 的动作是假的，挂它只为把"通道已连接"这道门打开
-sealed class SmokeChannel : ComponentBase, ICommDriver
+sealed class SmokeChannel : ElementBase, ICommDriver
 {
     private readonly List<(SmokeCommand Command, int SentAt)> _inflight = [];
     private int _ticks;
@@ -3323,7 +3323,7 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
     }
 }
 
-sealed class SmokeStateMachine : xyz.Components.Components.BaseStateMachine<ControlJobState, ControlStateAction>
+sealed class SmokeStateMachine : xyz.Elements.Elements.BaseStateMachine<ControlJobState, ControlStateAction>
 {
     public SmokeStateMachine() : base(new SmokeLog("Smoke"))
     {
@@ -3396,7 +3396,7 @@ sealed class SmokeSystem : SystemModule
 }
 
 /// <summary>
-/// 冒烟里不是组件的地方记日志用的来源：只有第一层
+/// 冒烟里不是元件的地方记日志用的来源：只有第一层
 /// </summary>
 sealed class SmokeLog(string module) : ILogSource
 {

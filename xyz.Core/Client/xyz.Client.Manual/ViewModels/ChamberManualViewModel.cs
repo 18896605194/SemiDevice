@@ -426,7 +426,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     private async Task DoReset()
     {
-        // 复位：组件基类先清报警，模块再发设备复位清错。
+        // 复位：元件基类先清报警，模块再发设备复位清错。
         LogFailure(await _service.ResetAsync(RpcRequest.Of((RpcParams.Module, ModuleName))), "action.reset");
     }
 

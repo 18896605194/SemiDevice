@@ -14,7 +14,7 @@ public class ChamberNozzleModel : ObservableObject
         Update(dto);
     }
 
-    /// <summary>组件全路径，如 "Chamber1.Arm1.Nozzle_DIW"（设备组成没变就不会变）。</summary>
+    /// <summary>元件全路径，如 "Chamber1.Arm1.Nozzle_DIW"（设备组成没变就不会变）。</summary>
     public string Path { get; }
 
     private bool _isOn;

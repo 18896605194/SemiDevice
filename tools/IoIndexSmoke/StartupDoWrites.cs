@@ -1,13 +1,13 @@
 ﻿using System.Diagnostics;
-using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Tools;
 
 /// <summary>
 /// 开机下发 DO：配置解析（DO 不分大小写、分号隔开、写错开机就报）、连上 PLC 满延时才下发、等的时候掉线重新计时、
-/// 点表里没有的点跳过、一次开机只下发一次。延时用 EC 默认值 1000 ms（冒烟里没装 EC 组件）。
+/// 点表里没有的点跳过、一次开机只下发一次。延时用 EC 默认值 1000 ms（冒烟里没装 EC 元件）。
 /// </summary>
 static class StartupDoWrites
 {
@@ -32,7 +32,7 @@ static class StartupDoWrites
         SmokeIoc.Use<IIo>(empty);
         empty.Load();
 
-        // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+        // 点表放进 IO 元件的点表目录：它开机准备时读点表、取 PLC
         string tables = Path.Combine(directory, "startup-io");
         Directory.CreateDirectory(tables);
         File.WriteAllText(Path.Combine(tables, "DO.csv"), "Index,Name\n12,Valve\n13,Lamp\n");
@@ -42,10 +42,10 @@ static class StartupDoWrites
         SmokeIoc.Use<IPlcIo>(plc);
         var io = new ConfiguredIo { StartupDo = " do12 = FALSE ; Do13=true;;DO99=true; ", PointTableDirectory = tables };
         io.Load();
-        io.InitComponent();
+        io.InitElement();
         io.Start();
 
-        // IO 组件开机准备时就取好了 PLC，之后再还原不影响它。
+        // IO 元件开机准备时就取好了 PLC，之后再还原不影响它。
         Thread.Sleep(1500);
         SmokeIoc.Use<IPlcIo>(previousPlc);
         Check(plc.Writes.Count == 0, "PLC 没连上不下发");
@@ -87,7 +87,7 @@ static class StartupDoWrites
     }
 
     /// <summary>把装配钩子露出来：冒烟里没有 machine.xml，直接调。</summary>
-    sealed class ConfiguredIo : IoComponent
+    sealed class ConfiguredIo : IoElement
     {
         public void Load()
         {
@@ -95,7 +95,7 @@ static class StartupDoWrites
         }
     }
 
-    /// <summary>记下每次 DO 写入；IO 组件的扫描线程写、冒烟主线程读，所以加锁给副本。</summary>
+    /// <summary>记下每次 DO 写入；IO 元件的扫描线程写、冒烟主线程读，所以加锁给副本。</summary>
     sealed class RecordingPlc : IPlcIo
     {
         private readonly object _gate = new();

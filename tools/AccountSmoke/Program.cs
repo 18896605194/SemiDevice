@@ -1,8 +1,8 @@
 ﻿using SqlSugar;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Database.Auth;
 using xyz.Database.DbProvider;
@@ -14,7 +14,7 @@ using xyz.Shared.Permissions;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// 账号冒烟：账号组件（machine.xml 的 Account 节点）开机建表、删老的 User / Role / Menu 表、预置管理员 / 访客 / 工程师 / 操作员四个角色和内置账号 admin（只预置一次，重开不重复）；
+// 账号冒烟：账号元件（machine.xml 的 Account 节点）开机建表、删老的 User / Role / Menu 表、预置管理员 / 访客 / 工程师 / 操作员四个角色和内置账号 admin（只预置一次，重开不重复）；
 // 登录（对、错、不分大小写、停用、记最后登录）；会话（访客、普通角色带档位、管理员不带档位）；密码只存加盐哈希；改密码、重置密码；
 // 账号的增删改（登录名 / 显示名不对、重名、密码太短、角色不在、访客角色不给账号、内置 admin 不能删 / 停用 / 改角色）；
 // 角色（重名、名字 / 说明不对、内置的不能改名和删、有账号在用不能删、删角色连权限一起删、管理员权限不能改、权限整张换、档位不对、同一项以最后一次为准）；
@@ -49,7 +49,7 @@ try
     {
         try
         {
-            ComponentLoader.Load([Node("Account", typeof(AccountComponent), values)]);
+            ElementLoader.Load([Node("Account", typeof(AccountElement), values)]);
             return null;
         }
         catch (InvalidOperationException exception)
@@ -68,13 +68,13 @@ try
     Check(error is not null && error.Contains("PasswordMinLength", StringComparison.Ordinal), "密码最短超过 32：装配就报");
     Check(LoadError(Value("IdleLogoutMinutes", "0"), Value("PasswordMinLength", "8")) is null, "闲置配 0（不自动退出）、密码最短 8 位能装上");
 
-    var roots = SmokeIoc.Load([Node("Account", typeof(AccountComponent), Value("Database", DbName))]);
-    var account = (AccountComponent)roots[0];
-    Check(ReferenceEquals(IocHelper.GetService<IAccount>(), account), "按 IAccount 找得到账号组件");
+    var roots = SmokeIoc.Load([Node("Account", typeof(AccountElement), Value("Database", DbName))]);
+    var account = (AccountElement)roots[0];
+    Check(ReferenceEquals(IocHelper.GetService<IAccount>(), account), "按 IAccount 找得到账号元件");
     Check(account.IsEnable && account.Database == DbName, "machine.xml：IsEnable 默认 True，库照 machine.xml");
     Check(account.IdleLogoutMinutes == 15 && account.PasswordMinLength == 4, "machine.xml 默认：闲置 15 分钟自动退出、密码最短 4 位");
-    Check(typeof(AccountComponent).GetProperty(nameof(AccountComponent.IdleLogoutMinutes))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0
-        && typeof(AccountComponent).GetProperty(nameof(AccountComponent.PasswordMinLength))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0,
+    Check(typeof(AccountElement).GetProperty(nameof(AccountElement.IdleLogoutMinutes))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0
+        && typeof(AccountElement).GetProperty(nameof(AccountElement.PasswordMinLength))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0,
         "闲置分钟数、密码最短几位不是 EC（EC 页改不了）");
 
     // 2. 开机建表、预置：四个角色（管理员在前、访客在后）、内置账号 admin；预置的档位。
@@ -88,7 +88,7 @@ try
         db.Ado.ExecuteCommand("INSERT INTO \"User\" (UserName) VALUES ('old')");
     }
 
-    Check(account.InitComponent(), "组件初始化：建表、预置做成");
+    Check(account.InitElement(), "元件初始化：建表、预置做成");
     using (var db = XyzDb.Create(DbName))
     {
         Check(!db.DbMaintenance.IsAnyTable("User", false) && !db.DbMaintenance.IsAnyTable("Role", false) && !db.DbMaintenance.IsAnyTable("Menu", false),
@@ -108,7 +108,7 @@ try
     long operatorRoleId = roles[2].Id;
     long guestRoleId = roles[3].Id;
     var users = account.GetUsers().Result!;
-    Check(users.Count == 1 && users[0].UserName == AccountComponent.AdminUserName && users[0].IsBuiltIn && users[0].IsEnabled
+    Check(users.Count == 1 && users[0].UserName == AccountElement.AdminUserName && users[0].IsBuiltIn && users[0].IsEnabled
         && users[0].RoleId == adminRoleId && users[0].RoleKind == RoleKind.Admin && roles[0].UserCount == 1,
         "预置内置账号 admin：启用、管理员角色");
 
@@ -140,20 +140,20 @@ try
         && operatorLevels[PermissionCodes.Io] == PermissionLevel.Hidden,
         "操作员：主界面能操作、整机控制和报警复位允许，手动、配方只看，设置、IO 隐藏（IO 是工程师级别）");
 
-    // 3. 重开（新组件、同一个库）：不重复预置
-    var again = new AccountComponent { Database = DbName, IdleLogoutMinutes = 7 };
-    Check(again.InitComponent() && again.GetRoles().Result!.Count == 4 && again.GetUsers().Result!.Count == 1, "重开同一个库：角色还是 4 个、账号还是 1 个");
+    // 3. 重开（新元件、同一个库）：不重复预置
+    var again = new AccountElement { Database = DbName, IdleLogoutMinutes = 7 };
+    Check(again.InitElement() && again.GetRoles().Result!.Count == 4 && again.GetUsers().Result!.Count == 1, "重开同一个库：角色还是 4 个、账号还是 1 个");
     Check(again.GetSession(string.Empty).Result!.IdleLogoutMinutes == 7, "machine.xml 配的闲置分钟数跟着会话给客户端");
 
     // 4. 登录：对的、不分大小写、错的、没有这个人；记最后登录
     changed = 0;
-    var login = account.Login(AccountComponent.AdminUserName, AccountComponent.AdminInitialPassword);
-    Check(login.IsSuccess && login.Result!.UserName == AccountComponent.AdminUserName && login.Result.RoleKind == RoleKind.Admin
+    var login = account.Login(AccountElement.AdminUserName, AccountElement.AdminInitialPassword);
+    Check(login.IsSuccess && login.Result!.UserName == AccountElement.AdminUserName && login.Result.RoleKind == RoleKind.Admin
         && login.Result.Permissions.Count == 0, "admin / admin 登录：管理员，不带档位（全部能操作）");
     Check(login.Result!.IdleLogoutMinutes == 15 && account.GetSession(string.Empty).Result!.IdleLogoutMinutes == 15, "会话带闲置自动退出的分钟数（machine.xml）");
-    Check(account.Login("ADMIN", AccountComponent.AdminInitialPassword).IsSuccess, "登录名不分大小写");
-    Check(account.Login(" admin ", AccountComponent.AdminInitialPassword).IsSuccess, "登录名前后的空格去掉");
-    login = account.Login(AccountComponent.AdminUserName, "wrong");
+    Check(account.Login("ADMIN", AccountElement.AdminInitialPassword).IsSuccess, "登录名不分大小写");
+    Check(account.Login(" admin ", AccountElement.AdminInitialPassword).IsSuccess, "登录名前后的空格去掉");
+    login = account.Login(AccountElement.AdminUserName, "wrong");
     Check(!login.IsSuccess && login.ErrorMessage == ErrorCodes.AccountLoginFailed && login.Args.Count == 0, "密码不对：account.login_failed，不说是哪一样不对");
     login = account.Login("nobody", "whatever");
     Check(!login.IsSuccess && login.ErrorMessage == ErrorCodes.AccountLoginFailed, "没有这个人：同样回 account.login_failed");
@@ -165,7 +165,7 @@ try
     {
         var adminRow = db.Queryable<UserEntity>().First(user => user.IsBuiltIn);
         Check(adminRow.PasswordHash.StartsWith("PBKDF2-SHA256$", StringComparison.Ordinal)
-            && !adminRow.PasswordHash.Contains(AccountComponent.AdminInitialPassword, StringComparison.Ordinal),
+            && !adminRow.PasswordHash.Contains(AccountElement.AdminInitialPassword, StringComparison.Ordinal),
             "库里存的是 PBKDF2 加盐哈希，没有原文");
     }
 
@@ -219,9 +219,9 @@ try
     Check(changed == 1, "改了账号推一次");
     long adminId = account.GetUsers().Result!.Single(user => user.IsBuiltIn).Id;
     updated = account.UpdateUser(adminId, "管理员", operatorRoleId);
-    Check(!updated.IsSuccess && updated.ErrorMessage == ErrorCodes.AccountBuiltInUser && updated.Args.SequenceEqual([AccountComponent.AdminUserName]), "内置 admin 改角色：account.builtin_user");
+    Check(!updated.IsSuccess && updated.ErrorMessage == ErrorCodes.AccountBuiltInUser && updated.Args.SequenceEqual([AccountElement.AdminUserName]), "内置 admin 改角色：account.builtin_user");
     updated = account.UpdateUser(adminId, "系统管理员", adminRoleId);
-    Check(updated.IsSuccess && account.GetSession(AccountComponent.AdminUserName).Result!.DisplayName == "系统管理员", "内置 admin 能改显示名");
+    Check(updated.IsSuccess && account.GetSession(AccountElement.AdminUserName).Result!.DisplayName == "系统管理员", "内置 admin 能改显示名");
     updated = account.UpdateUser(op01, "王工", guestRoleId);
     Check(!updated.IsSuccess && updated.ErrorMessage == ErrorCodes.AccountRoleNotAssignable, "改成访客角色：account.role_not_assignable");
     updated = account.UpdateUser(9999, "x", engineerRoleId);
@@ -322,7 +322,7 @@ try
     removed = account.DeleteUser(op01);
     Check(!removed.IsSuccess && removed.ErrorMessage == ErrorCodes.AccountUserNotFound, "再删一次：account.user_not_found");
 
-    // 13. 三个服务：转给账号组件，数据转 DTO、错误码原样回
+    // 13. 三个服务：转给账号元件，数据转 DTO、错误码原样回
     var accountService = new AccountService();
     var response = await accountService.LoginAsync(RpcRequest.Of((RpcParams.UserName, "admin"), (RpcParams.Password, "admin")));
     Check(response.Success && response.DeserializeData<SessionDto>().RoleKind == RoleKind.Admin, "登录服务：回 SessionDto");
@@ -363,7 +363,7 @@ try
     response = await roleService.DeleteRoleAsync(RpcRequest.Of((RpcParams.Id, adminRoleId)));
     Check(!response.Success && response.Code == ErrorCodes.AccountBuiltInRole, "角色服务：删内置角色原样回错误码");
 
-    // 14. 系统设置带登录开关：开着 True、关了 False、没配账号组件 False
+    // 14. 系统设置带登录开关：开着 True、关了 False、没配账号元件 False
     var settings = (await new SystemService().GetSettingsAsync(new RpcRequest())).DeserializeData<SystemSettingsDto>();
     Check(settings.IsLoginEnabled, "系统设置：Account 开着要登录");
     account.IsEnable = false;
@@ -375,16 +375,16 @@ try
     settings = (await new SystemService().GetSettingsAsync(new RpcRequest())).DeserializeData<SystemSettingsDto>();
     Check(!settings.IsLoginEnabled, "系统设置：没配 Account 节点不要登录");
     response = await new AccountService().LoginAsync(RpcRequest.Of((RpcParams.UserName, "admin"), (RpcParams.Password, "admin2")));
-    Check(!response.Success && response.Code == ErrorCodes.AccountNotInstalled, "没配账号组件：登录服务回 account.not_installed");
+    Check(!response.Success && response.Code == ErrorCodes.AccountNotInstalled, "没配账号元件：登录服务回 account.not_installed");
     response = await new UserService().GetUsersAsync(new RpcRequest());
-    Check(!response.Success && response.Code == ErrorCodes.AccountNotInstalled, "没配账号组件：用户服务回 account.not_installed");
+    Check(!response.Success && response.Code == ErrorCodes.AccountNotInstalled, "没配账号元件：用户服务回 account.not_installed");
     response = await new RoleService().GetRolesAsync(new RpcRequest());
-    Check(!response.Success && response.Code == ErrorCodes.AccountNotInstalled, "没配账号组件：角色服务回 account.not_installed");
+    Check(!response.Success && response.Code == ErrorCodes.AccountNotInstalled, "没配账号元件：角色服务回 account.not_installed");
 
-    // 15. 账号库建不起来：组件初始化回 false，登录、查询都回 account.failed
+    // 15. 账号库建不起来：元件初始化回 false，登录、查询都回 account.failed
     XyzDb.Register("AccountSmokeBroken", $"DataSource={Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "no", "x.db")}", DbType.Sqlite);
-    var broken = new AccountComponent { Database = "AccountSmokeBroken" };
-    Check(!broken.InitComponent(), "账号库建不起来：组件初始化回 false（开机日志看得到）");
+    var broken = new AccountElement { Database = "AccountSmokeBroken" };
+    Check(!broken.InitElement(), "账号库建不起来：元件初始化回 false（开机日志看得到）");
     login = broken.Login("admin", "admin");
     Check(!login.IsSuccess && login.ErrorMessage == ErrorCodes.AccountFailed, "账号库没准备好：登录回 account.failed");
     Check(broken.GetRoles().ErrorMessage == ErrorCodes.AccountFailed, "账号库没准备好：查角色回 account.failed");
@@ -401,7 +401,7 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} account checks (账号组件、登录、会话、账号和角色的增删改、权限、推送、服务、系统设置)");
+Console.WriteLine($"PASS: {checks} account checks (账号元件、登录、会话、账号和角色的增删改、权限、推送、服务、系统设置)");
 
 static Dictionary<string, PermissionLevel> PermissionsOf(IAccount account, long roleId)
 {

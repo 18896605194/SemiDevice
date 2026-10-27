@@ -7,7 +7,7 @@ namespace xyz.Client.Modules;
 /// <summary>
 /// 客户端机型模块装载器：扫描运行目录及 Modules 子目录下的 DLL，
 /// 把带 <see cref="ClientModuleAttribute"/> 的模块注册进 DI。
-/// 扫描方式与后端 xyz.Components.ComponentLoader 保持一致：机型 DLL 只拷贝部署也能被发现。
+/// 扫描方式与后端 xyz.Elements.ElementLoader 保持一致：机型 DLL 只拷贝部署也能被发现。
 /// </summary>
 public static class ClientModuleLoader
 {

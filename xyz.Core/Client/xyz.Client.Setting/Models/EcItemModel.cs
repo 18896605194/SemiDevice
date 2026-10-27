@@ -18,7 +18,7 @@ public sealed class EcItemModel : ObservableObject
         _definition = dto;
         Key = dto.Key;
 
-        // 键是"组件全路径.参数名"：最后一个点前面是组件，后面是参数。
+        // 键是"元件全路径.参数名"：最后一个点前面是元件，后面是参数。
         int dot = dto.Key.LastIndexOf('.');
         Path = dot > 0 ? dto.Key[..dot] : string.Empty;
         Name = dto.Key[(dot + 1)..];
@@ -31,12 +31,12 @@ public sealed class EcItemModel : ObservableObject
     }
 
     /// <summary>
-    /// 键："组件全路径.参数名"（LoadPort1.LoadTimeout），改值、输入框取范围都按它。
+    /// 键："元件全路径.参数名"（LoadPort1.LoadTimeout），改值、输入框取范围都按它。
     /// </summary>
     public string Key { get; }
 
     /// <summary>
-    /// 所在组件的全路径（Chamber1.Arm1）。
+    /// 所在元件的全路径（Chamber1.Arm1）。
     /// </summary>
     public string Path { get; }
 

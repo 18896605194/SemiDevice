@@ -1,0 +1,200 @@
+﻿using xyz.Common.Log;
+using xyz.Elements.Attributes;
+using xyz.Elements.Enums;
+
+namespace xyz.Elements.Collectors;
+
+/// <summary>
+/// ECid 采集器
+/// </summary>
+public sealed class EcCollector
+{
+    public const string FileName = "EcDefinitions.xml";
+    public const int FirstId = 10000;
+    public const int LastId = 29999;
+    private const string Kind = "ECID";
+
+    private volatile IReadOnlyList<EcDefinition> _definitions = Array.Empty<EcDefinition>();
+    private volatile IReadOnlyList<(EcDefinition Row, VariableDeclaration Declaration)> _items = [];
+    private volatile IReadOnlyDictionary<int, (EcDefinition Row, VariableDeclaration Declaration)> _byEcid =
+        new Dictionary<int, (EcDefinition Row, VariableDeclaration Declaration)>();
+
+    /// <summary>
+    /// 编号表全文（含代码里已删、Enabled=False 的行），按编号排序；Merge 之前或表不可用时为空。
+    /// </summary>
+    public IReadOnlyList<EcDefinition> Definitions => _definitions;
+
+    /// <summary>
+    /// 启动时调一次：扫元件树 → 合并编号表 → 有变化才写回。表坏了或写不进去时不覆盖，本次 ECID 不可用。
+    /// 返回是否写了盘。
+    /// </summary>
+    public bool Merge(IEnumerable<ElementBase> roots, string directory)
+    {
+        _definitions = Array.Empty<EcDefinition>();
+        _items = [];
+        _byEcid = new Dictionary<int, (EcDefinition Row, VariableDeclaration Declaration)>();
+
+        var declarations = CollectorHelper.ScanVariables(roots, VariableType.EC, Kind);
+        var byName = declarations.ToDictionary(declaration => declaration.Name, StringComparer.OrdinalIgnoreCase);
+        var path = Path.Combine(directory, FileName);
+        if (!DefinitionTable.TryLoad<EcDefinitionFile, EcDefinition>(path, out var rows, out var error))
+        {
+            LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} {error}，不覆盖原文件，本次 ECID 不可用");
+            return false;
+        }
+
+        var result = DefinitionTable.Merge(rows, declarations.Select(declaration => declaration.Name), FirstId, LastId,
+            name => new EcDefinition { Visible = byName[name].Mark.Visible },
+            row => Refresh(row, byName[row.Name].Mark),
+            Kind);
+
+        if (result.Changed)
+        {
+            try
+            {
+                DefinitionTable.Save<EcDefinitionFile, EcDefinition>(path, rows);
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} 写不进去，本次 ECID 不可用: {exception.Message}");
+                return false;
+            }
+        }
+
+        _definitions = rows;
+        _items = rows.Where(row => row.Enabled && byName.ContainsKey(row.Name))
+            .Select(row => (row, byName[row.Name]))
+            .ToList();
+        _byEcid = _items.ToDictionary(item => item.Row.Id);
+        LogHelper.Info(LogHelper.HostModule, $"{Kind}：{FileName}：在用 {_items.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
+            + (result.Changed ? "，已写回" : "，无变化"));
+        return result.Changed;
+    }
+
+    /// <summary>
+    /// 一键采集：全部在用的 EC（有编号的），带当前值（按属性读，读到的就是元件实际用的值）。
+    /// </summary>
+    public IReadOnlyList<CollectedEc> Collect()
+    {
+        return _items.Select(item => new CollectedEc
+        {
+            Ecid = item.Row.Id,
+            Name = item.Row.Name,
+            Value = CollectorHelper.ReadValue(item.Declaration, Kind),
+            Format = item.Row.Format,
+            Unit = item.Row.Unit,
+            Min = item.Row.Min,
+            Max = item.Row.Max,
+            Default = item.Row.Default,
+            Options = item.Row.Options,
+            Description = item.Row.Description,
+            Visible = item.Row.Visible,
+        }).ToList();
+    }
+
+    /// <summary>
+    /// 按 ECID 取一项在用 EC 的当前值和元数据；没这个号或已停用返回 null。
+    /// </summary>
+    public CollectedEc? ByEcid(int ecid)
+    {
+        if (!_byEcid.TryGetValue(ecid, out var item))
+        {
+            return null;
+        }
+
+        return new CollectedEc
+        {
+            Ecid = item.Row.Id,
+            Name = item.Row.Name,
+            Value = CollectorHelper.ReadValue(item.Declaration, Kind),
+            Format = item.Row.Format,
+            Unit = item.Row.Unit,
+            Min = item.Row.Min,
+            Max = item.Row.Max,
+            Default = item.Row.Default,
+            Options = item.Row.Options,
+            Description = item.Row.Description,
+            Visible = item.Row.Visible,
+        };
+    }
+
+    /// <summary>
+    /// 按 ECID 找它在 ec.xml 里的位置（元件全路径 + 属性名），改值经 EcElement 走；没这个号或已停用返回 false。
+    /// </summary>
+    public bool TryLocate(int ecid, out string path, out string name)
+    {
+        path = string.Empty;
+        name = string.Empty;
+        if (!_byEcid.TryGetValue(ecid, out var item))
+        {
+            return false;
+        }
+
+        path = item.Declaration.Owner.FullPath;
+        name = item.Declaration.Property.Name;
+        return true;
+    }
+
+    /// <summary>
+    /// 按 EC 在 ec.xml 里的位置反查 ECID（EC 值变了的通知只带位置）；没有返回 0。
+    /// </summary>
+    public int EcidOf(string path, string name)
+    {
+        foreach (var (row, declaration) in _items)
+        {
+            if (string.Equals(declaration.Owner.FullPath, path, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(declaration.Property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return row.Id;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// 元数据以代码为准；编号、名字、Visible 不动。
+    /// </summary>
+    private static bool Refresh(EcDefinition row, VariableMarkAttribute mark)
+    {
+        bool changed = false;
+        changed |= DefinitionTable.SetIfChanged(value => row.Format = value, row.Format, mark.Format.ToString());
+        changed |= DefinitionTable.SetIfChanged(value => row.Unit = value, row.Unit, mark.Unit);
+        changed |= DefinitionTable.SetIfChanged(value => row.Min = value, row.Min, mark.Min);
+        changed |= DefinitionTable.SetIfChanged(value => row.Max = value, row.Max, mark.Max);
+        changed |= DefinitionTable.SetIfChanged(value => row.Default = value, row.Default, mark.Default);
+        changed |= DefinitionTable.SetIfChanged(value => row.Options = value, row.Options, mark.Options);
+        changed |= DefinitionTable.SetIfChanged(value => row.Description = value, row.Description, mark.Description);
+        return changed;
+    }
+}
+
+/// <summary>
+/// 采集到的一项 EC：编号、全名、当前值和元数据。
+/// </summary>
+public sealed class CollectedEc
+{
+    public int Ecid { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string Value { get; init; } = string.Empty;
+
+    public string Format { get; init; } = string.Empty;
+
+    public string Unit { get; init; } = string.Empty;
+
+    public string Min { get; init; } = string.Empty;
+
+    public string Max { get; init; } = string.Empty;
+
+    public string Default { get; init; } = string.Empty;
+
+    public string Options { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+
+    public bool Visible { get; init; }
+}
+
+

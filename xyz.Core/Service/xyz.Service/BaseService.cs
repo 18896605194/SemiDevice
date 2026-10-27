@@ -1,5 +1,5 @@
-﻿using xyz.Components.Components;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
@@ -12,7 +12,7 @@ namespace xyz.Service;
 public abstract class BaseService
 {
     /// <summary>
-    /// 获取模块组件
+    /// 获取模块元件
     /// </summary>
     protected static TModule? FindModule<TModule>(string name) where TModule : class, IModule
     {
@@ -45,7 +45,7 @@ public abstract class BaseService
     }
 
     /// <summary>
-    /// 组件没装回包
+    /// 元件没装回包
     /// </summary>
     protected static Task<RpcResponse> NotInstalled(string code)
     {
@@ -53,7 +53,7 @@ public abstract class BaseService
     }
 
     /// <summary>
-    /// 组件的结果翻成回包：成功回 Ok，失败照原样回错误码和参数
+    /// 元件的结果翻成回包：成功回 Ok，失败照原样回错误码和参数
     /// </summary>
     protected static Task<RpcResponse> Reply(HandleResult result)
     {

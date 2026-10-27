@@ -9,18 +9,18 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Collectors;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Collectors;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using F2 = xyz.Secs.Eda.Freeze2;
 
-// EDA 冒烟（Interface A，Freeze 2）：Eda 节点照 machine.xml 同款装配，旁边挂一个带 SV / EC / DV / 事件 / 报警的探针组件，
+// EDA 冒烟（Interface A，Freeze 2）：Eda 节点照 machine.xml 同款装配，旁边挂一个带 SV / EC / DV / 事件 / 报警的探针元件，
 // 再挂一个 Eap 节点（链路启用、不接设备）让自描述带上 E164 的 GEM300 部分。假的厂里客户端（FDC）用 SEMI WSDL 生成的客户端调设备，
 // 自己用 CoreWCF 起一个收数据的口（会话问活、采集报告、计划通知都发到这一个地址）。
 // 验证：接口发现、建会话 / 问活 / 关会话 / 会话数上限；权限表（空着全放、加了照条目、不认识的权限）；设备自描述（结构树、节点描述、类型、
@@ -56,7 +56,7 @@ int clientPort = equipmentPort + 300;
 var alarmNode = new ModuleConfig
 {
     Name = "Alarm",
-    Type = typeof(AlarmComponent).FullName!,
+    Type = typeof(AlarmElement).FullName!,
     Values = { new ValueConfig { Name = "EnableHistory", Value = "False" } },
 };
 var chamberNode = new ModuleConfig
@@ -67,33 +67,33 @@ var chamberNode = new ModuleConfig
 var eapNode = new ModuleConfig
 {
     Name = "Eap",
-    Type = typeof(EapComponent).FullName!,
+    Type = typeof(EapElement).FullName!,
     Children =
     {
         new ModuleConfig
         {
             Name = "Hsms",
-            Type = typeof(HsmsComponent).FullName!,
+            Type = typeof(HsmsElement).FullName!,
             Values =
             {
                 new ValueConfig { Name = "IsEnable", Value = "True" },
                 new ValueConfig { Name = "Port", Value = (equipmentPort + 600).ToString() },
             },
         },
-        new ModuleConfig { Name = "Notifier", Type = typeof(EapNotifierComponent).FullName! },
-        new ModuleConfig { Name = "E30", Type = typeof(E30Component).FullName!, Values = { new ValueConfig { Name = "Database", Value = "EdaSmoke" } } },
-        new ModuleConfig { Name = "E39", Type = typeof(E39Component).FullName! },
-        new ModuleConfig { Name = "Recipe", Type = typeof(E30RecipeComponent).FullName! },
-        new ModuleConfig { Name = "E87", Type = typeof(E87Component).FullName! },
-        new ModuleConfig { Name = "E90", Type = typeof(E90Component).FullName! },
-        new ModuleConfig { Name = "E40", Type = typeof(E40Component).FullName! },
-        new ModuleConfig { Name = "E94", Type = typeof(E94Component).FullName! },
+        new ModuleConfig { Name = "Notifier", Type = typeof(EapNotifierElement).FullName! },
+        new ModuleConfig { Name = "E30", Type = typeof(E30Element).FullName!, Values = { new ValueConfig { Name = "Database", Value = "EdaSmoke" } } },
+        new ModuleConfig { Name = "E39", Type = typeof(E39Element).FullName! },
+        new ModuleConfig { Name = "Recipe", Type = typeof(E30RecipeElement).FullName! },
+        new ModuleConfig { Name = "E87", Type = typeof(E87Element).FullName! },
+        new ModuleConfig { Name = "E90", Type = typeof(E90Element).FullName! },
+        new ModuleConfig { Name = "E40", Type = typeof(E40Element).FullName! },
+        new ModuleConfig { Name = "E94", Type = typeof(E94Element).FullName! },
     },
 };
 var edaNode = new ModuleConfig
 {
     Name = "Eda",
-    Type = typeof(EdaComponent).FullName!,
+    Type = typeof(EdaElement).FullName!,
     Values =
     {
         new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -106,18 +106,18 @@ var edaNode = new ModuleConfig
 };
 
 var roots = SmokeIoc.Load([alarmNode, chamberNode, eapNode, edaNode]);
-var ec = new EcComponent();
+var ec = new EcElement();
 SmokeIoc.Use<IEc>(ec);
 ec.Merge(roots);
 var collectors = new GemCollectors();
 collectors.Merge(roots, directory);
 SmokeIoc.Use(collectors);
 
-var eda = roots.OfType<EdaComponent>().Single();
+var eda = roots.OfType<EdaElement>().Single();
 var probe = roots.OfType<EdaProbe>().Single();
-var eap = roots.OfType<EapComponent>().Single();
-var e30 = eap.FindChild<E30Component>()!;
-var e40 = eap.FindChild<E40Component>()!;
+var eap = roots.OfType<EapElement>().Single();
+var e30 = eap.FindChild<E30Element>()!;
+var e40 = eap.FindChild<E40Element>()!;
 probe.Temperature = 36.5;
 
 var client = new FakeClient();
@@ -187,8 +187,8 @@ Check(structure.Name == Equipment, "结构树的根是设备名");
 Check(structure.LogicalElements.Select(element => element.Name).SequenceEqual(["JobManager", "MaterialManager"]), "EAP 链路启用时带 E164 的 JobManager、MaterialManager 两个逻辑节点");
 var chamber = structure.EquipmentComponents.Subsystems.Single(item => item.Name == "Chamber");
 Check(chamber.ElementType == "Group" && chamber.SubsystemComponents.IODevices is null, "machine.xml 的分组也成节点（Group）");
-Check(chamber.SubsystemComponents.Subsystems.Single().Name == "Chamber1", "探针组件挂在分组下面");
-Check(structure.EquipmentComponents.Subsystems.Any(item => item.Name == "Eda"), "EDA 自己的组件也在树上");
+Check(chamber.SubsystemComponents.Subsystems.Single().Name == "Chamber1", "探针元件挂在分组下面");
+Check(structure.EquipmentComponents.Subsystems.Any(item => item.Name == "Eda"), "EDA 自己的元件也在树上");
 
 var descriptions = (F2.NodeDescriptionResultType)(await metadataService.GetEquipmentNodeDescriptionsAsync(new F2.GetEquipmentNodeDescriptionsIn
 {
@@ -602,8 +602,8 @@ async Task Deactivate(string planId)
 /// <summary>
 /// 冒烟探针：一个温度 SV（单位 degC）、一个增益 EC、一个步骤号 DV、一个"步骤开始"事件（带步骤号）、一个温度超了报警
 /// </summary>
-[Component(description: "EdaSmoke 探针")]
-public sealed class EdaProbe : ComponentBase
+[Element(description: "EdaSmoke 探针")]
+public sealed class EdaProbe : ElementBase
 {
     [VariableMark(VariableType.SV, ValueFormat.Double, "degC", description: "温度")]
     public double Temperature { get; set; }

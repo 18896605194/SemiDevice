@@ -1,5 +1,5 @@
-﻿using xyz.Components.Components;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
@@ -33,7 +33,7 @@ public interface IChamber : IProcessStation
 
     #endregion
 
-    #region 手动页的设备动作（按组件全路径找设备）
+    #region 手动页的设备动作（按元件全路径找设备）
 
     /// <summary>
     /// 设备动作等到做完的上限（ms）

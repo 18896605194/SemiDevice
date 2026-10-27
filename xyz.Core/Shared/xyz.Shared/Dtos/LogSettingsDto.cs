@@ -31,7 +31,7 @@ public class LogSettingsDto
     public int KeepDays { get; set; }
 
     /// <summary>
-    /// 日志历史页"模块"下拉的选项：日志的第一层（组件树最顶上那层，按 machine.xml 先后，再加 Operation、Host）
+    /// 日志历史页"模块"下拉的选项：日志的第一层（元件树最顶上那层，按 machine.xml 先后，再加 Operation、Host）
     /// </summary>
     public List<string> Modules { get; set; } = [];
 }

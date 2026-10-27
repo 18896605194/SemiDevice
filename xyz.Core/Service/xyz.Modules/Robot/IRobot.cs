@@ -1,5 +1,5 @@
-﻿using xyz.Components.Components;
-using xyz.Components.Interfaces;
+﻿using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
@@ -25,7 +25,7 @@ public interface IRobot : ITransferRobot
 
     #region 动作
 
-    // 动作入口按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）；复位、急停跟着组件基类，被拒返回 null。
+    // 动作入口按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）；复位、急停跟着元件基类，被拒返回 null。
 
     HandleResult<ModuleRoutine> Home();
 

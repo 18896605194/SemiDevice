@@ -29,7 +29,7 @@ public sealed class DeviceDriver
 
     /// <param name="communication">帧通讯（传输 + 解码器）。</param>
     /// <param name="link">有握手的协议给链路层（品牌的解码器顺带实现），没有为 null。</param>
-    /// <param name="source">收发原文记在谁名下（建通道的串口 / 网口组件）。</param>
+    /// <param name="source">收发原文记在谁名下（建通道的串口 / 网口元件）。</param>
     public DeviceDriver(IFrameCommunication communication, IFrameLink? link, ILogSource source)
     {
         _communication = communication ?? throw new ArgumentNullException(nameof(communication));
@@ -235,7 +235,7 @@ public sealed class DeviceDriver
             }
             catch
             {
-                // 通讯故障：收掉这一轮连接退出，由上层（通道组件）重连。
+                // 通讯故障：收掉这一轮连接退出，由上层（通道元件）重连。
                 // 只收自己这一轮：重连以后才醒过来的旧发送任务不能把新连接关了。
                 if (ReferenceEquals(_txChannel?.Reader, reader))
                 {

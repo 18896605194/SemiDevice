@@ -5,8 +5,8 @@ using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using xyz.Common.Log;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Service;
 using xyz.Tools;
 
@@ -71,7 +71,7 @@ public static class Program
     }
 
     /// <summary>
-    /// 建宿主、组件开机、开始监听，一直跑到退出
+    /// 建宿主、元件开机、开始监听，一直跑到退出
     /// </summary>
     private static void Run(string[] args, HostTrayIcon tray)
     {
@@ -84,16 +84,16 @@ public static class Program
 
         #endregion
 
-        #region 装组件树和服务
+        #region 装元件树和服务
 
-        //按照machine.xml 装组件树以及相关服务
+        //按照machine.xml 装元件树以及相关服务
         builder.Services.AddXyzServices();
 
         #endregion
 
         #region Kestrel、gRPC 设置
 
-        // 只走 HTTP/2；监听地址走的rpc的组件
+        // 只走 HTTP/2；监听地址走的rpc的元件
         builder.WebHost.ConfigureKestrel(options =>
         {
             options.ConfigureEndpointDefaults(listenOptions =>
@@ -107,25 +107,25 @@ public static class Program
 
         builder.Services.AddCodeFirstGrpc(options =>
         {
-            options.MaxReceiveMessageSize = MaxMessageSizeMb() * 1024 * 1024;  //单挑消息的大小走的是rpc组件里面配置的
+            options.MaxReceiveMessageSize = MaxMessageSizeMb() * 1024 * 1024;  //单挑消息的大小走的是rpc元件里面配置的
             options.Interceptors.Add<ActionFilter>(); //增加过滤器 记操作日志（谁点了什么）
         });
 
         #endregion
 
-        #region 组件开机
+        #region 元件开机
 
         var app = builder.Build(); //创建
 
         //开始创建容器
-        app.Services.StartComponents();
-        app.Lifetime.ApplicationStopping.Register(ServiceExtensions.StopComponents);
+        app.Services.StartElements();
+        app.Lifetime.ApplicationStopping.Register(ServiceExtensions.StopElements);
 
         #endregion
 
         #region 监听地址
 
-        // gRPC 端点本身是组件（machine.xml 的 Rpc 节点），地址端口从它上面取；没配该节点退回默认 localhost:5000
+        // gRPC 端点本身是元件（machine.xml 的 Rpc 节点），地址端口从它上面取；没配该节点退回默认 localhost:5000
         var rpc = IocHelper.GetService<IRpc>();
         string host = "localhost";
         if (rpc is not null && !string.IsNullOrEmpty(rpc.Host))
@@ -133,7 +133,7 @@ public static class Program
             host = rpc.Host;
         }
 
-        int port = rpc?.Port ?? RpcComponent.DefaultPort;
+        int port = rpc?.Port ?? RpcElement.DefaultPort;
         app.Urls.Add(ListenUrl(host, port));
 
         #endregion
@@ -167,7 +167,7 @@ public static class Program
     private static int MaxMessageSizeMb()
     {
         var rpc = IocHelper.GetService<IRpc>();
-        return rpc?.MaxMessageSizeMb ?? RpcComponent.DefaultMaxMessageSizeMb;
+        return rpc?.MaxMessageSizeMb ?? RpcElement.DefaultMaxMessageSizeMb;
     }
 
     /// <summary>

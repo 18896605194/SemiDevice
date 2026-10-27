@@ -2,7 +2,7 @@
 
 /// <summary>
 /// 数据曲线（实时曲线也用）的一个信号。名字全部由 machine.xml 生成、按两个下划线 __ 分层（模块 → 部件 → 属性），界面照它长出勾选树：
-/// SV = 组件全路径 + 属性名；组件绑的 IO = 组件全路径 + 配置项名去掉 Index（Chamber1__Door__DiOpened）。
+/// SV = 元件全路径 + 属性名；元件绑的 IO = 元件全路径 + 配置项名去掉 Index（Chamber1__Door__DiOpened）。
 /// 名字就是库表里的列名，查询按名字查；不用点号是因为 SqlSugar 会把点号拆成"表.列"。
 /// </summary>
 public class DataChartSignalDto
@@ -33,7 +33,7 @@ public class DataChartSignalDto
 }
 
 /// <summary>
-/// 数据曲线能选哪些信号（RpcResponse.Data 的 JSON）：就是正在记的那些——machine.xml 里配置了的（组件上的 SV + 组件绑的 IO），
+/// 数据曲线能选哪些信号（RpcResponse.Data 的 JSON）：就是正在记的那些——machine.xml 里配置了的（元件上的 SV + 元件绑的 IO），
 /// 顺序跟 machine.xml 一样；库里记的也正是这些。
 /// </summary>
 public class DataChartSignalsDto

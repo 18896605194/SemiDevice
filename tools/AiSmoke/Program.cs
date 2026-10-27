@@ -5,12 +5,12 @@ using System.Reactive.Linq;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Configs.Models;
 using xyz.Service.Ai;
 using xyz.Shared.Dtos;
@@ -18,7 +18,7 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// AI 冒烟：AI 组件（machine.xml 的 Ai 节点）配错开机就报（地址、模型名、同时几个）；按 IAi 进容器；
+// AI 冒烟：AI 元件（machine.xml 的 Ai 节点）配错开机就报（地址、模型名、同时几个）；按 IAi 进容器；
 // 解释报警：报警不在当前报警里回 ai.alarm_not_found、不问模型；交给模型的材料（报警的说明和处理办法、来源下面的信号前后怎么变的和现在的值、
 // 最近的告警和错误日志），EC 限条数，回答的语言跟界面，回答带它看了哪些数据；模型回空的、出错、超时（含排队）的错误码；同时只让 machine.xml MaxConcurrent 个在模型上算；
 // 服务（没配回 ai.not_installed、状态带模型名、回答转成 AiAnswerDto）；
@@ -46,13 +46,13 @@ var previousEc = IocHelper.GetService<IEc>();
 var previousAlarm = IocHelper.GetService<IAlarm>();
 try
 {
-    // 0. 内存 EC、报警组件、映射组件；假日志、假数据曲线
-    SmokeIoc.Use<IEc>(new EcComponent());
-    var alarms = new AlarmComponent();
+    // 0. 内存 EC、报警元件、映射元件；假日志、假数据曲线
+    SmokeIoc.Use<IEc>(new EcElement());
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
-    SmokeIoc.Use<IMapper>(new MapperComponent());
+    SmokeIoc.Use<IMapper>(new MapperElement());
     var logs = new FakeLogs();
-    SmokeIoc.Use<ILogComponent>(logs);
+    SmokeIoc.Use<ILogElement>(logs);
     var chart = new FakeChart();
     SmokeIoc.Use<IDataChart>(chart);
 
@@ -61,7 +61,7 @@ try
     {
         try
         {
-            ComponentLoader.Load([Node("Ai", typeof(SmokeAi), values)]);
+            ElementLoader.Load([Node("Ai", typeof(SmokeAi), values)]);
             return null;
         }
         catch (InvalidOperationException exception)
@@ -80,7 +80,7 @@ try
     Check(error is not null && error.Contains("MaxConcurrent", StringComparison.Ordinal), "同时几个配成 0：装配就报");
     Check(LoadError(Value("Endpoint", "http://192.168.10.50:8080/v1"), Value("Model", "m")) is null, "地址、模型名配对了能装上");
 
-    // 2. 装上：AI 组件 + 报警来源（Chamber.Chamber1.Door，分组节点进路径）；组件初始化建好（假的）模型客户端，Bind 取报警、日志、数据曲线
+    // 2. 装上：AI 元件 + 报警来源（Chamber.Chamber1.Door，分组节点进路径）；元件初始化建好（假的）模型客户端，Bind 取报警、日志、数据曲线
     var fake = new FakeChat { Reply = "  可能是开到位传感器坏了。\n先查 Opened 信号的接线。  " };
     SmokeAi.Next = fake;
     var roots = SmokeIoc.Load(
@@ -90,9 +90,9 @@ try
     ]);
     var ai = (SmokeAi)roots[0];
     var door = roots[1].FullPath == Source ? (AlarmProbe)roots[1] : throw new InvalidOperationException("FAIL: 报警来源的路径不对：" + roots[1].FullPath);
-    Check(ai.InitComponent(), "AI 组件初始化：只建对象，不连网");
-    ComponentLoader.BindAll(roots);
-    Check(ReferenceEquals(IocHelper.GetService<IAi>(), ai) && ai.Model == "qwen-test", "按 IAi 找得到 AI 组件，模型名照 machine.xml");
+    Check(ai.InitElement(), "AI 元件初始化：只建对象，不连网");
+    ElementLoader.BindAll(roots);
+    Check(ReferenceEquals(IocHelper.GetService<IAi>(), ai) && ai.Model == "qwen-test", "按 IAi 找得到 AI 元件，模型名照 machine.xml");
     Check(ai.TimeoutMs == 120000 && ai.LogCount == 50 && ai.SignalWindowSeconds == 120 && ai.SignalCount == 20
         && ai.MaxOutputTokens == 1000 && Math.Abs(ai.Temperature - 0.2) < 1e-9 && ai.MaxConcurrent == 1,
         "默认：超时 120 s、50 条日志、前后各 120 s、20 个信号、回答 1000 token、随机程度 0.2、同时 1 个");
@@ -246,8 +246,8 @@ try
     // 11. 真走一遍微软的 OpenAI 格式适配：本机假模型服务收到 POST /v1/chat/completions，模型名、两条消息、占位密钥都对，回答原样回来
     using (var server = new FakeModelServer("门到位传感器可能坏了"))
     {
-        var real = (AiComponent)SmokeIoc.Load([Node("Ai", typeof(AiComponent), Value("Endpoint", server.Endpoint), Value("Model", "test-model"))]).Single();
-        real.InitComponent();
+        var real = (AiElement)SmokeIoc.Load([Node("Ai", typeof(AiElement), Value("Endpoint", server.Endpoint), Value("Model", "test-model"))]).Single();
+        real.InitElement();
         real.Bind();
         result = await real.ExplainAlarmAsync(Source, Code, "zh-CN", CancellationToken.None);
         Check(result.IsSuccess && result.Result is not null && result.Result.Text == "门到位传感器可能坏了", "真走 HTTP：回答原样回来");
@@ -296,20 +296,20 @@ static ModuleConfig Node(string name, Type type, params ValueConfig[] values)
     return new ModuleConfig { Name = name, Type = type.FullName, Values = [.. values] };
 }
 
-// 分组节点（不写 Type）：不生成组件，名字进路径
+// 分组节点（不写 Type）：不生成元件，名字进路径
 static ModuleConfig Group(string name, params ModuleConfig[] children)
 {
     return new ModuleConfig { Name = name, Children = [.. children] };
 }
 
 /// <summary>
-/// 冒烟用的 AI 组件：模型客户端换成假的
+/// 冒烟用的 AI 元件：模型客户端换成假的
 /// </summary>
-[Component(description: "冒烟用 AI 组件")]
-public sealed class SmokeAi : AiComponent
+[Element(description: "冒烟用 AI 元件")]
+public sealed class SmokeAi : AiElement
 {
     /// <summary>
-    /// 组件初始化时用的假模型
+    /// 元件初始化时用的假模型
     /// </summary>
     public static IChatClient? Next { get; set; }
 
@@ -322,8 +322,8 @@ public sealed class SmokeAi : AiComponent
 /// <summary>
 /// 冒烟用的报警来源：腔门，报警的说明、处理办法照真的写
 /// </summary>
-[Component(description: "冒烟用报警来源")]
-public sealed class AlarmProbe : ComponentBase
+[Element(description: "冒烟用报警来源")]
+public sealed class AlarmProbe : ElementBase
 {
     [Alarm("开/关到位超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Light,
         Description = "开门命令发出后到位信号没在时间内亮",
@@ -415,7 +415,7 @@ public sealed class FakeChat : IChatClient
 
     public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
-        throw new NotSupportedException("AI 组件不用流式");
+        throw new NotSupportedException("AI 元件不用流式");
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null)
@@ -429,9 +429,9 @@ public sealed class FakeChat : IChatClient
 }
 
 /// <summary>
-/// 假的日志组件：最近的日志由冒烟摆
+/// 假的日志元件：最近的日志由冒烟摆
 /// </summary>
-public sealed class FakeLogs : ILogComponent
+public sealed class FakeLogs : ILogElement
 {
     /// <summary>
     /// 最近的日志（最旧的在前）

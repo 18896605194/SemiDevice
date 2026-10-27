@@ -1,7 +1,7 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
@@ -22,7 +22,7 @@ public class DataChartService : BaseService, IDataChartService
     public DataChartService()
     {
         _chart = IocHelper.GetService<IDataChart>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
     /// <summary>

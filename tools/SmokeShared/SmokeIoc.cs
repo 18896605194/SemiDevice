@@ -1,16 +1,16 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using xyz.Components;
+using xyz.Elements;
 using xyz.Configs.Models;
 using xyz.Tools;
 
 /// <summary>
-/// 冒烟用的容器：跟宿主一样组件照树进容器（ComponentLoader.Register），IocHelper 从它取；
+/// 冒烟用的容器：跟宿主一样元件照树进容器（ElementLoader.Register），IocHelper 从它取；
 /// 冒烟里换树、登记假件、撤掉某个单例都在这里，改一次重建一次。各冒烟工程链接这一个文件
 /// </summary>
 static class SmokeIoc
 {
-    private static IReadOnlyList<ComponentBase> _tree = [];
+    private static IReadOnlyList<ElementBase> _tree = [];
 
     /// <summary>
     /// 单独登记的（假件、直接 new 的、撤掉的）：按登记先后，盖过树上的同类；null 是撤掉
@@ -28,24 +28,24 @@ static class SmokeIoc
     }
 
     /// <summary>
-    /// 照 machine.xml 装一棵树（宿主开机装配那一步），装出来的组件都进容器
+    /// 照 machine.xml 装一棵树（宿主开机装配那一步），装出来的元件都进容器
     /// </summary>
-    public static List<ComponentBase> Load(IEnumerable<ModuleConfig> settings)
+    public static List<ElementBase> Load(IEnumerable<ModuleConfig> settings)
     {
-        var roots = ComponentLoader.Load(settings);
+        var roots = ElementLoader.Load(settings);
         UseTree(roots);
         return roots;
     }
 
     /// <summary>
-    /// 整棵树换成这些：树上的组件按接口进容器，单独登记过的同类让给树上的（后装的生效）
+    /// 整棵树换成这些：树上的元件按接口进容器，单独登记过的同类让给树上的（后装的生效）
     /// </summary>
-    public static void Tree(params ComponentBase[] roots)
+    public static void Tree(params ElementBase[] roots)
     {
         UseTree(roots);
     }
 
-    private static void UseTree(IReadOnlyList<ComponentBase> roots)
+    private static void UseTree(IReadOnlyList<ElementBase> roots)
     {
         var contracts = new HashSet<Type>();
         CollectContracts(roots, contracts);
@@ -64,23 +64,23 @@ static class SmokeIoc
         Rebuild();
     }
 
-    private static void CollectContracts(IEnumerable<ComponentBase> components, HashSet<Type> contracts)
+    private static void CollectContracts(IEnumerable<ElementBase> elements, HashSet<Type> contracts)
     {
-        foreach (var component in components)
+        foreach (var element in elements)
         {
-            foreach (var contract in component.GetType().GetInterfaces())
+            foreach (var contract in element.GetType().GetInterfaces())
             {
                 contracts.Add(contract);
             }
 
-            CollectContracts(component.Children, contracts);
+            CollectContracts(element.Children, contracts);
         }
     }
 
     private static void Rebuild()
     {
         var services = new ServiceCollection();
-        ComponentLoader.Register(services, _tree);
+        ElementLoader.Register(services, _tree);
         foreach (var (type, instance) in _uses)
         {
             services.RemoveAll(type);

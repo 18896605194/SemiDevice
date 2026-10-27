@@ -59,7 +59,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.GrpcHost", "xyz.Core\Se
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Common", "xyz.Core\Service\xyz.Common\xyz.Common.csproj", "{A91898C1-D3B9-47E8-B7E2-5E9BE7A0777F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Components", "xyz.Core\Service\xyz.Components\xyz.Components.csproj", "{0102B585-5A5D-4952-BC4D-1D7B73B017D5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Elements", "xyz.Core\Service\xyz.Elements\xyz.Elements.csproj", "{0102B585-5A5D-4952-BC4D-1D7B73B017D5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Configs", "xyz.Core\Service\xyz.Configs\xyz.Configs.csproj", "{01BD1FEA-5D54-46DF-BD0C-A4D8207DFE0A}"
 EndProject

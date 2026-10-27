@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\xyz.Components\xyz.Components.csproj" />
+    <ProjectReference Include="..\xyz.Elements\xyz.Elements.csproj" />
     <ProjectReference Include="..\xyz.Drivers\xyz.Drivers.csproj" />
     <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
   </ItemGroup>

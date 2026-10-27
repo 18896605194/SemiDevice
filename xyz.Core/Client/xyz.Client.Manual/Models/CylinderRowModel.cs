@@ -20,7 +20,7 @@ public class CylinderRowModel : ObservableObject
         Update(dto);
     }
 
-    /// <summary>组件全路径，如 "Chamber.Chamber1.Bowl1"；气缸动作按它找气缸。</summary>
+    /// <summary>元件全路径，如 "Chamber.Chamber1.Bowl1"；气缸动作按它找气缸。</summary>
     public string Path { get; }
 
     /// <summary>行名：machine.xml 路径去掉腔体名，照 machine.xml 原样显示。</summary>

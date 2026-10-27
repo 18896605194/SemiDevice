@@ -1,11 +1,11 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
@@ -15,8 +15,8 @@ using xyz.Tools;
 namespace xyz.Modules;
 
 
-[Component(description: "整机：系统状态、全部初始化、Auto / Manual、整机停止、全部回片；界面语言")]
-public class SystemModule : BaseStateComponent, ISystemModule
+[Element(description: "整机：系统状态、全部初始化、Auto / Manual、整机停止、全部回片；界面语言")]
+public class SystemModule : BaseStateElement, ISystemModule
 {
     public SystemModule()
     {
@@ -531,15 +531,15 @@ public class SystemModule : BaseStateComponent, ISystemModule
     }
 
     /// <summary>
-    /// 这一刻的设备总状态：报警看报警组件（Warn 级算警告，其余算报警），运行看有没有模块（含整机自己）在做动作，晶圆尺寸看晶圆尺寸组件
+    /// 这一刻的设备总状态：报警看报警元件（Warn 级算警告，其余算报警），运行看有没有模块（含整机自己）在做动作，晶圆尺寸看晶圆尺寸元件
     /// </summary>
     public EquipmentStatusDto CreateEquipmentStatus()
     {
         IReadOnlyList<AlarmItem> alarms = [];
-        var alarmComponent = _alarms;
-        if (alarmComponent is not null)
+        var alarmElement = _alarms;
+        if (alarmElement is not null)
         {
-            alarms = alarmComponent.ActiveAlarms;
+            alarms = alarmElement.ActiveAlarms;
         }
 
         return new EquipmentStatusDto
@@ -547,7 +547,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
             HasAlarm = alarms.Any(alarm => alarm.Level != AlarmLevel.Warn),
             HasWarning = alarms.Any(alarm => alarm.Level == AlarmLevel.Warn),
             IsRunning = CurrentRoutine is not null || _modules.Any(module => module.CurrentRoutine is not null),
-            WaferSize = WaferSizeComponent.SizeOf(_waferSize),
+            WaferSize = WaferSizeElement.SizeOf(_waferSize),
         };
     }
 
@@ -569,9 +569,9 @@ public class SystemModule : BaseStateComponent, ISystemModule
 
             _lightErrors[light] = exception.Message;
             string name = light.GetType().Name;
-            if (light is ComponentBase component)
+            if (light is ElementBase element)
             {
-                name = component.FullPath;
+                name = element.FullPath;
             }
 
             LogHelper.Warn(this, $"{name} 四色灯输出失败: {exception.Message}");

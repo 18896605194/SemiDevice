@@ -1,7 +1,7 @@
 ﻿using xyz._35021.Module.Drivers.Reje;
 using xyz._35021.Module.Drivers.Reje.Commands;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
 using xyz.Modules;
@@ -12,7 +12,7 @@ namespace xyz._35021.Module.Robot;
 /// 35021 机械手模块（锐洁）：动作入口、晶圆账、持片检查、轮询节奏、推送都是平台的（BaseRobotModule），
 /// 这里只写每个动作发哪条锐洁指令、一圈查什么、上报怎么认；要加互锁重写 XxxInterlock（先调 base）
 /// </summary>
-[Component(description: "35021 机械手模块（锐洁）")]
+[Element(description: "35021 机械手模块（锐洁）")]
 public class RobotModule : BaseRobotModule
 {
     /// <summary>

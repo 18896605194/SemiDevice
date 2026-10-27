@@ -9,7 +9,7 @@ namespace xyz.Client.Common.Ec;
 
 /// <summary>
 /// 客户端的 EC 目录：连上后端时拉一次全部 EC（定义 + 当前值），之后哪一项的值变了后端推哪一项（EcItemDto）。
-/// EC 设置页列的参数、通用输入框按 EcKey 取的范围都是这一份，不各自拉。按"组件全路径.参数名"查。
+/// EC 设置页列的参数、通用输入框按 EcKey 取的范围都是这一份，不各自拉。按"元件全路径.参数名"查。
 /// 全部在 UI 线程上动（事件流回调和连接状态本来就投递到 UI 线程），Changed 也在 UI 线程触发。
 /// </summary>
 public static class ClientEc
@@ -21,7 +21,7 @@ public static class ClientEc
     private static IDisposable? _subscription;
 
     /// <summary>
-    /// 全部 EC，按后端给的先后——组件树的先后，也就是 machine.xml 的先后。
+    /// 全部 EC，按后端给的先后——元件树的先后，也就是 machine.xml 的先后。
     /// </summary>
     public static IReadOnlyList<EcItemDto> Items => _ordered;
 
@@ -49,7 +49,7 @@ public static class ClientEc
     }
 
     /// <summary>
-    /// 按键查一项 EC，键是"组件全路径.参数名"（如 LoadPort1.LoadTimeout），忽略大小写；
+    /// 按键查一项 EC，键是"元件全路径.参数名"（如 LoadPort1.LoadTimeout），忽略大小写；
     /// 还没拉到或没有这项返回 false。
     /// </summary>
     public static bool TryGet(string key, out EcItemDto item)

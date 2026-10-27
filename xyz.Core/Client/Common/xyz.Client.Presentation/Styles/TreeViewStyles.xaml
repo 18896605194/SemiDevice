@@ -26,7 +26,7 @@
         </Style.Triggers>
     </Style>
 
-    <!--  导航树的节点（EC 设置页左边的组件树）：点哪个节点右边就列哪个；选中、展开跟着节点模型的 IsSelected / IsExpanded 走  -->
+    <!--  导航树的节点（EC 设置页左边的元件树）：点哪个节点右边就列哪个；选中、展开跟着节点模型的 IsSelected / IsExpanded 走  -->
     <Style
         x:Key="NavTreeViewItemStyle"
         BasedOn="{StaticResource MaterialDesignTreeViewItem}"

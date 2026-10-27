@@ -1,9 +1,9 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Threading.Channels;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
+using xyz.Elements.Models;
 using xyz.Configs.Models;
 using xyz.Secs;
 using xyz.Secs.Diagnostics;
@@ -12,7 +12,7 @@ using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 using xyz.Tools;
 
-// HsmsComponent 冒烟（链路和报文分发，不带 GEM）：组件经 ComponentLoader 按 machine.xml 同款结构装配，登记几个测试处理方，
+// HsmsElement 冒烟（链路和报文分发，不带 GEM）：元件经 ElementLoader 按 machine.xml 同款结构装配，登记几个测试处理方，
 // 假 EAP 用 HsmsConnector 连入，验证：按 Stream/Function 交给处理方（在派发线程上，可以 await）、处理方抛数据错回 S9F7、
 // 抛别的错回 SxF0、没人登记的回 S9F3 / S9F5、闸门挡住的照闸门回、回完再做的事排在回复之后、设备主动发报文等回复、
 // 连上 / 断开按先后通知、断线重连后照常分发、Close 发 Separate、跟 gRPC 同端口 / 配置不对 / 端口被占时 Open 只记错误不抛。
@@ -37,7 +37,7 @@ var port = 5600 + Random.Shared.Next(400);
 var node = new ModuleConfig
 {
     Name = "Hsms",
-    Type = typeof(HsmsComponent).FullName!,
+    Type = typeof(HsmsElement).FullName!,
     Values =
     {
         new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -52,7 +52,7 @@ var node = new ModuleConfig
     },
 };
 var roots = SmokeIoc.Load([node]);
-var hsms = roots.OfType<HsmsComponent>().Single();
+var hsms = roots.OfType<HsmsElement>().Single();
 Check(ReferenceEquals(IocHelper.GetService<IHsms>(), hsms), "装配出来就登记成单例");
 Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[Machine] 灌值生效（IsEnable/Port/DeviceId）");
 
@@ -119,7 +119,7 @@ eap.Start();
 var session = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
 Check(session.IsSelected, "假 EAP 应 SELECTED");
 Check(await linkEvents.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)) == "Selected", "连上应通知 LinkSelected");
-Check(hsms.IsSelected, "组件看链路已连上");
+Check(hsms.IsSelected, "元件看链路已连上");
 
 // 3.1 交给登记的处理方，按处理方给的回复回。
 var s1f2 = await session.SendAsync(new SecsMessage(1, 1, true));
@@ -187,8 +187,8 @@ eap.Dispose();
 
 // 4. 链路起不来的几种情况：Open 只记错误、不抛，后端照常起，链路状态保持未连接。
 // ① 跟 gRPC（Rpc 节点）同端口：不去抢——宿主先开 EAP 链路后起 gRPC，抢了 gRPC 就绑不上、整个后端起不来。
-SmokeIoc.Use<IRpc>(new RpcComponent { Port = port }); // 宿主从容器里的 Rpc 组件取 gRPC 端口
-var sameAsRpc = new HsmsComponent { IsEnable = true, Port = port, LinktestIntervalMs = 0 };
+SmokeIoc.Use<IRpc>(new RpcElement { Port = port }); // 宿主从容器里的 Rpc 元件取 gRPC 端口
+var sameAsRpc = new HsmsElement { IsEnable = true, Port = port, LinktestIntervalMs = 0 };
 SmokeIoc.Use<IHsms>(sameAsRpc);
 sameAsRpc.Open();
 Check(sameAsRpc.LocalEndpoint is null && sameAsRpc.LinkState == HsmsLinkState.NotConnected, "跟 gRPC 同端口时不监听");
@@ -198,8 +198,8 @@ SmokeIoc.Use<IRpc>(null);
 // ② 配置不对（设备号超 15 位、超时填 0）：同样只记错误。端口给 0，万一没拦住会监听到系统分配的端口，检查就会失败。
 foreach (var invalid in new[]
 {
-    new HsmsComponent { IsEnable = true, Port = 0, DeviceId = 40000 },
-    new HsmsComponent { IsEnable = true, Port = 0, T3ReplyTimeoutMs = 0 },
+    new HsmsElement { IsEnable = true, Port = 0, DeviceId = 40000 },
+    new HsmsElement { IsEnable = true, Port = 0, T3ReplyTimeoutMs = 0 },
 })
 {
     invalid.Open();
@@ -211,7 +211,7 @@ foreach (var invalid in new[]
 var occupant = new TcpListener(IPAddress.Loopback, 0);
 occupant.Start();
 var occupiedPort = ((IPEndPoint)occupant.LocalEndpoint).Port;
-var clash = new HsmsComponent { IsEnable = true, Port = occupiedPort, LinktestIntervalMs = 0 };
+var clash = new HsmsElement { IsEnable = true, Port = occupiedPort, LinktestIntervalMs = 0 };
 SmokeIoc.Use<IHsms>(clash);
 clash.Open();
 Check(clash.LocalEndpoint is null && clash.LinkState == HsmsLinkState.NotConnected, "端口被占时 Open 不抛、不监听");
@@ -219,7 +219,7 @@ clash.Close();
 occupant.Stop();
 
 // ④ 没启用：不监听。
-var disabled = new HsmsComponent { IsEnable = false, Port = 0 };
+var disabled = new HsmsElement { IsEnable = false, Port = 0 };
 SmokeIoc.Use<IHsms>(disabled);
 disabled.Open();
 Check(disabled.LocalEndpoint is null, "IsEnable=False 时不监听");

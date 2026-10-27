@@ -46,7 +46,7 @@ public class LoadPortDto
     /// </summary>
     public List<WaferSlotDto> LedgerSlots { get; set; } = [];
 
-    /// <summary>载具 ID，来自 LoadPort 内部 RFID 组件；未读到为空串。</summary>
+    /// <summary>载具 ID，来自 LoadPort 内部 RFID 元件；未读到为空串。</summary>
     public string CarrierId { get; set; } = string.Empty;
 
     /// <summary>端口上有没有载具。载具 ID 为空只说明没读到，不代表没载具。</summary>

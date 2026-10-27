@@ -47,7 +47,7 @@ public static class ErrorCodes
 
     #region 晶圆尺寸（主界面切 8 / 12 寸）
 
-    /// <summary>machine.xml 的 System 节点下没配 WaferSize（晶圆尺寸组件），切不了晶圆尺寸。Args: []</summary>
+    /// <summary>machine.xml 的 System 节点下没配 WaferSize（晶圆尺寸元件），切不了晶圆尺寸。Args: []</summary>
     public const string WaferSizeNotInstalled = "system.wafer_size_not_installed";
 
     /// <summary>晶圆尺寸只能是 8 或 12。Args: [给的值]</summary>
@@ -516,7 +516,7 @@ public static class ErrorCodes
 
     #region 报警
 
-    /// <summary>报警组件没装（machine.xml 没配 Alarm 节点）。</summary>
+    /// <summary>报警元件没装（machine.xml 没配 Alarm 节点）。</summary>
     public const string AlarmNotInstalled = "alarm.not_installed";
 
     /// <summary>这个来源没报过报警，没有可复位的。Args: [来源路径]</summary>
@@ -548,10 +548,10 @@ public static class ErrorCodes
 
     #region EC
 
-    /// <summary>EC 组件没装（machine.xml 没配 EC 节点）。</summary>
+    /// <summary>EC 元件没装（machine.xml 没配 EC 节点）。</summary>
     public const string EcNotInstalled = "ec.not_installed";
 
-    /// <summary>没有这一项 EC（组件树上没声明）。Args: [键]</summary>
+    /// <summary>没有这一项 EC（元件树上没声明）。Args: [键]</summary>
     public const string EcNotFound = "ec.not_found";
 
     /// <summary>EC 值的写法不对。Args: [键, 格式 Int/Double/Bool/Enum]</summary>
@@ -775,7 +775,7 @@ public static class ErrorCodes
     #region 账号（登录、用户、角色）
 
     /// <summary>
-    /// machine.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了。Args: []
+    /// machine.xml 没配 Account 节点（没有账号元件），登录、用户、角色都用不了。Args: []
     /// </summary>
     public const string AccountNotInstalled = "account.not_installed";
 

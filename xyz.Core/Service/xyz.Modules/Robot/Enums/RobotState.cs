@@ -1,4 +1,4 @@
-﻿using xyz.Components.Enums;
+﻿using xyz.Elements.Enums;
 
 namespace xyz.Modules.Enums;
 

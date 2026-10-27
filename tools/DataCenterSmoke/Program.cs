@@ -10,12 +10,12 @@ using xyz.Client.DataCenter.Models;
 using xyz.Client.Presentation.Controls;
 using xyz.Client.Presentation.Models;
 using xyz.Common.Log;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Collectors;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Collectors;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
@@ -106,10 +106,10 @@ try
     Check((await QueryLogs(RpcRequest.Of((RpcParams.Start, day.AddDays(3)), (RpcParams.End, day.AddDays(4))))).Items.Count == 0,
         "没有日志文件的日子查出来为空");
 
-    // ── 2b. 最近日志、实时日志：日志组件 Bind 时接上日志队列（接上之前攒在队列里的也补进来），留最近 RecentLogCount 条供客户端连上补拉，
-    //     每条推给界面（发生类，不留存）；日志服务从日志组件取最近一段。队列只收 Warn 以上（LogQueue.MinLevel 默认）─────
-    var logComponent = new LogComponent { RecentLogCount = 3 };
-    SmokeIoc.Use<ILogComponent>(logComponent);
+    // ── 2b. 最近日志、实时日志：日志元件 Bind 时接上日志队列（接上之前攒在队列里的也补进来），留最近 RecentLogCount 条供客户端连上补拉，
+    //     每条推给界面（发生类，不留存）；日志服务从日志元件取最近一段。队列只收 Warn 以上（LogQueue.MinLevel 默认）─────
+    var logElement = new LogElement { RecentLogCount = 3 };
+    SmokeIoc.Use<ILogElement>(logElement);
     var pushedLogs = new List<LogDto>();
     bool Pushed(string message)
     {
@@ -128,7 +128,7 @@ try
            }))
     {
         LogHelper.Warn("SmokeLog", "接上之前的一条");
-        logComponent.Bind();
+        logElement.Bind();
         for (int index = 1; index <= 4; index++)
         {
             LogHelper.Warn("SmokeLog", $"第 {index} 条");
@@ -141,7 +141,7 @@ try
         }
     }
 
-    var recentLogs = logComponent.Recent().Where(log => log.Module == "SmokeLog").ToList();
+    var recentLogs = logElement.Recent().Where(log => log.Module == "SmokeLog").ToList();
     Check(recentLogs.Count == 3 && recentLogs[^1].Message == "第 4 条" && recentLogs.All(log => log.Source == "Server" && log.Level == "Warn"),
         "最近一段只留 RecentLogCount 条，最旧的丢掉");
     lock (pushedLogs)
@@ -152,7 +152,7 @@ try
 
     var recentReply = await new LogService().GetRecentAsync(RpcRequest.Of((RpcParams.Count, 2)));
     var recentTail = JsonHelper.Deserialize<List<LogDto>>(recentReply.Data)!;
-    Check(recentReply.Success && recentTail.Count == 2 && recentTail[^1].Message == "第 4 条", "日志服务从日志组件取最近一段，带了条数只回最新的几条");
+    Check(recentReply.Success && recentTail.Count == 2 && recentTail[^1].Message == "第 4 条", "日志服务从日志元件取最近一段，带了条数只回最新的几条");
 
     // ── 2c. 两层名字、收发原文、操作日志：文件格式和历史查询的模块筛选 ─────
     File.WriteAllLines(stem2 + ".log",
@@ -292,7 +292,7 @@ try
             "操作日志、收发原文不推界面");
     }
 
-    // 保留天数：日志组件开机按 KeepDays 设，主日志、轮询文件都按天清掉更早的（文件名带日期也认），近的留着
+    // 保留天数：日志元件开机按 KeepDays 设，主日志、轮询文件都按天清掉更早的（文件名带日期也认），近的留着
     var oldMain = Path.Combine(LogFileReader.LogDirectory, $"xyz-{DateTime.Today.AddDays(-40):yyyy-MM-dd}.log");
     var oldMainSplit = Path.Combine(LogFileReader.LogDirectory, $"xyz-{DateTime.Today.AddDays(-40):yyyy-MM-dd}.1.log");
     var oldPoll = Path.Combine(LogFileReader.LogDirectory, $"poll-{DateTime.Today.AddDays(-40):yyyy-MM-dd}.log");
@@ -318,8 +318,8 @@ try
         "KeepDays：40 天前的主日志（连拆出来的）、轮询文件删了，5 天前的留着");
     File.Delete(recentMain);
 
-    // 日志的第一层：组件树最顶上那层（带外面的分组名），按 machine.xml 先后；下面的部件是第二层；再加 Operation、Host
-    var logTree = ComponentLoader.Load(
+    // 日志的第一层：元件树最顶上那层（带外面的分组名），按 machine.xml 先后；下面的部件是第二层；再加 Operation、Host
+    var logTree = ElementLoader.Load(
     [
         new ModuleConfig
         {
@@ -329,35 +329,35 @@ try
                 new ModuleConfig
                 {
                     Name = "LoadPort1",
-                    Type = typeof(MapperComponent).FullName,
-                    Children = { new ModuleConfig { Name = "Serial", Type = typeof(MapperComponent).FullName } },
+                    Type = typeof(MapperElement).FullName,
+                    Children = { new ModuleConfig { Name = "Serial", Type = typeof(MapperElement).FullName } },
                 },
             },
         },
-        new ModuleConfig { Name = "Plc", Type = typeof(MapperComponent).FullName },
+        new ModuleConfig { Name = "Plc", Type = typeof(MapperElement).FullName },
     ]);
     Check(logTree.Count == 2 && logTree[0].LogModule == "LoadPort.LoadPort1" && logTree[0].LogPart.Length == 0
           && logTree[0].Children[0].LogModule == "LoadPort.LoadPort1" && logTree[0].Children[0].LogPart == "Serial"
           && logTree[1].LogModule == "Plc",
         "两层名字：分组下的模块第一层带分组名，它下面的部件第一层同它、第二层是剩下的路径");
-    SmokeIoc.Use<IReadOnlyList<ComponentBase>>(logTree);
-    var moduleLog = new LogComponent { KeepDays = 30 };
+    SmokeIoc.Use<IReadOnlyList<ElementBase>>(logTree);
+    var moduleLog = new LogElement { KeepDays = 30 };
     moduleLog.Bind();
     Check(moduleLog.Modules.SequenceEqual(["LoadPort.LoadPort1", "Plc", LogHelper.OperationModule, LogHelper.HostModule]),
         "模块下拉的选项：树最顶上那层按先后，再加 Operation、Host");
-    SmokeIoc.Use<ILogComponent>(moduleLog);
+    SmokeIoc.Use<ILogElement>(moduleLog);
     var settingsReply = await new LogService().GetSettingsAsync(new RpcRequest());
     var logSettings = JsonHelper.Deserialize<LogSettingsDto>(settingsReply.Data)!;
     Check(settingsReply.Success && logSettings.KeepDays == 30 && logSettings.Modules.SequenceEqual(moduleLog.Modules),
         "日志设置带给客户端：保留天数、模块下拉的选项");
-    SmokeIoc.Use<ILogComponent>(logComponent);
-    SmokeIoc.Use<IReadOnlyList<ComponentBase>>(null);
+    SmokeIoc.Use<ILogElement>(logElement);
+    SmokeIoc.Use<IReadOnlyList<ElementBase>>(null);
 
-    // ── 3. 当前报警与人工复位：走报警组件；复位不存在的来源给错误码；没装报警组件给错误码 ─────
-    var alarms = new AlarmComponent();
+    // ── 3. 当前报警与人工复位：走报警元件；复位不存在的来源给错误码；没装报警元件给错误码 ─────
+    var alarms = new AlarmElement();
     SmokeIoc.Use<IAlarm>(alarms);
-    SmokeIoc.Use<IMapper>(new MapperComponent()); // 报警、EC、曲线推给界面和服务回包都靠它转（开机必配）
-    alarms.Bind(); // 开机 Bind 时取映射组件
+    SmokeIoc.Use<IMapper>(new MapperElement()); // 报警、EC、曲线推给界面和服务回包都靠它转（开机必配）
+    alarms.Bind(); // 开机 Bind 时取映射元件
     var device = new ProbeDevice("Tool1");
     var alarmService = new AlarmService();
     var pushedAlarms = new List<AlarmDto>();
@@ -368,7 +368,7 @@ try
           && active[0].Level == "Light" && active[0].IsActive, "当前报警带来源、代码、等级");
     Check(active[0].Text == "探针故障" && active[0].Solution == "检查探针后复位", "报警文本与处理建议");
     Check(pushedAlarms.Count == 1 && pushedAlarms[0].Source == "Tool1" && pushedAlarms[0].Code == "ProbeFault" && pushedAlarms[0].IsActive,
-        "报警组件自己推给界面：报出来推一条（照映射组件的规则转）");
+        "报警元件自己推给界面：报出来推一条（照映射元件的规则转）");
 
     var noSource = await alarmService.ResetAsync(new RpcRequest());
     Check(!noSource.Success && noSource.Code == ErrorCodes.RequestInvalid && alarms.ActiveAlarms.Count == 1,
@@ -389,9 +389,9 @@ try
     SmokeIoc.Use<IAlarm>(null);
     alarmService = new AlarmService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var notInstalled = await alarmService.ResetAllAsync(new RpcRequest());
-    Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.AlarmNotInstalled, "没装报警组件：给错误码");
+    Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.AlarmNotInstalled, "没装报警元件：给错误码");
     Check(JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!.Count == 0,
-        "没装报警组件：当前报警为空");
+        "没装报警元件：当前报警为空");
 
     // ── 4. 报警历史：按天分表的记录表，最新的在前；按等级、关键字筛；超出条数截断；没有日表的日子为空 ─────
     XyzDb.Register(XyzDb.DefaultName, $"DataSource={dbFile}", DbType.Sqlite);
@@ -456,7 +456,7 @@ try
     XyzDb.Register("ChartSmoke", $"DataSource={chartDbFile}", DbType.Sqlite);
 
     // 一个模块带两个部件，每个都有一个模拟量 SV、一个开关量 SV；名字合规与否由部件名定。
-    List<ComponentBase> ChartTree(params string[] parts)
+    List<ElementBase> ChartTree(params string[] parts)
     {
         var root = new ModuleConfig { Name = "Chart1", Type = typeof(ChartProbe).FullName };
         root.Children.AddRange(parts.Select(part => new ModuleConfig { Name = part, Type = typeof(ChartProbe).FullName }));
@@ -469,9 +469,9 @@ try
 
     // 跑一小会儿：200ms 采一行，在它自己的扫描里采（跟 machine.xml 配 IsRun 一样起），停下时把攒着的一批写完。
     int sampledRows = 0;
-    DataChartComponent RunChart(List<ComponentBase> roots)
+    DataChartElement RunChart(List<ElementBase> roots)
     {
-        var chart = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
+        var chart = new DataChartElement { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
         SmokeIoc.Use<IDataChart>(chart);
         var times = new List<long>();
         chart.Records.Subscribe(record =>
@@ -482,7 +482,7 @@ try
             }
         });
         chart.Bind(roots);
-        ComponentLoader.StartScanning([chart]);
+        ElementLoader.StartScanning([chart]);
         Thread.Sleep(1300);
         chart.StopSampling();
         lock (times)
@@ -507,7 +507,7 @@ try
     int firstRows = sampledRows;
     var names = first.Signals.Select(signal => signal.Name).ToList();
     Check(names.ToHashSet().SetEquals(["Chart1__Speed", "Chart1__IsOn", "Chart1__Door__Speed", "Chart1__Door__IsOn"]),
-        $"信号名 = 组件路径 + 属性名，层级用 __ 隔开：{string.Join(",", names)}");
+        $"信号名 = 元件路径 + 属性名，层级用 __ 隔开：{string.Join(",", names)}");
     Check(first.Signals.Single(signal => signal.Name == "Chart1__Door__IsOn").IsDigital
           && !first.Signals.Single(signal => signal.Name == "Chart1__Door__Speed").IsDigital, "布尔 SV 是开关量，浮点 SV 是模拟量");
 
@@ -659,7 +659,7 @@ try
     bool rejected = false;
     try
     {
-        new DataChartComponent { Database = "ChartSmoke" }.Bind(ChartTree("Lift_"));
+        new DataChartElement { Database = "ChartSmoke" }.Bind(ChartTree("Lift_"));
     }
     catch (InvalidOperationException exception)
     {
@@ -669,20 +669,20 @@ try
     Check(rejected, "部件名以下划线结尾（跟分隔符 __ 分不清）开机就报，报错里带名字");
 
     // machine.xml 里没配 IsRun：不起扫描，一行都不采
-    var idle = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200 };
+    var idle = new DataChartElement { Database = "ChartSmoke", SampleIntervalMs = 200 };
     SmokeIoc.Use<IDataChart>(idle);
     int idleRows = 0;
     idle.Records.Subscribe(_ => Interlocked.Increment(ref idleRows));
     idle.Bind(ChartTree("Door"));
-    ComponentLoader.StartScanning([idle]);
+    ElementLoader.StartScanning([idle]);
     Thread.Sleep(600);
     idle.StopSampling();
     Check(Volatile.Read(ref idleRows) == 0, "machine.xml 里没配 IsRun 就不起扫描、不采样");
 
     // 实时曲线：接在数据曲线的采样上，在自己的扫描里（配了 IsRun）把采到的行一帧一帧推给界面（不留存）；每帧带这一轮的标识，值跟信号表一样多
-    var realSource = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
+    var realSource = new DataChartElement { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
     SmokeIoc.Use<IDataChart>(realSource);
-    var realChart = new RealChartComponent { IsRun = true, WindowSeconds = 60 };
+    var realChart = new RealChartElement { IsRun = true, WindowSeconds = 60 };
     SmokeIoc.Use<IRealChart>(realChart);
     var frames = new List<RealChartFrameDto>();
     using (RemoteEventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
@@ -695,7 +695,7 @@ try
     {
         realSource.Bind(ChartTree("Door"));
         realChart.Attach(realSource);
-        ComponentLoader.StartScanning([realSource, realChart]);
+        ElementLoader.StartScanning([realSource, realChart]);
         Thread.Sleep(1300);
         realSource.StopSampling();
         Thread.Sleep(200);
@@ -708,11 +708,11 @@ try
             $"实时曲线在自己的扫描里推：{frames.Count} 帧，每帧带这一轮的标识、值跟信号表一样多，最近一段内存里都留着");
     }
 
-    // IO 绑定的信号名：组件路径 + 配置项名去掉 Index；DI 组件只有一个点，就是组件路径（Door__Opened，不再带 __Di）
+    // IO 绑定的信号名：元件路径 + 配置项名去掉 Index；DI 元件只有一个点，就是元件路径（Door__Opened，不再带 __Di）
     var previousIo = IocHelper.GetService<IIo>();
     var ioCsv = Path.Combine(chartGemDirectory, "points.csv");
     File.WriteAllText(ioCsv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n0,P0,0,0,0,0\n1,P1,0,0,0,0\n2,P2,0,10,0,10\n");
-    var chartIo = new IoComponent();
+    var chartIo = new IoElement();
     SmokeIoc.Use<IIo>(chartIo);
     chartIo.Di.Load(ioCsv, chartIo);
     chartIo.Do.Load(ioCsv, chartIo);
@@ -722,16 +722,16 @@ try
         var door = new ModuleConfig
         {
             Name = "Door",
-            Type = typeof(CylinderComponent).FullName,
+            Type = typeof(CylinderElement).FullName,
             Values = [new() { Name = "DoOpenIndex", Value = "0" }, new() { Name = "DoCloseIndex", Value = "1" }],
-            Children = [new ModuleConfig { Name = "Opened", Type = typeof(DiSensorComponent).FullName, Values = [new() { Name = "DiIndex", Value = "0" }] }]
+            Children = [new ModuleConfig { Name = "Opened", Type = typeof(DiSensorElement).FullName, Values = [new() { Name = "DiIndex", Value = "0" }] }]
         };
-        var valve = new ModuleConfig { Name = "Valve", Type = typeof(ValveComponent).FullName, Values = [new() { Name = "DoIndex", Value = "1" }] };
-        var pressure = new ModuleConfig { Name = "Pressure", Type = typeof(AiSensorComponent).FullName, Values = [new() { Name = "AiIndex", Value = "2" }] };
-        var tank = new ModuleConfig { Name = "Tank", Type = typeof(TankComponent).FullName };
+        var valve = new ModuleConfig { Name = "Valve", Type = typeof(ValveElement).FullName, Values = [new() { Name = "DoIndex", Value = "1" }] };
+        var pressure = new ModuleConfig { Name = "Pressure", Type = typeof(AiSensorElement).FullName, Values = [new() { Name = "AiIndex", Value = "2" }] };
+        var tank = new ModuleConfig { Name = "Tank", Type = typeof(TankElement).FullName };
         foreach (var signal in new[] { "LL", "L", "H" })
         {
-            tank.Children.Add(new ModuleConfig { Name = signal, Type = typeof(AiLevelComponent).FullName, Values = [new() { Name = "AiIndex", Value = "1" }] });
+            tank.Children.Add(new ModuleConfig { Name = signal, Type = typeof(AiLevelElement).FullName, Values = [new() { Name = "AiIndex", Value = "1" }] });
         }
 
         var ioRoots = SmokeIoc.Load([new ModuleConfig { Name = "Chart2", Type = typeof(ChartProbe).FullName, Children = [door, valve, pressure, tank] }]);
@@ -740,9 +740,9 @@ try
         SmokeIoc.Use(ioGem); // 数据曲线 Bind 时从容器取 GEM 编号表
         var ioNames = RunChart(ioRoots).Signals.Select(signal => signal.Name).ToHashSet();
         Check(ioNames.Contains("Chart2__Door__Opened") && !ioNames.Any(name => name.EndsWith("__Di", StringComparison.Ordinal)),
-            $"DI 组件的信号名就是组件路径（Door__Opened，不带 __Di）：{string.Join(",", ioNames)}");
+            $"DI 元件的信号名就是元件路径（Door__Opened，不带 __Di）：{string.Join(",", ioNames)}");
         Check(ioNames.Contains("Chart2__Door__DoOpen") && ioNames.Contains("Chart2__Valve__Do") && ioNames.Contains("Chart2__Pressure__Ai"),
-            "别的 IO 照旧：组件路径 + 配置项名去掉 Index");
+            "别的 IO 照旧：元件路径 + 配置项名去掉 Index");
         Check(ioNames.Contains("Chart2__Tank__LL__Ai") && !ioNames.Contains("Chart2__Tank__L__Ai") && !ioNames.Contains("Chart2__Tank__H__Ai"),
             "一个液位计挂在槽的几个液位点上：只记第一个点那一列");
     }
@@ -904,9 +904,9 @@ Console.WriteLine($"PASS: {checks} data center checks (log file parsing with con
                   "log history filters and truncation, two-level log names (module + part) with the module filter, comm lines in the main log and poll lines in the poll file, " +
                   "the operation log through IActionFilter (who, from where, what, arguments, result; reads and repeats skipped; operator from the request header; " +
                   "RpcRequest parameters logged as their JSON with Chinese written back as is, and no parameters as {}), " +
-                  "log files kept for KeepDays, the module list for the history page, recent and realtime logs forwarded by the log component, active alarms with reset / reset-all / not-installed error codes and their pushes, " +
+                  "log files kept for KeepDays, the module list for the history page, recent and realtime logs forwarded by the log element, active alarms with reset / reset-all / not-installed error codes and their pushes, " +
                   "alarm history over day-split tables, and data chart sampling on its own scan (IsRun, whole periods), " +
-                  "signal names (a DI component named by its own path) / day tables through SqlSugar, real chart frames pushed from its own scan, " +
+                  "signal names (a DI element named by its own path) / day tables through SqlSugar, real chart frames pushed from its own scan, " +
                   "data chart export in hour slices written to xlsx one sheet per day (empty days keep the header, backend failure / cancel leave the old file), " +
                   "progress state and overlay (cancel, newer run wins, shown only after the delay), " +
                   "and gRPC services found by contract).");
@@ -926,12 +926,12 @@ static void SqliteCleanup(string path)
 /// <summary>
 /// 探针设备：带一条报警，能自己报。
 /// </summary>
-sealed class ProbeDevice : ComponentBase
+sealed class ProbeDevice : ElementBase
 {
     public ProbeDevice(string name)
     {
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
     [Alarm("探针故障", AlarmCategory.OtherCategories, AlarmLevel = AlarmLevel.Light, Solution = "检查探针后复位")]
@@ -993,8 +993,8 @@ sealed class FakeExportService(bool failAfterFirst) : IDataChartService
 /// <summary>
 /// 数据曲线探针：一个模拟量 SV、一个开关量 SV，值固定，好对查出来的数。
 /// </summary>
-[Component(description: "数据曲线冒烟用部件")]
-public sealed class ChartProbe : ComponentBase
+[Element(description: "数据曲线冒烟用部件")]
+public sealed class ChartProbe : ElementBase
 {
     [VariableMark(VariableType.SV, ValueFormat.Double, unit: "rpm", description: "转速")]
     public double Speed { get; set; } = 12.5;

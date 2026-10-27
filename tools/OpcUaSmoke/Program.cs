@@ -1,20 +1,20 @@
 ﻿using Opc.Ua;
 using Opc.Ua.Configuration;
 using Opc.Ua.Server;
-using xyz.Components;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 
-// OPC UA PLC 冒烟：本机用官方 SDK 起一个假 PLC（DI / DO 是 BOOL 数组，AI 是 REAL 数组，AO 是 INT 数组），OpcUaPlcComponent 走真的网络连它：
+// OPC UA PLC 冒烟：本机用官方 SDK 起一个假 PLC（DI / DO 是 BOOL 数组，AI 是 REAL 数组，AO 是 INT 数组），OpcUaPlcElement 走真的网络连它：
 // 只实现 IPlcIo、不算 IPlcBlock；按 nsu= 节点名连上、一次读回四个数组；DI/AI 读值（REAL 不丢小数）、下标越界读不到；
 // DO 只写一格、读回来才变；AO 按 PLC 里的 INT 四舍五入写、超范围 / 非数字不写；节点名认不出、类型不对都报"数据读写失败"；
 // PLC 停了按断线处理（读不到、掉线报警），PLC 重启后命名空间编号变了，按 nsu= 重连回来照样读写；Close 以后不再连。
 // EC、报警都是内存里的，不读写配置文件。
 
 SmokeIoc.Reset();
-var ec = new EcComponent();
+var ec = new EcElement();
 SmokeIoc.Use<IEc>(ec);
-var alarms = new AlarmComponent();
+var alarms = new AlarmElement();
 SmokeIoc.Use<IAlarm>(alarms);
 
 var checks = 0;
@@ -53,8 +53,8 @@ bool TickUntil(ProbeOpcUaPlc plc, Func<bool> done, int timeoutMs = 15000)
 const int PlcPort = 48410;
 const string PlcNamespace = "urn:xyz:smoke:plc";
 
-Check(typeof(IPlcIo).IsAssignableFrom(typeof(OpcUaPlcComponent)), "OPC UA PLC 给 IO 组件用（IPlcIo）");
-Check(!typeof(IPlcBlock).IsAssignableFrom(typeof(OpcUaPlcComponent)), "OPC UA PLC 不支持轴的数据块，不算 IPlcBlock（容器里轴不会接到它）");
+Check(typeof(IPlcIo).IsAssignableFrom(typeof(OpcUaPlcElement)), "OPC UA PLC 给 IO 元件用（IPlcIo）");
+Check(!typeof(IPlcBlock).IsAssignableFrom(typeof(OpcUaPlcElement)), "OPC UA PLC 不支持轴的数据块，不算 IPlcBlock（容器里轴不会接到它）");
 
 var server = await FakePlc.StartAsync(PlcPort, [PlcNamespace]);
 var plc = new ProbeOpcUaPlc
@@ -162,7 +162,7 @@ Console.WriteLine($"PASS: {checks} opc ua checks (IPlcIo only, not IPlcBlock; co
 /// <summary>
 /// 推得动扫描的 OPC UA PLC
 /// </summary>
-sealed class ProbeOpcUaPlc : OpcUaPlcComponent
+sealed class ProbeOpcUaPlc : OpcUaPlcElement
 {
     /// <summary>
     /// 顶替扫描线程推一拍

@@ -1,8 +1,8 @@
 ﻿using System.Globalization;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
@@ -34,7 +34,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
     /// </summary>
     public override StationKind Kind => StationKind.Buffer;
 
-    public override bool InitComponent()
+    public override bool InitElement()
     {
         if (SlotCount < 1)
         {
@@ -52,7 +52,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
 
         // 没有手动页、没有要人确认的设备：开机就切生产模式，调度才会往这儿派片
         SetProduction();
-        return base.InitComponent();
+        return base.InitElement();
     }
 
     /// <summary>

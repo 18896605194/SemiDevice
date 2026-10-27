@@ -1,4 +1,4 @@
-﻿using xyz.Components.Interfaces;
+﻿using xyz.Elements.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;

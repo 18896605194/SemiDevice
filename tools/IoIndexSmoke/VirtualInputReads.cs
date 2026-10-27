@@ -1,9 +1,9 @@
 ﻿using System.Collections.Concurrent;
 using System.Globalization;
-using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Components;
-using xyz.Components.Interfaces;
+using xyz.Elements;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Tools;
 
@@ -20,23 +20,23 @@ static class VirtualInputReads
             SmokeIoc.Use<IPlcIo>(plc);
             var roots = SmokeIoc.Load(
             [
-                new ModuleConfig { Name = "Io", Type = typeof(IoComponent).FullName },
-                Group("ModuleA", Point<VirtualDiComponent>(4000, "ai6001 > 50 && DI12 && !DO12")),
-                Group("ModuleB", Group("Sensors", Point<VirtualAiComponent>(6001, "(AI5+AI6)/2"))),
-                Point<VirtualAiComponent>(6000, "(AI5+AI5)/2"),
-                Point<VirtualAiComponent>(6002, "AO5 + AI6001 * 2"),
-                Point<VirtualAiComponent>(6003, "AI5 / (AI6-AI6)"),
-                Point<VirtualAiComponent>(6004, "1e308 * 1e308"),
-                Point<VirtualDiComponent>(4001, "false && AI6003 > 1"),
-                Point<VirtualDiComponent>(4999, "DI12 == true || DO12 != false"),
-                Point<VirtualAiComponent>(6999, "-2 + +3 * (4 - 1) / 2"),
+                new ModuleConfig { Name = "Io", Type = typeof(IoElement).FullName },
+                Group("ModuleA", Point<VirtualDiElement>(4000, "ai6001 > 50 && DI12 && !DO12")),
+                Group("ModuleB", Group("Sensors", Point<VirtualAiElement>(6001, "(AI5+AI6)/2"))),
+                Point<VirtualAiElement>(6000, "(AI5+AI5)/2"),
+                Point<VirtualAiElement>(6002, "AO5 + AI6001 * 2"),
+                Point<VirtualAiElement>(6003, "AI5 / (AI6-AI6)"),
+                Point<VirtualAiElement>(6004, "1e308 * 1e308"),
+                Point<VirtualDiElement>(4001, "false && AI6003 > 1"),
+                Point<VirtualDiElement>(4999, "DI12 == true || DO12 != false"),
+                Point<VirtualAiElement>(6999, "-2 + +3 * (4 - 1) / 2"),
             ]);
-            var io = roots.OfType<IoComponent>().Single();
+            var io = roots.OfType<IoElement>().Single();
             var moduleA = (VirtualInputGroup)roots.Single(root => root.Name == "ModuleA");
             var moduleB = (VirtualInputGroup)roots.Single(root => root.Name == "ModuleB");
-            var ready = moduleA.FindChild<VirtualDiComponent>()!;
-            var average = moduleB.FindChild<VirtualAiComponent>()!;
-            // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+            var ready = moduleA.FindChild<VirtualDiElement>()!;
+            var average = moduleB.FindChild<VirtualAiElement>()!;
+            // 点表放进 IO 元件的点表目录：它开机准备时读点表、取 PLC
             string tables = Path.Combine(directory, "virtual-io");
             Directory.CreateDirectory(tables);
             foreach (string table in new[] { "DI", "DO", "AI", "AO" })
@@ -46,18 +46,18 @@ static class VirtualInputReads
             }
 
             io.PointTableDirectory = tables;
-            io.InitComponent();
+            io.InitElement();
 
-            Check(ready.Value is null && average.Value is null && !ready.IsValid, "components start invalid");
+            Check(ready.Value is null && average.Value is null && !ready.IsValid, "elements start invalid");
             moduleA.Tick();
             Check(ready.Value == true && average.Value == 60 && ready.IsValid,
                 "parent scan computes cross-module dependencies even if source module has not scanned");
             Check(ready.FullPath == "ModuleA.P4000" && average.FullPath == "ModuleB.Sensors.P6001",
-                "computed components retain ownership paths at arbitrary depth");
+                "computed elements retain ownership paths at arbitrary depth");
             Check(io.TryReadDi(4000, out bool on) && on && io.TryReadAi(6001, out double value) && value == 60,
-                "global index routing reads nested components");
+                "global index routing reads nested elements");
             Check(average.TryRead(out value) && value == 60 && ready.TryRead(out on) && on,
-                "typed component read APIs work independently of parent path");
+                "typed element read APIs work independently of parent path");
             Check(io.TryReadAi(6002, out value) && value == 130, "engineering values, arithmetic precedence and physical AO input");
             Check(io.TryReadAi(6999, out value) && value == 2.5 && io.TryReadDi(4999, out on) && on,
                 "inclusive last indices, unary operators, parentheses and boolean comparisons");
@@ -107,7 +107,7 @@ static class VirtualInputReads
             CheckStandaloneAndOperators();
             Check(io.TryReadAi(6001, out value) && value == 60, "another assembly does not replace existing registry");
             CheckMissingPhysicalPoint(directory);
-            Console.WriteLine("PASS: virtual DI/AI components, nested ownership, arithmetic/logic, dependencies, validation, validity and PLC isolation");
+            Console.WriteLine("PASS: virtual DI/AI elements, nested ownership, arithmetic/logic, dependencies, validation, validity and PLC isolation");
         }
         finally
         {
@@ -125,16 +125,16 @@ static class VirtualInputReads
             ("5!=5", false), ("TRUE && !false", true), ("false || true && false", false),
             ("(false || true) && true", true), ("(1e2 + .5) == 100.5", true),
         };
-        var settings = expressions.Select((item, index) => Point<VirtualDiComponent>(4000 + index, item.Text)).ToList();
-        settings.Add(Point<VirtualAiComponent>(6001, "6/2", run: true));
+        var settings = expressions.Select((item, index) => Point<VirtualDiElement>(4000 + index, item.Text)).ToList();
+        settings.Add(Point<VirtualAiElement>(6001, "6/2", run: true));
         var roots = SmokeIoc.Load(settings);
         foreach (var (item, index) in expressions.Select((item, index) => (item, index)))
         {
-            Check(((VirtualDiComponent)roots[index]).TryRead(out bool value) && value == item.Expected, $"expression: {item.Text}");
+            Check(((VirtualDiElement)roots[index]).TryRead(out bool value) && value == item.Expected, $"expression: {item.Text}");
         }
 
-        var ai = roots.OfType<VirtualAiComponent>().Single();
-        ComponentLoader.StartScanning(roots);
+        var ai = roots.OfType<VirtualAiElement>().Single();
+        ElementLoader.StartScanning(roots);
         Check(SpinWait.SpinUntil(() => ai.Value == 3, 3000), "standalone virtual point scans with IsRun=true");
     }
 
@@ -144,10 +144,10 @@ static class VirtualInputReads
         Directory.CreateDirectory(configDirectory);
         var roots = SmokeIoc.Load(
         [
-            new ModuleConfig { Name = "Io", Type = typeof(IoComponent).FullName },
-            Point<VirtualAiComponent>(6001, "AI999+1"),
+            new ModuleConfig { Name = "Io", Type = typeof(IoElement).FullName },
+            Point<VirtualAiElement>(6001, "AI999+1"),
         ]);
-        var io = roots.OfType<IoComponent>().Single();
+        var io = roots.OfType<IoElement>().Single();
         io.PointTableDirectory = configDirectory;
         bool rejected = false;
         try
@@ -166,25 +166,25 @@ static class VirtualInputReads
     {
         foreach (string expression in new[] { "", "AI5+", "(AI5+2", "AI5)", "AI5**2", "AI5=2", "NaN", "1e999", "true+2", "!AI5", "DI12*2", "AI7000", "DO3000", "AO5000", "AI99999999999", "AI5;AI6", "AI5 & AI6" })
         {
-            Reject([PhysicalIo(), Point<VirtualAiComponent>(6001, expression)], $"bad expression {expression}");
+            Reject([PhysicalIo(), Point<VirtualAiElement>(6001, expression)], $"bad expression {expression}");
         }
 
-        Reject([Point<VirtualAiComponent>(6001, "true")], "AI cannot return bool");
-        Reject([Point<VirtualDiComponent>(4000, "1")], "DI cannot return number");
-        Reject([Point<VirtualDiComponent>(4000, "true==1")], "equality operands require matching types");
-        Reject([Point<VirtualDiComponent>(4000, "true && 1")], "logical operands require bool");
-        Reject([Point<VirtualDiComponent>(3999, "true")], "DI lower bound");
-        Reject([Point<VirtualDiComponent>(5000, "true")], "DI upper bound");
-        Reject([Point<VirtualAiComponent>(5999, "1")], "AI lower bound");
-        Reject([Point<VirtualAiComponent>(7000, "1")], "AI upper bound");
-        Reject([Group("A", Point<VirtualDiComponent>(4000, "true")), Group("B", Point<VirtualDiComponent>(4000, "false"))], "global duplicate DI");
-        Reject([Point<VirtualAiComponent>(6001, "1"), Group("B", Point<VirtualAiComponent>(6001, "2"))], "global duplicate AI");
-        Reject([Point<VirtualAiComponent>(6001, "AI6002")], "missing virtual source");
-        Reject([Point<VirtualDiComponent>(4000, "DI4000")], "self cycle");
-        Reject([Point<VirtualAiComponent>(6001, "AI6002"), Point<VirtualAiComponent>(6002, "AI6001")], "dependency cycle");
-        Reject([Point<VirtualAiComponent>(6001, "AI5")], "physical source requires IO owner");
-        Reject([Point<VirtualAiComponent>(6001, new string('(', 150) + "1" + new string(')', 150))], "nesting limit");
-        Reject([Point<VirtualAiComponent>(6001, new string('1', 4097))], "expression length limit");
+        Reject([Point<VirtualAiElement>(6001, "true")], "AI cannot return bool");
+        Reject([Point<VirtualDiElement>(4000, "1")], "DI cannot return number");
+        Reject([Point<VirtualDiElement>(4000, "true==1")], "equality operands require matching types");
+        Reject([Point<VirtualDiElement>(4000, "true && 1")], "logical operands require bool");
+        Reject([Point<VirtualDiElement>(3999, "true")], "DI lower bound");
+        Reject([Point<VirtualDiElement>(5000, "true")], "DI upper bound");
+        Reject([Point<VirtualAiElement>(5999, "1")], "AI lower bound");
+        Reject([Point<VirtualAiElement>(7000, "1")], "AI upper bound");
+        Reject([Group("A", Point<VirtualDiElement>(4000, "true")), Group("B", Point<VirtualDiElement>(4000, "false"))], "global duplicate DI");
+        Reject([Point<VirtualAiElement>(6001, "1"), Group("B", Point<VirtualAiElement>(6001, "2"))], "global duplicate AI");
+        Reject([Point<VirtualAiElement>(6001, "AI6002")], "missing virtual source");
+        Reject([Point<VirtualDiElement>(4000, "DI4000")], "self cycle");
+        Reject([Point<VirtualAiElement>(6001, "AI6002"), Point<VirtualAiElement>(6002, "AI6001")], "dependency cycle");
+        Reject([Point<VirtualAiElement>(6001, "AI5")], "physical source requires IO owner");
+        Reject([Point<VirtualAiElement>(6001, new string('(', 150) + "1" + new string(')', 150))], "nesting limit");
+        Reject([Point<VirtualAiElement>(6001, new string('1', 4097))], "expression length limit");
     }
 
     private static void Reject(List<ModuleConfig> settings, string message)
@@ -202,7 +202,7 @@ static class VirtualInputReads
         Check(rejected, message);
     }
 
-    private static ModuleConfig PhysicalIo() => new() { Name = "Io", Type = typeof(IoComponent).FullName };
+    private static ModuleConfig PhysicalIo() => new() { Name = "Io", Type = typeof(IoElement).FullName };
 
     private static ModuleConfig Group(string name, params ModuleConfig[] children) => new()
     {
@@ -285,8 +285,8 @@ static class VirtualInputReads
     }
 }
 
-[Component]
-public sealed class VirtualInputGroup : ComponentBase
+[Element]
+public sealed class VirtualInputGroup : ElementBase
 {
     public void Tick() => OnScan();
 }
