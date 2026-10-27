@@ -237,24 +237,36 @@ public abstract class BaseStateElement : ElementBase
     {
         lock (RoutineGate)
         {
-            if (!CanBeginAction)
-            {
-                return null;
-            }
-
             string name = action.ToString();
             if (!TryGetTransition(State, name, out var transition))
             {
                 return null;
             }
 
-            if (!Run(routine, replace: name == AbortAction))
+            return Begin(routine, transition.ExecutingState, transition.SuccessState, name == AbortAction);
+        }
+    }
+
+    /// <summary>
+    /// 发起一个动作，直接给执行态和成功态：挂动作 → 落执行态
+    /// 交互环里的步骤这种本来就不是动作、准入已在入口查过的用它，不往状态表加行
+    /// </summary>
+    protected ModuleRoutine? Begin(ModuleRoutine routine, int executingState, int successState, bool replace = false)
+    {
+        lock (RoutineGate)
+        {
+            if (!CanBeginAction)
             {
                 return null;
             }
 
-            _transition = transition;
-            State = transition.ExecutingState;
+            if (!Run(routine, replace))
+            {
+                return null;
+            }
+
+            _transition = (executingState, successState);
+            State = executingState;
             return routine;
         }
     }

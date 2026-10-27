@@ -159,6 +159,21 @@ public static class ErrorCodes
     /// <summary>Load 联锁：跟搬运车的 E84 交接还没走完，或交接超时锁着等人处理。Args: [模块名]</summary>
     public const string E84HandoffRunning = "loadport.handoff_running";
 
+    /// <summary>
+    /// 这个口不自己扫片（LoadPort 类没声明扫片能力 IWaferMap，或没给扫片动作）。Args: [模块名]
+    /// </summary>
+    public const string LoadPortMapUnsupported = "loadport.map_unsupported";
+
+    /// <summary>
+    /// 这个口不能夹紧载具（没有夹爪，LoadPort 类没给夹紧动作）。Args: [模块名]
+    /// </summary>
+    public const string LoadPortClampUnsupported = "loadport.clamp_unsupported";
+
+    /// <summary>
+    /// 这个口不能松开载具（没有夹爪，LoadPort 类没给松开动作）。Args: [模块名]
+    /// </summary>
+    public const string LoadPortUnclampUnsupported = "loadport.unclamp_unsupported";
+
     /// <summary>操作被 Abort 顶替。Args: [操作名]</summary>
     public const string Aborted = "module.action_aborted";
 

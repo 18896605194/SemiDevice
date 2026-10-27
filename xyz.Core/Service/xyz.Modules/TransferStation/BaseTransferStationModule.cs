@@ -438,6 +438,15 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     #region 环标记公共实现
 
     /// <summary>
+    /// 准备二要动机构的站点用：挂上动作环，做的期间留在搬运前，做完落待搬运、失败落报警
+    /// 准入在 PrepareTransfer2 入口查过了，不往状态表加行
+    /// </summary>
+    protected ModuleRoutine? BeginPrepareTransfer2(ModuleRoutine prepare)
+    {
+        return Begin(prepare, TransferModuleState.PreTransfer, TransferModuleState.TransferReady);
+    }
+
+    /// <summary>
     /// 状态环单步：锁内校验当前态 → 迁移 → 立即发布；状态不符返回 false。
     /// 子类收尾完毕落状态也走这个，别直接赋 State（会跳过校验和发布）。
     /// </summary>

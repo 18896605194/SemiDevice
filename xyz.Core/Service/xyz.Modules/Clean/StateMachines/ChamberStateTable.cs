@@ -32,10 +32,6 @@ public static class ChamberStateTable
             [(TransferModuleState.Transferring, ChamberAction.Reset)] = (TransferModuleState.Transferring, ModuleState.Idle),
             [(TransferModuleState.TransferComplete, ChamberAction.Reset)] = (TransferModuleState.TransferComplete, ModuleState.Idle),
 
-            // 取放准备二：卡盘转到取放位、开腔门，都到位才算准备好（进 TransferReady），机械手才伸手。做的期间还在 PreTransfer；
-            // 转不到位、开不了（没回零、到位超时、PLC 断了）落 Error，门可能停在半路，要人看过再复位。
-            [(TransferModuleState.PreTransfer, ChamberAction.PrepareTransfer2)] = (TransferModuleState.PreTransfer, TransferModuleState.TransferReady),
-
             // 设备手动动作：没初始化、空闲、报错时都能点（报错后常要手动把设备挪回去），
             // 执行中落 Manual——不是待命态，调度不会趁这时候派机械手；做完回到原来的状态，不顺带清错。
             [(ModuleState.NotInit, ChamberAction.Manual)] = (ChamberState.Manual, ModuleState.NotInit),

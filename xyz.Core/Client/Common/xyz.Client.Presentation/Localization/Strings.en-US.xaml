@@ -82,6 +82,9 @@
     <sys:String x:Key="loadport.carrier_id_required">{0} has no valid carrier ID; the carrier cannot be used for a job or receive a job-finished notification</sys:String>
     <sys:String x:Key="loadport.carrier_id_mismatch">{0} current carrier ID {2} does not match job carrier ID {1}</sys:String>
     <sys:String x:Key="loadport.handoff_running">{0} handoff with the transport vehicle is not finished (or timed out and waiting for the operator); cannot load</sys:String>
+    <sys:String x:Key="loadport.map_unsupported">{0} does not map wafers itself (this port has no mapping sensor and no robot maps it)</sys:String>
+    <sys:String x:Key="loadport.clamp_unsupported">{0} cannot clamp the carrier (this port has no clamp)</sys:String>
+    <sys:String x:Key="loadport.unclamp_unsupported">{0} cannot unclamp the carrier (this port has no clamp)</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
     <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} for this pick / place (pick: PickArms, place: PlaceArms of the station node in machine.xml)</sys:String>

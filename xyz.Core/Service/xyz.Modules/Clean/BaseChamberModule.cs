@@ -214,7 +214,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         // 指令由动作挂上之后在扫描里发，不会出现门开了、动作却没挂上没人等的情况
         var prepare = new ModuleRoutine(this, "PrepareTransfer2").LimitTo(() => DeviceActionTimeout, ErrorCodes.ChamberActionTimeout);
         AddPrepareTransferSteps(prepare);
-        return Begin(ChamberAction.PrepareTransfer2, prepare);
+        return BeginPrepareTransfer2(prepare);
     }
 
     /// <summary>

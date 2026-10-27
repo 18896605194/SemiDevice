@@ -2,6 +2,7 @@
 using xyz._35021.Module.Drivers.Fcd.Commands;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
 using xyz.Modules;
@@ -11,10 +12,11 @@ namespace xyz._35021.Module.Loadport;
 
 /// <summary>
 /// 35021 LoadPort 模块（富创得 LP300）：动作入口、扫片落账对账、在位判断、轮询节奏、推送都是平台的（BaseLoadPortModule），
-/// 这里只写每个动作发哪几条 FCD 指令、一圈查什么、上报怎么认；要加互锁重写 XxxInterlock（先调 base）
+/// 这里只写每个动作发哪几条 FCD 指令、一圈查什么、上报怎么认；要加互锁重写 XxxInterlock（先调 base）。
+/// LP300 自带扫片传感器和夹爪，所以声明扫片能力 IWaferMap、填夹紧松开那几条
 /// </summary>
 [Element(description: "35021 LoadPort 模块（富创得 LP300）")]
-public class LoadPortModule : BaseLoadPortModule
+public class LoadPortModule : BaseLoadPortModule, IWaferMap
 {
     protected override IFrameCodec CreateCodec()
     {

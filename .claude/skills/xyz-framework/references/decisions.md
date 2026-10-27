@@ -957,6 +957,7 @@
   不继承别的接口，有能力的类直接实现，调用方 `is` 判。
 - **LoadPort 也实现**（用户："loadport 这边实现这个接口的话，实现这个方法就好了，然后 load 之后自己调用一下"）：`Map(自己的名字)` 用自己的传感器单独扫一遍，
   只在 Loaded（门开着）收，状态 160 扫片中，结果存 `MapResults`、不落账、不动载具槽图（现在没有调用方，接口要求的实现）。
+  **2026-10-28 起这是可选能力**：基类不声明 `IWaferMap`，自带扫片传感器的机型类自己声明（35021 声明了），见「LoadPort 的可选能力照机械手的做法」，别改回基类上声明。
 - **Load 就是 Load**（用户："load 就是 load 即使带着这个 map 结果，也是不要直接从这个结果里面获取"）：Load 先只发 `CLOAD`，回执带不带图都不用；再扫片、取槽图、`TakeSlotMap` 落账。
   **指令照 TDK 系协议的真名**（用户先说"叫啥指令我不知道了……你可以自己搞一个指令名字"，查到真名就没另起）：JK 的 TDK 驱动注释抄的手册步骤和 XM.Core 的 YuanChuang 驱动都写着
   `CLOAD` 只装载不扫、`CLDMP` 装载并扫（已 Load 状态下发不扫）、`MAPDO` Load 状态下扫，槽图用 `GET:MAPDT` 取。LP300 的指令名跟 TDK 一模一样；XM.Core 的 Fortrend 驱动注释
@@ -1802,3 +1803,44 @@
   存库的表名、列名没变（实体里只改了注释），protobuf 契约按编号走、改属性名不影响。
 - **验证**：整编 0 错误（10 个警告都是原来就有的）；试改的副本里 IoIndexSmoke、ElementScanSmoke 单独编过；用户说这次不跑冒烟，宿主也没起。
   部署后宿主的 machine.xml 是新 Type（177 处，旧名 0 处），`Modules\35021` 只剩 `xyz.Elements.dll`。
+
+## LoadPort 的可选能力照机械手的做法：自己扫片、夹紧、松开（2026-10-28，用户："你按照机械手那边修改一下吧"）
+- **为什么**：评 LoadPort 的机型扩展时查出来的。原来自己扫片、夹紧、松开这三件在基类上是 `abstract`、`IWaferMap` 也挂在基类上，
+  等于"每个 LoadPort 都会扫片、都有夹爪"：开盒式料盒台、靠机械手扫的口只能写三个空方法交差；更糟的是 `Map()` 对外永远"支持"
+  （调用方 `is IWaferMap` 恒真），Load 里的扫片那一段也照样加，机型写空了就拿到空槽图 → 按"槽数对不上"判失败、报 Mapping 异常，
+  报警里还让人去核对槽数配置，查不到正地方，而且每次 Load 都这样，这个口等于用不了。
+- **照机械手的形状改**（分段取放 `ITransferRobotStep`、扫片 `IWaferMap` 都是这个形状）：能力接口不在基类上声明，`Map` / `MapResults` 的实现留在基类，
+  自带扫片传感器的机型类自己在类上声明 `IWaferMap`（35021 的 LP300 自带扫片传感器和夹爪，声明接口、照填夹紧松开那几条）；
+  `AddMapSteps` / `AddClampSteps` / `AddUnclampSteps` 从 `abstract` 改成 `virtual`、默认一条步骤都不加；
+  动作入口建完动作查 `StepCount == 0` 就当场回不支持（`loadport.map_unsupported` / `loadport.clamp_unsupported` / `loadport.unclamp_unsupported`，中英文语言包各一条）。
+  开关门、回零、复位、中止还是 `abstract`：每个口都得有。
+- **Load / 自动跑货 Unload 对账里的扫片按能力决定加不加**：有机械手替这个口扫就排机械手；没有就看这个口自己会不会扫（`this is IWaferMap`）；
+  都不会这一段就不加——不会扫的口 Load 只开门，不再拿空槽图去落账（这种口的槽图靠手动建片或别处来）。
+  声明了会扫、却一条扫片指令都没加的，"用槽图"那一步当场回 `loadport.map_unsupported`，不走成"槽数对不上"。
+- **开机查**：machine.xml 开了 `AutoRunMapOnUnload`（Unload 关门前扫图对账）、却既没有机械手替它扫、这个口自己又不会扫，`Bind` 抛
+  （跟机械手"开了 MapEnabled 但类没声明 IWaferMap"同一类的配错）。
+- 单独扫一遍的动作里原来那个"清掉旧槽图"步骤去掉了，改成建动作时就清（跟机械手一样，建动作就在挂动作前那一刻），这样 `StepCount` 数的就是机型给的扫片步骤。
+- **还没动的**：`OnRoutineCompleted` 里按 `_action` 分叉的收尾（机型加自己的动作会按上一个动作收尾，误发 E87、误报报警）另说，用户问过枚举要不要改——不用改枚举，
+  要动的是 `_action` / `_actionFrom` 和那个 switch，等出具体改法再定。
+- **验证**：整编 0 错误；OperationWaitSmoke 1413 项（新增 8 项：不自己扫片的口 Load 只开门不落空槽图不报 Mapping 异常、单独扫 / 夹紧 / 松开当场回不支持、
+  `AutoRunMapOnUnload` 没人能扫时 `Bind` 抛）；其余冒烟全跑一遍都过（JobSmoke 798、ChamberSmoke 270、WaferLedgerSmoke 210……）。
+
+## 动作收尾只认平台自己建的那个动作，不记"上一个动作是什么"（2026-10-28，用户："你直接修改呗"）
+- **为什么**：接着上面那条查出来的第二个洞。`BaseLoadPortModule` 用一个 `LoadPortAction _action` 字段记"现在做的是哪个动作"，只有平台那个
+  `Begin(LoadPortAction, ModuleRoutine)` 重载才写它；机型要加自己的动作（N2 吹扫、Dock / Undock、开关盖分开）只能定义自己的枚举、走基类的泛型 `Begin`，
+  `_action` 一个字不改，动作做完 `OnRoutineCompleted` 里 `switch (_action)` 就按**上一个**动作收尾：吹扫成功会按 Unload 收尾（调 `EndAccess`，把这盒片标成"取放中断"、再给 EAP 发一次 `UnloadCompleted`），
+  吹扫超时会报"LoadPort Load 超时"。`LoadPortAction` 第一项就是 `Load`，所以开机后第一个跑机型自己的动作也会落进 Load 那一支。
+- **按机械手、腔体的写法改**（它们早就不记动作了：机械手看 `State` + `ReferenceEquals(routine, _jogRoutine)`，腔体看 `ReferenceEquals(routine, _processRoutine)`）：
+  `_action` / `_actionFrom` 换成 `_platformRoutine`（平台自己建的那个动作对象）+ `_platformAction`（它是哪一个）+ `_platformFrom`（它出发时的状态），
+  都在 `Begin(LoadPortAction, ...)` 里一起记、都只在 `RoutineGate` 里读写；`OnRoutineCompleted` 里 `ReferenceEquals(routine, _platformRoutine)` 判是不是平台的动作，判完就把它清掉。
+- **收尾分两段，分界线是"成功后的那串只有平台认得"**：报警、失败收场（作废在途指令 + 载具记中断 + E87 `PortError`）**谁建的动作都做**
+  ——机型的动作失败了端口照样落 Error、照样不能取放；成功后的 `switch`（Load → `LoadCompleted` + `StartAccess`、Unload → `EndAccess` + `UnloadCompleted`、Reset / Abort → `SetStateByDoor`）**只有平台自己建的动作走**。
+- **报警签名跟机械手、腔体、对准器统一**：`RaiseActionFailedAlarm(LoadPortAction action, ModuleRoutine routine)` → `RaiseActionFailedAlarm(ModuleRoutine routine)`；
+  超时报警的对号在里面按 `_platformRoutine` / `_platformAction` 挑，机型自己的动作超时报 `ControlledStopAlarm`（要报自己那条就重写这个方法）。
+- **对准器一起改**（同一个洞，轻一些：只会把片错记成"对好了"），一样的三件套写法，不留两种写法。
+- **枚举不动**（用户问过"这个枚举要不要修改"）：`LoadPortAction` 只担两件事，一是查状态表的键（`CheckState` / `Begin` 泛型，键本来就是字符串，机型拿自己的枚举 + `AddTransition` 加行就能用），
+  二是原来那个"记上一个动作"的字段——第二件没了，枚举就不用动。`ModuleRoutine` 也没加钩子：否过的做法是给它加"成功钩子"再派生 LoadRoutine / UnloadRoutine 一堆子类，
+  收尾要动载具、E87、报警，搬进动作类得让每个动作类拿着模块引用，反而散，还多一套写法。
+- **机型以后加一个动作就三步**：自己的动作枚举 → `AddTransition` 往状态表加行 → 要自己的收尾就重写 `OnRoutineCompleted`（先调 base）。
+- **验证**：整编 0 错误；OperationWaitSmoke 1426 项（这一条新增 13 项：Load 一遍之后跑机型自己的动作，做成了不按上一个动作发 `LoadCompleted` / `AccessStarted`、不动载具取放状态、照自己加的状态表行回 Loaded；
+  超时失败落 Error、报动作失败而不是"Load 超时"、照样上报 `PortError` 并把载具记中断）；其余冒烟全跑一遍都过。

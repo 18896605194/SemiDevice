@@ -83,6 +83,9 @@
     <sys:String x:Key="loadport.carrier_id_required">{0} 尚未取得有效载具号，不能供 Job 使用或处理作业结束通知</sys:String>
     <sys:String x:Key="loadport.carrier_id_mismatch">{0} 当前载具号为 {2}，与 Job 保存的载具号 {1} 不一致</sys:String>
     <sys:String x:Key="loadport.handoff_running">{0} 跟搬运车的交接还没走完（或交接超时等人处理），不能装载</sys:String>
+    <sys:String x:Key="loadport.map_unsupported">{0} 不自己扫片（这个口没有扫片传感器，也没有机械手替它扫）</sys:String>
+    <sys:String x:Key="loadport.clamp_unsupported">{0} 不能夹紧载具（这个口没有夹爪）</sys:String>
+    <sys:String x:Key="loadport.unclamp_unsupported">{0} 不能松开载具（这个口没有夹爪）</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
     <sys:String x:Key="robot.arm_not_allowed">{0} 的站点 {1} 不允许用 Arm{2} 做这一下取放（取片见 machine.xml 站点节点的 PickArms，放片见 PlaceArms）</sys:String>

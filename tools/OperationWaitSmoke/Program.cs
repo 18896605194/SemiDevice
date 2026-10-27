@@ -3182,6 +3182,88 @@ port.E87Callback = null;
         "交叉片、叠片：账照落，看得到是哪几槽");
     Check(MapAlarmActive(crossPort, crossPort.SlotMapAlarm), "交叉片、叠片：报 Mapping 异常");
     crossPort.Close();
+
+    // 9b-2) 不自己扫片、没有夹爪的口（开盒式料盒台这类）：可选能力一条步骤都不填、类上也不声明 IWaferMap——
+    //       Load 不带扫片那一段（照样做完、不报 Mapping 异常），单独扫一遍、夹紧、松开都当场回"不支持"；
+    //       要 Unload 前扫图对账却没人能扫这个口，开机就报出来
+    bool TickNoMapUntil(NoMapPort target, Func<bool> condition)
+    {
+        return WaitUntil(() =>
+        {
+            target.Tick();
+            return condition();
+        });
+    }
+
+    var noMapPort = new NoMapPort("NoMapPort");
+    Check(noMapPort.InitElement(), "不扫片的端口的元件初始化应成功");
+    ElementLoader.BindAll([noMapPort]);
+    noMapPort.NoteState(ModuleState.Idle);
+    noMapPort.NotePodPlaced(true);
+    noMapPort.Tick();
+    var noMapLoad = noMapPort.Load().Result;
+    Check(noMapLoad is not null && TickNoMapUntil(noMapPort, () => noMapLoad!.IsTerminal) && noMapLoad!.IsSuccess
+          && noMapPort.State == LoadPortState.Loaded,
+        "不自己扫片的口：Load 只开门就做完，落 Loaded");
+    Check(noMapPort._carrier.SlotMap.Count == 0 && !MapAlarmActive(noMapPort, noMapPort.SlotMapAlarm),
+        "不自己扫片的口：Load 不带扫片那一段，没有空槽图去落账，也不报 Mapping 异常");
+    var noMapMap = noMapPort.Map("NoMapPort");
+    Check(!noMapMap.IsSuccess && noMapMap.ErrorMessage == ErrorCodes.LoadPortMapUnsupported
+          && noMapPort.State == LoadPortState.Loaded,
+        "不自己扫片的口：单独扫一遍当场被拒（loadport.map_unsupported），状态不动");
+    noMapPort.NoteState(ModuleState.Idle);
+    var noMapClamp = noMapPort.Clamp();
+    Check(!noMapClamp.IsSuccess && noMapClamp.ErrorMessage == ErrorCodes.LoadPortClampUnsupported
+          && noMapPort.State == ModuleState.Idle,
+        "没有夹爪的口：夹紧当场被拒（loadport.clamp_unsupported），状态不动");
+    var noMapUnclamp = noMapPort.Unclamp();
+    Check(!noMapUnclamp.IsSuccess && noMapUnclamp.ErrorMessage == ErrorCodes.LoadPortUnclampUnsupported
+          && noMapPort.State == ModuleState.Idle,
+        "没有夹爪的口：松开当场被拒（loadport.unclamp_unsupported），状态不动");
+    noMapPort.Close();
+
+    var mapOnUnloadPort = new NoMapPort("MapOnUnloadPort") { AutoRunMapOnUnload = true };
+    Check(mapOnUnloadPort.InitElement(), "要对账的端口的元件初始化应成功");
+    Throws<InvalidOperationException>(() => ElementLoader.BindAll([mapOnUnloadPort]));
+    mapOnUnloadPort.Close();
+
+    // 9b-4) 机型自己加的动作（自己的动作枚举、自己往状态表加一行）：平台的收尾只认自己建的那个动作对象，
+    //       做成了不拿上一个动作（Load）的名义上报、不动载具取放状态；失败了照样报动作失败、作废在途指令、载具记中断
+    var ownPort = new OwnActionPort("OwnActionPort");
+    var ownLoadEvents = new RecordingE87Callback();
+    ownPort.E87Callback = ownLoadEvents;
+    var ownLoad = LoadWithMap(ownPort, new string('E', 25));
+    Check(ownLoad.IsSuccess && ownPort.State == LoadPortState.Loaded
+          && ownLoadEvents.Wait(nameof(IE87Callback.LoadCompleted))
+          && ownPort._carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess,
+        "机型自己加动作的端口：先 Load 一遍，上一个平台动作是 Load、载具在取放中");
+
+    // 换一个记录器，只看吹扫期间有没有上报
+    var ownPurgeEvents = new RecordingE87Callback();
+    ownPort.E87Callback = ownPurgeEvents;
+    var purgeDone = new ProbeRoutine { FinishOnScan = true };
+    Check(ownPort.StartPurge(purgeDone) is not null && ownPort.State == OwnActionPort.Purging,
+        "机型自己的动作能发起（走基类的 Begin），落自己的执行态");
+    Check(TickPlainUntil(ownPort, () => purgeDone.IsTerminal) && purgeDone.IsSuccess
+          && ownPort.State == LoadPortState.Loaded,
+        "机型自己的动作照自己加的那行状态表做完，回 Loaded");
+    Check(!ownPurgeEvents.Wait(nameof(IE87Callback.LoadCompleted), 100)
+          && !ownPurgeEvents.Wait(nameof(IE87Callback.AccessStarted), 100)
+          && ownPort._carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess,
+        "机型自己的动作做成：平台不替它收尾，不会按上一个动作再发一次 LoadCompleted / AccessStarted，也不动载具取放状态");
+
+    var purgeFailed = new ProbeRoutine();
+    Check(ownPort.StartPurge(purgeFailed) is not null, "机型自己的动作能再发起一次");
+    purgeFailed.TimeOut();
+    Check(TickPlainUntil(ownPort, () => purgeFailed.IsTerminal) && ownPort.State == ModuleState.Error,
+        "机型自己的动作超时：落 Error");
+    Check(MapAlarmActive(ownPort, ownPort.ControlledStopAlarm) && !MapAlarmActive(ownPort, ownPort.LoadTimeoutAlarm),
+        "机型自己的动作超时：报动作失败，不报上一个动作（Load）的超时报警");
+    Check(ownPurgeEvents.Wait(nameof(IE87Callback.PortError))
+          && ownPort._carrier.Info!.AccessStatus == CarrierAccessStatus.Stopped,
+        "机型自己的动作失败：上报 PortError、载具记中断（失败收场谁建的动作都一样）");
+    ownPort.E87Callback = null;
+    ownPort.Close();
     SmokeIoc.Use<IAlarm>(null);
 
     // 9c) Job 做完自动 Unload（EC AutoUnload，接不接 EAP 都一样）：载具刚干完就卸；机械手还在取放就等它回 Loaded；
@@ -4559,7 +4641,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(null);
 }
 
-Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort refusals carrying their reason; the IO service passing on the IO element's reason; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the RPC request parameters (RpcRequest.Of packing and TryGet reading back int, long, double, bool, Chinese text, DateTime, Guid, string lists, nested step lists and string dictionaries unchanged; names matched case-insensitively; a missing name, a null value, a type mismatch and empty, non-object or broken Parameters reading as absent; Get falling back to its default; a LoadPort action without Module answered with rpc.request_invalid while the port stays put), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier element: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC element: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitElement (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver elements connecting themselves from InitElement, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the machine.xml switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
+Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort refusals carrying their reason; the IO service passing on the IO element's reason; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the RPC request parameters (RpcRequest.Of packing and TryGet reading back int, long, double, bool, Chinese text, DateTime, Guid, string lists, nested step lists and string dictionaries unchanged; names matched case-insensitively; a missing name, a null value, a type mismatch and empty, non-object or broken Parameters reading as absent; Get falling back to its default; a LoadPort action without Module answered with rpc.request_invalid while the port stays put), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier element: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC element: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitElement (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver elements connecting themselves from InitElement, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the machine.xml switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot; a port with no mapping sensor and no clamp: its Load skipping the mapping stage so no empty slot map reaches the ledger and no mapping alarm is raised, map / clamp / unclamp refused up front as unsupported, and the startup check for AutoRunMapOnUnload when nobody can map that port; and a machine-specific action (its own enum and its own row in the state table): the platform only wraps up the routine it built itself, so a machine action that succeeds reports nothing on behalf of the previous action and leaves the carrier access state alone, while one that fails still raises the action-failed alarm (not the previous action's timeout alarm), abandons in-flight commands and marks the carrier stopped.");
 
 // 假帧通讯：顶替串口 / 网口，连接由测试摆（打不开、断线），发出去的帧体记下来；设备的回复由测试推，
 // 按通道交来的那家解码器解成报文往上交（跟真的接收泵一样），字节级的拆帧不在这里测（见 GatedTransport）。
@@ -4886,7 +4968,7 @@ sealed class BarePort : LoadPortModule
 }
 
 // 35021 LoadPort 原样（一个动作都不重写）：平台管入口和流程，机型类填 FCD 指令，下面挂探针通道。
-sealed class PlainPort : LoadPortModule
+class PlainPort : LoadPortModule
 {
     public ProbeChannel Channel { get; }
 
@@ -4909,6 +4991,93 @@ sealed class PlainPort : LoadPortModule
 
     /// <summary>顶替驱动的 PODON/PODOF 主动事件，下一拍扫描生效。</summary>
     public void NotePodPlaced(bool placed) => SetDeviceReportedPlaced(placed);
+}
+
+// 机型自己加了一个动作的端口（N2 吹扫这类）：自己的动作枚举、自己往状态表加一行，走基类的 Begin；
+// 验平台的收尾只认平台自己建的那个动作，不会拿上一个动作的名义收尾。
+sealed class OwnActionPort : PlainPort
+{
+    /// <summary>
+    /// 吹扫中（机型自己的状态码）
+    /// </summary>
+    public const int Purging = 170;
+
+    public OwnActionPort(string name) : base(name)
+    {
+        // 机型自己往平台的状态表加一行：门开着能吹扫，吹完还是门开着
+        AddTransition((LoadPortState.Loaded, nameof(PortOwnAction.Purge)), (Purging, LoadPortState.Loaded));
+    }
+
+    /// <summary>
+    /// 发起机型自己的动作：命中的是基类的泛型 Begin（平台那个 Begin(LoadPortAction) 重载参数类型对不上）
+    /// </summary>
+    public ModuleRoutine? StartPurge(ModuleRoutine purge)
+    {
+        lock (RoutineGate)
+        {
+            return Begin(PortOwnAction.Purge, purge);
+        }
+    }
+}
+
+// 机型自己的动作枚举（平台的 LoadPortAction 里没有这一项）
+enum PortOwnAction
+{
+    Purge,
+}
+
+// 不自己扫片、也没有夹爪的口（开盒式料盒台这类）：平台的可选能力（扫片、夹紧、松开）一条步骤都不填，类上也不声明 IWaferMap；
+// 开关门、回零这些每个口都得有的照样填（当场做完，这个口不接真设备）。
+sealed class NoMapPort : BaseLoadPortModule
+{
+    public ProbeChannel Channel { get; }
+
+    public NoMapPort(string name)
+    {
+        typeof(ElementBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        Channel = ProbeChannel.AddTo(this);
+        ProbeCarrier.Add(this, PodPresenceSource.Event);
+
+        // 假通道不回状态查询：超时给到最长，别让查询超时的日志掺和
+        QueryDataTimeOut = 600000;
+    }
+
+    /// <summary>顶替扫描线程推一拍。</summary>
+    public void Tick() => OnScan();
+
+    /// <summary>直接摆状态，省去先跑一遍 Home。</summary>
+    public void NoteState(int state) => State = state;
+
+    /// <summary>顶替驱动的 PODON/PODOF 主动事件，下一拍扫描生效。</summary>
+    public void NotePodPlaced(bool placed) => SetDeviceReportedPlaced(placed);
+
+    protected override IFrameCodec CreateCodec() => new FcdCodec();
+
+    protected override void AddLoadSteps(ModuleRoutine load)
+    {
+        load.Do("开门", () => HandleResult.Success());
+    }
+
+    protected override void AddUnloadSteps(ModuleRoutine unload)
+    {
+        unload.Do("关门", () => HandleResult.Success());
+    }
+
+    protected override void AddHomeSteps(ModuleRoutine home)
+    {
+        home.Do("回零", () => HandleResult.Success());
+    }
+
+    protected override void AddResetSteps(ModuleRoutine reset)
+    {
+        reset.Do("清报错", () => HandleResult.Success());
+    }
+
+    protected override void AddAbortSteps(ModuleRoutine abort)
+    {
+        abort.Do("急停", () => HandleResult.Success());
+    }
 }
 
 // 探针读头：35021 的富创得读头类（读码流程、解码器、握手都是生产代码），下面挂探针通道（测读头连不上、重连）。

@@ -98,10 +98,18 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
     private ILedgerManager? _ledger;
 
+    // 平台自己建的那个动作记在下面两个字段里（都只在 RoutineGate 这把锁里读写）：
+    // 机型用自己的动作枚举发起的动作走基类的 Begin，这两个字段不动，动作对象也对不上，平台就不替它收尾。
+
     /// <summary>
-    /// 正在做（或最近一次做）的动作，动作收尾时按它判
+    /// 平台自己建的、现在挂着的那个动作；没有或者已经收尾了为 null
     /// </summary>
-    private AlignerAction _action;
+    private ModuleRoutine? _platformRoutine;
+
+    /// <summary>
+    /// 它是哪一个动作（做完按它收尾）
+    /// </summary>
+    private AlignerAction _platformAction;
 
     /// <summary>
     /// 这次回零 / 对准要对的那一片（发起时台上的片）；台上没片为 null
@@ -328,7 +336,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     }
 
     /// <summary>
-    /// 挂上动作，记下是哪个动作；回零、对准会转台面，一发起旧的"对好了"就作废，记下这次要对的片（在模块锁里调）
+    /// 挂上平台的动作，记下是哪个动作对象、哪一个动作；回零、对准会转台面，一发起旧的"对好了"就作废，记下这次要对的片（在模块锁里调）
     /// </summary>
     private ModuleRoutine? BeginAction(AlignerAction action, ModuleRoutine routine)
     {
@@ -338,7 +346,8 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
             return null;
         }
 
-        _action = action;
+        _platformRoutine = started;
+        _platformAction = action;
         if (action == AlignerAction.Home || action == AlignerAction.Align)
         {
             _alignedWafer = null;
@@ -465,13 +474,26 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
         RaiseActionFailedAlarm(routine);
+
+        // 是不是平台自己建的那个动作；机型拿自己的动作枚举发起的动作对不上，收尾由机型重写这个方法做（先调 base）
+        bool platform = ReferenceEquals(routine, _platformRoutine);
+        if (platform)
+        {
+            _platformRoutine = null;
+        }
+
         if (!routine.IsSuccess)
         {
             _driver?.AbandonAll("Abandoned");
             return;
         }
 
-        if (_action == AlignerAction.Home || _action == AlignerAction.Align)
+        if (!platform)
+        {
+            return;
+        }
+
+        if (_platformAction == AlignerAction.Home || _platformAction == AlignerAction.Align)
         {
             _alignedWafer = _aligningWafer;
         }

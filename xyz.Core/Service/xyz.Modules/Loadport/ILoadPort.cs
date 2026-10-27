@@ -27,8 +27,6 @@ public interface ILoadPort : ILoadPortAccess, IJobAccess
 
     #endregion
 
-    #region 给服务用的（手动页、主界面）
-
     /// <summary>
     /// 取片顺序
     /// </summary>
@@ -69,5 +67,4 @@ public interface ILoadPort : ILoadPortAccess, IJobAccess
     /// </summary>
     LoadPortDto CreateStateDto();
 
-    #endregion
 }

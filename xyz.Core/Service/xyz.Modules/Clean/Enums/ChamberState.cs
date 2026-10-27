@@ -35,9 +35,4 @@ public enum ChamberAction
     /// 手动页的设备动作（轴回零 / 移动 / 步进 / 点动 / 复位，气缸升 / 降）
     /// </summary>
     Manual,
-
-    /// <summary>
-    /// 取放准备二：卡盘转到取放位、开腔门（搬运管理在机械手伸手之前发，手动页的取放也经它）
-    /// </summary>
-    PrepareTransfer2,
 }

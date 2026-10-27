@@ -16,7 +16,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort, IWaferMap
+public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 {
     #region SV 
 
@@ -44,7 +44,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     [Machine("False", "LoadPort",
         "自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：True = 关门前先扫一遍（自己扫，或机械手开了扫片就叫它扫）核对，对不上 Unload 判失败、报警、门不关；False = 直接关门，不扫、不对账。" +
-        "这个开关只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账")]
+        "这个开关只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账。要 True 得有人能扫这个口（这个口自己会扫，或有机械手开了 MapEnabled 且示教点表里有它），都没有开机就报出来")]
     public bool AutoRunMapOnUnload { get; set; }
 
     #endregion
@@ -360,6 +360,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         {
             throw new InvalidOperationException($"{Name} 要机械手 {_mapRobot.Name} 扫片，要经搬运管理排队，但 machine.xml 没配 Transfer 节点。");
         }
+
+        // 要对账就得有人能扫：这个口自己不会扫、也没有机械手替它扫，就是配错了，开机报出来（别等 Unload 时才拒）
+        if (AutoRunMapOnUnload && _mapRobot is null && this is not IWaferMap)
+        {
+            throw new InvalidOperationException(
+                $"{Name} 的 machine.xml 开了 AutoRunMapOnUnload（Unload 关门前扫图对账），但这个口自己不会扫片（{GetType().Name} 没声明 IWaferMap），也没有机械手开了 MapEnabled、示教点表里有这个口。");
+        }
     }
 
     /// <summary>
@@ -582,12 +589,23 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #region ILoadPort 契约
 
-    private LoadPortAction _action;
+    // 平台自己建的那个动作记在下面三个字段里（都只在 RoutineGate 这把锁里读写）：
+    // 机型用自己的动作枚举发起的动作走基类的 Begin，这三个字段不动，动作对象也对不上，平台就不替它收尾。
 
     /// <summary>
-    /// 动作之前的状态
+    /// 平台自己建的、现在挂着的那个动作；没有或者已经收尾了为 null
     /// </summary>
-    private int _actionFrom;
+    private ModuleRoutine? _platformRoutine;
+
+    /// <summary>
+    /// 它是哪一个动作（做完按它收尾、超时按它报警）
+    /// </summary>
+    private LoadPortAction _platformAction;
+
+    /// <summary>
+    /// 它出发时的状态（复位、中止做完按它判门位）
+    /// </summary>
+    private int _platformFrom;
 
     /// <summary>
     /// Mapping 数据到达时调用,给载具对象
@@ -783,7 +801,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #endregion
 
-    #region Clamp / Unclamp
+    #region Clamp / Unclamp（可选能力：没有夹爪的口不填步骤）
 
     public HandleResult<ModuleRoutine> Clamp()
     {
@@ -795,7 +813,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Clamp, CreateClampRoutine());
+            var clamp = CreateClampRoutine();
+            if (clamp.StepCount == 0)
+            {
+                return Rejected(HandleResult.Fail(ErrorCodes.LoadPortClampUnsupported, Name));
+            }
+
+            return Started(LoadPortAction.Clamp, clamp);
         }
     }
 
@@ -809,7 +833,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Unclamp, CreateUnclampRoutine());
+            var unclamp = CreateUnclampRoutine();
+            if (unclamp.StepCount == 0)
+            {
+                return Rejected(HandleResult.Fail(ErrorCodes.LoadPortUnclampUnsupported, Name));
+            }
+
+            return Started(LoadPortAction.Unclamp, unclamp);
         }
     }
 
@@ -834,21 +864,27 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 夹紧那几条：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC ClampTimeout）
+    /// 夹紧那几条：有夹爪的 LoadPort 类重写，用自己品牌的指令加 Command 步骤（超时用 EC ClampTimeout）；一条都不加就是这个口不能夹紧
     /// </summary>
-    protected abstract void AddClampSteps(ModuleRoutine clamp);
+    protected virtual void AddClampSteps(ModuleRoutine clamp)
+    {
+    }
 
     /// <summary>
-    /// 松开那几条：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC UnclampTimeout）
+    /// 松开那几条：有夹爪的 LoadPort 类重写，用自己品牌的指令加 Command 步骤（超时用 EC UnclampTimeout）；一条都不加就是这个口不能松开
     /// </summary>
-    protected abstract void AddUnclampSteps(ModuleRoutine unclamp);
+    protected virtual void AddUnclampSteps(ModuleRoutine unclamp)
+    {
+    }
 
     #endregion
 
-    #region 扫片（IWaferMap）
+    #region 扫片（可选能力 IWaferMap）
 
-    // LoadPort 自带扫片传感器，所以也实现 IWaferMap：Map 用自己的传感器单独扫一遍（Loaded 时），扫到的存进 MapResults、不落账。
-    // Load、自动跑货 Unload 对账里的扫片走 AddMapStages：有机械手开了扫片、示教点表里有这个口，就交搬运管理排它去扫，不然自己扫。
+    // 自带扫片传感器的 LoadPort 类在类上声明 IWaferMap（下面的 Map / MapResults 就是它的实现），再重写 AddMapSteps 加自己品牌的扫片指令；
+    // 基类不声明这个接口——开盒式料盒台、靠机械手扫的口本来就不会自己扫，别让它对外说自己会。
+    // Map 用自己的传感器单独扫一遍（Loaded 时），扫到的存进 MapResults、不落账。
+    // Load、自动跑货 Unload 对账里的扫片走 AddMapStages：有机械手开了扫片、示教点表里有这个口就交搬运管理排它去扫；没有就看这个口自己会不会扫；都不会这一段就不加。
 
     private readonly object _mapGate = new();
 
@@ -890,7 +926,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Map, CreateMapRoutine());
+            var map = CreateMapRoutine();
+            if (map.StepCount == 0)
+            {
+                return Rejected(HandleResult.Fail(ErrorCodes.LoadPortMapUnsupported, Name));
+            }
+
+            // 先清掉上一次扫到的，再挂动作：扫完存下的一定是这一次的
+            ClearMapResult();
+            return Started(LoadPortAction.Map, map);
         }
     }
 
@@ -908,61 +952,70 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 单独扫一遍的步骤：扫片、取槽图；整个做法不一样才重写
+    /// 单独扫一遍的步骤：机型给的扫片、取槽图那几条（一条都没有就是这个口不自己扫）；整个做法不一样才重写
     /// </summary>
     protected virtual ModuleRoutine CreateMapRoutine()
     {
         var map = new ModuleRoutine(this, "Map", _driver, () => LoadTimeout);
-        AddOwnMapStages(map, null);
+        AddMapSteps(map);
         return map;
     }
 
     /// <summary>
-    /// 自己扫片那几条（扫、取槽图）：项目的 LoadPort 类用自己品牌的指令加 Command 步骤，拿到槽图连同设备回的原文调 SaveMapResult 存起来（超时用 EC LoadTimeout / UnloadTimeout）
+    /// 自己扫片那几条（扫、取槽图）：自带扫片传感器的 LoadPort 类重写，用自己品牌的指令加 Command 步骤，拿到槽图连同设备回的原文调 SaveMapResult 存起来（超时用 EC LoadTimeout / UnloadTimeout）；一条都不加就是这个口不自己扫
     /// </summary>
-    protected abstract void AddMapSteps(ModuleRoutine map);
+    protected virtual void AddMapSteps(ModuleRoutine map)
+    {
+    }
 
     /// <summary>
-    /// 加上扫片：有机械手替这个口扫，就交搬运管理排它去扫，不然自己扫；扫到的结果交给 check（Load 落账、Unload 对账）
+    /// 加上扫片：有机械手替这个口扫就交搬运管理排它去扫；没有就看这个口自己会不会扫（类上声明了 IWaferMap）；都不会这一段就不加。扫到的结果交给 check（Load 落账、Unload 对账）
     /// </summary>
     private void AddMapStages(ModuleRoutine routine, Func<WaferMapResult, HandleResult> check)
     {
         var robot = _mapRobot;
-        if (robot is null)
+        if (robot is not null)
         {
-            AddOwnMapStages(routine, check);
+            routine.Start($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
             return;
         }
 
-        routine.Start($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
+        if (this is IWaferMap)
+        {
+            AddOwnMapStages(routine, check);
+        }
     }
 
     /// <summary>
-    /// 自己扫：先清掉上一次的结果，加上项目给的扫片那几条，扫完把存下的结果交给 check（check 为 null 只存不用）
+    /// 自己扫：建动作时就清掉上一次的结果（这一刻就在挂动作前），加上机型给的扫片那几条，扫完把存下的结果交给 check
     /// </summary>
-    private void AddOwnMapStages(ModuleRoutine routine, Func<WaferMapResult, HandleResult>? check)
+    private void AddOwnMapStages(ModuleRoutine routine, Func<WaferMapResult, HandleResult> check)
     {
-        routine.Do("清掉旧槽图", ClearMapResult);
+        ClearMapResult();
+        int before = routine.StepCount;
         AddMapSteps(routine);
+        bool canMap = routine.StepCount > before;
         routine.Do("用槽图", () =>
         {
-            if (check is null)
+            // 声明了会扫片、却一条扫片指令都没加：当场说不会扫，别拿空槽图去落账、对账（会报成"槽数对不上"，查不到正地方）
+            if (!canMap)
             {
-                return HandleResult.Success();
+                return HandleResult.Fail(ErrorCodes.LoadPortMapUnsupported, Name);
             }
 
             return check(OwnMapResult());
         });
     }
 
-    private HandleResult ClearMapResult()
+    /// <summary>
+    /// 清掉上一次扫到的结果
+    /// </summary>
+    private void ClearMapResult()
     {
         lock (_mapGate)
         {
             _mapResult = null;
         }
-
-        return HandleResult.Success();
     }
 
     /// <summary>
@@ -1282,7 +1335,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 发起动作（查状态表、挂动作、落执行态），记下是哪个动作、从哪个状态出发（做完按它收尾、复位 / 中止按它判门位）。
+    /// 发起平台的动作（查状态表、挂动作、落执行态），记下是哪个动作对象、哪一个动作、从哪个状态出发（做完按它收尾、复位 / 中止按它判门位）。
     /// 检查都在各动作的入口里（见"动作入口"区），这里不再查联锁。
     /// </summary>
     protected ModuleRoutine? Begin(LoadPortAction action, ModuleRoutine routine)
@@ -1293,8 +1346,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             var started = base.Begin(action, routine);
             if (started is not null)
             {
-                _action = action;
-                _actionFrom = from;
+                _platformRoutine = started;
+                _platformAction = action;
+                _platformFrom = from;
             }
 
             return started;
@@ -1347,12 +1401,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     #endregion
 
     /// <summary>
-    /// 动作完成之后的钩子
+    /// 动作停下以后的收尾（状态已由基类落好）：报警、失败收场谁建的动作都一样；"这是 Load 完了、这是 Unload 完了"只有平台自己的动作认得
     /// </summary>
-    /// <param name="routine"></param>
     protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
-        RaiseActionFailedAlarm(_action, routine);
+        RaiseActionFailedAlarm(routine);
+
+        // 是不是平台自己建的那个动作；机型拿自己的动作枚举发起的动作对不上，收尾由机型重写这个方法做（先调 base）
+        bool platform = ReferenceEquals(routine, _platformRoutine);
+        if (platform)
+        {
+            _platformRoutine = null;
+        }
 
         //动作失败
         if (!routine.IsSuccess)
@@ -1366,15 +1426,20 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             return;
         }
 
-        switch (_action)
+        if (!platform)
         {
-            case LoadPortAction.Load:           
+            return;
+        }
+
+        switch (_platformAction)
+        {
+            case LoadPortAction.Load:
                 EnqueueE87(callback => callback.LoadCompleted(this));
                 _carrier.StartAccess(); //告诉EAP这个是可以  开始取放的
                 break;
 
             case LoadPortAction.Unload:
-               
+
                 _carrier.EndAccess();  //结束取放
                 EnqueueE87(callback => callback.UnloadCompleted(this));
                 break;
@@ -1391,7 +1456,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     private void SetStateByDoor()
     {
-        if (State != ModuleState.NotInit || !IsLoadedState(_actionFrom))
+        if (State != ModuleState.NotInit || !IsLoadedState(_platformFrom))
         {
             return;
         }
@@ -1742,13 +1807,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 动作做完以后报警
+    /// 动作没做成就报警（人为中止顶掉的不报）：机型自己要管的情况先判、报了就 return，其余交给 base
     /// </summary>
-    /// <param name="action"></param>
-    /// <param name="routine"></param>
-    protected virtual void RaiseActionFailedAlarm(LoadPortAction action, ModuleRoutine routine)
+    protected virtual void RaiseActionFailedAlarm(ModuleRoutine routine)
     {
-       
+
         if (routine.IsSuccess || routine.Code == ErrorCodes.Aborted)
         {
             return;
@@ -1769,8 +1832,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             return;
         }
 
+        // 超时：机型自己加的动作对不上平台的超时报警，报动作失败（要报自己那条就重写这个方法）
+        if (!ReferenceEquals(routine, _platformRoutine))
+        {
+            RaiseAlarm(ControlledStopAlarm);
+            return;
+        }
+
         // 超时：哪个动作超时就报哪一条
-        switch (action)
+        switch (_platformAction)
         {
             case LoadPortAction.Load:
                 RaiseAlarm(LoadTimeoutAlarm);
