@@ -16,6 +16,7 @@ using xyz._35021.Shared.Dtos;
 // CDS 冒烟：槽（Tank）照 machine.xml 认液位 DI 信号（LL / L / H / HH / Overfill，没挂 = 没有这个点）、触发值照配的电平、
 // 按配了的信号算液位（Overfill 亮了就是溢流）、读不到算不知道、信号对不上 / 液位高高 / 溢流报警且只能人工复位清；
 // 五个功能（补液、排液、换液、供液、停止）开关哪组阀、状态怎么走（就绪只能补液得到、有报警就出错）、开始前的检查和被拒原因；
+// 模式（Mode：默认 Supply，工艺过程中经 ITank 对调，不在 machine.xml 配，也是 SV，不盖住基类的 Role）；
 // 推送（槽跟着 IPA 模块推 IpaDto：液位、状态、各信号有变化才推，没配的信号是 null）；
 // 能不能供液（ISupplyAccess：IPA 在自己扫描里算，初始化过、在空闲、有槽就绪或正在供液才算）；
 // AI 液位计：液位信号换成读同一个 AI 的 AI 液位信号（触发值、容错、防抖在 EC），只有 AI、AI + 溢流 DI 混着用两种都照样补液、排液、供液。
@@ -408,6 +409,20 @@ try
 
     Check(badTargetRejected, "FillTo 配成 HH：开机就报");
 
+    // 模式 Mode：工艺过程中一直在变，由上面的模组经 ITank 对调，不在 machine.xml 配（写了也不认）；默认 Supply（只有一个槽的一直是它）；
+    // 也是 SV，EAP 读得到哪个槽在供液；不盖住基类的 Role（父组件给子组件声明的角色）
+    Check(lowTarget.Mode == TankMode.Supply, "Mode 默认 Supply");
+    var configured = LoadMode("Tank15", "Pre");
+    Check(configured.Mode == TankMode.Supply, "machine.xml 里写了 Mode 也不认：模式只在工艺过程中变");
+    ITank rotating = configured;
+    rotating.Mode = TankMode.Pre;
+    Check(configured.Mode == TankMode.Pre, "上面的模组经 ITank 对调模式");
+    var modeMark = (VariableMarkAttribute?)typeof(TankComponent).GetProperty(nameof(TankComponent.Mode))!
+        .GetCustomAttributes(typeof(VariableMarkAttribute), false).SingleOrDefault();
+    Check(modeMark is not null && modeMark.Type == VariableType.SV, "模式是 SV：EAP 读得到哪个槽在供液");
+    Check(typeof(TankComponent).GetProperties().Count(property => property.Name == nameof(ComponentBase.Role)) == 1,
+        "槽上只有基类那一个 Role，没被盖住");
+
     // 阀组里有阀开不了（DO 99 点表里没有）：拒绝，开了的全关回去
     var brokenValve = LoadTank("Tank14", null, [("LL", 14, true), ("L", 15, true), ("H", 16, true)], fill: [(6, -1), (99, -1)], drain: [], supply: []);
     plc.SetDi(16, false);
@@ -674,11 +689,25 @@ Console.WriteLine($"PASS: {checks} cds checks (tank: level DI signals found by n
     + "unknown when a signal cannot be read unless overfill is on, the signal mismatch / high-high / overfill alarms raised by the tank "
     + "after each one's EC debounce time and cleared only by a manual reset; the fill / drain / exchange / supply / stop functions "
     + "driving their valve groups, ready only through a fill, any alarm putting the tank into error with every valve closed, "
-    + "the machine.xml fill target, the checks before each function with their error codes, "
+    + "the machine.xml fill target, the tank mode (Supply by default, switched through ITank during the process, "
+    + "not a machine.xml setting, an SV, the base Role left alone), the checks before each function with their error codes, "
     + "and the push of level / state / each signal only on change, with unconfigured signals as null; "
     + "supply readiness for other modules (ISupplyAccess, worked out on the IPA scan: initialized, idle and one tank ready or supplying); "
     + "AI level signals reading one level meter against EC trigger values with a tolerance and debounce, "
     + "an AI-only tank and an AI + overflow DI tank running fill / drain / supply unchanged)");
+
+// machine.xml 里写了 Mode 的槽（Mode 不是 machine.xml 参数：装配时记一条错误日志、不认）：只挂一个 LL 信号
+static SmokeTank LoadMode(string name, string mode)
+{
+    var tank = TankNode(name, null, [("LL", 14, true)], [], [], [], null);
+    tank.Values.Add(new() { Name = "Mode", Value = mode });
+    var group = new ModuleConfig
+    {
+        Name = "CDS",
+        Children = [new ModuleConfig { Name = "IPA", Children = [tank] }]
+    };
+    return (SmokeTank)SmokeIoc.Load([group]).Single();
+}
 
 // 只挂液位信号的槽
 static SmokeTank Load(string name, params (string Signal, int Di, bool Trigger)[] signals)

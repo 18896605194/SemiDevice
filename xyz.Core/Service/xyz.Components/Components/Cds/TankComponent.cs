@@ -79,6 +79,12 @@ public class TankComponent : ComponentBase, ITank
     [Machine("H", "Tank", "补液补到哪个信号亮算完成：L 或 H（HH 是报警位，不能当完成位）")]
     public string FillTo { get; set; } = "H";
 
+    /// <summary>
+    /// 模式：工艺过程中一直在变，由上面的模组对调，不在 machine.xml 配；也是 SV，EAP 读得到哪个槽在供液
+    /// </summary>
+    [VariableMark(VariableType.SV, ValueFormat.Enum, description: "槽模式")]
+    public TankMode Mode { get; set; } = TankMode.Supply;
+
     #endregion
 
     #region EC
@@ -260,7 +266,7 @@ public class TankComponent : ComponentBase, ITank
     /// <summary>
     /// 补液：开补液阀，FillTo 亮了关阀、就绪；本来就亮着不开阀，直接就绪
     /// </summary>
-    public HandleResult Fill()
+    public virtual HandleResult Fill()
     {
         lock (_gate)
         {
@@ -303,7 +309,7 @@ public class TankComponent : ComponentBase, ITank
     /// <summary>
     /// 排液：开排液阀，LL 灭了再排 EC DrainDelayMs 关阀、回空闲
     /// </summary>
-    public HandleResult Drain()
+    public virtual HandleResult Drain()
     {
         lock (_gate)
         {
@@ -330,7 +336,7 @@ public class TankComponent : ComponentBase, ITank
     /// <summary>
     /// 换液：先排液、排空了接着补液，补到 H 就绪
     /// </summary>
-    public HandleResult Exchange()
+    public virtual HandleResult Exchange()
     {
         lock (_gate)
         {
@@ -367,7 +373,7 @@ public class TankComponent : ComponentBase, ITank
     /// <summary>
     /// 供液：开供液阀，一直开着，直到停止；只能从就绪开始
     /// </summary>
-    public HandleResult Supply()
+    public virtual HandleResult Supply()
     {
         lock (_gate)
         {
@@ -394,7 +400,7 @@ public class TankComponent : ComponentBase, ITank
     /// <summary>
     /// 停止：关掉全部阀，直接回空闲（有报警的下一拍又进出错）
     /// </summary>
-    public HandleResult Stop()
+    public virtual HandleResult Stop()
     {
         lock (_gate)
         {
