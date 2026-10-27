@@ -127,29 +127,35 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 顶层只有 `Attributes` / `Collectors` / `Components` / `Enums` / `Interfaces` / `Models` + `ComponentBase.cs`、`ComponentLoader.cs`。
   顶层目录 = 命名空间（`xyz.Components.Models` 等）。
 - `Components\` 下按类别分 System / Plc（PLC：抽象底座 `PlcComponent` 只管连接、重连、掉线报警，品牌子类 `BeckhoffPlcComponent`（ADS，`IPlcIo` + `IPlcBlock`）、`OpcUaPlcComponent`（OPC UA，只 `IPlcIo`）管读什么、对外给哪个接口，见 decisions.md「PLC 底座只留连接、OPC UA PLC」；IO（`IIo.WriteDo` / `WriteAo` 回 `HandleResult` 带原因，联锁、AO 超标定范围都在 IO 组件里拦，谁写都一样，见 decisions.md「IO 写入带原因」）、心跳 `HeartbeatComponent`：按 machine.xml 的时间轮流写一个 DO，见 decisions.md「心跳」；虚拟 IO `VirtualIoComponent`：下面挂虚拟 DO，程序按点号读写，见 decisions.md「虚拟 IO」）/ Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（设备通道：串口 `SerialDriverComponent`、网口 `TcpDriverComponent`，共用基类 `CommDriverComponent`；读头底座 `RfidReaderComponent`、重连 `DriverReconnector`；品牌在机型工程）/ Charts / Eap / Eda（Interface A，见 §4「EDA」）/ Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
-  Maintenance（部件寿命：次数型 `CountLifetimeComponent` 挂在部件下面盯 DO 计次、时间型 `TimeLifetimeComponent` 默认从清零起按实际时间算，配了计时 DO 只算它通着的、配了清零 DO 它一变就清零重算，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」），
+  Maintenance（部件寿命：次数型 `CountLifetimeComponent` 挂在部件下面盯 DO 计次、时间型 `TimeLifetimeComponent` 默认从清零起按实际时间算，配了计时 DO 只算它通着的、配了清零 DO 它一变就清零重算，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」）/
+  2026-10-27 从模块层挪下来的 Recipe（工艺配方库、流程配方库）/ Process（开工计数）/ Job（Job 管理，`Scheduling` 调度、`Task` 任务组件）/ Transfer（搬运管理和搬运动作）/ Dispatch / E84 / Loadport（载具组件）/
+  StateMachines（状态机底座），映射组件在 System 下（见 decisions.md「xyz.Modules 只放模块」），
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的辅助类单独成文件、跟着组件放在同一目录（不嵌在别的类里，见 decisions.md「不写内部类」）。不建按领域分的顶层目录。
 - 模块动作 `ModuleRoutine` 和步骤（`RoutineStep`、平台给的几种步骤、等待扩展 `Wait`）在 `Components\Routines`（命名空间 `xyz.Components.Components`），
   `RoutineState` 在 `Enums`、`DeviceOrder` 在 `Models`——2026-10-05 从模块层挪下来（当时叫 ModuleOperation），好让设备侧接口放进组件层。
 - `Interfaces` 下有组件自己的（PLC 分点位 `IPlcIo`（IO 组件用）和数据块 `IPlcBlock`（轴用），由品牌子类自己声明支持哪个；2026-10-18 起每个单例组件都有接口：`IAlarm`、`IEc`、`IMapper`、
   `IDataChart`、`IE30Component`……（Component 后缀在一个个去掉，见 §2），找组件一律按它们）、模块共有的 `IModule`（名字、状态、在做的动作、InitModule / Reset / Abort；生产 / 维护是单独的能力接口 `IMode`，见 §3；
-  `ILoadPortAccess`、`ITransferRobot` 继承它；`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
+  `ILoadPortAccess`、`ITransferRobot` 继承它；模块自己的接口 `ILoadPort`、`IRobot`、`IChamber`、`IAligner`、`IBuffer`、`ISupplyModule`、`ISupplyAccess`、`ISystemModule` 跟着模块放在 xyz.Modules
+  （2026-10-27 用户定，见 decisions.md「xyz.Modules 只放模块」），组件层要整机的经 `ISystemAccess`（界面语言，`ISystemModule` 继承它）），
   还有设备侧给 EAP 的命令接口和上报口：`ILoadPortAccess`（LoadPort 给 EAP 用的那一面，完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 在模块层）、`ICarrier`（经 `ILoadPortAccess._carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，读头底座 `RfidReaderComponent` 实现，品牌读头类在机型工程）、`IE87Callback`、`IE84Callback`、
   `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `LedgerManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
   载具快照 `CarrierInfo` 在 `Models`（建 CJ / PJ 的方法直接收参数，没有请求类，见 §3 Job）；命令结果用 xyz.Shared 的 `HandleResult`
   （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
-  实现还在模块层（`BaseLoadPortModule`、`CarrierComponent`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
+  实现：端口是模块层的 `BaseLoadPortModule`，载具 `CarrierComponent`、Job 管理 `JobManager` 10-27 起在组件层；EAP 组件写在组件层，直接用这些接口。
 
 ## 3. 模块（`xyz.Modules`）
 
-- **目录**（2026-10-09，用户："该归类就是归类用文件夹"）：模块的域目录（`Loadport`、`Clean`、`Robot`……）里，本体（`Base*Module`、`*Component`）留在根，其余按类别放子文件夹
-  `Enums\`、`Models\`、`Routines\`、`StateMachines\`（`Job` 下的 `Model\`、`Task\` 是同一个做法）；**只归类，命名空间不改**（一般 `xyz.Modules`，状态码和动作枚举 `xyz.Modules.Enums`，状态表 `xyz.Modules.StateMachines`）。
+- **只放模块**（2026-10-27 用户定）：模块本体、模块自己的接口、动作步骤、状态表、状态码；别的组件（配方库、Job、搬运、调度、映射、E84、载具……）
+  和它们的接口、数据、枚举都在 xyz.Components（§2 目录），见 decisions.md「xyz.Modules 只放模块」。
+- **目录**（2026-10-09，用户："该归类就是归类用文件夹"）：模块的域目录（`Loadport`、`Clean`、`Robot`……）里，本体（`Base*Module` 和它自己的接口）留在根，其余按类别放子文件夹
+  `Enums\`、`Models\`、`Routines\`、`StateMachines\`；**只归类，命名空间不改**（一般 `xyz.Modules`，状态码和动作枚举 `xyz.Modules.Enums`，状态表 `xyz.Modules.StateMachines`；
+  状态码的底 `ModuleState` 和状态机底座 `BaseStateMachine` 10-27 起在组件层）。
   `Loadport` 已分好：`Enums\`（PodPresenceSource、LoadPortState 加 LoadPortAction；SlotPickOrder 在组件层 `xyz.Components\Enums`）、`StateMachines\`（LoadPortStateTable）；
   设备动作统一用组件层的 `ModuleRoutine`（2026-10-23；原来 LoadPort / 机械手 / 对准器各一个 `XxxCommandOperation`，合成 `CommandOperation` 以后同一天又换成一串步骤，见下面「动作 = ModuleRoutine」）；
   `Robot` 也已分（`Enums\`：RobotState 加 RobotAction；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根；
   示教点是组件层的 `Components\Robot\TeachPointComponent`，接口 `ITeachPoint`，2026-10-24 起替掉原来的 `Models\RobotStation`）；
-  `Clean`、`E84` 还平铺，改到那一块时照这个分。
+  `Clean` 也已分（`Enums\`、`Routines\`、`StateMachines\`）；E84 10-27 挪到了组件层 `Components\E84`。
 - 供液（CDS）：`Cds\BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess`（一种药液一个模块，下面挂它的槽 `Tanks`；`ISupplyModule` = 不跟机械手交互的模块，
   跟 `ITransferStation` 平级）。机型的药液模块继承它（35021 的 `Cds\IpaModule`，推 `IpaDto`：IPA 的状态 + 下面各槽的 `TankDto`，DTO 放机型的
   xyz.35021.Shared）。2026-10-18 只搭了架子：初始化直接进空闲，手动 / 自动、两槽切换、自动补液这些默认做法以后写在基类里。
@@ -350,7 +356,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `GetOptionsAsync` 给两张字段表（配方头标出程序算的、Type 带腔体配的几种；步骤带按 Type 分开的下拉选项）。两个库的 `Find(名字)` 给的是克隆（配方快照，库里再改不影响）。
   **Host 远程管配方**：流程配方库实现 `Interfaces\ISequenceLibrary`：`SequenceNames`、`GetSequenceData`（导出）、`AcceptsSequence`、`ImportSequence`、`DeleteSequence`、`E30Callback`；
   工艺配方库实现 `Interfaces\IRecipeLibrary`：`RecipeNames`、`GetRecipe`（导出）、`AcceptsRecipe`、`ImportRecipe`、`DeleteRecipe`、`E30Callback`。
-  模块层的 `ISequenceComponent` / `IRecipeComponent`（`xyz.Modules\Recipe`，服务和腔体用）各自继承这两个。
+  组件层 `Interfaces` 下的 `ISequenceComponent` / `IRecipeComponent`（服务和腔体用；两个库在 `Components\Recipe`，10-27 从模块层挪下来）各自继承这两个。
   导出按名字取库里的副本转 JSON（工艺配方步骤是字段名 → 值，`RecipeStep.Attributes` 是存 XML 用的、JSON 里不带）；导入按名字新建或覆盖配方头能填的项和步骤（没带 Type 的不收，没带超时时间的补默认值），
   检查、规整跟本地一样，JSON 里的编号 / 版本 / 人和时间不管；满了 `*.full`、读不出来 `*.body_invalid`，删除时没有名字回 `*.name_not_found`。
   两个 `Accepts` 方法只看 JSON 的样子，Host 下新名字时分库用。
@@ -382,7 +388,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   "腔里的片归 Job 时手动不能起"（`chamber.wafer_owned`）只拦手动、不拦 Job 自己，留在服务层 `ChamberService.ProcessAsync`。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
   开工计数和进度也在这个接口上（调度、界面只读，见 decisions.md「工艺站开工计数、进度和并行站轮着用」）：`TodayWafers` / `TotalWafers`（每片开工加 1，
-  中止、失败也算；共用的 `Process\ProcessCounter` 按天一站一行存默认库 `process_daily_count`，`Bind` 时读回来接着数）、
+  中止、失败也算；共用的 `Components\Process\ProcessCounter`（组件层）按天一站一行存默认库 `process_daily_count`，`Bind` 时读回来接着数）、
   `LastStartedTimestamp`（Stopwatch 开机以来的计时，只用来比先后、只在内存；不用系统时间，Host 对时、改时间往回调先后不乱）、
   `ProcessPercent`（0~100，只在内存，没在做工艺为空；平台的 `ChamberProcessRoutine` 按配方每步时间算，准备段 0、收尾段 99，机型自己造的工艺动作为空）。
   以后的热板、浸泡槽实现接口时用同一个 `ProcessCounter`。
@@ -728,7 +734,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - 转 DTO：映射组件 `IMapper` 的 `Map<T>(源)`；组件在开机 Bind 时取一次映射组件、服务在构造里取一次，都存成字段；不另写 `*Mapper` 类，服务里也不手写 `ToDto` 一个个字段抄。
   只有当场才知道的值（当前晶圆尺寸下的上限、腔体配了哪些 Type）由服务映射完再补；几样东西拼起来的（账上一个位置、带角色的用户）不算映射，照旧自己拼。
   映射组件 machine.xml 必配（开机就查，没配抛）。
-  - **规则写在哪**：平台的在 `xyz.Modules\Mapper\MapperComponent` 的 `protected virtual void AddRules(TypeAdapterConfig config)`（放模块层是因为规则要认得组件、模块、数据库三层的类型），
+  - **规则写在哪**：平台的在 `xyz.Components\Components\System\MapperComponent` 的 `protected virtual void AddRules(TypeAdapterConfig config)`（要转的配方、流程配方数据类 10-27 起在组件层 `Models`，组件层都认得），
     构造里调一次就配好；同名字段、枚举转字符串不用配，名字对不上、形状不一样的才配一条。
   - **项目加规则**：继承 `MapperComponent`、重写 `AddRules`（先调 base，只写规则、别用子类自己的字段），machine.xml 的 `Mapper` 节点 `Type` 换成项目的类。
     35021 是 `xyz._35021.Module.Mapper.MapperComponent35021`（IpaModule → IpaDto）。

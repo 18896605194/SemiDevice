@@ -1,6 +1,6 @@
 ﻿using Mapster;
 using xyz.Components.Attributes;
-using xyz.Modules;
+using xyz.Components.Components;
 using xyz._35021.Module.Cds;
 using xyz._35021.Shared.Dtos;
 

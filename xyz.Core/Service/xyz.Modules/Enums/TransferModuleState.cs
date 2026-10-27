@@ -1,3 +1,5 @@
+﻿using xyz.Components.Enums;
+
 namespace xyz.Modules.Enums;
 
 public class TransferModuleState : ModuleState

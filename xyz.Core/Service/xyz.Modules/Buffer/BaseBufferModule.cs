@@ -1,8 +1,8 @@
 ﻿using System.Globalization;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
+using xyz.Components.Enums;
 using xyz.Components.Interfaces;
-using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;

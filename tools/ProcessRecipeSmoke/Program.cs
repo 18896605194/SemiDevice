@@ -1,7 +1,9 @@
 ﻿using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Service;
@@ -399,11 +401,11 @@ try
         "合计超过超时时间 600 s");
     Fails(library.Save(7, 1, Content(string.Empty, good), "Saver"), ErrorCodes.ProcessRecipeNotFound, ["7"], "没有的编号");
     Check(Data(library.Get(1))?.Revision == 2 && changed.Count == 2, "没存成的不改库、不发事件");
-    // 系统组件构造时登记成单例：界面语言切成英文；配方库开机 Bind 时取整机，换了要重新 Bind
-    SmokeIoc.Use<ISystemModule>(new SystemModule { Language = "en-US" });
+    // 界面语言切成英文：配方库开机 Bind 时经组件层的 ISystemAccess 取整机，换了要重新 Bind
+    SmokeIoc.Use<ISystemAccess>(new SystemModule { Language = "en-US" });
     library.Bind([pm1, pm2, pm3]);
     Fails(SaveOne(Step(" ", "300")), ErrorCodes.ProcessRecipeValueRequired, ["2", "Time"], "英文界面时提示里用英文字段名");
-    SmokeIoc.Use<ISystemModule>(null);
+    SmokeIoc.Use<ISystemAccess>(null);
     library.Bind([pm1, pm2, pm3]);
     Check(SaveOne(Step("0.1", "0", "arm1", "sc1", "0.1", "SCAN", "0", "150", "0.1")).IsSuccess, "边界值都能存：时间 0.1、转速 0、流量 0.1、位置 0 和 150、速度 0.1");
     Check(Data(library.Get(1))!.Steps[1].Get("Mode") == "Scan" && Data(library.Get(1))!.Steps[1].Get("Chemical") == "SC1"
@@ -756,7 +758,7 @@ try
 finally
 {
     SmokeIoc.Use<IRecipeComponent>(null);
-    SmokeIoc.Use<ISystemModule>(null);
+    SmokeIoc.Use<ISystemAccess>(null);
     foreach (string path in new[] { folder, otherFolder })
     {
         if (Directory.Exists(path))
@@ -788,7 +790,7 @@ sealed class ProbeChamber : BaseChamberModule
     public ProbeChamber(string name)
     {
         Probe.Name(this, name);
-        State = xyz.Modules.Enums.ModuleState.Idle;
+        State = xyz.Components.Enums.ModuleState.Idle;
     }
 
     protected override HandleResult? ProcessInterlock(ProcessRequest request)
@@ -806,7 +808,7 @@ sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
         Type = "HP";
     }
 
-    public override int State { get; protected set; } = xyz.Modules.Enums.ModuleState.Idle;
+    public override int State { get; protected set; } = xyz.Components.Enums.ModuleState.Idle;
 
     public override int SlotCount { get; set; } = 1;
 

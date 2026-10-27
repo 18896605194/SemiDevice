@@ -2385,8 +2385,9 @@ port.E87Callback = null;
 
     var sysSettings = new SystemService().GetSettingsAsync(new RpcRequest()).Result.DeserializeData<SystemSettingsDto>();
     Check(sysSettings.Modules.SequenceEqual(["SysRobot", "SysLP", "SysPM"]), "整机不算模块，不进系统设置的模块名单");
-    Check(IocHelper.GetServices<IModule>().SequenceEqual(sysModules) && ReferenceEquals(IocHelper.GetService<ISystemModule>(), machine),
-        "整机上了树也按模块取不到，按整机接口取得到");
+    Check(IocHelper.GetServices<IModule>().SequenceEqual(sysModules) && ReferenceEquals(IocHelper.GetService<ISystemModule>(), machine)
+        && ReferenceEquals(IocHelper.GetService<ISystemAccess>(), machine),
+        "整机上了树也按模块取不到，按整机接口、给组件用的 ISystemAccess（配方库取界面语言）都取得到");
     Check(machine.State == ModuleState.NotInit && !machine.IsAuto, "开机未初始化（Manual）");
     Check(StateRefused(equipment.AutoAsync(new RpcRequest()).Result, ModuleState.NotInit) && !sysTransfers.IsAutoDispatch,
         "没初始化切不了 Auto（module.state_not_allowed 带整机名和状态码）");

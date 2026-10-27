@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules.Enums;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules.Enums;
 
 public class RobotState : ModuleState
 {

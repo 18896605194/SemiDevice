@@ -1,7 +1,7 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
-using xyz.Modules;
+using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;

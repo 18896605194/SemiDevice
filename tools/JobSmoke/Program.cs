@@ -380,7 +380,7 @@ try
     var stateFlow = new SmokeStateMachine();
     var flowTrace = new List<string>();
     bool ready = false;
-    var flowTransition = new xyz.Modules.StateMachines.StateTransition<ControlJobState>
+    var flowTransition = new xyz.Components.Components.StateTransition<ControlJobState>
     {
         TargetState = ControlJobState.Queued,
         ProcessState = ControlJobState.Selected,
@@ -3323,7 +3323,7 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
     }
 }
 
-sealed class SmokeStateMachine : xyz.Modules.StateMachines.BaseStateMachine<ControlJobState, ControlStateAction>
+sealed class SmokeStateMachine : xyz.Components.Components.BaseStateMachine<ControlJobState, ControlStateAction>
 {
     public SmokeStateMachine() : base(new SmokeLog("Smoke"))
     {

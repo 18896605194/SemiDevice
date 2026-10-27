@@ -5,7 +5,6 @@ using xyz.Components.Enums;
 using xyz.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
-using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Rpc;

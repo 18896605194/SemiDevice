@@ -203,10 +203,10 @@
 				</Setting>
 			</Setting>
 		
-			<Setting Name="Carrier" Type="xyz.Modules.CarrierComponent">
+			<Setting Name="Carrier" Type="xyz.Components.Components.CarrierComponent">
 				<Value Name="PresenceSource" Value="Query" />
 			</Setting>
-			<Setting Name="E84" Type="xyz.Modules.E84Component">
+			<Setting Name="E84" Type="xyz.Components.Components.E84Component">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="34" />
 				<Value Name="DiCs0Index" Value="32" />
@@ -254,10 +254,10 @@
 					<Value Name="StopBits" Value="One" />
 				</Setting>
 			</Setting>
-			<Setting Name="Carrier" Type="xyz.Modules.CarrierComponent">
+			<Setting Name="Carrier" Type="xyz.Components.Components.CarrierComponent">
 				<Value Name="PresenceSource" Value="Query" />
 			</Setting>
-			<Setting Name="E84" Type="xyz.Modules.E84Component">
+			<Setting Name="E84" Type="xyz.Components.Components.E84Component">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="50" />
 				<Value Name="DiCs0Index" Value="48" />
@@ -390,13 +390,13 @@
 		</Setting>
 	</Setting>
 
-	<Setting Name="Sequence" Type="xyz.Modules.SequenceComponent">
+	<Setting Name="Sequence" Type="xyz.Components.Components.SequenceComponent">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Sequence" />
 		<Value Name="NameMaxLength" Value="32" />
 	</Setting>
 	
-	<Setting Name="ProcessRecipe" Type="xyz.Modules.RecipeComponent">
+	<Setting Name="ProcessRecipe" Type="xyz.Components.Components.RecipeComponent">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Process" />
 		<Value Name="NameMaxLength" Value="32" />
@@ -539,21 +539,21 @@
 		</Setting>
 	</Setting>
 	
-	<Setting Name="Dispatch" Type="xyz.Modules.DispatchComponent">
+	<Setting Name="Dispatch" Type="xyz.Components.Components.DispatchComponent">
 		<Value Name="IsRun" Value="true" />
 		
-		<Setting Name="Job" Type="xyz.Modules.JobManager">
+		<Setting Name="Job" Type="xyz.Components.Components.JobManager">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="ProcessJobAutoStart" Value="True" />
 			<Value Name="ControlJobAutoStart" Value="False" />
 			<Value Name="IsPersistent" Value="True" />
 			<Value Name="Database" Value="Default" />
 			<Value Name="HistoryQueryMaxCount" Value="1000" />
-			<Setting Name="Task" Type="xyz.Modules.TaskComponent" />
-			<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
+			<Setting Name="Task" Type="xyz.Components.Components.TaskComponent" />
+			<Setting Name="Scheduler" Type="xyz.Components.Components.SchedulerComponent" />
 		</Setting>
 
-		<Setting Name="Transfer" Type="xyz.Modules.TransferManager">
+		<Setting Name="Transfer" Type="xyz.Components.Components.TransferManager">
 			<Value Name="IsEnable" Value="True" />
 		</Setting>
 	</Setting>

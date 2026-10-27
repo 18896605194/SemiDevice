@@ -297,7 +297,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var carrier = FindChild<ICarrier>();
         if (carrier is null)
         {
-            throw new InvalidOperationException($"LoadPort {Name} 的 machine.xml 节点下没配 _carrier 子组件（实现 ICarrier 的组件，平台默认 Type=xyz.Modules.CarrierComponent）。");
+            throw new InvalidOperationException($"LoadPort {Name} 的 machine.xml 节点下没配 _carrier 子组件（实现 ICarrier 的组件，平台默认 Type=xyz.Components.Components.CarrierComponent）。");
         }
 
         // 读头交给载具读码用；没配读头为 null（这个端口不读码，ID 由 Host 给）。

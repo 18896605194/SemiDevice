@@ -37,12 +37,15 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
   组件初始化（`InitComponent`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted`，退出先停扫描（等手上这一拍扫完）、再倒着 `OnStopping`。组件自己的开机准备、收尾、推送
   都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体组件，加组件不用改它们。
 - 设备动作 = `ModuleRoutine`（按顺序走的一串有名字的步骤，平台建动作、机型往里加步骤），在模块扫描线程里一步步推进；RPC 线程只发起和等待。
+- **xyz.Modules 只放模块**（2026-10-27 用户定）：模块本体（`Base*Module`、整机 `SystemModule`）、模块自己的接口（`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`……）、动作步骤、状态表、状态码；
+  不是模块的组件（配方库、Job、搬运、调度、映射、E84、载具……）连同它们的接口、纯数据、枚举都在 xyz.Components。组件层要用模块的东西，走模块给别人用的那一面
+  （`ILoadPortAccess`、`IJobAccess`、`ISystemAccess`，都在组件层），见 decisions.md「xyz.Modules 只放模块」。
 
 ### 依赖铁律
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
 2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（模块动作 `ModuleRoutine` 挪到了组件层）、设备侧给 EAP 的接口
    （`Interfaces` 下的 ILoadPortAccess、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
-   组件在自己的扫描或钩子里 `RemoteEventBus.Send`，转 DTO 走映射组件（`IMapper`，平台规则写在 xyz.Modules 的 `MapperComponent.AddRules`，项目继承它重写 `AddRules` 加自己的），不在启动代码里搭桥。
+   组件在自己的扫描或钩子里 `RemoteEventBus.Send`，转 DTO 走映射组件（`IMapper`，平台规则写在 xyz.Components 的 `MapperComponent.AddRules`，项目继承它重写 `AddRules` 加自己的），不在启动代码里搭桥。
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。

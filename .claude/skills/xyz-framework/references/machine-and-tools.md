@@ -47,7 +47,7 @@
     到这个站的机械手类要在类上声明 `ITransferRobotStep`（它的 `ExtendPick` / `RetractPick` / `ExtendPlace` / `RetractPlace` 基类已经写好），再重写 `AddExtendPickSteps` / `AddRetractPickSteps` / `AddExtendPlaceSteps` / `AddRetractPlaceSteps` 加伸臂缩臂的设备指令（没声明开机就报错），
     见 decisions.md「分段取放」。
   - **Job 不归机型**：CJ / PJ 和任务组件沿用平台标准件；不同设备需要不同派单策略时，在平台提供相应的 `ISchedulerComponent` 调度组件，机型在 machine.xml 的 `Scheduler` 选择 Type，
-    对外契约统一。35021 当前仍用 `xyz.Modules.TaskComponent`、`xyz.Modules.SchedulerComponent`；`BaseSchedulerComponent` 是后续公共逻辑整理项，见 decisions.md「调度可以有多个」。
+    对外契约统一。35021 当前仍用 `xyz.Components.Components.TaskComponent`、`xyz.Components.Components.SchedulerComponent`（10-27 从模块层挪到组件层）；`BaseSchedulerComponent` 是后续公共逻辑整理项，见 decisions.md「调度可以有多个」。
   - **后续项目再做（2026-10-18，本轮确认）**：浸泡模块留到对应新项目，继承 `BaseTransferStationModule` 实现按槽工艺；真实设备的分段取放指令和站点机构接入也暂缓。
   - `Config\IO\{DI,DO,AI,AO}.csv` 点表（表头 `Index,Module,Component,Name,Tag,Description`，AI/AO 加量程列）；跟 PLC 仿真器的
     `Machines\35021\IO` 是同一份，改了两边一起改。

@@ -1,4 +1,5 @@
-﻿using xyz.Modules.Enums;
+﻿using xyz.Components.Enums;
+using xyz.Modules.Enums;
 
 namespace xyz.Modules.StateMachines;
 

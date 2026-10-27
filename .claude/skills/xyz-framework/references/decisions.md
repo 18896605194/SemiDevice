@@ -499,8 +499,8 @@
   `module.state_not_allowed` 的状态码按模块种类翻成状态字。
 
 ## LoadPort 的载具收进 CarrierComponent（2026-10-09，用户："专门搞一个 Carrier 的组件，LoadPort 里关于载具的东西都放进去，实现 ICarrier"）
-- **结构**：`xyz.Modules\Loadport\CarrierComponent : ComponentBase, ICarrier`，machine.xml 每个 LoadPort 下一个 `Carrier` 节点
-  （`Type="xyz.Modules.CarrierComponent"`，写在 RFID 节点后面，同一拍读头先出结果、载具紧跟着取）。**必配**：端口 `InitComponent()` 开头 `FindChild<ICarrier>()`、
+- **结构**：`CarrierComponent : ComponentBase, ICarrier`（10-27 起在 `xyz.Components\Components\Loadport`，原来在 `xyz.Modules\Loadport`），machine.xml 每个 LoadPort 下一个 `Carrier` 节点
+  （`Type="xyz.Components.Components.CarrierComponent"`，写在 RFID 节点后面，同一拍读头先出结果、载具紧跟着取）。**必配**：端口 `InitComponent()` 开头 `FindChild<ICarrier>()`、
   `Attach` 后存进 `Carrier`，找不到抛 `InvalidOperationException`，开机就暴露（停用的端口也一样）。2026-10-09 用户定：不在属性 getter 里懒找，写在 InitComponent 里
   （开机先组件初始化、再起扫描和服务，所以别处用到时已经挂好；冒烟里的探针端口也要先 InitComponent 再用 Carrier）。
   **端口只认 `ICarrier`、对外也只给 `ICarrier`**（用户："万一以后换了这个组件"、"不要再搞一个接口"）：端口要调的那几个口和 `Info`、`IsAccepted` 都在 `ICarrier` 里
@@ -609,7 +609,7 @@
   Host 的动作命令（载具动作、建 Job、Job 命令、改 / 建 / 删对象）要 ON-LINE REMOTE，查询 ON-LINE 就行，S2F15 改 EC 在 LOCAL 也收。
 - **E87 照老 CTC 重写**（2026-10-08，用户："按照老的 CTC 那种来写"，参考微信文件夹 CTC 的 `FrameworkLocal\FACore_GTX\E87FA`）：
   - **结构**（用户选"拆成几个状态机类"）：每个 LoadPort 一个 `E87LoadPort`，挂 6 个小状态机（搬运、存取方式、关联、载具 ID、槽图、取放），
-    共用 E87 里的小基类 `E87StateMachine`（转换表 + 进状态时按"从哪来"报事件；框架的 BaseStateMachine 在模块层，组件层用不到）。
+    共用 E87 里的小基类 `E87StateMachine`（转换表 + 进状态时按"从哪来"报事件；当时框架的 BaseStateMachine 在模块层、组件层用不到，10-27 起它也在组件层 `Components\StateMachines`）。
     2026-10-25 起这些都在 xyz.Secs 的 `Gem\E87`（`E87Engine`），框架这边剩 `E87Component` 和 `E87PortDevice`（见「EDA」里 xyz.Secs 一条）。
     载具状态就是端口上这几个状态机的状态，没有单独的载具对象和载具表；设备的事实（在位、槽图、槽数、忙闲）直接问 LoadPort（现在经 `IE87Port`）。
     E87 只自己记载具号（拿走时 LoadPort 已清号，#21 还要带）和"Host 取消 / 放行了这一盒"。
@@ -713,7 +713,7 @@
   （用户定的名，跟 LoadPortAction 一个意思）。
 - **Job 是标准件**（2026-10-12，用户："job 这个东西本质上来说是标准化的东西，不会留给项目去做啥的"）：CJ / PJ 管理、任务组件、调度引擎全在平台，
   机型不写 Job 代码、不换 Type。原来 35021 有个空的 `TaskComponent : BaseTaskComponent`（machine.xml 的 Task 指向它），调度引擎开着一串 virtual——都收了：
-  `BaseTaskComponent` 改成平台的具体类 `TaskComponent`，machine.xml `Task` 指 `xyz.Modules.TaskComponent`，两个类里的 virtual 全去掉
+  `BaseTaskComponent` 改成平台的具体类 `TaskComponent`，machine.xml `Task` 指 `xyz.Modules.TaskComponent`（10-27 起是 `xyz.Components.Components.TaskComponent`），两个类里的 virtual 全去掉
   （JobSmoke 查任务组件、调度引擎、Job 管理不是抽象类、没有自己开的 virtual）。机型、站点的差别只从两处进来：站点自己声明、执行任务
   （`ITransferStation.SupportedTasks` / `StartTask`），走哪些站点由流程配方定；平台规则不够用就补平台，不给机型开口子。
 - **调度可以有多个，都写在平台**（2026-10-19 用户："机型不写，平台写，这样的话，machine.xml配置的时候直接就是可以用，以后这个平台也会是用很多设备"）：
@@ -810,7 +810,7 @@
 ## 指挥层 Dispatch：Job 和搬运管理共用一条扫描线程（2026-10-12，用户定的）
 - **起因**：讲搬运管理和工单的关系时，用户问"这三个没有线程竞争吗"，随后定："把这几个放到一个大的下面去，共用一个线程""这样的 machine.xml 就得改一下"。
   我一开始把机械手也放了进去，用户纠正"这个 robot 怎么能在下面呢"——机械手是设备，跟 LoadPort、腔体一样在根上、各自一条线程。
-- **做法**：machine.xml 顶层 `Dispatch`（Type `xyz.Modules.DispatchComponent`），下面先挂 `Job`（带 Task、Scheduler）、再挂 `Transfer`。Dispatch 一条线程，
+- **做法**：machine.xml 顶层 `Dispatch`（Type `xyz.Components.Components.DispatchComponent`，10-27 前是 `xyz.Modules.DispatchComponent`），下面先挂 `Job`（带 Task、Scheduler）、再挂 `Transfer`。Dispatch 一条线程，
   一拍里按 machine.xml 先后逐个 `ScanChild`：先 Job（收结果、派单）后 Transfer（推工单），新派的单当拍就走第一步；每个子组件单独兜异常、单独计慢扫描，
   Job 一直出错也不耽误搬运推工单。工单（TransferRoutine）没有自己的线程，跟着搬运管理在这条线程上走。
 - **名字、放法是用户选的**：父节点叫 Dispatch（我提的 Handling 没用）；选"加父组件"，没选"Transfer 挂到 Job 下面"（那样 machine.xml 里拿掉 Job，搬运也没了，可手动传片用不到 Job）。
@@ -985,7 +985,7 @@
   还有 NTP、人改）。① 开工先后原来记系统时间：往回调 1 小时后，新开工的腔记的时间比别的腔"早"，调度一直挑它，这 1 小时又偏用一个腔——
   改成 `LastStartedTimestamp`（`Stopwatch.GetTimestamp()`，开机以来的计时，改时间不动）。② 写库原来写"今天一共几片"覆盖那一行：
   日期往回调过零点，内存换天从 0 数，写库把前一天那行（比如 100）冲成 1——改成给那一天加 1、只加不写总数。剩下的小偏差：跨零点回调后内存里的"今天"会比库里少算，库里是对的。
-  计数、存库写在共用的 `Process\ProcessCounter` 里，`BaseChamberModule` 用它；以后热板、浸泡槽实现 `IProcessStation` 时也用它，不另写一份。界面先不显示，没有清零。
+  计数、存库写在共用的 `ProcessCounter` 里（10-27 起在 `xyz.Components\Components\Process`），`BaseChamberModule` 用它；以后热板、浸泡槽实现 `IProcessStation` 时也用它，不另写一份。界面先不显示，没有清零。
 - **进度是百分比**（用户："我说的这个进度是百分比"、"这个也只是内存的"）：平台的 `ChamberProcessOperation` 每拍（`OnWaiting`）按配方每步的时间算：
   （做完的步骤时间 + 这一步已经喷了多久）÷ 总时间；准备段（关喷嘴、Lift / Bowl 升）0，步骤做完、还在收尾停在 99，动作真做完站点进度变空；每步都没填时间按做完几步算。
   机型重写 `CreateProcessOperation` 自己造的工艺动作不认，进度为空。
@@ -1049,8 +1049,8 @@
 
 ## 对象映射放映射组件（2026-10-14，用户："写一个 map 的组件，里面就是 Mapster 的功能，用的时候直接使用组件"）
 - **包**：Mapster 只在 xyz.Tools 引用一次，前后端经 xyz.Shared 都带上；各工程不再自己引用。客户端照旧直接 `Adapt<T>()`（同名字段，不用配）。
-- **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局；10-27 起挪到 xyz.Modules、
-  规则写在 `AddRules` 里、项目可以继承加规则，见「服务不手写 ToDto、映射组件给项目开口子」），
+- **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局；规则写在 `AddRules` 里、项目可以继承加规则，见「服务不手写 ToDto、映射组件给项目开口子」；
+  10-27 挪到过 xyz.Modules，当天又挪回 `xyz.Components\Components\System`，见「xyz.Modules 只放模块」），
   用的地方取映射组件 `IMapper` 的 `Map<T>(source)`（2026-10-18 起按接口、从 IocHelper 取，组件开机时、服务构造时取一次存字段）；machine.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
   2026-10-18 起报警、EC、曲线推给界面和服务回包的 DTO 也都走它，原来服务层的 AlarmMapper、EcMapper、ChartMapper 删了。
 - **晶圆账里能映射的都映射**：片 → 存盘行、流水行、人工调整记录都走组件（流水、调整表自己的 `Id` 是雪花号，规则里 `Ignore` 掉，不拿片的 Id 填）；
@@ -1665,6 +1665,7 @@
   别用子类自己的字段——这时子类的构造还没跑），machine.xml 的 `Mapper` 节点 `Type` 换成项目的类。跟机型继承 `Base*Module` 一个路子；没用"扫程序集找规则类"（用户不要特性 + 反射的通用框架）。
 - **挪到 xyz.Modules**（我定的，交付时说了）：配方、流程配方这些类型在模块层，组件层的映射组件看不到，规则写不了；挪上来以后组件、模块、数据库三层的类型都认得。
   命名空间从 `xyz.Components.Components` 变成 `xyz.Modules`，machine.xml 的类型名跟着变；组件层只留 `IMapper` 接口，用法不变。
+  **当天又挪回去了**：用户定 xyz.Modules 只放模块，配方、流程配方的数据类进了组件层 `Models`，映射组件回到 `xyz.Components\Components\System`（命名空间 `xyz.Components.Components`），见「xyz.Modules 只放模块」。
 - **换成映射组件的**：工艺配方（配方、步骤、列表项、字段表）、流程配方（配方、列表项）、人工调整记录、账上的片（`WaferLedgerSnapshot` 改成收映射组件，LoadPort、机械手开机时取一次）。
   配了规则的：配方头和每一步的值（"名字 + 值"列表 → 字典，同名取先出现的）、字段的按 Type 分开的选项、调整记录的 `OccurredAt` → `Time`、按接口拿到的槽 `ITank` 照 `TankComponent` 的规则转（`.Include`）。
   当场才知道的照旧由服务补：字段上限按当前晶圆尺寸（`MaxFor`）、配方头的选项 / 必不必填 / 程序算的；配方头的 `OptionsByType` 清掉（客户端见它不空就拿它顶掉 `Options`）。
@@ -1761,3 +1762,27 @@
   可自动认照样把它注册、映射上，等于后端开着一个没人用、发什么回什么的口子，DataCenterSmoke 还得为它开个例外。
 - **做法**：两个文件删掉；DataCenterSmoke 第 6 节（gRPC 服务按契约自动认）去掉排除它的那一行和提示里的半句，现在 xyz.Shared 里的契约一个不落都要认出一个实现。
 - **验证**：整编 0 错误；sln 里 19 个冒烟全过，共 4,333 项（DataCenterSmoke 124 项）。
+
+## xyz.Modules 只放模块（2026-10-27，用户从映射组件问起："MapperComponent 这个组件是不是放在xyz.Components 这个里面比较好"、"RecipeData、RecipeStep、RecipeValue、RecipeField 这些东西不是应该在MOdle层吗"、"IProcessStation 这个也提取到组件里面的接口文件夹不行吗"、"ProcessCounter以及IRecipeComponent以及SequenceComponent 就是这些等等是不是都要挪动一下比较好，因为模块里面只是放一下就是类似robot以及Clean这种"、"E84Component 这个是不是也挪过去比较好"、"包括对应的接口"、"整个job还有整个Task文件夹"；模块自己的接口："这几个不需要吧"；三处换窄接口："可以的"）
+- **规矩**：xyz.Modules 只放模块——模块本体（`Base*Module`、`BaseTransferStationModule`、`BaseStateComponent`、整机 `SystemModule`）、模块自己的接口
+  （`ILoadPort`、`IRobot`、`IChamber`、`IAligner`、`IBuffer`、`ISupplyModule`、`ISupplyAccess`、`ISystemModule`）、动作步骤、状态表、各模块的状态码。
+  不是模块的组件连同它们的接口、纯数据、枚举都在 xyz.Components，照组件层的目录规矩放：组件和只给它用的帮助类进 `Components\<类别>`，接口进 `Interfaces`，纯数据进 `Models`，枚举进 `Enums`。
+  模块自己的接口不挪（我提过全挪下去、规矩只剩一句，用户说"这几个不需要"）。组件层要用模块的东西，走模块给别人用的那一面（`ILoadPortAccess`、`IJobAccess`、`ISystemAccess`）。
+- **挪了什么**（63 个文件，普通移动、不碰暂存区；每个文件只改了命名空间和 using，提交时 git 照样认得出是改名；原来的类别目录沿用，Job 下的 `Scheduling`、`Task`、`Publishing` 子目录保留）：
+  - `Components\`：System（`MapperComponent`、`WaferLedgerSnapshot`）、Recipe（`RecipeComponent`、`SequenceComponent`、`RecipeHead`、`JsonSteps`）、Process（`ProcessCounter`）、
+    Job（`JobManager`、CJ / PJ 管理和状态机、`JobNames`、`Publishing\JobDtos`、`Scheduling\SchedulerComponent`、`Task\TaskComponent`）、Transfer（`TransferManager` 和搬运动作、步骤）、
+    Dispatch、E84（`E84Component`）、Loadport（`CarrierComponent`）、StateMachines（`BaseStateMachine`、`StateTransition`）。
+  - `Interfaces\`：`IRecipeComponent`、`ISequenceComponent`、`IProcessStation`、`ICjManager`、`IPjManager`、`ISchedulerComponent`、`ITaskComponent`、`ITransferManager`、`IE84`、`IStationTaskExecutor`。
+  - `Models\`：工艺配方、流程配方的数据（`RecipeData`、`RecipeStep`、`RecipeValue`、`RecipeField`、`SequenceData`、`SequenceStep`、`SequenceStationGroup`）、`ProcessRequest`、`ControlJob`、`ProcessJob`、
+    `TaskRow`、`WaferTask`、搬运的请求和片（`TransferRequest`、`SwapRequest`、`TransferWafer`、`TransferClaims`）、E84 的信号和上报（`E84Inputs`、`E84Outputs`、`E84Report`）、`StationTaskRequest`。
+  - `Enums\`：状态码的底 `ModuleState`（各模块的状态码还在模块层、继承它）、`PodPresenceSource`、任务名常量 `StationTaskAction`、`ProcessOrigin`、`ControlJobEnding`、`ControlStateAction`、
+    `ProcessStateAction`、`TaskPermission`、`WaferTaskState`、`TransferOrigin`、`TransferWaferProgress`、`E84State`、`E84ReportKind`。
+  - 一个文件里两个类型的顺手拆开：`RecipeValue`、`ProcessOrigin`、`ControlJobEnding`、`TransferWaferProgress`、`E84ReportKind`、`E84Outputs`、`StationTaskRequest` 各成一个文件。
+- **用模块接口的三处换成组件层的窄接口**（行为不变）：`JobManager` 对端口只用载具、能不能给 Job 用、名字，换成 `IJobAccess`，定回片槽要槽数那一处取 `ILoadPortAccess`；
+  `SequenceComponent` 认 LoadPort 分组改成 `is ILoadPortAccess`（这两个接口都只有 `ILoadPort` 继承，挑出来的还是 LoadPort）；
+  `RecipeComponent` 取整机只为界面语言，加了组件层接口 `ISystemAccess`（只有 `Language`），`ISystemModule` 继承它，装配器照样按它把整机登记进容器。
+- **跟着改的**：命名空间（`xyz.Components.Components` / `.Interfaces` / `.Models` / `.Enums`）和各处 using；35021 machine.xml 11 处 Type（Carrier ×2、E84 ×2、Sequence、ProcessRecipe、Dispatch、Job、Task、Scheduler、Transfer）；
+  `BaseLoadPortModule` 报错里写的载具类型名；冒烟里写全名的 4 处；ProcessRecipeSmoke 切英文改成登记 `ISystemAccess`；OperationWaitSmoke 那条"整机上树"的检查加上按 `ISystemAccess` 也取得到。
+  映射组件回到组件层（上午为了认得配方类型挪到模块层，见「服务不手写 ToDto、映射组件给项目开口子」）。
+- **验证**：整编 0 错误（10 个警告都是原来就有的），IoIndexSmoke、ComponentScanSmoke 单独编过；sln 里 19 个冒烟全过，共 4,333 项，IoIndexSmoke、ComponentScanSmoke 也过；
+  起宿主：根组件 31 个、模块 8 个、独立扫描 16 个，跟改之前一样，没有找不到组件类的报错。

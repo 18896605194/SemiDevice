@@ -1,12 +1,12 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Drivers.Communication;
 using xyz.Modules;
-using xyz.Modules.Enums;
 using xyz.Service.Recipes;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;

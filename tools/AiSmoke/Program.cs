@@ -12,7 +12,6 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
-using xyz.Modules;
 using xyz.Service.Ai;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;

@@ -1,0 +1,719 @@
+﻿using System.Diagnostics;
+using xyz.Common.Log;
+using xyz.Components;
+using xyz.Components.Attributes;
+using xyz.Components.Components;
+using xyz.Components.Enums;
+using xyz.Components.Interfaces;
+using xyz.Components.Models;
+using xyz.Tools;
+
+namespace xyz.Components.Components;
+
+[Component(description: "E84 交接组件（IO 版）")]
+public class E84Component : ComponentBase, IE84
+{
+    #region Machine
+
+    [Machine("True", "E84", "是否装了 E84（False = 本机没接搬运车：端口当没有 E84，不打开、不扫、不读写 IO；现场临时停交接用 EC E84Enabled）")]
+    public bool IsEnable { get; set; } = true;
+
+    [Machine("-1", "IO", "VALID 输入 DI 索引")]
+    public int DiValidIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "CS_0 输入 DI 索引")]
+    public int DiCs0Index { get; set; } = -1;
+
+    [Machine("-1", "IO", "CS_1 输入 DI 索引")]
+    public int DiCs1Index { get; set; } = -1;
+
+    [Machine("-1", "IO", "AM_AVBL 输入 DI 索引")]
+    public int DiAmAvblIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "TR_REQ 输入 DI 索引")]
+    public int DiTrReqIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "BUSY 输入 DI 索引")]
+    public int DiBusyIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "COMPT 输入 DI 索引")]
+    public int DiComptIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "CONT 输入 DI 索引")]
+    public int DiContIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "光幕输入 DI 索引（-1 = 没有光幕，不做光幕互锁）")]
+    public int DiLightCurtainIndex { get; set; } = -1;
+
+    [Machine("False", "IO", "光幕电平：False = 输入 OFF 算被挡，True = 输入 ON 算被挡")]
+    public bool LightCurtainReverse { get; set; }
+
+    [Machine("-1", "IO", "L_REQ 输出 DO 索引")]
+    public int DoLReqIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "U_REQ 输出 DO 索引")]
+    public int DoUReqIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "READY 输出 DO 索引")]
+    public int DoReadyIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "HO_AVBL 输出 DO 索引")]
+    public int DoHoAvblIndex { get; set; } = -1;
+
+    [Machine("-1", "IO", "ES 输出 DO 索引")]
+    public int DoEsIndex { get; set; } = -1;
+
+    #endregion
+
+    #region EC
+
+    [VariableMark(VariableType.EC, ValueFormat.Bool, @default: "False",
+        description: "是否启用 E84（False = 不理搬运车，输出全灭）")]
+    public bool E84Enabled
+    {
+        get { return bool.TryParse(GetEcString(nameof(E84Enabled)), out var enabled) && enabled; }
+        set { SetEc(nameof(E84Enabled), value.ToString()); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "2000", description: "TP1：亮 L_REQ/U_REQ 后等搬运车 TR_REQ")]
+    public int Tp1Timeout
+    {
+        get { return GetEcInt(nameof(Tp1Timeout)); }
+        set { SetEcInt(nameof(Tp1Timeout), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "2000", description: "TP2：给出 READY 后等搬运车 BUSY")]
+    public int Tp2Timeout
+    {
+        get { return GetEcInt(nameof(Tp2Timeout)); }
+        set { SetEcInt(nameof(Tp2Timeout), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "60000", description: "TP3：BUSY 后等载具放上/取走")]
+    public int Tp3Timeout
+    {
+        get { return GetEcInt(nameof(Tp3Timeout)); }
+        set { SetEcInt(nameof(Tp3Timeout), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "60000", description: "TP4：撤 L_REQ/U_REQ 后等搬运车撤 BUSY、给 COMPT")]
+    public int Tp4Timeout
+    {
+        get { return GetEcInt(nameof(Tp4Timeout)); }
+        set { SetEcInt(nameof(Tp4Timeout), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "2000", description: "TP5：撤 READY 后等搬运车撤 VALID")]
+    public int Tp5Timeout
+    {
+        get { return GetEcInt(nameof(Tp5Timeout)); }
+        set { SetEcInt(nameof(Tp5Timeout), value); }
+    }
+
+    #endregion
+
+    #region Alarm
+
+    [Alarm("E84 交接超时", AlarmCategory.IrrecoverableError,
+        AlarmLevel = AlarmLevel.Light,
+        Description = "E84 握手某一段（TP1–TP5）超时，本次交接中止，输出已全灭",
+        Solution = "检查搬运车与端口的 E84 信号和光幕；确认载具实际位置后 Retry 或 Complete，再复位报警")]
+    public string E84TimeoutAlarm = nameof(E84TimeoutAlarm);
+
+    [Alarm("E84 意外放上 / 拿走载具", AlarmCategory.AttentionFlags,
+        AlarmLevel = AlarmLevel.Light,
+        Description = "端口在 Auto（搬运车交接）模式下，没走 E84 交接，载具被放上或拿走了（多半是有人手动放、拿）",
+        Solution = "Auto 模式下别手动放、拿载具，要手动操作先把端口切到 Manual；确认载具实际在不在、晶圆账对不对，再复位报警")]
+    public string UnexpectedCarrierAlarm = nameof(UnexpectedCarrierAlarm);
+
+    #endregion
+
+    #region 状态
+
+    private readonly object _gate = new();
+    private readonly Stopwatch _stepWatch = new();
+    private readonly List<E84Report> _reports = new();
+    private E84Inputs _inputs;
+    private E84Inputs _loggedInputs;
+    private E84Outputs _outputs;
+    private E84Outputs _written;
+
+    /// <summary>
+    /// IO 组件（开机准备时取，开机就要清输出）；machine.xml 没配 Io 节点是 null
+    /// </summary>
+    private IIo? _io;
+
+    // 上一拍输出写没写通：翻转时记一条日志，别每拍刷屏。
+    private bool _outputsWritable = true;
+    private E84State _state = E84State.NotAvailable;
+    private E84Timer? _timedOutTimer;
+
+    /// <summary>
+    /// 这次交接的方向：null = 没在交接；true = 送盒；false = 取盒。亮 L_REQ/U_REQ 时定下，收尾或放弃时清掉；
+    /// 超时锁住期间保留，Complete 要按它核对载具位置。
+    /// </summary>
+    private bool? _isLoad;
+
+    /// <summary>
+    /// 上一拍载具在不在，看载具有没有没走交接就变了；第一拍还没有，为 null（只记下来不比较）。
+    /// 开机时端口是 Manual（Auto/Manual 不存盘），状态查询回来、认出盒子在这一下不会被当成意外放上。
+    /// </summary>
+    private bool? _lastCarrierPlaced;
+
+    public E84State State
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _state;
+            }
+        }
+    }
+
+    public bool IsHandoffRunning
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return IsHandoffStarted(_state) || _state == E84State.TimedOut;
+            }
+        }
+    }
+
+    public E84Inputs Inputs
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _inputs;
+            }
+        }
+    }
+
+    public E84Outputs Outputs
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _outputs;
+            }
+        }
+    }
+
+    public E84Timer? TimedOutTimer
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _timedOutTimer;
+            }
+        }
+    }
+
+    #endregion
+
+    #region 初始化与人工恢复
+
+    /// <summary>
+    /// 组件初始化
+    /// </summary>
+    /// <returns></returns>
+    public override bool InitComponent()
+    {
+        if (!IsEnable)
+        {
+            return true;
+        }
+
+        _io = IocHelper.GetService<IIo>();
+        bool childrenInitialized = base.InitComponent();
+        lock (_gate)
+        {
+            Clear();
+            _reports.Clear();
+            if (WriteOutputs(_outputs))
+            {
+                _written = _outputs;
+            }
+        }
+
+        return childrenInitialized;
+    }
+
+    public void Retry()
+    {
+        lock (_gate)
+        {
+            LogHelper.Info(this, "E84 Retry：放弃这次交接，重新等搬运车");
+            bool? load = _isLoad;
+            if (IsHandoffStarted(_state) && load is not null)
+            {
+                bool isLoad = load.Value;
+                _reports.Add(E84Report.Aborted(isLoad, "人工 Retry"));
+            }
+
+            Clear();
+            Flush();
+        }
+    }
+
+    public bool Complete(bool carrierPlaced)
+    {
+        lock (_gate)
+        {
+            bool? load = _isLoad;
+            if (_state != E84State.TimedOut || load is null)
+            {
+                LogHelper.Warn(this, "E84 没有超时锁住的交接，Complete 不处理");
+                return false;
+            }
+
+            bool isLoad = load.Value;
+            if (isLoad != carrierPlaced)
+            {
+                LogHelper.Warn(this, isLoad
+                    ? "E84 Complete 被拒：载具不在位，送盒没有完成"
+                    : "E84 Complete 被拒：载具还在，取盒没有完成");
+                return false;
+            }
+
+            LogHelper.Info(this, $"E84 人工确认{Direction(isLoad)}交接已完成");
+            _reports.Add(E84Report.Completed(isLoad));
+            Clear();
+            Flush();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 输出全灭、清方向与超时锁存，回到不可交接（CTC ResetSignal）。
+    /// </summary>
+    private void Clear()
+    {
+        _outputs = default;
+        _isLoad = null;
+        _timedOutTimer = null;
+        _state = E84State.NotAvailable;
+        _stepWatch.Reset();
+    }
+
+    #endregion
+
+    #region 推进
+
+    public IReadOnlyList<E84Report> Step(bool autoMode, LoadPortTransferState transferState, bool carrierPlaced)
+    {
+        lock (_gate)
+        {
+            _inputs = ReadInputs();
+            CheckUnexpectedCarrier(autoMode, carrierPlaced);
+            Advance(autoMode, transferState, carrierPlaced);
+            Flush();
+
+            if (_reports.Count == 0)
+            {
+                return Array.Empty<E84Report>();
+            }
+
+            var reports = _reports.ToArray();
+            _reports.Clear();
+            return reports;
+        }
+    }
+
+   /// <summary>
+   /// 推进 状态机流转
+   /// </summary>
+   /// <param name="autoMode"></param>
+   /// <param name="transferState"></param>
+   /// <param name="carrierPlaced"></param>
+    private void Advance(bool autoMode, LoadPortTransferState transferState, bool carrierPlaced)
+    {
+        string? closed = GateClosedReason(autoMode, transferState);
+        if (closed is not null)
+        {
+            CloseGate(closed);
+            return;
+        }
+
+        if (_state == E84State.TimedOut)
+        {
+            return;
+        }
+
+        _outputs = _outputs with { HoAvbl = true, Es = true };
+
+        var i = _inputs;
+        bool selected = i.Cs0 && i.Valid;
+
+        // 送盒等载具放上，取盒等载具被取走。
+        bool? load = _isLoad;
+        bool carrierDone = load is not null && load.Value == carrierPlaced;
+
+        switch (_state)
+        {
+            case E84State.NotAvailable:
+            case E84State.Available:
+                // 搬运车 CS_0+VALID 选中本端口：等送盒且没载具就亮 L_REQ，等取盒且有载具就亮 U_REQ。
+                if (selected && transferState == LoadPortTransferState.ReadyToLoad && !carrierPlaced)
+                {
+                    Request(isLoad: true);
+                }
+                else if (selected && transferState == LoadPortTransferState.ReadyToUnload && carrierPlaced)
+                {
+                    Request(isLoad: false);
+                }
+                else
+                {
+                    _state = E84State.Available;
+                }
+
+                break;
+
+            case E84State.Requesting:
+                if (!selected)
+                {
+                    // 还没开始交接搬运车就撤了：收回请求，回去等下一次。
+                    LogHelper.Info(this, $"E84 搬运车撤销选中，收回{Direction(_isLoad == true)}请求");
+                    _outputs = _outputs with { LReq = false, UReq = false };
+                    _isLoad = null;
+                    Enter(E84State.Available);
+                }
+                else if (i.TrReq && !carrierDone)
+                {
+                    _outputs = _outputs with { Ready = true };
+                    Enter(E84State.WaitBusy);
+                    LogHelper.Info(this, $"E84 {Direction(_isLoad == true)}交接开始");
+                    _reports.Add(E84Report.Started(_isLoad == true));
+                }
+
+                break;
+
+            case E84State.WaitBusy:
+                if (i.Busy)
+                {
+                    Enter(E84State.Transferring);
+                }
+
+                break;
+
+            case E84State.Transferring:
+                if (carrierDone)
+                {
+                    _outputs = _outputs with { LReq = false, UReq = false };
+                    Enter(E84State.WaitComplete);
+                }
+
+                break;
+
+            case E84State.WaitComplete:
+                if (i.Compt)
+                {
+                    _outputs = _outputs with { Ready = false };
+                    Enter(E84State.Releasing);
+                }
+
+                break;
+
+            case E84State.Releasing:
+                if (!i.Valid && !i.TrReq && !i.Busy && !i.Compt && carrierDone)
+                {
+                    bool isLoad = _isLoad == true;
+                    _isLoad = null;
+                    Enter(E84State.Available);
+                    LogHelper.Info(this, $"E84 {Direction(isLoad)}交接完成");
+                    _reports.Add(E84Report.Completed(isLoad));
+                }
+
+                break;
+        }
+
+        CheckTimeout();
+    }
+
+    /// <summary>
+    /// 检查盒子的异常
+    /// </summary>
+    /// <param name="autoMode"></param>
+    /// <param name="carrierPlaced"></param>
+    private void CheckUnexpectedCarrier(bool autoMode, bool carrierPlaced)
+    {
+        bool? last = _lastCarrierPlaced;
+        _lastCarrierPlaced = carrierPlaced;
+        if (last is null || last.Value == carrierPlaced || !autoMode)
+        {
+            return;
+        }
+
+        if (IsHandoffStarted(_state) || _state == E84State.TimedOut)
+        {
+            return;
+        }
+
+        LogHelper.Warn(this, $"E84 Auto 模式下载具没走交接就被{(carrierPlaced ? "放上" : "拿走")}了（E84 在 {_state}）");
+        RaiseAlarm(UnexpectedCarrierAlarm);
+    }
+
+    /// <summary>
+    /// 检查一些基础的判断稿件和原因
+    /// </summary>
+    /// <param name="autoMode"></param>
+    /// <param name="transferState"></param>
+    /// <returns></returns>
+    private string? GateClosedReason(bool autoMode, LoadPortTransferState transferState)
+    {
+        if (!E84Enabled)
+        {
+            return "E84 未启用";
+        }
+
+        if (!autoMode)
+        {
+            return "端口是 Manual";
+        }
+
+        if (transferState == LoadPortTransferState.OutOfService)
+        {
+            return "端口 Out Of Service（停用 / 下线 / 没初始化 / 出错）";
+        }
+
+        bool lightCurtainBlocked = LightCurtainReverse ? _inputs.LightCurtain : !_inputs.LightCurtain;
+        if (DiLightCurtainIndex >= 0 && lightCurtainBlocked)
+        {
+            return "光幕被挡";
+        }
+
+        return null;
+    }
+
+    private void CloseGate(string reason)
+    {
+        _outputs = default;
+        if (_state == E84State.TimedOut)
+        {
+            return;
+        }
+
+        bool? load = _isLoad;
+        if (IsHandoffStarted(_state) && load is not null)
+        {
+            bool isLoad = load.Value;
+            LogHelper.Warn(this, $"E84 {Direction(isLoad)}交接中止：{reason}");
+            _reports.Add(E84Report.Aborted(isLoad, reason));
+        }
+
+        _isLoad = null;
+        _state = E84State.NotAvailable;
+        _stepWatch.Reset();
+    }
+
+    private void Request(bool isLoad)
+    {
+        _isLoad = isLoad;
+        _outputs = isLoad ? _outputs with { LReq = true } : _outputs with { UReq = true };
+        Enter(E84State.Requesting);
+        LogHelper.Info(this, $"E84 搬运车选中本端口，请求{Direction(isLoad)}");
+    }
+
+    /// <summary>
+    /// 进下一步；带计时的步从这一刻起算超时。
+    /// </summary>
+    private void Enter(E84State state)
+    {
+        _state = state;
+        _stepWatch.Restart();
+    }
+
+    /// <summary>
+    /// 当前步超时了：撤 L_REQ/U_REQ/READY/HO_AVBL（ES 保持），锁住等人工恢复，报警并上报。
+    /// </summary>
+    private void CheckTimeout()
+    {
+        E84Timer? stepTimer = TimerOf(_state);
+        if (stepTimer is null || _stepWatch.ElapsedMilliseconds <= TimeoutOf(stepTimer.Value))
+        {
+            return;
+        }
+
+        E84Timer timer = stepTimer.Value;
+        bool isLoad = _isLoad == true;
+        _outputs = _outputs with { LReq = false, UReq = false, Ready = false, HoAvbl = false };
+        _timedOutTimer = timer;
+        _state = E84State.TimedOut;
+        _stepWatch.Reset();
+        LogHelper.Warn(this,
+            $"E84 {Direction(isLoad)}交接 {timer} 超时（{TimeoutOf(timer)}ms），输出已撤，等人工 Retry 或 Complete");
+        RaiseAlarm(E84TimeoutAlarm);
+        _reports.Add(E84Report.TimedOut(isLoad, timer));
+    }
+
+    /// <summary>
+    /// 每一步由哪段 TP 计时；不计时的步为 null。
+    /// </summary>
+    private static E84Timer? TimerOf(E84State state)
+    {
+        switch (state)
+        {
+            case E84State.Requesting:
+                return E84Timer.TP1;
+            case E84State.WaitBusy:
+                return E84Timer.TP2;
+            case E84State.Transferring:
+                return E84Timer.TP3;
+            case E84State.WaitComplete:
+                return E84Timer.TP4;
+            case E84State.Releasing:
+                return E84Timer.TP5;
+            default:
+                return null;
+        }
+    }
+
+    private int TimeoutOf(E84Timer timer)
+    {
+        switch (timer)
+        {
+            case E84Timer.TP1:
+                return Tp1Timeout;
+            case E84Timer.TP2:
+                return Tp2Timeout;
+            case E84Timer.TP3:
+                return Tp3Timeout;
+            case E84Timer.TP4:
+                return Tp4Timeout;
+            default:
+                return Tp5Timeout;
+        }
+    }
+
+    /// <summary>
+    /// 已给出 READY、交接真正开始的步（这之后被打断要按中止上报）。
+    /// </summary>
+    private static bool IsHandoffStarted(E84State state)
+    {
+        return state is E84State.WaitBusy or E84State.Transferring or E84State.WaitComplete or E84State.Releasing;
+    }
+
+    /// <summary>
+    /// 把这一拍的输出写出去（有变化才写），HO_AVBL 变了上报；信号有变化记一条日志（CTC RecordSignalChange）。
+    /// </summary>
+    private void Flush()
+    {
+        if (_inputs != _loggedInputs || _outputs != _written)
+        {
+            _loggedInputs = _inputs;
+            LogHelper.Info(this,
+                $"E84 信号 VALID={Bit(_inputs.Valid)} CS_0={Bit(_inputs.Cs0)} TR_REQ={Bit(_inputs.TrReq)} " +
+                $"BUSY={Bit(_inputs.Busy)} COMPT={Bit(_inputs.Compt)} | L_REQ={Bit(_outputs.LReq)} " +
+                $"U_REQ={Bit(_outputs.UReq)} READY={Bit(_outputs.Ready)} HO_AVBL={Bit(_outputs.HoAvbl)} ES={Bit(_outputs.Es)}");
+        }
+
+        if (_outputs == _written)
+        {
+            return;
+        }
+
+        bool availabilityChanged = _outputs.HoAvbl != _written.HoAvbl;
+        if (!WriteOutputs(_outputs))
+        {
+            // 没写进去（PLC 没连）：_written 不动，下一拍再写。
+            return;
+        }
+
+        _written = _outputs;
+        if (availabilityChanged)
+        {
+            _reports.Add(E84Report.AvailabilityChanged(_outputs.HoAvbl));
+        }
+    }
+
+    private static string Direction(bool isLoad)
+    {
+        return isLoad ? "送盒" : "取盒";
+    }
+
+    private static char Bit(bool value)
+    {
+        return value ? '1' : '0';
+    }
+
+    #endregion
+
+    #region IO
+
+    /// <summary>
+    /// 读一拍输入：按上面的 DI 索引经 IoComponent 读，没配的（-1）、PLC 没连或点表里没有的都当 OFF——
+    /// 搬运车不会被当成选中了本端口。
+    /// </summary>
+    protected virtual E84Inputs ReadInputs()
+    {
+        if (_io is null)
+        {
+            return default;
+        }
+
+        return new E84Inputs
+        {
+            Valid = InputOn(_io, DiValidIndex),
+            Cs0 = InputOn(_io, DiCs0Index),
+            Cs1 = InputOn(_io, DiCs1Index),
+            AmAvbl = InputOn(_io, DiAmAvblIndex),
+            TrReq = InputOn(_io, DiTrReqIndex),
+            Busy = InputOn(_io, DiBusyIndex),
+            Compt = InputOn(_io, DiComptIndex),
+            Cont = InputOn(_io, DiContIndex),
+            LightCurtain = InputOn(_io, DiLightCurtainIndex),
+        };
+    }
+
+    /// <summary>
+    /// 写一拍输出（有变化才调）：按上面的 DO 索引经 IoComponent 写，没配的（-1）跳过。
+    /// 有一路写失败就返回 false（调用方留着下一拍重写）；失败只记一次日志，写通了再记一次恢复。
+    /// </summary>
+    protected virtual bool WriteOutputs(E84Outputs outputs)
+    {
+        bool written = OutputWritten(_io, DoLReqIndex, outputs.LReq)
+            && OutputWritten(_io, DoUReqIndex, outputs.UReq)
+            && OutputWritten(_io, DoReadyIndex, outputs.Ready)
+            && OutputWritten(_io, DoHoAvblIndex, outputs.HoAvbl)
+            && OutputWritten(_io, DoEsIndex, outputs.Es);
+        if (written == _outputsWritable)
+        {
+            return written;
+        }
+
+        _outputsWritable = written;
+        if (written)
+        {
+            LogHelper.Info(this, "E84 输出写入恢复");
+        }
+        else
+        {
+            LogHelper.Warn(this, "E84 输出写入失败（PLC 没连或 DO 索引不在点表里），下一拍再写");
+        }
+
+        return written;
+    }
+
+    private static bool InputOn(IIo io, int index)
+    {
+        return index >= 0 && io.TryReadDi(index, out bool on) && on;
+    }
+
+    private static bool OutputWritten(IIo? io, int index, bool on)
+    {
+        return index < 0 || (io is not null && io.WriteDo(index, on).IsSuccess);
+    }
+
+    #endregion
+}

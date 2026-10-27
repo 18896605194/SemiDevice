@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules.Enums;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules.Enums;
 
 /// <summary>
 /// 整机状态码（系统模块）：未初始化、初始化中、空闲（Manual）、停止中、出错直接用 <see cref="ModuleState"/> 的，

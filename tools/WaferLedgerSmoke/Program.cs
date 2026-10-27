@@ -9,7 +9,6 @@ using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
 using xyz.Database.Wafers;
 using xyz.Modules;
-using xyz.Modules.Enums;
 using xyz.Service.Wafers;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
