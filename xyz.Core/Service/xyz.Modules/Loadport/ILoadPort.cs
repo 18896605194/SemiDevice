@@ -5,9 +5,7 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 完整 LoadPort 模块：EAP 用的那一面加上 Job、手动页要的（搬运站点由 BaseTransferStationModule 实现，这里不再继承）
-/// </summary>
+
 public interface ILoadPort : ILoadPortAccess, IJobAccess
 {
     #region 动作

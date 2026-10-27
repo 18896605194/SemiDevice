@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
-/// LoadPort 给 EAP 用的那一面（E87 管载具、E84 交接）
+/// LoadPort 对外 给 EAP 用的那一面（E87 管载具、E84 交接）
 /// </summary>
 public interface ILoadPortAccess : IModule
 {

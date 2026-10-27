@@ -1,7 +1,7 @@
 ﻿namespace xyz.Common.Log;
 
 /// <summary>
-/// 写日志的来源：日志里记两层名字（元件基类实现，machine.xml 装配时算好）
+/// 写日志的来源
 /// </summary>
 public interface ILogSource
 {

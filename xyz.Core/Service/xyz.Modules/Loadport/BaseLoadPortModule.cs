@@ -1,13 +1,13 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
+using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
+using xyz.Drivers.Loadport;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
 using xyz.Elements.Interfaces;
 using xyz.Elements.Models;
-using xyz.Drivers.Communication;
-using xyz.Drivers.Device;
-using xyz.Drivers.Loadport;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;

@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
-/// 机械手可服务工位的搬运交互契约。
+/// 机械手可服务工位的交互逻辑
 /// </summary>
 public interface ITransferStation : IModule
 {
@@ -23,7 +23,7 @@ public interface ITransferStation : IModule
     HandleResult? CheckPrepareTransfer();
 
     /// <summary>
-    /// 在位传感器跟晶圆账对一遍：machine.xml 配了传感器才比，对得上或没配回 null
+    /// 在位传感器跟晶圆账对一遍
     /// </summary>
     HandleResult? CheckWaferSensors();
 

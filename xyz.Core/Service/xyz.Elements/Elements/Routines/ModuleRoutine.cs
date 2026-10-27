@@ -19,12 +19,18 @@ public class ModuleRoutine
 
     private readonly object _terminalGate = new();
     private readonly ManualResetEventSlim _settled = new(false);
-    private readonly List<RoutineStep> _steps = [];
 
     /// <summary>
-    /// 做这个动作的模块（日志记在它名下）
+    /// 步骤就是一共有多少步骤，就是这一个方法
+    /// </summary>
+    private readonly List<RoutineStep> _steps = [];  
+
+    /// <summary>
+    /// 做这个动作的模块 记录日志
     /// </summary>
     private readonly ILogSource _logOwner;
+
+    protected ILogSource LogOwner => _logOwner;
 
     /// <summary>
     /// 做完的每一步各用了多久（ms），按先后；做成、失败、中止时写进日志
@@ -71,6 +77,18 @@ public class ModuleRoutine
 
     #endregion
 
+    #region 名字和建法
+
+    /// <summary>
+    /// 做这个动作的模块名，如 Chamber1
+    /// </summary>
+    public string Module { get; }
+
+    /// <summary>
+    /// 动作名，如 Home、Load
+    /// </summary>
+    public string Name { get; }
+
     /// <summary>
     /// 建一个动作：owner 是做这个动作的模块（日志记在它名下），name 是动作名（日志、错误码参数用）
     /// </summary>
@@ -96,22 +114,9 @@ public class ModuleRoutine
         _commandTimeoutMs = commandTimeoutMs;
     }
 
+    #endregion
+
     #region 结果（调用方看）
-
-    /// <summary>
-    /// 做这个动作的模块名（原因、错误码参数里显示）
-    /// </summary>
-    public string Module { get; }
-
-    /// <summary>
-    /// 日志记在谁名下（做这个动作的模块），子类自己记日志时用
-    /// </summary>
-    protected ILogSource LogOwner => _logOwner;
-
-    /// <summary>
-    /// 动作名，如 Home、Load
-    /// </summary>
-    public string Name { get; }
 
     /// <summary>
     /// 在走、做成、失败、被中止
@@ -119,12 +124,12 @@ public class ModuleRoutine
     public RoutineState State => _state;
 
     /// <summary>
-    /// 停下来了：做成、失败或被中止
+    /// 停下来的状态，终止或者出错了
     /// </summary>
     public bool IsTerminal => _state != RoutineState.Running;
 
     /// <summary>
-    /// 做成了
+    /// 执行成功
     /// </summary>
     public bool IsSuccess => _state == RoutineState.Completed;
 
@@ -134,7 +139,7 @@ public class ModuleRoutine
     public bool IsSettled => _settled.IsSet;
 
     /// <summary>
-    /// 失败、中止的原因（只进日志），开头带停在第几步
+    /// 失败、中止的原因
     /// </summary>
     public string Reason { get; private set; } = string.Empty;
 
@@ -393,12 +398,9 @@ public class ModuleRoutine
 
     #region 推进（只在挂着它的模块或搬运管理的扫描线程里调）
 
-    /// <summary>
-    /// 推一拍：发当前这一步、判它；做完了当拍接着走下一步，碰到要等的就返回
-    /// </summary>
     public void Scan()
     {
-        if (IsTerminal)
+        if (IsTerminal) //如果停下来了就直接return
         {
             return;
         }
@@ -591,6 +593,10 @@ public class ModuleRoutine
             LogHelper.Warn(_logOwner, $"{Name} 失败收场出错：{exception.Message}");
         }
     }
+
+    #endregion
+
+    #region 拼日志串
 
     /// <summary>
     /// 从第一次推到现在多少 ms

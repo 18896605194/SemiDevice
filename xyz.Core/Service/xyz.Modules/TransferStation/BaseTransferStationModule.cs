@@ -17,13 +17,29 @@ namespace xyz.Modules;
 /// </summary>
 public abstract class BaseTransferStationModule : BaseModule, ITransferStation, IStationTaskExecutor, IMode
 {
-    #region 生产 / 维护模式
+    #region Machine
+
+    [Machine("False", "TransferStation",
+        "取片要站点中途交接：机械手伸到位先停下，站点把片交到手上（比如降顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令取完")]
+    public bool HandoffOnPick { get; set; }
+
+    [Machine("False", "TransferStation",
+        "放片要站点中途交接：机械手伸到位先停下，站点把片接走（比如升顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令放完")]
+    public bool HandoffOnPlace { get; set; }
+
+    #endregion
+
+    #region SV
 
     [VariableMark(VariableType.SV, ValueFormat.Enum, description: "模块模式（生产 / 维护）")]
     public ModuleMode Mode { get; private set; } = ModuleMode.Maintenance;
 
+    #endregion
+
+    #region 生产 / 维护模式
+
     /// <summary>
-    /// 切生产模式：交给调度用，只改 Mode、不经设备；机型要多做事就重写、记得调 base
+    /// 切生产模式
     /// </summary>
     public virtual void SetProduction()
     {
@@ -31,7 +47,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     }
 
     /// <summary>
-    /// 切维护模式：调度不再派新活，手上的做完；重写同 <see cref="SetProduction"/>
+    /// 切维护模式
     /// </summary>
     public virtual void SetMaintenance()
     {
@@ -51,27 +67,10 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
 
     #endregion
 
-    #region Machine
-
-    [Machine("False", "TransferStation",
-        "取片要站点中途交接：机械手伸到位先停下，站点把片交到手上（比如降顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令取完")]
-    public bool HandoffOnPick { get; set; }
-
-    [Machine("False", "TransferStation",
-        "放片要站点中途交接：机械手伸到位先停下，站点把片接走（比如升顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令放完")]
-    public bool HandoffOnPlace { get; set; }
-
-    #endregion
-
-    #region 待命态（传片环的起点和终点）
-
     /// <summary>
-    /// 待命态：站点空着、机械手可以来取放片的状态，传片环从这里出发、做完回到这里。
-    /// 各站点不一样：腔体是 Idle，LoadPort 是 Loaded（载具装好了才能取放）。
+    /// 待命状态
     /// </summary>
     protected virtual int StandbyState => ModuleState.Idle;
-
-    #endregion
 
     #region 在位传感器
 
