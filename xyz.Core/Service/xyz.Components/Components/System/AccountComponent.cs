@@ -1251,7 +1251,7 @@ public class AccountComponent : ComponentBase, IAccount
     /// </summary>
     private static void NotifyChanged()
     {
-        EventBus.Send(new AccountChangedDto(), AccountChangedDto.EventToken, retain: false);
+        RemoteEventBus.Send(new AccountChangedDto(), AccountChangedDto.EventToken, retain: false);
     }
 
     private HandleResult NotReady()

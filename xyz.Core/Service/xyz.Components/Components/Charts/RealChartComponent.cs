@@ -168,7 +168,7 @@ public class RealChartComponent : ComponentBase, IRealChart
     {
         try
         {
-            EventBus.Send(ToFrame(record), RealChartFrameDto.EventToken, retain: false);
+            RemoteEventBus.Send(ToFrame(record), RealChartFrameDto.EventToken, retain: false);
             _lastPushFault = null;
         }
         catch (Exception exception)

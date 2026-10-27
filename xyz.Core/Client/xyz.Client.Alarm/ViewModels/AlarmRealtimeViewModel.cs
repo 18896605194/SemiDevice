@@ -94,9 +94,9 @@ public class AlarmRealtimeViewModel : BaseViewModel
         ClientAlarms.Changed += Refresh;
         Refresh();
 
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteEventBus.IsConnected);
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteConnection.IsConnected);
     }
 
     /// <summary>

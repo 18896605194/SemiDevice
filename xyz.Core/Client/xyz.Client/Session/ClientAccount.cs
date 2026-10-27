@@ -25,9 +25,9 @@ public static class ClientAccount
     public static async Task InitializeAsync(SystemSettingsDto? settings)
     {
         ClientSession.SetLoginEnabled(settings is null || settings.IsLoginEnabled);
-        _subscription ??= EventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = RefreshAsync());
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
+        _subscription ??= RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = RefreshAsync());
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
         if (settings is not null)
         {
             await RefreshAsync();

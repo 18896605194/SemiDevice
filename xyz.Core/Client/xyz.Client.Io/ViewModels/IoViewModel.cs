@@ -110,7 +110,7 @@ public class IoViewModel : BaseViewModel, IDisposable
     public override void Init()
     {
         _subscription?.Dispose();
-        _subscription = EventBus.Register<IoDto>(IoDto.EventToken, OnSnapshotReceived);
+        _subscription = RemoteEventBus.Register<IoDto>(IoDto.EventToken, OnSnapshotReceived);
     }
 
     public void Dispose()

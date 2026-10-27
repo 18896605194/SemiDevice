@@ -405,11 +405,11 @@ public class WaferLedgerViewModel : BaseViewModel
     public override void Init()
     {
         _subscription?.Dispose();
-        _subscription = EventBus.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, _ => RequestReload());
+        _subscription = RemoteEventBus.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, _ => RequestReload());
 
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteEventBus.IsConnected);
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteConnection.IsConnected);
     }
 
     /// <summary>

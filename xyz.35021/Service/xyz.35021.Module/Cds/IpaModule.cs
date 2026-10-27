@@ -41,6 +41,6 @@ public class IpaModule : BaseCdsModule
         }
 
         _lastPublished = dto;
-        EventBus.Send(dto, Name);
+        RemoteEventBus.Send(dto, Name);
     }
 }

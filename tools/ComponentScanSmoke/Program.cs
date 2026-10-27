@@ -74,6 +74,25 @@ Thread.Sleep(1000);
 int scansInOneSecond = running.Count - scansBefore;
 Check(scansInOneSecond >= 55, $"roots scan about every 10 ms: {scansInOneSecond} scans in one second");
 
+// 退出（2026-10-27）：StopAll 先停根组件的扫描、等手上这一拍扫完，再倒着收尾；收尾的时候扫描已经停了，之后也不再扫
+var slow = new SlowScanProbe();
+slow.Start();
+Check(SpinWait.SpinUntil(() => slow.InScan, 3000), "a slow root is in the middle of a scan");
+ComponentLoader.StopAll([.. roots, slow]);
+Check(!slow.InScan, "StopAll waits for the scan in progress to finish");
+var countsAfterStop = (running.Count, child.Count, grouped.Count, slow.Count);
+Thread.Sleep(100);
+Check((running.Count, child.Count, grouped.Count, slow.Count) == countsAfterStop, "no root or child scans after StopAll");
+Check(new ScanProbe[] { running, child, sharedChild, grouped, slow }.All(probe => probe.Stopped && !probe.ScannedWhileStopping),
+    "OnStopping runs once scanning has stopped");
+
+// 在自己的扫描里停自己：不等自己（等就卡住了），这一拍扫完循环自己出来
+var selfStop = new SelfStoppingScanProbe();
+selfStop.Start();
+Check(SpinWait.SpinUntil(() => selfStop.Returned, 1000), "a root stopping its own scan from inside a scan returns at once");
+Thread.Sleep(100);
+Check(selfStop.Count == 1, "after stopping itself the root scans no more");
+
 // 开机各阶段（组件自己的开机准备、收尾都挂在这几个钩子上）：组件初始化按 InitOrder、再按 machine.xml 先后，子组件跟着父组件；
 // Bind、OnStarted 按 machine.xml 先后（先父后子）；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
 // 进容器（宿主开机装配那一步，ComponentLoader.Register）：每个组件按它实现的 xyz 接口登记，取一类全部按 machine.xml 先后、停用的连同下面跳过，
@@ -128,7 +147,7 @@ Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error && 
         && item.Message.Contains("TypoGroup.Typo") && item.Message.Contains("IsRunn")), 3000),
     "a misspelled machine.xml name is logged as an error naming the node path and the name");
 
-Console.WriteLine("PASS: configured root scans, case-insensitive machine.xml, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; lifecycle stages (init by InitOrder, bind and started in machine.xml order, stopping in reverse past a failure), components into the container by interface; a misspelled machine.xml name logged as an error and left at its default");
+Console.WriteLine("PASS: configured root scans, case-insensitive machine.xml, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; on exit scans stop first (waiting for the scan in progress, none during or after OnStopping, a root stopping itself from its own scan does not hang); lifecycle stages (init by InitOrder, bind and started in machine.xml order, stopping in reverse past a failure), components into the container by interface; a misspelled machine.xml name logged as an error and left at its default");
 
 static void Check(bool condition, string message)
 {
@@ -144,12 +163,60 @@ public class ScanProbe : ComponentBase
     public ConcurrentDictionary<int, byte> Threads { get; } = new();
     private int _count;
     public int Count => Volatile.Read(ref _count);
+    private volatile bool _stopped;
+    public bool Stopped => _stopped;
+
+    /// <summary>
+    /// 收尾以后又开始扫了一拍
+    /// </summary>
+    public bool ScannedWhileStopping { get; private set; }
 
     protected override void OnScan()
     {
+        if (_stopped)
+        {
+            ScannedWhileStopping = true;
+        }
+
         Threads.TryAdd(Environment.CurrentManagedThreadId, 0);
         base.OnScan();
         Interlocked.Increment(ref _count);
+    }
+
+    public override void OnStopping()
+    {
+        _stopped = true;
+    }
+}
+
+// 一拍扫 150ms：停扫描要等它扫完这一拍
+[Component]
+public sealed class SlowScanProbe : ScanProbe
+{
+    private volatile bool _inScan;
+    public bool InScan => _inScan;
+
+    protected override void OnScan()
+    {
+        _inScan = true;
+        Thread.Sleep(150);
+        base.OnScan();
+        _inScan = false;
+    }
+}
+
+// 在自己的扫描里调 StopScan 停自己
+[Component]
+public sealed class SelfStoppingScanProbe : ScanProbe
+{
+    private volatile bool _returned;
+    public bool Returned => _returned;
+
+    protected override void OnScan()
+    {
+        base.OnScan();
+        StopScan();
+        _returned = true;
     }
 }
 

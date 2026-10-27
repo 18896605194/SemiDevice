@@ -46,7 +46,7 @@ public sealed class DispatchMapViewModel : BaseViewModel, IDisposable
     public override void Init()
     {
         _robotSubscription?.Dispose();
-        _robotSubscription = EventBus.Register<RobotDto>(RobotName, OnRobotState);
+        _robotSubscription = RemoteEventBus.Register<RobotDto>(RobotName, OnRobotState);
     }
 
     public void Dispose()
@@ -78,8 +78,8 @@ public sealed class DispatchMapViewModel : BaseViewModel, IDisposable
 
         foreach (var station in stations)
         {
-            _stationSubscriptions.Add(EventBus.Register<LoadPortDto>(station.Name, station.UpdateLoadPort));
-            _stationSubscriptions.Add(EventBus.Register<ChamberDto>(station.Name, station.UpdateChamber));
+            _stationSubscriptions.Add(RemoteEventBus.Register<LoadPortDto>(station.Name, station.UpdateLoadPort));
+            _stationSubscriptions.Add(RemoteEventBus.Register<ChamberDto>(station.Name, station.UpdateChamber));
         }
     }
 

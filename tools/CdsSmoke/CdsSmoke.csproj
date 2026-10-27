@@ -13,6 +13,7 @@
   <ItemGroup>
     <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
     <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
+    <Compile Include="..\SmokeShared\SmokeEvents.cs" Link="SmokeEvents.cs" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
   </ItemGroup>
 </Project>

@@ -2,6 +2,17 @@
 
 改到相关功能前先看这里。每条后面是定下来的日期。
 
+**名字以代码为准**：各条记的是当时的写法，后来改过名的以代码和 backend.md / client.md 为准。2026-10-27 对过一遍，常碰到的几处：
+- 动作类 `*Operation` / `Create*Operation`（`ModuleOperation`、`CommandOperation`、`ChamberProcessOperation`、`RobotTransferOperation`……）2026-10-23 起都没有了，
+  换成 `ModuleRoutine`（平台 `Create*Routine`，机型填 `Add*Steps`），见「动作改成一串步骤（ModuleRoutine）」。
+- 机械手站点表 `Stations12` / `Stations8`（`Stations`、`TryGetStation`、`StationsOf(size)`）2026-10-24 起是示教点组件：节点 `Size12` / `Size8`，
+  取法 `ITransferRobot.TryGetTeachPoint` / `TeachPointsOf(size)`，见「机械手示教点」。
+- 配方库后端类 `ProcessRecipe*` 现在叫 `Recipe*`（`RecipeComponent`、`RecipeData`、`RecipeField`、`RecipeHead`、`RecipeStep`）；给 EAP 的接口是
+  `Interfaces\ISequenceLibrary` / `IRecipeLibrary`（`GetSequenceData` / `GetRecipe`、`Accepts*`、`Import*`、`Delete*`）。客户端、DTO 还叫 `ProcessRecipe*`。
+- LoadPort 能不能分给 Job：`CanAssignCarrierToJob` 现在是 `IJobAccess.CanUseCarrierForJob`（下面各条已换成新名字）；机械手能不能进站：`ITransferStation.CanPrepareTransfer`。
+- Job 的 `ProcessJobSpec` / `ControlJobSpec` 2026-10-07 就不用了；服务的请求类（`*Request`、`*Query`）2026-10-26 起都没有了，一律 `RpcRequest` + `RpcParams`，见「请求只用 RpcRequest」。
+- 接口去 `Component` 后缀、`DeviceDriverComponent` → `CommDriverComponent`、`RfidDriverComponent` → `RfidReaderComponent` 各有记录，见对应条目。
+
 ## 代码
 - **子组件每拍做事只重写 OnScan，用大组件的线程**（2026-10-12，用户："只要规定就是子组件想要扫描的话，直接重写 OnScan 就好了，用的还是大的组件那一个线程"）：
   一个大组件（LoadPort1、Chamber1、Robot1、PLC、Safety、Dispatch）一条扫描线程，下面所有子组件的 `OnScan()` 都由它递归带着跑；
@@ -286,7 +297,8 @@
 - **配方上限按尺寸手写**：字段表里 `Max.8` / `Max.12`（跟 `Source.类型` 一个写法），切到哪个尺寸用哪个，没写的用 `Max`；35021 的"位置""到"写 100 / 150。
   切了尺寸推一条 `ProcessRecipeChangedDto`（编号 0），配方页重拉字段表。
 - **老配方不管**（用户："你不要选择就好了，你直接编辑新的 8 寸的不就好了"）：开工不按尺寸再查一遍位置。
-- **机械手站点表按尺寸各一张**（2026-10-23 用户："12 寸第一个站点组，8 寸第一个站点组不就好了，这样都可以自定义很多东西"）：机械手下配
+- **机械手站点表按尺寸各一张**（2026-10-23 用户："12 寸第一个站点组，8 寸第一个站点组不就好了，这样都可以自定义很多东西"；
+  **10-24 起换成示教点组件**：节点 `Size12` / `Size8`，取法 `TryGetTeachPoint` / `TeachPointsOf(size)`，见「机械手示教点」，下面是当时的写法）：机械手下配
   `Stations12` / `Stations8` 两整张，站点号、Y、方向、PickArms / PlaceArms、有哪些站点都能不一样。我提的"站点上写 `Number.8` / `Number.12`"被否
   （以后 PickArms 也要变就烦）。整机现在几寸，`Stations` / `TryGetStation` 就给哪张（调度、任务、取放、账单调整页都不用改）；没配带尺寸的那张就用
   `Stations`（只做一种尺寸的机型、冒烟照旧）。节点名不带点（machine.xml 路径用点隔开）。同名的表配了两个开机就报（抄一张忘改名会被悄悄丢掉）；
@@ -398,7 +410,7 @@
 - **JK 怎么做的**（`sch_transfer.cpp` 传送线程，按钮"全部清片"发 START_TR_CLEAR）：调度外另一条线程、一次一个动作；开搬前所有模块环境检查 + 在位传感器逐位对账，
   有一处不对整个不做；先后 机械手手上的 → PM（清洗腔优先）→ BM；按载具号找料盒回原槽号；只有 TM1 回料盒，TM2 以后放配置的中转站。用户："这些其实都是挺有道理的"。
 - **还是整机的一个动作**（用户："回片是单独的一个线程""回片的时候系统状态肯定是回片中…直接整机作为回片的入口"）：入口 `SystemModule.ReturnAll`，
-  做法在 `SystemReturnOperation`，跟全部初始化、整机停止一样，在整机自己的扫描线程上推；不走 Job 的调度，不另做组件、machine.xml 不加节点（先提过回片组件，用户问"初始化那些在一个组件里吗"后定成跟它们一样）。
+  做法在 `SystemReturnRoutine`，跟全部初始化、整机停止一样，在整机自己的扫描线程上推；不走 Job 的调度，不另做组件、machine.xml 不加节点（先提过回片组件，用户问"初始化那些在一个组件里吗"后定成跟它们一样）。
 - **能按**：整机**状态 Idle**（用户纠正："Manual 是整机的模式，不是状态，状态应该是 Idle"），而且没有 Job 在执行 / 暂停 / 中止中（`system.return_job_running`）；
   回片肯定是初始化之后的（用户）。配套：全部初始化碰到门开着、从这个口取出去的片还在机内的 LoadPort 不发 Home（关不了门，回片还要用这个口），
   `InitModule` 回一个做完的空操作算它好了——不然 Stop 之后全部初始化必失败、整机落未初始化，回片按不了。
@@ -502,7 +514,7 @@
   在位判断的**规则**（machine.xml `PresenceSource`：Query 两位全亮到、全灭走、一亮一灭或查不到保持；Event 看 PODON/PODOF）和到达 / 拿走的边沿处理、读码（machine.xml `AutoReadCarrierId`、
   收读头结果）、改号和核对进度写回（`SetId` / `UpdateStatus`）、Mapping 落晶圆账、取放状态（Load 好进取放、Unload 好 / 动作失败记中断、`NoteComplete`）、
   载具这一半的 E87 上报（到达、拿走、读码成功 / 失败、槽图读到、取放开始 / 结束、干完）、SV `IsArrived` / `CarrierId`、事件 `FoupArrived` / `FoupRemoved`。
-  留在端口的有：`SlotCount`（站点的槽数，Carrier 在到达时拿它当 `Capacity`）、`IsLoaded`、`CanAssignCarrierToJob`（= 启用 && `Carrier.IsArrived` && `IsLoaded` && `Carrier.IsAccepted`，
+  留在端口的有：`SlotCount`（站点的槽数，Carrier 在到达时拿它当 `Capacity`）、`IsLoaded`、`CanUseCarrierForJob`（= 启用 && `Carrier.IsArrived` && `IsLoaded` && `Carrier.IsAccepted`，
   门开没开是端口的事）、`LocalTransferState`、E84 桥、`E87Callback` / `E84Callback` / `E84Provider` 三个口子属性（回调都带 `ILoadPort port`，E87 按引用认端口；
   Carrier 的上报经端口在 `Attach` 时交给它的入队口发，跟端口自己的上报同一条线，先后不乱）、读头和驱动的连接（打开、重连）。
 - **端口喂给 Carrier 的口只有这几个**（在 `ICarrier` 的"端口调的"那段里，别再加）：`Attach(port, 读码器, E87 入队口)`（读码器是端口 InitComponent 里 `FindChild<ICarrierIdReader>()` 找到的，没配为 null）、`Sense(isPresent, isPlaced)`（每拍两个传感器位，null = 没查到）、
@@ -510,7 +522,7 @@
   （机型有别的上报路子、自己重写 Load 的，照旧调它们）。Carrier 没有父引用，跟 E84 一样由端口驱动；锁序固定：模块锁在外、载具锁在内，Carrier 持锁时不调模块。
 - **槽图认定状态只往前走**（用户：同一载具 Verified 后再 Map，**保持已认定**）：还没读过（NotRead）才转 Read，Host 已经认定（或在等、或判了不过）的，
   再 Map 一次（比如 Unload 之后又 Load）只更新槽图和账，不动认定状态；重置只靠载具拿走或 Host 的 CarrierReCreate。
-  以前每次 Load 都写回 Read，而 E87 槽图机在 Verified 收 Read 不转换，两边对不上，`CanAssignCarrierToJob` 会永久为 false。
+  以前每次 Load 都写回 Read，而 E87 槽图机在 Verified 收 Read 不转换，两边对不上，`CanUseCarrierForJob` 会永久为 false。
   已知后果：再 Map 会整篮重建晶圆账，E90 的片对象只在槽图认定那一刻按账建，重建出来的新片不会补建（没处理，用到再说）。
 - **读码没发起成功不再静默**：到位后自动读码，读头断线重连中、或上一次还没读完时 `StartReadCarrierId` 返回 false——以前就这么算了，Host 干等一个永远不来的 ID。
   现在接着每拍试，试到读头的 EC `ReadCarrierIdTimeout` 还不行，记中断日志、按读码失败报 `CarrierIdReadFailed`（Host 就能带端口号给号或取消）；
@@ -628,7 +640,8 @@
   两个库同名的不管（用户："流程配方 SC1 是不可能存在的"），不加"两个库名字不许重"的检查；Host 下的新名字看 JSON 样子分库（这一条绕不开）。
 - **SEMI 分工**（用户问过"谁管"）：E94 管 CJ、E40 管 PJ、E87 管载具、E90 管片的路径转移和片的工艺状态、E30 管配方增删改（S7）；
   腔体一级的工艺过程（哪个腔、哪一步）是 E157，还没做，客户 GEM 要求里有再做。
-- **接口拆分**（2026-10-07）：流程配方、工艺配方分别用 `ISequenceComponent` / `IProcessRecipeComponent`，方法按各自对象命名；
+- **接口拆分**（2026-10-07）：流程配方、工艺配方分别用 `ISequenceComponent` / `IProcessRecipeComponent`，方法按各自对象命名
+  （现在给 EAP 的是 `Interfaces\ISequenceLibrary` / `IRecipeLibrary`，模块层 `ISequenceComponent` / `IRecipeComponent` 各自继承它们）；
   上报口用 `IE30Callback` 的 `SequenceChanged` / `ProcessRecipeChanged`，变更类型用 `ChangeKind`。
 - Eap 下单独一个组件 `Recipe`（`E30RecipeComponent`，E30 已经 1800 行不再往里塞）；PPBODY 发 B（UTF-8），收 A / B；
   S7F17 空表照标准全删；"配方变了"本地、Host 改的都报；改名报旧名删了 + 新名建了。
@@ -659,8 +672,8 @@
   E164 **只做我们有的**（E30 控制状态、E40、E94、E87、E90）；端口和默认权限用户让我定。
 - **底层单独一个 DLL：xyz.Secs**（同一天。用户先说"把现有的包括 secs 的底层我建议全部放过去，上层只留直接调用以及应用"，分两步、"第一步你先做"；
   第一步做完后定："还是改成 xyz.Secs，然后单独是一个解决方案，后续我们只需要调用 xyz.Secs 这个 dll"、"单独创建一个仓库，仓库就叫做 Secs……和现在的架构用的是一个 github 账户"）：
-  - **单独仓库、框架只引 DLL**：源码 `D:\Secs\xyz.Secs`（自己的 sln：`xyz.Secs` 工程 + `tools\SecsSmoke`），GitHub `18896605194/Secs`（私有，我按用户要求用同一个账号建的）。
-    编 Release 时工程里的 `CopyToFrameworkLibs` 把 dll / pdb / xml 拷到 `D:\Code\Libs`（那个目录在才拷），组件层用 HintPath 引 `Libs\xyz.Secs.dll`，跟 TwinCAT 一样。
+  - **单独仓库、框架只引 DLL**：源码单独一个仓库（当时放在 `D:\Secs\xyz.Secs`，各人 clone 在哪不一定；自己的 sln：`xyz.Secs` 工程 + `tools\SecsSmoke`），GitHub `18896605194/Secs`（私有，我按用户要求用同一个账号建的）。
+    编 Release 时工程里的 `CopyToFrameworkLibs` 把 dll / pdb / xml 拷到 `D:\Code\Libs`（那个目录在才拷——框架仓库不在 `D:\Code` 的机器上不会拷，要手动拷进本仓库 `Libs\`），组件层用 HintPath 引 `Libs\xyz.Secs.dll`，跟 TwinCAT 一样。
     引 DLL 不带 NuGet 依赖，组件层自己列 ASP.NET Core 框架 + CoreWCF + WCF 客户端包（版本跟 xyz.Secs.csproj 一致）；直接用 xyz.Secs 类型的工程（冒烟）也要自己引 DLL。
     xyz.Secs 不引框架任何工程，命名空间照目录：`xyz.Secs`（异常）、`.SecsII`、`.Hsms`、`.Diagnostics`（`ISecsSink`）、`.Gem.*`、`.Eda.*`。
   - 第一步（做完）：SECS-II / HSMS，EDA 的模型、会话 / 权限、自描述查验、采集计划、E164 样例和标准事件翻译、Freeze 2 传输、SEMI 原文件都进 xyz.Secs；EDA 对外只给 `EdaServer` + 宿主实现的
@@ -769,10 +782,10 @@
 - **料没到先建 PJ + 等 E87 槽图认定**（2026-10-08 用户定的，对标 CTC，两件一起做）：Host 按载具号建 PJ 时载具不在端口上、或还不能取片，
   PJ 照样建、排队（报 #1），只记载具号和要的槽号（`ProcessJob.Slots`，空 = 料到了取全部有片的槽），任务行先空着；CJ 能收这种 PJ，口（`ControlJob.LoadPort`）先空着、
   按载具号认，同一载具不能有两个 CJ（`job.carrier_busy`）、同一载具的槽不能两个 PJ 要（`job.slot_claimed`）；指定了 LoadPort 的 CJ 不收没定片的 PJ。
-  扫描里每拍：载具到了、`CanAssignCarrierToJob` 就定片（跟当场建同一段检查，生成任务行、登记片归属、给 CJ 填口）；CJ 要下面的 PJ 都定了片才转执行 / 等启动。
+  扫描里每拍：载具到了、`CanUseCarrierForJob` 就定片（跟当场建同一段检查，生成任务行、登记片归属、给 CJ 填口）；CJ 要下面的 PJ 都定了片才转执行 / 等启动。
   **定不了片**（用户选 A）：PJ 留在排队、报警（JobManager 的 `MaterialUnusableAlarm`，报警文字固定，哪个 PJ、什么原因写 Job 日志，同样的原因只记一次），
   等人或 Host 收场（停掉 CJ 连带删排队的 PJ，或取消没归 CJ 的 PJ）；每拍还会再试，复位了没解决会再报。
-  **槽图认定**：`BaseLoadPortModule.CanAssignCarrierToJob` 加一条——接了 EAP（`E87Callback` 不为空）时槽图要被 Host 认定（`SlotMapStatus == Verified`）才能取放，
+  **槽图认定**：`BaseLoadPortModule.CanUseCarrierForJob` 加一条——接了 EAP（`E87Callback` 不为空）时槽图要被 Host 认定（`SlotMapStatus == Verified`）才能取放，
   没接 EAP 读到就算。后果：Hsms 启用但 Host 没连上时 E87 一直等 Host，Job 也跟着等（本地跑把 Hsms 关掉）。EAP 的 SECS 翻译层（S16 / S14）见「EAP 各标准」。
   还没做：Job 页（样稿 v2 等确认）、救片任务、
   设备动作中禁止改账的联锁（用户押后）。腔体按工艺配方真执行（照每一步去转、摆臂、喷液）用户说不做。
@@ -780,7 +793,7 @@
 - **创建参数与 PJ 启动配置（2026-10-07 用户明确）**：不用 ProcessJobSpec / ControlJobSpec 这类参数包装，内部方法直接收参数；PJ 的 AutoStart 由 machine.xml `ProcessJobAutoStart` 配置，不放在创建请求或每个 PJ 对象里。本地和 EAP 统一使用设备配置。JobService 按区域管理，用传统 if / return，不封装 NotInstalled / Reply
   （2026-10-26 用户改：没装、翻结果改用 BaseService 的 NotInstalled / ReplyData，跟别的服务一样，还是 if / return，见「回包的公共方法收进 BaseService」）。
 - **Job 命令入口（2026-10-07 用户：重复就重复先，没关系）**：去掉 Execute / WithProcessJob 的委托包装，各入口直接写检查、锁超时、执行、发布、异常处理；PJ 创建合并到 CreateProcessJobAsync，不为减少重复增加调用层次。保留原有锁和状态机行为。
-- **设备状态判断归模块（2026-10-07 用户明确）**：载具能不能分给 Job 由 BaseLoadPortModule.CanAssignCarrierToJob 判断（2026-10-09 由 IsCarrierReady 改名：它在机械手正在取放时也是 true，只管排活，机械手进站看 CanPrepare）（模块启用、载具到位、IsLoaded；2026-10-08 加：接了 EAP 时槽图被 Host 认定）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
+- **设备状态判断归模块（2026-10-07 用户明确）**：载具能不能分给 Job 由 BaseLoadPortModule.CanUseCarrierForJob 判断（2026-10-09 由 IsCarrierReady 改名 CanAssignCarrierToJob，2026-10-18 起是现在的名字、在 IJobAccess 上：它在机械手正在取放时也是 true，只管排活，机械手进站看 CanPrepareTransfer）（模块启用、载具到位、IsLoaded；2026-10-08 加：接了 EAP 时槽图被 Host 认定）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
 - **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 machine.xml ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 machine.xml。
 - **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
   **2026-10-22 用户："写入数据库没有必要每一次都写"**（扫描改成 10ms 以后一秒交 100 次写库）：发布时把全貌转成 JSON 跟上次交去写的比，一样就不交写库
@@ -843,7 +856,7 @@
 - **分段能力是机械手模块上的可选接口**（用户 10-19 定："放在机械手模块上，因为调度要调用这个方法，可选的……放在驱动上不需要，这个只是机械手的能力"；
   "作为可选项放在模块上，然后继承原来的接口"）：`ITransferRobotStep : ITransferRobot`，四个方法 `ExtendPick` / `RetractPick` / `ExtendPlace` / `RetractPlace`
   （手、站点名、槽，各回一个动作）；机械手类声明了它才算能分段，搬运执行按 `Robot is ITransferRobotStep` 判断再调。我先放在品牌驱动上被用户否了，别再挪回驱动。
-  平台 `BaseRobotModule` 写好了这四个方法，但不声明接口；能分段的机械手类在类上声明 `ITransferRobotStep`，再重写 `CreateExtend/RetractPick/PlaceOperation`
+  平台 `BaseRobotModule` 写好了这四个方法，但不声明接口；能分段的机械手类在类上声明 `ITransferRobotStep`，再重写 `AddExtendPickSteps` / `AddRetractPickSteps` / `AddExtendPlaceSteps` / `AddRetractPlaceSteps`（2026-10-23 前是 `CreateExtend/RetractPick/PlaceOperation`）
   给设备动作（默认没有 → 分段被拒 `robot.handoff_unsupported`）。带吸附的手的约定写在接口上：取片缩臂先吸住确认再缩，放片伸臂停住后先松开。现在没有机械手类声明它。
 - **伸着的时候机械手不回空闲**：两个动作之间机械手停在"取片伸着 / 放片伸着"（`RobotState.PickExtended` 211 / `PlaceExtended` 221，状态表里只收对应的缩臂和急停），
   手还在站里，机械手页的回原点、上下使能都进不来（「指挥层 Dispatch」记过界面请求会插进搬运空档；之前评审担心的"拆成两个动作伸完臂回 Idle"就是靠这个状态守住的）。
@@ -1071,7 +1084,7 @@
 - **IPA 这类模块实现 `ISupplyModule`**（2026-10-17，用户："这个接口和 ITransferStation 是平级的……代表和机械手是没有交互的"；名字用户从几个里选的）：`xyz.Modules\Supply`，
   机械手来取放片的站点（LoadPort、腔体）实现 `ITransferStation`，不跟机械手交互的（供液这类）实现它。现在只有名字；"就绪"这类等做 IPA 功能时再加（用户："先不着急"）。
   （2026-10-20 "能不能供液"另放进给别的模块用的 `ISupplyAccess`，`ISupplyModule` 没动，见「模块之间访问」。）
-  挂在 CDS 基类上（`BaseCdsModule : BaseModule`，以后的药液模块继承就自带），IPA 模块放机型层（用户定的；`CdsIpaModule`，现在只推 `IpaDto`）。
+  挂在 CDS 基类上（`BaseCdsModule : BaseModule`，以后的药液模块继承就自带），IPA 模块放机型层（用户定的；`IpaModule`，现在只推 `IpaDto`）。
 - **阀组**：子节点 `Fill` / `Drain` / `Supply` 是 `ValveGroupComponent`（下面挂几个 `ValveComponent`，一起开、一起关，接口 `IValveGroup`），补液、排液会有多个阀（用户）；没挂就没有那个功能。
 - **machine.xml `FillTo`**（用户："增加一个 machine.xml，补液到什么时候哪一个液位算是补液完成"）：L 或 H，默认 H，不分大小写，配错开机抛；只给 L / H 是我定的（HH 是报警位，补到 HH 每次都报高高）。
 - **状态 `TankState`（SV）**：空闲 / 就绪 / 补液中 / 排液中 / 换液中 / 供液中 / 出错（用户要的，"真正的机台跑的时候肯定是要求你的 tank 都是 ready 状态"）。
@@ -1098,7 +1111,7 @@
 - **槽的推送**（2026-10-18 改成跟着 IPA 模块推；原来是槽自己发 C# 事件 `Changed`、`xyz.Service\Events\TankPublisher` 按槽的全路径推，那一套删了）：
   IPA 模块的扫描线程每拍扫槽（基类递归），槽算液位、状态；机型的 `Cds\IpaModule` 在自己的 `OnScan` 最后把 IPA 的状态和下面各槽转成 `TankDto`
   （映射组件转：液位、状态、`LL`～`Overfill` 各一个 `DiSensorDto`，没配是 null）装进 `IpaDto`（放机型的 xyz.35021.Shared），跟上一拍不一样（第一拍也算）
-  才 `EventBus.Send`，token 是模块名（`IPA`），留存。用户："推的话肯定是 IPADTO……里面有关于 IPA 下面所有的数据以及下面组件的消息……这个也肯定是放在项目上的"。
+  才 `RemoteEventBus.Send`，token 是模块名（`IPA`），留存。用户："推的话肯定是 IPADTO……里面有关于 IPA 下面所有的数据以及下面组件的消息……这个也肯定是放在项目上的"。
 - **AI 液位计**（2026-10-17，用户定的）：液位不靠几个 DI 浮球、改装一个 AI 液位计时，LL / L / H / HH / Overfill 节点挂 `AiLevelComponent`
   （`Components\Sensors`，实现 `IDiSensor`）：读 `AiIndex` 那个 AI，到了自己的触发值算触发。对外跟 DI 信号一样，**槽、`TankDto`、`TankScene` 都没改**。
   - 两种配法（用户："要么就是只有一个 ai"；"混着也只是溢流有可能单独 di，其他的还是一个 ai"）：五个都挂 AI 液位信号、`AiIndex` 填同一个液位计；
@@ -1533,7 +1546,7 @@
 ## 日志重整：操作日志、两层名字、轮询原文单独一个文件（2026-10-25 ~ 10-26，用户："界面点击的所有按钮，本质上都得能从日志里面能看到，并且记录谁点击的"、"底层的那种数据解析以及收到的数据这个难道也属于这个loadport1吗"，逐条定完说"开始做吧"）
 - **操作日志在后端统一记**：gRPC 服务端拦截器，**用户起名 `ActionFilter`**，放 xyz.GrpcHost（宿主 `AddCodeFirstGrpc` 里 `Interceptors.Add<ActionFilter>()`），
   **接口化**（用户："肯定是接口化编程"）：`ActionFilter` 只做 gRPC 这一层（取方法名、来路、请求头的操作人，回包 / 抛异常告诉它），记不记、怎么记在 xyz.Service 的
-  `IActionFilterLog` / `ActionFilterLog`（名字用户定："既然是过滤器，肯定是用这两个名字"；容器单例，`AddXyzServices` 里注册，构造注入给 `ActionFilter`），冒烟经接口测 `ActionFilterLog`。中间一度把整个 `ActionFilter` 挪到 xyz.Service 只为能测，
+  `IActionFilter` / `ActionFilter`（代码里就是这两个名字，实现跟宿主的拦截器同名；名字用户定："既然是过滤器，肯定是用这两个名字"；容器单例，`AddXyzServices` 里注册，构造注入给宿主的 `ActionFilter`），冒烟经接口测 xyz.Service 的 `ActionFilter`。中间一度把整个 `ActionFilter` 挪到 xyz.Service 只为能测，
   用户问"放在这里面不行吗"、"你提供一个过滤器的接口不就好了"，就拆成这样。每个调用进来记一条、回包记一条（`操作人@IP 服务.方法 参数JSON` / `→ 成功 | 失败 码 [参数] | 出错` + 用时），
   第一层 `Operation`，只进主日志、不推顶栏（界面自己会提示结果，推了显示两遍）。不在 218 个按钮命令上逐个加：后端一处、局域网多客户端也全、被拒的也有码。
   - 不记：`Get` / `Query` 开头的（只读，轮询会刷屏），加 `Subscribe`、`Publish`（点动续命 `AxisJogRenew` 原来也在这儿，10-26 点动改成只发一次后删了）；切页这类纯界面按钮不经后端，不记（用户："不记录"）。
@@ -1663,3 +1676,34 @@
   私有字段查本类和 partial 文件、非私有的查全仓）；运行中会被改的 49 处留着（断线重连的 `_client` / `_session`、Attach / Detach 的 `_engine`、在做的动作 `_routine`、载具信息 `_info` 这类）；
   局部变量后来又被赋值的 3 处、父类带 setter 的属性 `_driver` 6 处不动。写进了 SKILL.md 硬规矩第 7 条。
 - **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告）；39 个冒烟全过，检查数没变。
+
+## 事件总线分成进程内、跨进程两条（2026-10-27，用户："我觉得应该把跨进程和进程内部完全分开，不需要转发"、"EventBus 比方说这个就留给进程内使用，然后跨进程单独搞一个类似这种的……两边互不打扰"、"直接开始修改吧，这个结构没啥问题"）
+- **为什么**：原来一条 EventBus 两用：后端 `Send` 先派发本进程订阅者、再自动交给 EventService 推给所有客户端；客户端收到的经 `Deliver` 灌进同一条总线（不往外抄，防回声）；黑板既给进程内补发、又给连上的客户端重放。
+  查下来进程内一处没人用（后端 20 处只发、客户端 29 处只收），合在一起只剩代价：推什么出去不是显式定的、每次发都转 JSON、同一个 Register 回调在哪个线程、拿到原对象还是副本要看消息从哪来。
+- **现在**：`EventBus` 只管进程内（同步、在发送方线程上调、传原对象、没有黑板、订阅者抛异常进死信不耽误别人）；`RemoteEventBus` 只管跨进程（后端 `Send`、客户端 `Register`，写法跟 EventBus 一样）。
+  两个类互不调用，后端一件事既要本进程知道、又要推给界面就各调一次。都在 `xyz.Tools\Events`（RemoteEventBus 两头都用：后端发、客户端收）。
+- **黑板**（用户："进程内不需要黑板吧，跨进程还是需要的吧"）：进程内想知道对方现在的状态按接口问它；跨进程两头各一块，后端给刚连上的客户端重放，客户端给后订阅的页面补发。
+  `retain: false` 不写、还擦掉同一格，后端 `Send` 和客户端 `Deliver` 一样（原来客户端收到通知类不擦）。
+- **线**：后端 `EventService` 只跟 RemoteEventBus 打交道（`SubscribeSent` 拿新发的、`GetRetained` 取黑板）；客户端原来的 `RemoteEventBus`（流泵）改名 `RemoteConnection`，收到的经 `RemoteEventBus.Deliver` 送进来。
+  名字是用户问"RemoteEventBus 和 RemoteBus 有啥区别"以后定的：总线叫 RemoteEventBus（跟 EventBus 成对），客户端的线叫 RemoteConnection。
+- **删掉往回发**：`SendToServer`、契约 `IEventService.PublishAsync` 正式代码没人用，命令走 gRPC。
+- **信封留着、藏起来**（用户问能不能不要 EventMessage、写成 CommunityToolkit 信使那样）：业务代码本来就只写 Send / Register；gRPC 推送流要一个固定类型，DTO 不带 ProtoContract（10-26 的规矩），
+  所以 `EventMessage` 留着；打包、拆包的 `EventEnvelope` 删了，并成 RemoteEventBus 的私有方法。订阅凭据单独成文件 `Subscription`（原来是 EventBus 里的嵌套类）。
+- **冒烟**：同进程的冒烟开头 `SmokeEvents.Loopback()`（`SmokeShared`），把后端发的投回本进程当客户端收（拿到的是拆包副本，跟真客户端一样）；`EventBusSmoke` 改成自己数检查数、
+  自己起后端子进程测跨进程和断线重连；LogPipelineSmoke 的信封往返改成走 RemoteEventBus。
+  IoIndexSmoke 原来拿两次推送收到的对象比 `ReferenceEquals` 验"骨架只建一次"，收到的变成副本以后改成看 IO 组件里存着的那份骨架（反射读 `_snapshot`）。
+- **没改的**：刚连上时同一条状态可能到两次（EventService 先订上、再取黑板，中间正好发了一条），状态类无害。
+- **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告），不在 sln 里的 16 个工程单独编 0 错误；35 个冒烟全过（EventBusSmoke 34 项；一起跑时 WPF 画面冒烟、Hsms
+  按时间点的检查偶尔没赶上，单独重跑都过）；机型 35021 重新部署；真宿主 + LogPipelineSmoke 客户端模式：连上，界面的 LogViewModel 收到后端推的日志。
+  （头一遍汇总时 IoIndexSmoke 只看了最后打出的 PASS 行、没看退出码，漏了上面那条失败，第二遍才发现、修好。）
+
+## 宿主退出先停扫描、再收尾（2026-10-27，关机日志里 IPA、LoadPort1、Robot1、Safety 各报"OnScan 异常：对象已释放"，用户："改一下吧"）
+- **原因**：根组件的扫描循环是 `while (true)`，没有停的口子；`StopAll` 只倒着调 `OnStopping`，扫描一直在跑——收尾断链路、落库时扫描还在用（PLC 的 `Close` 时 IO 还在读），
+  宿主随后释放容器，扫描里再取报警、EC（`ComponentBase` 每次现从容器取）就报"对象已释放"。
+- **改法**：`ComponentBase.StopScan()`：设停止标记、等手上这一拍扫完再回来（最多等 2 秒，卡死的记一条警告不等，免得宿主退不掉；在自己的扫描里停自己不等自己）；
+  `ComponentLoader.StopAll` 先停各根组件的扫描、再倒着 `OnStopping`，跟开机"开始扫描 → OnStarted"倒过来。6 个 `OnStopping` 都只做自己的收尾（关连接、停采样、停快照），没有等扫描推进的。
+- **没改的**：`ComponentBase` 的报警、EC 照旧每次从容器取，没改成存字段：这几个是所有组件在任何阶段都调的公共方法，冒烟里很多组件直接 new 出来、不走 Bind 就用，
+  还有 30 多处中途换掉、撤掉报警 / EC 组件（`SmokeIoc.Use<IAlarm>(null)` 测"没装时什么都不做"），存字段会拿着旧的不放；扫描先停了以后关机也不会再碰容器。
+- **冒烟**：ComponentScanSmoke 加了退出那几条（等慢的根扫完手上这一拍才回来、之后根和子组件都不再扫、收尾时扫描已经停了、在自己的扫描里停自己不卡）。
+- **验证**：整个 sln 0 错误（还是那 10 条警告）；35 个冒烟全过（一起跑时 6 个 WPF 画面冒烟和 Hsms 按时间点的检查没赶上，单独重跑都过）；
+  真宿主起来扫几秒再托盘退出：从"托盘请求退出"到"后端已退出"135 毫秒，没有 OnScan 异常。

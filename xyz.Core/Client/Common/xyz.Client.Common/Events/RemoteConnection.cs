@@ -7,11 +7,9 @@ using xyz.Tools;
 namespace xyz.Client.Common.Events;
 
 /// <summary>
-/// 客户端事件流泵：与后端 IEventService 保持一条服务端流，
-/// 收到的信封统一投递到 UI 线程再灌进本进程 EventBus，ViewModel 回调天然在 UI 线程。
-/// 断线自动重连（3s），重连成功即重放留存消息。
+/// 客户端连后端的事件线：保持一条推送流、断线 3 秒重连，收到的消息转到界面线程交给 RemoteEventBus
 /// </summary>
-public static class RemoteEventBus
+public static class RemoteConnection
 {
     private const int ReconnectDelayMs = 3000;
 
@@ -48,30 +46,10 @@ public static class RemoteEventBus
             .Unwrap();
 
         _pumpTask.ContinueWith(
-            task => ClientLog.Error(nameof(RemoteEventBus), $"事件流泵异常退出：{task.Exception?.GetBaseException().Message}"),
+            task => ClientLog.Error(nameof(RemoteConnection), $"事件流泵异常退出：{task.Exception?.GetBaseException().Message}"),
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);
-    }
-
-    /// <summary>
-    /// 客户端 → 后端上行发布。进入后端进程内总线，后端本地订阅者可收到。
-    /// </summary>
-    public static void SendToServer<TMessage>(TMessage message, string token = "") where TMessage : class
-    {
-        var envelope = EventEnvelope.Of(message, token);
-        Task.Run(async () =>
-        {
-            try
-            {
-                var service = GrpcClientFactory.Create<IEventService>();
-                await service.PublishAsync(envelope);
-            }
-            catch
-            {
-                // 后端不在线时上行静默丢弃；需要确认送达的业务应由后端回发事件确认
-            }
-        });
     }
 
     private static async Task RunLoop()
@@ -108,11 +86,11 @@ public static class RemoteEventBus
     {
         if (_uiContext is null)
         {
-            EventBus.Deliver(envelope);
+            RemoteEventBus.Deliver(envelope);
         }
         else
         {
-            _uiContext.Post(_ => EventBus.Deliver(envelope), null);
+            _uiContext.Post(_ => RemoteEventBus.Deliver(envelope), null);
         }
     }
 

@@ -113,7 +113,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         _stateSubscription?.Dispose();
 
         //订阅后台loadport数据
-        _stateSubscription = EventBus.Register<LoadPortDto>(ModuleName, OnStateReceived);
+        _stateSubscription = RemoteEventBus.Register<LoadPortDto>(ModuleName, OnStateReceived);
     }
 
 

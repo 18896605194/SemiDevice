@@ -103,6 +103,6 @@ public class LogComponent : ComponentBase, ILogComponent
             }
         }
 
-        EventBus.Send(log, LogDto.EventToken, retain: false);
+        RemoteEventBus.Send(log, LogDto.EventToken, retain: false);
     }
 }

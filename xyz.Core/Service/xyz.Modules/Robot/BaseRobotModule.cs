@@ -699,7 +699,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     /// <summary>
     /// 发布当前状态（扫描周期调用）：首次发布，之后只在状态变化时发布。
-    /// EventBus 留存最后一条消息，供界面晚订阅或重连时补发。
+    /// RemoteEventBus 留存最后一条消息，供界面晚订阅或重连时补发。
     /// </summary>
     protected override void PublishState()
     {
@@ -710,7 +710,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
 
         _lastPublishedState = dto;
-        EventBus.Send(dto, Name);
+        RemoteEventBus.Send(dto, Name);
     }
 
     #endregion

@@ -183,7 +183,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     private void OnWaferSizeChanged(int size)
     {
         BuildGroups();
-        EventBus.Send(new SequenceChangedDto(), SequenceListDto.EventToken, retain: false);
+        RemoteEventBus.Send(new SequenceChangedDto(), SequenceListDto.EventToken, retain: false);
     }
 
     /// <summary>
@@ -365,7 +365,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
         var saved = result.Result as SequenceData;
         LogHelper.Info(this, saved is null ? message : $"{message}，版本 {saved.Revision}");
-        EventBus.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
+        RemoteEventBus.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
 
         var callback = E30Callback;
         if (callback is null)

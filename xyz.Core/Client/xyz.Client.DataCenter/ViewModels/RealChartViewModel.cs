@@ -280,7 +280,7 @@ public class RealChartViewModel : BaseViewModel
 
         _frames?.Dispose();
         _frames = Observable
-            .Create<RealChartFrameDto>(observer => EventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, observer.OnNext))
+            .Create<RealChartFrameDto>(observer => RemoteEventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, observer.OnNext))
             .Subscribe(OnFrame);
 
         IObservable<Unit> stats = _statsRequests.Sample(TimeSpan.FromMilliseconds(250));
@@ -294,8 +294,8 @@ public class RealChartViewModel : BaseViewModel
 
         _reconnect?.Dispose();
         _reconnect = Observable
-            .FromEvent<bool>(handler => RemoteEventBus.ConnectionChanged += handler,
-                handler => RemoteEventBus.ConnectionChanged -= handler)
+            .FromEvent<bool>(handler => RemoteConnection.ConnectionChanged += handler,
+                handler => RemoteConnection.ConnectionChanged -= handler)
             .Where(connected => connected)
             .Subscribe(connected => _ = LoadLayoutAsync());
 

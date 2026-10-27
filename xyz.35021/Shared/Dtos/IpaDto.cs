@@ -8,7 +8,7 @@ namespace xyz._35021.Shared.Dtos;
 public class IpaDto
 {
     /// <summary>
-    /// 模块名（如 IPA），跟 EventBus token 一样
+    /// 模块名（如 IPA），跟 RemoteEventBus token 一样
     /// </summary>
     public string Module { get; set; } = string.Empty;
 

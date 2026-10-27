@@ -454,7 +454,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         if (dto.HasStateChanged(_lastPublishedState))
         {
             _lastPublishedState = dto;
-            EventBus.Send(dto, Name);
+            RemoteEventBus.Send(dto, Name);
         }
 
         PublishDeviceData();
@@ -533,7 +533,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         }
 
         _lastPublishedDeviceData = data;
-        EventBus.Send(data, Name);
+        RemoteEventBus.Send(data, Name);
     }
 
     /// <summary>

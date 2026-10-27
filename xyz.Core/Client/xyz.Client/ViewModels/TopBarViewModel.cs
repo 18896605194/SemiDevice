@@ -203,11 +203,11 @@ public class TopBarViewModel : BaseViewModel
 
         // 设备总状态是留存消息：连上（含重连）就先收到当前值，之后变化才推。
         _statusSubscription?.Dispose();
-        _statusSubscription = EventBus.Register<EquipmentStatusDto>(EquipmentStatusDto.EventToken, OnStatusChanged);
+        _statusSubscription = RemoteEventBus.Register<EquipmentStatusDto>(EquipmentStatusDto.EventToken, OnStatusChanged);
 
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteEventBus.IsConnected);
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteConnection.IsConnected);
 
         ClientSession.Changed -= UpdateUser;
         ClientSession.Changed += UpdateUser;

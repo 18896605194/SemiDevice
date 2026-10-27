@@ -64,7 +64,7 @@ public class TransferViewModel : BaseViewModel, IDisposable
         }
 
         _stateSubscription?.Dispose();
-        _stateSubscription = EventBus.Register<RobotDto>(moduleName, Robot.Update);
+        _stateSubscription = RemoteEventBus.Register<RobotDto>(moduleName, Robot.Update);
     }
 
     public void Dispose()

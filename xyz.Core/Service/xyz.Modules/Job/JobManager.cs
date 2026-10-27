@@ -2298,7 +2298,7 @@ public class JobManager : ComponentBase, IJobManager
 
         try
         {
-            EventBus.Send(snapshot, JobListDto.EventToken);
+            RemoteEventBus.Send(snapshot, JobListDto.EventToken);
         }
         catch (Exception exception)
         {

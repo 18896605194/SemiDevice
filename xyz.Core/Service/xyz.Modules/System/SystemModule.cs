@@ -415,7 +415,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         }
 
         _lastPublished = dto;
-        EventBus.Send(dto, SystemStateDto.EventToken);
+        RemoteEventBus.Send(dto, SystemStateDto.EventToken);
     }
 
     private ModuleStatusListDto? _lastModuleStatus;
@@ -443,7 +443,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         }
 
         _lastModuleStatus = list;
-        EventBus.Send(list, ModuleStatusListDto.EventToken);
+        RemoteEventBus.Send(list, ModuleStatusListDto.EventToken);
     }
 
     /// <summary>
@@ -517,7 +517,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
                 Drive(light, dto.HasAlarm, dto.HasWarning, dto.IsRunning);
             }
 
-            EventBus.Send(dto, EquipmentStatusDto.EventToken);
+            RemoteEventBus.Send(dto, EquipmentStatusDto.EventToken);
             _lastStatusFault = null;
         }
         catch (Exception exception)

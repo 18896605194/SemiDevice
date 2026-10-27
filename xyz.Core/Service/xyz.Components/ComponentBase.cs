@@ -203,7 +203,7 @@ public abstract class ComponentBase : ILogSource
 
     #endregion
 
-    #region 开启轮询 间隔10ms
+    #region 开启、停止轮询 间隔10ms
     /// <summary>
     /// 启动组件树的扫描线程。只有模块根组件调用；
     /// 子组件随父组件在同一线程上被 OnScan 递归扫描，不要对子组件单独调用 Start。
@@ -215,10 +215,49 @@ public abstract class ComponentBase : ILogSource
             return;
         }
 
-        Task.Factory.StartNew(ScanLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        _scanTask = Task.Factory.StartNew(ScanLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// 停扫描：等手上这一拍扫完再回来（最多等 StopScanWaitMs）；宿主退出时先停扫描、再让各组件收尾
+    /// </summary>
+    public void StopScan()
+    {
+        _scanStopping = true;
+
+        // 没起过扫描，或者是在自己的扫描里停自己：不等，这一拍扫完循环自己出来
+        if (_scanTask is null || Environment.CurrentManagedThreadId == _scanThreadId)
+        {
+            return;
+        }
+
+        if (!_scanTask.Wait(StopScanWaitMs))
+        {
+            LogHelper.Warn(this, $"扫描 {StopScanWaitMs}ms 内没停下来，不等了");
+        }
     }
 
     private int _scanStarted;
+
+    /// <summary>
+    /// 扫描线程（Start 里起），停扫描时等它扫完手上这一拍
+    /// </summary>
+    private Task? _scanTask;
+
+    /// <summary>
+    /// 停扫描的标记：扫描循环每拍看一眼
+    /// </summary>
+    private volatile bool _scanStopping;
+
+    /// <summary>
+    /// 扫描线程的编号：在自己的扫描里停自己时不能等自己
+    /// </summary>
+    private int _scanThreadId;
+
+    /// <summary>
+    /// 停扫描最多等多久（毫秒）：一拍正常几毫秒、慢扫描报警线 300ms，等 2 秒够了；卡死的不等，免得宿主退不掉
+    /// </summary>
+    private const int StopScanWaitMs = 2000;
 
     /// <summary>
     /// 扫描周期（毫秒）：扫完一拍歇这么久再扫下一拍
@@ -238,7 +277,8 @@ public abstract class ComponentBase : ILogSource
 
     private void ScanLoop()
     {
-        while (true)
+        _scanThreadId = Environment.CurrentManagedThreadId;
+        while (!_scanStopping)
         {
             ScanOnce();
             Thread.Sleep(ScanIntervalMs);

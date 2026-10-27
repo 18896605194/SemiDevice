@@ -18,6 +18,7 @@ using xyz.Tools;
 
 // 晶圆账冒烟：装配、四个原子操作、事件、对账、并发抢槽。不连设备、不写配置文件。
 SmokeIoc.Reset();
+SmokeEvents.Loopback(); // 后端推给界面的消息投回本进程收
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -149,7 +150,7 @@ ledger.WaferMoved += (w, module, slot) => events.Add($"moved:{module}.{slot}->{w
 ledger.WaferUpdated += w => events.Add($"updated:{w.WaferId}");
 ledger.WaferDeleted += w => events.Add($"deleted:{w.Module}.{w.Slot}");
 var ledgerPushes = new List<string>();
-var ledgerPushSubscription = EventBus.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, dto => ledgerPushes.Add(dto.Module));
+var ledgerPushSubscription = RemoteEventBus.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, dto => ledgerPushes.Add(dto.Module));
 ledger.Create("LoadPort1", 9);
 ledger.Move("LoadPort1", 9, "Robot1", 2);
 ledger.SetLotId("Robot1", 2, "LOT-B");

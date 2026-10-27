@@ -524,7 +524,7 @@ public class AlarmComponent : ComponentBase, IAlarm
 
         try
         {
-            EventBus.Send(_mapper.Map<AlarmDto>(alarm), AlarmDto.EventToken, retain: false);
+            RemoteEventBus.Send(_mapper.Map<AlarmDto>(alarm), AlarmDto.EventToken, retain: false);
         }
         catch (Exception exception)
         {

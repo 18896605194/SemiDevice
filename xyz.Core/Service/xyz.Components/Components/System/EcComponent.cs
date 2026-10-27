@@ -587,7 +587,7 @@ public class EcComponent : ComponentBase, IEc
     private void OnValueChanged(string path, EcValueConfig item)
     {
         ValueChanged?.Invoke(path, item);
-        EventBus.Send(CreateDto(path, item), EcItemDto.EventToken, retain: false);
+        RemoteEventBus.Send(CreateDto(path, item), EcItemDto.EventToken, retain: false);
     }
 
     /// <summary>

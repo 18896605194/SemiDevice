@@ -16,7 +16,7 @@ public class RobotModel : ObservableObject
 
     private string _name = string.Empty;
 
-    /// <summary>模块实例名，与 EventBus token 一致，如 "Robot1"。</summary>
+    /// <summary>模块实例名，与 RemoteEventBus token 一致，如 "Robot1"。</summary>
     public string Name
     {
         get => _name;

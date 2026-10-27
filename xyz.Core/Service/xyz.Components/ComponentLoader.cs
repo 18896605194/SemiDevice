@@ -64,11 +64,18 @@ public static class ComponentLoader
     }
 
     /// <summary>
-    /// 宿主退出：整棵树倒着挨个 OnStopping（后起来的先收）；一个出错不耽误后面的
+    /// 宿主退出：先停根组件的扫描（等手上这一拍扫完），再整棵树倒着挨个 OnStopping（后起来的先收）；一个出错不耽误后面的
     /// </summary>
     public static void StopAll(IEnumerable<ComponentBase> roots)
     {
-        foreach (var component in Walk(roots).Reverse())
+        // 收尾要断链路、落库，扫描还在跑就会撞上；宿主随后还要释放容器，扫描里再取报警、EC 会报"对象已释放"
+        var rootList = roots.ToList();
+        foreach (var root in rootList)
+        {
+            root.StopScan();
+        }
+
+        foreach (var component in Walk(rootList).Reverse())
         {
             try
             {

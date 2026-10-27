@@ -15,6 +15,7 @@
   <ItemGroup>
     <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
     <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
+    <Compile Include="..\SmokeShared\SmokeEvents.cs" Link="SmokeEvents.cs" />
     <!-- 直接调服务时带上请求头（操作人） -->
     <Compile Include="..\SmokeShared\SmokeCall.cs" Link="SmokeCall.cs" />
     <Compile Include="..\SmokeShared\SmokeTeachPoints.cs" Link="SmokeTeachPoints.cs" />

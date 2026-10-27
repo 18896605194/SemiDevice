@@ -22,6 +22,7 @@ using xyz._35021.Shared.Dtos;
 // 全用假 PLC（摆 DI、AI，记 DO）和内存 EC，不连设备、不读写配置文件。
 
 SmokeIoc.Reset();
+SmokeEvents.Loopback(); // 后端推给界面的消息投回本进程收
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -438,7 +439,7 @@ try
     Check(pushed.LL is not null && pushed.H is not null && pushed.L is null && pushed.HH is null && pushed.Overfill is null,
         "槽给出配了的信号，没挂的是 null");
     var received = new List<IpaDto>();
-    using var subscription = EventBus.Register<IpaDto>(ipa.Name, dto => received.Add(dto));
+    using var subscription = RemoteEventBus.Register<IpaDto>(ipa.Name, dto => received.Add(dto));
     plc.SetDi(10, true);
     plc.SetDi(11, false);
     // IPA 开机 Bind 时取映射组件：换了要重新 Bind
@@ -479,7 +480,7 @@ try
     ipa.Tick();
     Check(received.Count == 6 && received[5].State == ModuleState.Idle, "IPA 自己的状态变了：也推");
     IpaDto? late = null;
-    using (EventBus.Register<IpaDto>(ipa.Name, dto => late = dto))
+    using (RemoteEventBus.Register<IpaDto>(ipa.Name, dto => late = dto))
     {
         Check(late is not null && late.State == ModuleState.Idle && late.Tanks[0].State == (int)TankState.Ready,
             "留存：后打开的页面一订上就拿到最新一条");

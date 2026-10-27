@@ -92,7 +92,7 @@ public partial class App : Application
 
             #region 前后端事件的处理初始化
 
-            RemoteEventBus.Initialize();
+            RemoteConnection.Initialize();
             ClientAlarms.Initialize();
             ClientEc.Initialize();
 

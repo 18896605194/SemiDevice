@@ -13,7 +13,4 @@ public interface IEventService
 {
     [OperationContract]
     IAsyncEnumerable<EventMessage> SubscribeAsync(EventSubscription request, CallContext context = default);
-
-    [OperationContract]
-    Task<RpcResponse> PublishAsync(EventMessage message, CallContext context = default);
 }

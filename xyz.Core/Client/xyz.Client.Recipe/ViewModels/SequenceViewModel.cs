@@ -542,15 +542,15 @@ public class SequenceViewModel : BaseViewModel
     public override void Init()
     {
         _subscription?.Dispose();
-        _subscription = EventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, _ => RequestReload());
+        _subscription = RemoteEventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, _ => RequestReload());
 
         // 工艺配方库变了（新建、改名、删除）：选工艺配方的弹窗、"配方在不在库里"的检查都要跟着变，一起重拉
         _recipeSubscription?.Dispose();
-        _recipeSubscription = EventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, _ => RequestReload());
+        _recipeSubscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, _ => RequestReload());
 
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteEventBus.IsConnected);
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteConnection.IsConnected);
     }
 
     /// <summary>

@@ -10,7 +10,7 @@ xyz.Client（壳，WinExe）
   → 功能模块 xyz.Client.Main / Alarm / DataCenter / Io / Manual / Recipe / Setting
     → Common\xyz.Client.Presentation（控件、样式、语言包、公共显示模型）
       → Common\xyz.Client.Common（RPC、远程事件、日志、EC/报警缓存、会话）、Common\xyz.Client.DataModels（BaseViewModel）
-        → xyz.Core\Shared\xyz.Shared（契约）、xyz.Tools（EventBus、IocHelper、JsonHelper）
+        → xyz.Core\Shared\xyz.Shared（契约）、xyz.Tools（RemoteEventBus、EventBus、IocHelper、JsonHelper）
 Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[ClientModule]、ClientModuleLoader、IClientMenuProvider、ClientMenu、
   ClientViewKeys = 页面里能按机型换掉的一块的注册键）
 ```
@@ -29,7 +29,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 3. 问后端系统设置 `ISystemService.GetSettingsAsync`（3 s 超时，每 1 s 重试，最多等 30 s）→ `L10n.Apply(语言)`；
    返回的模块名、腔体名用来生成 IO / 腔体菜单，LoadPort、机械手名单用来生成主界面的 LoadPort 页签和默认调度图。
    后端一直不在就用 zh-CN、这些按模块生成的东西整次为空（主界面显示提示）；换语言要重启客户端。
-4. `RemoteEventBus.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`、`ClientAccount.InitializeAsync(设置)`
+4. `RemoteConnection.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`、`ClientAccount.InitializeAsync(设置)`
    （`SystemSettingsDto.IsLoginEnabled` 定要不要登录，要登录的先取访客的会话；后端不在当要登录、什么都只看，连上再定）。
 5. 建 DI：`AddXyzClientServices(settings)`（壳 VM、平台菜单、各功能模块注册）→ `ClientModuleLoader.Load(services)`
    （扫 exe 目录和 `Modules\**\*.dll` 里带 `[ClientModule]` 的 `IClientModule`，按 Key 排序调 `Register`；机型后注册，
@@ -158,9 +158,10 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - 结果提示走顶栏日志栏：`ClientLog.Info/Warn/Error(模块名, 句子)`。不弹 MessageBox。
 
 ### 事件
-- `EventBus.Register<TDto>(TDto.EventToken 或模块名, handler)`：远程消息由 `RemoteEventBus` 投递到 **UI 线程**，handler 里直接改绑定属性；
-  返回的 `IDisposable` 存在字段里，Init 重复调时先 Dispose。留存消息（retain）订上就会补发最后一条。
-- 连接状态：`RemoteEventBus.ConnectionChanged -= On; += On;` 再 `On(RemoteEventBus.IsConnected)`；连上时重拉全量（断线期间漏了推送）。
+- `RemoteEventBus.Register<TDto>(TDto.EventToken 或模块名, handler)`：后端推的消息由 `RemoteConnection` 转到 **UI 线程**再派发，handler 里直接改绑定属性；
+  返回的 `IDisposable` 存在字段里，Init 重复调时先 Dispose。黑板上有的（后端发的状态类）订上就会补发最后一条。
+- 连接状态：`RemoteConnection.ConnectionChanged -= On; += On;` 再 `On(RemoteConnection.IsConnected)`；连上时重拉全量（断线期间漏了推送）。
+- 页面之间的进程内通知用 `EventBus`（不出进程、没有黑板、在发送方线程上回调），跟后端推送是两条总线，互不相通（2026-10-27）。
 - 高频推送、查询请求用 Rx：`Throttle` / `Sample` + `Select(Observable.FromAsync(...))` + `Switch()` + `ObserveOn(SynchronizationContext)`（DataChart、RealChart）。
 - 后端推的是"变了"通知、界面自己重拉时，要攒一下再拉（DispatcherTimer 节流，见 WaferLedgerViewModel.RequestReload）。
 
@@ -270,7 +271,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `<controls:ProgressOverlay State="{Binding Export}" Text="{DynamicResource datachart.exporting}" />`（不知道进度的加 `IsIndeterminate="True"`，圆环一直转、不写百分比）；
   `ShowDelay` 默认 500 ms，过这么久还没完才弹。VM 里 `bool done = await Export.RunAsync((progress, token) => ...)`：开关、取消（`CancelCommand`）、
   后台 `progress.Report(0～100)` 回界面线程都在 `ProgressState` 里；被取消回 false，别的异常照抛；后一次顶掉前一次时弹框不提前关。
-- **Excel / CSV**（`xyz.Core\Shared\xyz.Tools\ExcelHelper`，前后端共用，MiniExcel 1.46）：`ExcelHelper.Save(路径, 列, 表)` 按表写 xlsx，各表同一组列（`ExcelColumn` 列名、显示格式、列宽），
+- **Excel / CSV**（`xyz.Core\Shared\xyz.Tools\Excel\ExcelHelper`，前后端共用，MiniExcel 1.46）：`ExcelHelper.Save(路径, 列, 表)` 按表写 xlsx，各表同一组列（`ExcelColumn` 列名、显示格式、列宽），
   第一行列名并冻结；表的行（`ExcelSheet.Rows`）写的时候才枚举，可以边收边写。`SaveCsv(路径, 列名, 行)` 写 CSV（UTF-8 带 BOM），`ReadCsv(路径)` 读 CSV
   （每行按表头取值，表头不分大小写）。写都是先写 `.tmp` 写完再换上去。放后台线程调。以后读 xlsx 也加在这里。
 - **账号弹窗**（一样的卡片样子）：`ShowLogin`（登录框，开机和闲置退出那次多一行"取消就当访客"；`notice` 是标题下的黄字提醒，`DialogNoticeTextStyle`）、`ShowPassword`（改自己的密码要旧密码 / 管理员重置不要）、
@@ -334,10 +335,10 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   闲没闲看 Windows 的 `GetLastInputInfo`，**别改回 WPF 的 `InputManager.PreProcessInput`**——鼠标停在窗口上时界面一刷新 WPF 就补发鼠标移动，永远不算闲着）。
 - EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("组件全路径.参数名")`）、当前报警 `ClientAlarms`。
 
-## 10. 旧代码里和规则不一致的地方（截至 2026-10-03；改到时顺手改，新代码别学）
+## 10. 旧代码里和规则不一致的地方（2026-10-27 对过代码，下面几处都还在；改到时顺手改，新代码别学）
 
 - 裸 TextBox：报警历史、日志历史/实时的关键字框，IoView 搜索框。
-- 写死颜色 / 字号：LoadPort、Robot 手动控件里的 `#555`（腔体页已换成 `DarkInactiveStatus`）、LoadingWindow 的 `#333333`。
+- 写死颜色 / 字号：LoadPort、Robot 手动控件里的 `#555`，腔体手动页和 `LoadPortInfoCard` 各还剩一处 `#555`（腔体页别处已换成 `DarkInactiveStatus`），LoadingWindow 的 `#333333`。
 - `MainWindow` 有 `Window.Resources`（BooleanToVisibilityConverter）。
 - Manual 的 VM 在 Init 里同步等 RPC。
-- `.codex\skills\xyz-wpf-mvvm-conventions\SKILL.md` 里有过时内容（路径写成 D:\Common、提到 RpcClient/IRpcService、xyz.Shared/Models），以本 skill 为准。
+- `.codex\skills\xyz-wpf-mvvm-conventions\SKILL.md` 是给 Codex 用的客户端规矩英文摘要（2026-10-27 照代码改过一遍），跟本 skill 对不上时以本 skill 为准。

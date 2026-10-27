@@ -39,7 +39,7 @@ public partial class IoComponent
             RefreshValues(_snapshot);
 
             // 状态类消息：留存着，客户端连上立刻拿到当前这一包，不用等下一次
-            EventBus.Send(_snapshot, IoDto.EventToken);
+            RemoteEventBus.Send(_snapshot, IoDto.EventToken);
             _lastPublishFault = null;
         }
         catch (Exception exception)

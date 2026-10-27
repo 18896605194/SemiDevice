@@ -21,6 +21,7 @@ using xyz.Tools;
 // 变了推 AccountChangedDto（登录、查询不推）；三个服务（没配回 account.not_installed、错误码原样回、数据转 DTO）；系统设置带登录开关；账号库建不起来时回 account.failed。
 
 SmokeIoc.Reset();
+SmokeEvents.Loopback(); // 后端推给界面的消息投回本进程收
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -38,7 +39,7 @@ string dbPath = Path.Combine(Path.GetTempPath(), $"account-smoke-{Guid.NewGuid()
 XyzDb.Register(DbName, $"DataSource={dbPath}", DbType.Sqlite);
 
 int changed = 0;
-using var subscription = EventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, _ => changed++);
+using var subscription = RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, _ => changed++);
 
 try
 {

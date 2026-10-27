@@ -1,11 +1,9 @@
-﻿using System.Text.Json;
-using ProtoBuf;
+﻿using ProtoBuf;
 
 namespace xyz.Tools;
 
 /// <summary>
-/// 事件信封。进程内发布订阅与跨进程 gRPC 传输共用的最小载体。
-/// 路由键 = TypeName + Token，Payload 为消息体的 JSON。
+/// 跨进程事件信封：RemoteEventBus 打包、拆包用，业务代码不碰
 /// </summary>
 [ProtoContract]
 public class EventMessage
@@ -35,41 +33,8 @@ public class EventMessage
     public long Timestamp { get; set; }
 
     /// <summary>
-    /// 是否留存：true = 状态类消息（每键保留最后一条，新订阅者立即补发）；
-    /// false = 发生类消息（只给当时在线的订阅者，不留存）。
+    /// 要不要写黑板：true 是状态类（每格只留最后一条，后订阅的马上补发），false 是通知类（只给当时连着的，同一格擦掉）
     /// </summary>
     [ProtoMember(5)]
     public bool Retain { get; set; }
-}
-
-/// <summary>
-/// 信封打包/解包辅助，统一走 <see cref="JsonHelper"/>。
-/// </summary>
-public static class EventEnvelope
-{
-    /// <summary>
-    /// 把消息对象打包成信封。retain 默认 false（上行/发生类），
-    /// 后端 Send 状态类消息时显式传 true。
-    /// </summary>
-    public static EventMessage Of<TMessage>(TMessage message, string token = "", bool retain = false)
-        where TMessage : class
-    {
-        return new EventMessage
-        {
-            TypeName = typeof(TMessage).FullName ?? string.Empty,
-            Token = token ?? string.Empty,
-            Payload = JsonHelper.Serialize(message),
-            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Retain = retain,
-        };
-    }
-
-    /// <summary>
-    /// 把信封解包成指定类型的消息对象。
-    /// </summary>
-    public static object From(EventMessage envelope, Type type)
-    {
-        return JsonHelper.Deserialize(envelope.Payload, type)
-               ?? throw new JsonException($"类型 {type.Name} 反序列化结果为 null");
-    }
 }

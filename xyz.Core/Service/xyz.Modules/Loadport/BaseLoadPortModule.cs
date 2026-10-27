@@ -575,7 +575,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         }
 
         _lastPublishedState = dto;
-        EventBus.Send(dto, Name);
+        RemoteEventBus.Send(dto, Name);
     }
 
     #endregion

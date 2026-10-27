@@ -1,6 +1,6 @@
 ---
 name: xyz-framework
-description: xyz 半导体设备框架（D:\Code）的架构分层和编码规范——后端组件/模块/驱动/gRPC 服务/配置/数据库，WPF 客户端 MVVM/样式/语言包，机型层，冒烟测试，验证和交付方式。在这个仓库里写或改任何代码（C#、XAML、machine.xml、冒烟测试）之前先读；加组件、模块、动作、服务、推送、页面、菜单、报警、machine.xml / ec.xml 参数、错误码、数据表时按里面的清单做。
+description: xyz 半导体设备框架的架构分层和编码规范——后端组件/模块/驱动/gRPC 服务/配置/数据库，WPF 客户端 MVVM/样式/语言包，机型层，冒烟测试，验证和交付方式。在这个仓库里写或改任何代码（C#、XAML、machine.xml、冒烟测试）之前先读；加组件、模块、动作、服务、推送、页面、菜单、报警、machine.xml / ec.xml 参数、错误码、数据表时按里面的清单做。
 ---
 
 # xyz 框架开发规范
@@ -17,23 +17,24 @@ description: xyz 半导体设备框架（D:\Code）的架构分层和编码规�
 ## 一、架构
 
 ```
-xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、JsonHelper、IocHelper、ExcelHelper，前后端共用的帮助类都放这里）
+xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、RemoteEventBus、JsonHelper、IocHelper、ExcelHelper，前后端共用的帮助类都放这里）
 xyz.Core\Service  后端：xyz.Components（组件）→ xyz.Modules（模块）→ xyz.Service（gRPC 服务、装配、事件桥）→ xyz.GrpcHost（宿主）
-                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（跟主机、厂里系统通讯的底层：SECS/HSMS、GEM 各标准协议、EDA 引擎；单独仓库 D:\Secs\xyz.Secs，框架只引 Libs\xyz.Secs.dll）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志；后端自己用的帮助类：时间换算 DateTimeHelper、值换算 ValueHelper）
+                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（跟主机、厂里系统通讯的底层：SECS/HSMS、GEM 各标准协议、EDA 引擎；单独的 git 仓库（GitHub 18896605194/Secs），框架只引 Libs\xyz.Secs.dll）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志；后端自己用的帮助类：时间换算 DateTimeHelper、值换算 ValueHelper）
 xyz.Core\Client   客户端：xyz.Client（壳）→ 功能模块 Main/Alarm/DataCenter/Io/Manual/Recipe/Setting → Common\xyz.Client.Presentation（控件/样式/语言包）
                   → Common\xyz.Client.Common（RPC/事件/日志）、Common\xyz.Client.DataModels（BaseViewModel）；Common\xyz.Client.Modules（机型模块接口）
 xyz.35021         机型层：继承平台 Base*Module 写具体设备（品牌协议、指令在 Drivers\<品牌>）、机型客户端页面、machine.xml 和 IO 点表；编译后部署到宿主和客户端的 Modules\35021（machine.xml、点表进宿主 Config），运行时扫描加载
 tools             冒烟测试（控制台程序，不是单元测试工程）、部署和编码脚本
 ```
 
-- 客户端和后端之间只有两条路：gRPC（protobuf-net code-first，契约在 xyz.Shared）和远程事件流（后端 `EventBus.Send` → 客户端 `EventBus.Register`）。
+- 客户端和后端之间只有两条路：gRPC（protobuf-net code-first，契约在 xyz.Shared）和远程事件流（后端 `RemoteEventBus.Send` → 客户端 `RemoteEventBus.Register`）。
+  进程内的通知用 `EventBus`，不出进程；两条总线互不相通、不转发（2026-10-27 用户定）。
   gRPC 请求一律 `RpcRequest`、回包一律 `RpcResponse`，不建请求类（2026-10-26 用户定）：参数按名字装在 `RpcRequest.Parameters`（JSON 对象）里，
   名字只写一份：`xyz.Shared.Rpc.RpcParams` 里的常量，客户端装、服务端取都用它，不在两头各写字符串（新参数名先加进去）。
   客户端 `RpcRequest.Of((RpcParams.Index, 1))`，服务端 `request.TryGet<int>(RpcParams.Index, out var index)`（统一写 `TryGet<类型>(名字, out var 变量)`，字符串、列表写 `out string x` 会报可能为 null）/
   `request.Get(RpcParams.Keyword, "")`；契约注释一句短话，不写参数（2026-10-26 用户改）。
   服务都继承 `BaseService`，回包用它的 `Fail` / `NotInstalled` / `Reply` / `ReplyData` / `InvalidRequest`，不在服务里各写私有的（见 backend.md §5「返回」）。
 - 设备树：machine.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树，按开机几个阶段走：
-  组件初始化（`InitComponent`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted`，退出倒着 `OnStopping`。组件自己的开机准备、收尾、推送
+  组件初始化（`InitComponent`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted`，退出先停扫描（等手上这一拍扫完）、再倒着 `OnStopping`。组件自己的开机准备、收尾、推送
   都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体组件，加组件不用改它们。
 - 设备动作 = `ModuleRoutine`（按顺序走的一串有名字的步骤，平台建动作、机型往里加步骤），在模块扫描线程里一步步推进；RPC 线程只发起和等待。
 
@@ -41,7 +42,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
 2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（模块动作 `ModuleRoutine` 挪到了组件层）、设备侧给 EAP 的接口
    （`Interfaces` 下的 ILoadPortAccess、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
-   组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapper`，平台规则写在 xyz.Modules 的 `MapperComponent.AddRules`，项目继承它重写 `AddRules` 加自己的），不在启动代码里搭桥。
+   组件在自己的扫描或钩子里 `RemoteEventBus.Send`，转 DTO 走映射组件（`IMapper`，平台规则写在 xyz.Modules 的 `MapperComponent.AddRules`，项目继承它重写 `AddRules` 加自己的），不在启动代码里搭桥。
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。
@@ -94,7 +95,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    }
    ```
 4. **不留魔法数**：装机、接线、结构性的进 machine.xml（`[Machine]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
-5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
+5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>`、`xyz.Tools` 的子目录只归类，例外）。
 6. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
 7. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。
    **字段不先接到局部变量再用**（用户 2026-10-27 定）：开机后不变的字段（构造、`InitComponent`、`Bind`、`Attach` 里赋值的，readonly 的）直接 `if (_x is null)`、`_x.Foo()`，

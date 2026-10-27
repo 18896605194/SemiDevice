@@ -73,7 +73,7 @@ public class LogViewModel : BaseViewModel, IDisposable
 
         // 后端实时日志经事件流到达 → 入队（不直接更新界面）
         _subscription?.Dispose();
-        _subscription = EventBus.Register<LogDto>(LogDto.EventToken, ClientLog.Enqueue);
+        _subscription = RemoteEventBus.Register<LogDto>(LogDto.EventToken, ClientLog.Enqueue);
 
         // 界面即消费者：在 UI 线程启动，await 恢复后自然回到 UI 线程，逐条取、逐条显示
         _consumeCts?.Cancel();
@@ -82,9 +82,9 @@ public class LogViewModel : BaseViewModel, IDisposable
         _consumer = ConsumeAsync(_consumeCts.Token);
 
         // 历史补发：连上后端时拉一次（晚连上也能看到之前的报错）
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        if (RemoteEventBus.IsConnected)
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
+        if (RemoteConnection.IsConnected)
         {
             OnConnectionChanged(true);
         }
@@ -210,7 +210,7 @@ public class LogViewModel : BaseViewModel, IDisposable
     {
         Interlocked.CompareExchange(ref _active, null, this);
 
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
 
         _consumeCts?.Cancel();
         _consumeCts?.Dispose();

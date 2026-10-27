@@ -16,6 +16,7 @@ using xyz.Tools;
 // 配方用到具体腔体时腔体照名字核对摆臂和药液、gRPC 服务的列表 / 字段表 / 错误码，腔体起工艺时配方要在库里、选的摆臂和药液这个腔体要有。
 // 不连设备，文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
+SmokeEvents.Loopback(); // 后端推给界面的消息投回本进程收
 SmokeIoc.Use<IMapper>(new MapperComponent()); // 服务转 DTO 走映射组件（开机必配）
 
 var checks = 0;
@@ -306,7 +307,7 @@ try
     // 3. 新建：空编号上建，名称去掉首尾空白；配方头填默认值（Type 取腔体的第一种 A、超时时间 600），先给一步（各字段的默认值），
     //    版本 1，记创建人；写成 001.xml，字段都写上（空的也写）。名称、编号不对的回错误码，不建、不发事件。
     var changed = new List<int>();
-    using var changedSubscription = EventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => changed.Add(dto.Index));
+    using var changedSubscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => changed.Add(dto.Index));
     var created = library.Create(1, "  SC1_60S ", "Tester");
     Check(created.IsSuccess && Data(created) is not null && Data(created)!.Name == "SC1_60S" && Data(created)!.Revision == 1
           && Data(created)!.CreatedBy == "Tester" && Data(created)!.ModifiedBy == "Tester", "新建：版本 1，记创建人");
@@ -442,7 +443,7 @@ try
 
         // 配方库开机 Bind 时接上晶圆尺寸：切了尺寸推一条编号 0 的变更（上限跟着尺寸变，配方页要重拉字段表）
         var sizePushes = new List<int>();
-        using var sizePushSubscription = EventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => sizePushes.Add(dto.Index));
+        using var sizePushSubscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => sizePushes.Add(dto.Index));
         var sizeLibrary = (RecipeComponent)SmokeIoc.Load([LibraryNode(SecondsNode())]).Single();
         SmokeIoc.Use<IRecipeComponent>(library);
         // 配方库开机 Bind 时取晶圆尺寸组件：装了晶圆尺寸以后重新 Bind

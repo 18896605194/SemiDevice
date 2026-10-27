@@ -20,7 +20,7 @@ public partial class ChamberManualControl : UserControl
     }
 
     /// <summary>
-    /// 模块实例名（如 "Chamber1"），与 EventBus token / gRPC 参数一致。
+    /// 模块实例名（如 "Chamber1"），与 RemoteEventBus token / gRPC 参数一致。
     /// </summary>
     public string ModuleName
     {

@@ -1,18 +1,20 @@
 ﻿# 后端
 
-路径相对 `xyz.Core`。.NET 10（`net10.0`），Nullable、ImplicitUsings 全开；`D:\Code\Directory.Build.props` 统一 win-x64、x64。
+路径相对 `xyz.Core`。.NET 10（`net10.0`），Nullable、ImplicitUsings 全开；仓库里没有 `Directory.Build.props`，各工程也没设 RuntimeIdentifier / PlatformTarget，输出在 `bin\<配置>\<框架>\`（路径里不带 RID）。
 
 ## 1. 工程和依赖方向
 
 ```
-Shared\xyz.Tools      EventBus、JsonHelper、XmlHelper、IocHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
+Shared\xyz.Tools      EventBus、RemoteEventBus、JsonHelper、XmlHelper、IocHelper、ExcelHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
+                      子目录只归类、命名空间都是 xyz.Tools：Events\（进程内 EventBus、跨进程 RemoteEventBus、信封 EventMessage、订阅凭据 Subscription）、
+                      Excel\（ExcelHelper 和它的列、表）；单个文件的帮助类留根目录
 Shared\xyz.Shared     契约：Services\I*Service、Dtos\、Errors\ErrorCodes、Rpc\（→ Tools）
 Service\xyz.Common    日志：LogHelper（后端记日志一律走它）、ILogSource（两层名字）、LogQueue、LogFileReader、NLog.config；
                       帮助类（根目录，命名空间 xyz.Common）：DateTimeHelper（本机时间 ↔ UTC 毫秒）、ValueHelper（数据类型、值的换算）
 Service\xyz.Configs   machine.xml（读 machine.xml）、配置模型、Paths.json（→ Common、Tools）；machine.xml 本身归机型（如 xyz.35021.Module\Config\machine.xml）
 Service\xyz.Database  SqlSugar：XyzDb、实体、分表
 Service\xyz.Drivers   纯协议/通讯（不引用 Components）
-Libs\xyz.Secs.dll     跟主机、厂里系统通讯的底层（不在本仓库：源码 D:\Secs\xyz.Secs，GitHub Secs，编 Release 自动拷来）：
+Libs\xyz.Secs.dll     跟主机、厂里系统通讯的底层（不在本仓库：源码是单独的 git 仓库 xyz.Secs（GitHub 18896605194/Secs），编 Release 自动拷来，见 machine-and-tools.md §1）：
                       SecsII / Hsms（SECS-II、HSMS）、Gem（HsmsLink 链路分发 + E30 / E39 / E40 / E87 / E90 / E94 / 配方 / Trace 的协议）、Eda（Interface A）
 Service\xyz.Components 组件 + 模块动作 ModuleRoutine + 设备侧给 EAP 的接口（→ Configs、Database、Drivers、Shared、Libs\xyz.Secs.dll；
                       引 DLL 时 NuGet 不知道它依赖谁，组件层照 xyz.Secs.csproj 自己列 ASP.NET Core 框架 + CoreWCF + WCF 客户端包，改版本两边一起改）
@@ -22,12 +24,12 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 ```
 
 - 组件层引用 xyz.Shared：错误码、EAP 接口用到的 DTO、组件自己推给界面的 DTO（2026-10-05 起；原来不引用）。**推送是组件自己的事**
-  （2026-10-18 起）：组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件，启动代码里不搭桥（见 §5「事件推送」）。
+  （2026-10-18 起）：组件在自己的扫描或钩子里 `RemoteEventBus.Send`，转 DTO 走映射组件，启动代码里不搭桥（见 §5「事件推送」）。
   组件层的内部成员只对 xyz.Modules 开放（`InternalsVisibleTo`）：模块基类要控制
   ModuleRoutine"什么时候算真正做完"（`DeferCompletion` / `NotifyCompletion`）；所以 xyz.Modules 里重写 `protected internal` 的成员
   （`OnSettingLoaded`）要写 `protected internal override`，机型工程照旧 `protected override`。
 - 平台不引用机型工程；机型 DLL 由 DeployToHost 拷到宿主 `Modules\<机型>\`，装配时按目录扫描。
-- 没有单元测试工程，测试是 `D:\Code\tools\*Smoke` 控制台程序（见 machine-and-tools.md）。
+- 没有单元测试工程，测试是仓库根目录 `tools\*Smoke` 控制台程序（见 machine-and-tools.md）。
 
 ## 2. 组件（`xyz.Components\ComponentBase.cs`）
 
@@ -50,8 +52,9 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   气缸 / 阀的 `Open()` / `Close()` 是开合动作，不是生命周期。
 - 开机后面几个阶段（2026-10-18 起，组件自己的事都挂在这儿，启动代码不点名）：`Bind()`（组件初始化都做完、开始扫描之前，整棵树按 machine.xml 先后
   先父后子挨个调；按接口找别的组件、认装起来的模块、订阅、开机恢复，如晶圆账恢复、配方库认腔体、EAP 接各标准）→ 开始扫描 →
-  `OnStarted()`（都在扫了以后，如 EAP 开链路）→ 宿主退出时 `OnStopping()`（倒着来，一个出错记日志、不耽误后面的；EAP 断链路、数据曲线落库、
-  断 PLC、晶圆账最后存一次）。都是 `ComponentBase` 的空虚方法，要用就重写。
+  `OnStarted()`（都在扫了以后，如 EAP 开链路）→ 宿主退出时先停扫描（`StopScan`：等手上这一拍扫完，最多等 2 秒）、再 `OnStopping()`
+  （倒着来，一个出错记日志、不耽误后面的；EAP 断链路、数据曲线落库、断 PLC、晶圆账最后存一次——这时扫描已经停了，不会跟扫描撞）。
+  都是 `ComponentBase` 的空虚方法，要用就重写。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[Machine] 灌完值后调，配置不对就抛异常（开机直接报出来）。
 - **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的）：装配器照 machine.xml 树把每个组件按它实现的 xyz 接口
   （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
@@ -122,7 +125,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - `Components\` 下按类别分 System / Plc（PLC：抽象底座 `PlcComponent` 只管连接、重连、掉线报警，品牌子类 `BeckhoffPlcComponent`（ADS，`IPlcIo` + `IPlcBlock`）、`OpcUaPlcComponent`（OPC UA，只 `IPlcIo`）管读什么、对外给哪个接口，见 decisions.md「PLC 底座只留连接、OPC UA PLC」；IO（`IIo.WriteDo` / `WriteAo` 回 `HandleResult` 带原因，联锁、AO 超标定范围都在 IO 组件里拦，谁写都一样，见 decisions.md「IO 写入带原因」）、心跳 `HeartbeatComponent`：按 machine.xml 的时间轮流写一个 DO，见 decisions.md「心跳」；虚拟 IO `VirtualIoComponent`：下面挂虚拟 DO，程序按点号读写，见 decisions.md「虚拟 IO」）/ Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（设备通道：串口 `SerialDriverComponent`、网口 `TcpDriverComponent`，共用基类 `CommDriverComponent`；读头底座 `RfidReaderComponent`、重连 `DriverReconnector`；品牌在机型工程）/ Charts / Eap / Eda（Interface A，见 §4「EDA」）/ Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
   Maintenance（部件寿命：次数型 `CountLifetimeComponent` 挂在部件下面盯 DO 计次、时间型 `TimeLifetimeComponent` 默认从清零起按实际时间算，配了计时 DO 只算它通着的、配了清零 DO 它一变就清零重算，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」），
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
-- 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
+- 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的辅助类单独成文件、跟着组件放在同一目录（不嵌在别的类里，见 decisions.md「不写内部类」）。不建按领域分的顶层目录。
 - 模块动作 `ModuleRoutine` 和步骤（`RoutineStep`、平台给的几种步骤、等待扩展 `Wait`）在 `Components\Routines`（命名空间 `xyz.Components.Components`），
   `RoutineState` 在 `Enums`、`DeviceOrder` 在 `Models`——2026-10-05 从模块层挪下来（当时叫 ModuleOperation），好让设备侧接口放进组件层。
 - `Interfaces` 下有组件自己的（PLC 分点位 `IPlcIo`（IO 组件用）和数据块 `IPlcBlock`（轴用），由品牌子类自己声明支持哪个；2026-10-18 起每个单例组件都有接口：`IAlarm`、`IEc`、`IMapper`、
@@ -130,7 +133,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `ILoadPortAccess`、`ITransferRobot` 继承它；`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
   还有设备侧给 EAP 的命令接口和上报口：`ILoadPortAccess`（LoadPort 给 EAP 用的那一面，完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 在模块层）、`ICarrier`（经 `ILoadPortAccess._carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，读头底座 `RfidReaderComponent` 实现，品牌读头类在机型工程）、`IE87Callback`、`IE84Callback`、
   `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `LedgerManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
-  Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）和载具快照 `CarrierInfo` 在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
+  载具快照 `CarrierInfo` 在 `Models`（建 CJ / PJ 的方法直接收参数，没有请求类，见 §3 Job）；命令结果用 xyz.Shared 的 `HandleResult`
   （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
   实现还在模块层（`BaseLoadPortModule`、`CarrierComponent`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
 
@@ -291,7 +294,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   - 取放准备二 `AddPrepareTransferSteps`（`PrepareTransfer2`，动作名 `ChamberAction.PrepareTransfer2`，上限 EC `DeviceActionTimeout`）：卡盘 `MoveTo` 卡盘 EC `TransferPosition`（取放片示教位）、
     开门，同时发、都到位才进 TransferReady；卡盘先发，没回零（绝对定位要求已回零）就失败、门不开、腔体落 Error。卡盘、门都没配的直接准备好。
   - 复位：轴的驱动器复位在组件基类 `Reset` 递归时就发了，`AddResetSteps` 只等每根轴做完；中止：轴停止同理在组件 `Abort` 里发了，`AddAbortSteps` 把喷嘴全停液（气缸、阀的中止输出保持原样）再等轴停下。
-  - 工艺 `ChamberProcessRoutine`（`Clean\Routines`，上限是配方头的超时时间 `ProcessRecipeData.TimeoutMilliseconds`，腔体 EC 没有工艺超时了；请求里没带配方快照的 `CheckProcess` 就挡下 `chamber.recipe_steps_missing`）：喷嘴全关、Lift 升、Bowl 升 → 每一步：先关掉这一步不用的喷嘴（卡盘加减速时不让上一步的药液接着喷）→ 转速给卡盘（0 停转、跟上一步一样不重发）→
+  - 工艺 `ChamberProcessRoutine`（`Clean\Routines`，上限是配方头的超时时间 `RecipeData.TimeoutMilliseconds`，腔体 EC 没有工艺超时了；请求里没带配方快照的 `CheckProcess` 就挡下 `chamber.recipe_steps_missing`）：喷嘴全关、Lift 升、Bowl 升 → 每一步：先关掉这一步不用的喷嘴（卡盘加减速时不让上一步的药液接着喷）→ 转速给卡盘（0 停转、跟上一步一样不重发）→
     别的摆臂回 Home（轴 0 位）、这一步的摆臂摆到"位置"（晶圆坐标，`SwingArmComponent.ToAxisPosition` 按示教 Edge / Center 换）→ 有流量设定 AO 的先给流量再开药液对得上的喷嘴 →
     Time 停着喷 / Scan 在位置和"到"之间按"速度"（轴的设计速度，原样当 MoveTo 速度，不按示教换算）来回扫，到点进下一步（扫到一半当场停轴）→ 收尾停液、摆臂回 Home、停转、Bowl 降。
     认的字段名：`Seconds`、`Rpm`、`Arm`、`Chemical`、`Flow`、`Mode`（Time / Scan）、`Position`、`ScanTo`、`ScanSpeed`，字段表里没配、这一步没填的跳过。
@@ -308,11 +311,11 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   气缸 `TwoStateComponent.Position` 三态（命令发到哪侧看哪侧到没到位，没到 = Unknown；两个线圈都没通时只看到位反馈）。
   摆臂 `SwingArmComponent.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
   示教位：边缘 `Edge8` / `Edge12` = 配方 0（第一个边缘）、`Center` = 配方里的晶圆中心（8 寸 100、12 寸 150）的实际轴位置，默认 50 / 0 / 150，
-  按 `WaferSizeComponent.CurrentSize` 取那一套（`Edge` 是当前尺寸的边缘）；旋转电机在不在转用轴的 `IsBusy`（PLC 报忙，`ISpinMotor` 不另加）。
+  按整机尺寸（摆臂取一次存的 `IWaferSize`，`WaferSizeComponent.SizeOf(...)`）取那一套（`Edge` 是当前尺寸的边缘）；旋转电机在不在转用轴的 `IsBusy`（PLC 报忙，`ISpinMotor` 不另加）。
   轴手动页参数默认值 EC：`MoveSpeed`、`JogSpeed`（点动 / 步进速度）、`JogStep`（步距）。
   轴的"目标已在到位容差里就不发"只用于绝对定位（MoveTo）；相对移动（MoveBy，步进）照发——步距默认 1 跟到位容差默认 1 一样大，
   以前会被当成已经到位、根本不走（2026-10-04 联调时发现）。联锁还没做。
-- 状态推送：`PublishState()` 里 `EventBus.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
+- 状态推送：`PublishState()` 里 `RemoteEventBus.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
   能放片的模块在推送里带上晶圆账（`LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name)`，腔体是 `Slots`），并在 HasStateChanged 里比较——
   账一变下一拍就推给所有界面，不另发通知；界面画片以账为准（见 decisions.md）。
 - 流程配方库 `Recipe\SequenceComponent`（machine.xml `Sequence` 节点，参数：`Capacity` 99 个编号、`Folder` `Recipe\Sequence`、`NameMaxLength` 32）：
@@ -325,25 +328,26 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - 工艺配方库 `Recipe\RecipeComponent`（machine.xml `ProcessRecipe` 节点，参数：`Capacity` 99、`Folder` `Recipe\Process`、`NameMaxLength` 32）：
   编号、文件、版本号、`Changed(编号)` 跟流程配方库一样。一份配方 = **配方头 + 步骤，两部分有哪些项都不写死**，按本节点下两张字段表：
   `Head`（配方头，一个子节点一项）、`Fields`（步骤，一个子节点一个字段 = 配方页一列），节点名就是字段名；值：`Text` / `TextEn` 名字、`Type` Int / Double / Choice / Bool / Text、
-  `Unit`、`Min` / `Max`、`Decimals`、`Default`、`Required`、下拉的选项。`OnSettingLoaded` 里读（`ProcessRecipeField.FromConfig`），配错就抛（字段名格式、重复、
-  步骤必须有 `Seconds` 且是 Double、配方头固定的 10 项（`ProcessRecipeHead.Fixed`）都要有且类型对、上下限、默认值、下拉没写选项……）。
-  配方头：编号、名称、创建 / 修改记录、版本程序算（`ProcessRecipeHead.IsAuto`）；`Type`、`Timeout`（超时时间 s）、`Description` 是 `ProcessRecipeData` 根上的属性，
-  自己加的项在 `<Head …/>` 上（`ProcessRecipeData.Head`）。`Type` 的选项是能做工艺的站点（`IProcessStation`）配的几种 Type（`BaseModule.Type`，machine.xml 参数，`Bind(modules)` 时收集，`StationTypes`）。
-  步骤下拉的选项按腔体 Type 分开写：`Source.A`（腔体没配 Type 的写 `Source`），`ProcessRecipeField.OptionsFor(type)`，按配方头的 Type 取；
+  `Unit`、`Min` / `Max`、`Decimals`、`Default`、`Required`、下拉的选项。`OnSettingLoaded` 里读（`RecipeField.FromConfig`），配错就抛（字段名格式、重复、
+  步骤必须有 `Seconds` 且是 Double、配方头固定的 10 项（`RecipeHead.Fixed`）都要有且类型对、上下限、默认值、下拉没写选项……）。
+  配方头：编号、名称、创建 / 修改记录、版本程序算（`RecipeHead.IsAuto`）；`Type`、`Timeout`（超时时间 s）、`Description` 是 `RecipeData` 根上的属性，
+  自己加的项在 `<Head …/>` 上（`RecipeData.Head`）。`Type` 的选项是能做工艺的站点（`IProcessStation`）配的几种 Type（`BaseModule.Type`，machine.xml 参数，`Bind(modules)` 时收集，`StationTypes`）。
+  步骤下拉的选项按腔体 Type 分开写：`Source.A`（腔体没配 Type 的写 `Source`），`RecipeField.OptionsFor(type)`，按配方头的 Type 取；
   `Bind` 时查每种 Type 都写了、默认值在里面（配错开机就抛），老配方没写 Type 的补第一种，没写超时时间的读文件时补默认值。
   配方对不对得上具体腔体由腔体自己查：`IProcessStation.FindRecipeMismatch(配方)`（`BaseChamberModule` 实现：先比 Type，再跟执行共用
   `ChamberProcessRoutine.FindDevices` 照名字找 `Arm`、`Chemical`）——流程配方保存经 `RecipeComponent.FindMismatch(配方名, 腔体名)`
   （`sequence.recipe_option_missing`），Job 挑腔体（`TaskComponent`），腔体起工艺（`chamber.recipe_option_missing`）。检查按字段表（步骤用 `process_recipe.value_*`、
   配方头用 `process_recipe.head_value_*` 两组通用错误码，字段名按 System 语言取中文名或英文名），字段之间不互相管；合计时长（`Seconds` 加起来）不超过配方头的超时时间。
-  至少 1 步，新建时配方头填默认值（Type 取第一种）、带一步默认值。保存 `Save(编号, 版本, 内容, 操作人)`，内容就是一份 `ProcessRecipeData`（只看配方头能填的项和步骤）。
+  至少 1 步，新建时配方头填默认值（Type 取第一种）、带一步默认值。保存 `Save(编号, 版本, 内容, 操作人)`，内容就是一份 `RecipeData`（只看配方头能填的项和步骤）。
   文件：一步一个 `Step`，每个字段写成一个属性（`XmlAnyAttribute`），**字段表里的字段都写、空的也写**——读的时候没有这个属性就是字段表后来加的，
   按默认值补；字段表里没有的属性先留着、下次保存丢掉。存之前规整写法（整数、小数去多余写法，开关小写，下拉按选项的大小写）。
   按名字被引用：流程配方查配方在不在库里（`sequence.recipe_not_found`），腔体起工艺查（`chamber.recipe_not_found`）；库没装都不查。
   锁的先后：`SequenceComponent` 锁里可以调 `RecipeComponent.Contains` / `FindMismatch`，反过来不行。服务 `IProcessRecipeService`（`xyz.Service\Recipes`），
   `GetOptionsAsync` 给两张字段表（配方头标出程序算的、Type 带腔体配的几种；步骤带按 Type 分开的下拉选项）。两个库的 `Find(名字)` 给的是克隆（配方快照，库里再改不影响）。
-  **Host 远程管配方**：流程配方库实现 `Interfaces\ISequenceComponent`：`SequenceNames`、`ExportSequence`、`AcceptsSequence`、`ImportSequence`、`DeleteSequence`；
-  工艺配方库实现 `Interfaces\IProcessRecipeComponent`：`ProcessRecipeNames`、`ExportProcessRecipe`、`AcceptsProcessRecipe`、`ImportProcessRecipe`、`DeleteProcessRecipe`。
-  导出按名字取库里的副本转 JSON（工艺配方步骤是字段名 → 值，`ProcessRecipeStep.Attributes` 是存 XML 用的、JSON 里不带）；导入按名字新建或覆盖配方头能填的项和步骤（没带 Type 的不收，没带超时时间的补默认值），
+  **Host 远程管配方**：流程配方库实现 `Interfaces\ISequenceLibrary`：`SequenceNames`、`GetSequenceData`（导出）、`AcceptsSequence`、`ImportSequence`、`DeleteSequence`、`E30Callback`；
+  工艺配方库实现 `Interfaces\IRecipeLibrary`：`RecipeNames`、`GetRecipe`（导出）、`AcceptsRecipe`、`ImportRecipe`、`DeleteRecipe`、`E30Callback`。
+  模块层的 `ISequenceComponent` / `IRecipeComponent`（`xyz.Modules\Recipe`，服务和腔体用）各自继承这两个。
+  导出按名字取库里的副本转 JSON（工艺配方步骤是字段名 → 值，`RecipeStep.Attributes` 是存 XML 用的、JSON 里不带）；导入按名字新建或覆盖配方头能填的项和步骤（没带 Type 的不收，没带超时时间的补默认值），
   检查、规整跟本地一样，JSON 里的编号 / 版本 / 人和时间不管；满了 `*.full`、读不出来 `*.body_invalid`，删除时没有名字回 `*.name_not_found`。
   两个 `Accepts` 方法只看 JSON 的样子，Host 下新名字时分库用。
   上报口 `E30Callback`（`IE30Callback`）：分别调用 `SequenceChanged` / `ProcessRecipeChanged`；建、改、删、改名（旧名删 + 新名建）都在 `Report` 里经 `EapNotifierComponent` 报。
@@ -465,7 +469,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   启动方式由 Job 节点的 machine.xml `ProcessJobAutoStart`（默认 True）和 `ControlJobAutoStart`（默认 False）决定：True 准备好直接开始，False 等待对应的 Start 命令。
   E40 建 PJ 报文的 PRPROCESSSTART、E94 建 CJ 的 StartMethod 只校验格式、不覆盖 machine.xml；查询、上报和历史记录中的 AutoStart 反映设备配置。
   CJ / PJ 不保存 CarrierInstance，CJ 完成后检测到来源 LoadPort 的 Carrier.IsArrived=False 才删除；载具仍在位时保留结果。
-  载具能不能分给 Job 由 `BaseLoadPortModule.CanAssignCarrierToJob` 判断（模块启用、载具到位、IsLoaded（正被机械手取放也算），接了 EAP 时槽图被 Host 认定；只管排活，机械手能不能进站看 `CanPrepare`）；Job 创建、定片、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
+  载具能不能分给 Job 由 `BaseLoadPortModule.CanUseCarrierForJob`（`IJobAccess` 上）判断（模块启用、载具到位、IsLoaded（正被机械手取放也算），接了 EAP 时槽图被 Host 认定；只管排活，机械手能不能进站看 `ITransferStation.CanPrepareTransfer`）；Job 创建、定片、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
   **料没到先建 PJ**：Host 按载具号建（不给 loadPort）时载具不在口上或还不能取片，PJ 照样建、排队，只记载具号和要的槽号（`ProcessJob.Slots`，空 = 料到了取全部有片的槽），
   任务行空着（`IsWaitingForMaterial`）；扫描每拍先定片（`AssignWaitingProcessJobs` → `AssignWafers`，跟当场建同一段检查），定好挂任务表、`IPjManager.RegisterWafers` 登记片归属、
   给 CJ 填口；定不了报 `MaterialUnusableAlarm`、日志写原因、PJ 留在排队。CJ 收没定片的 PJ 时口空着、按载具号查重（`job.carrier_busy`），要下面的 PJ 都定了片才转执行。
@@ -485,7 +489,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   实体 `ControlJobEntity` / `ProcessJobEntity` 继承 `BaseEntity`：自增行号、CreatedTime = 建的时刻、UpdatedTime = 最后写的时刻；PJ 行记着 CJ 的行号 `ControlJobRowId`，
   每片的任务明细是 `JobWaferDto` 列表的 JSON 放在 `Wafers` 列）。发布时全貌变了才把里面的 CJ、PJ 交给 Job 管理里的一条写库线程（同一个 Job 只写最新一份；
   第一次插一行、行号记在 `ControlJob.RowId` / `ProcessJob.RowId` 上，之后按行号更新），删掉的 CJ、结束的 PJ 在转换那里单独交最后一次。
-  内存里不留历史、全貌里没有历史，界面看历史查库：`IJobService.QueryHistoryAsync(JobHistoryQuery)`（按 CJ 建的时刻、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前，
+  内存里不留历史、全貌里没有历史，界面看历史查库：`IJobService.QueryHistoryAsync`（`RpcParams.Start` / `End` / `Keyword`；按 CJ 建的时刻、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前，
   最多 machine.xml `HistoryQueryMaxCount` 个、多取一个判截断，回 `HistoryResult<ControlJobHistoryDto>`，带行号）、`GetHistoryProcessJobsAsync`（Parameters["ControlJob"] = CJ 行号，
   按 `ControlJobRowId` 取 PJ 转回 `ProcessJobDto`，任务明细 JSON 在映射组件里转回；行号不是数回 `job.not_found`）；服务从 `IJobManager.Database` 读库，表还没建回空的，读库出错回 `history.query_failed`。`Bind` 时 `CloseOutLastRun`：**重启后 Job 不接着跑**——
   库里还没删的 CJ 记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true；完成了还没删的只补 #13），没结束的 PJ 记成中止（#16），
@@ -580,9 +584,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   Host 定的报告、开关、缓存范围存 `gem_config`（一行 JSON），缓存报文存 `gem_spool`（machine.xml `Database` 指的库）。
 - **E39**：各标准的引擎把对象类型登记进 `E39Engine`（`IE39ObjectType`：类型名、属性名先后 = 属性号、对象 ID、取属性；建、删、改可选）——
   Substrate、SubstLoc（E90）、ProcessJob（E40）、ControlJob（E94，S14F9 建 CJ 走它）。查要 ON-LINE，改 / 建 / 删要 REMOTE。
-- **Recipe**（E30 的工艺程序管理；S7 报文在 xyz.Secs `E30RecipeEngine`，`Eap\Recipe\E30RecipeComponent` 实现 `IGemRecipes`：两个库怎么找、怎么认、怎么存删）：分别挂到 `ISequenceComponent`、`IProcessRecipeComponent`，上报口是 `IE30Callback`。
+- **Recipe**（E30 的工艺程序管理；S7 报文在 xyz.Secs `E30RecipeEngine`，`Eap\Recipe\E30RecipeComponent` 实现 `IGemRecipes`：两个库怎么找、怎么认、怎么存删）：分别挂到 `ISequenceLibrary`、`IRecipeLibrary`（`Interfaces` 下，两个库给 EAP 的那一面），上报口是 `IE30Callback`。
   **配方号就是配方名**（不加前缀，用户定的；两个库的名字不会重），按名字到两个库里找（流程配方库先）；Host 下一个两个库都没有的新名字，
-  看 JSON 的样子由库自己认（`AcceptsSequence` / `AcceptsProcessRecipe`：流程配方每步带 group、工艺配方每步带 values，`Recipe\JsonSteps.AllHave`）。
+  看 JSON 的样子由库自己认（`AcceptsSequence` / `AcceptsRecipe`：流程配方每步带 group、工艺配方每步带 values，`Recipe\JsonSteps.AllHave`）。
   S7F1 → PPGNT（0 可以、5 不在 REMOTE）；S7F3 下配方（PPBODY 收 A / B 的 JSON）→ ACKC7（0、1 不让：不在 REMOTE、新名字看不出是哪种、库没过检查，原因记日志）；
   S7F5 → S7F6 PPBODY 用 B（UTF-8），没有回空表；S7F17 删（空表 = 全删；有一个没有就都不删回 4）；S7F19 列（流程配方在前）。下、删要 REMOTE。
   配方变了报 `ProcessProgramChange`（DV `PPChangeName` = 配方名、`PPChangeStatus` 1 建 / 2 改 / 3 删；本地和 Host 改的都报）。
@@ -704,11 +708,15 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （`DataChartService.Next`），读库放 `Task.Run`；客户端取消时 `context.CancellationToken` 停。
 
 ### 事件推送
-- `EventBus.Send(dto, token, retain)`：
+- 两条总线（2026-10-27 用户定，互不相通、不转发）：推给界面用跨进程的 `RemoteEventBus`；后端组件之间要通知用进程内的 `EventBus`
+  （同步、在发送方线程上调、传原对象、没有黑板），它发的不出进程。想知道别的组件现在的状态按接口问它，不靠黑板。
+- 线：后端 `xyz.Service\Events\EventService`（客户端连上先发开流标记，再重放黑板，之后转发每条新发的）、客户端 `RemoteConnection`（client.md §4）；
+  黑板两头各一块：后端给刚连上的客户端重放，客户端给后订阅的页面补发。客户端不往后端发事件，命令走 gRPC。信封 `EventMessage` 只在这条线上用，业务代码不碰。
+- `RemoteEventBus.Send(dto, token, retain)`：
   - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"SystemState"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的设备状态推送 `ChamberDeviceDataDto`）也用模块名，类型不同互不覆盖；
     不是模块的部件跟着它上面的模块推（供液槽的 `TankDto` 装在机型 IPA 模块的 `IpaDto` 里一起推，token 是模块名，留存，变了才推）；
-  - "发生了一件事"类用 `retain: false`。
+  - "发生了一件事"类用 `retain: false`（不写黑板，同一格的旧状态擦掉）。
 - **推送是组件自己的事**（2026-10-18 起，启动代码里不搭桥、没有 `*Publisher`）：值一变的在变的地方发（EC 组件 `EcItemDto`、报警组件 `AlarmDto`、
   晶圆账 `WaferLedgerChangedDto`、两个配方库的变更 DTO、日志组件每条日志 `LogDto`，切晶圆尺寸时工艺配方库推一条编号 0 的）；每拍比、变了才推的在自己的 `OnScan` 里发
   （模块状态、整机的设备总状态、IPA）；按周期推的也在自己的 `OnScan` 里看时间（IO 整包按 EC `PublishIntervalMs`，实时曲线把数据曲线采到的行一帧一帧推）——
@@ -729,7 +737,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （`TransferManager.TryGetStation` 拿到的站点按接口认：`ILoadPort` / `IChamber` / 别的），表没绑好或不在表里算 Other；变了算状态变化。
 - 设备总状态 `EquipmentStatusDto`（四色灯红黄绿 + `WaferSize` = 晶圆尺寸组件现在的尺寸，没配是 12）：整机模块 `CreateEquipmentStatus()` 算一次；
   整机每拍算，变了才点亮下面挂的四色灯（`ILight`）、推给顶栏（token "EquipmentStatus"，留存）。
-  **系统状态、模式不在这里**（三色灯是三色灯，系统状态是整机自己的状态机），看下面「整机」。切晶圆尺寸 `IEquipmentService.SetWaferSizeAsync`（参数 `IEquipmentService.WaferSizeKey`）：
+  **系统状态、模式不在这里**（三色灯是三色灯，系统状态是整机自己的状态机），看下面「整机」。切晶圆尺寸 `IEquipmentService.SetWaferSizeAsync`（参数 `RpcParams.Size`）：
   整机和启用的模块都是未初始化（整机不算模块，单独查）、LoadPort 以外没片才切，切了写回 machine.xml（见 decisions.md「晶圆尺寸 8 / 12 寸」）。
 - **整机** `System\SystemModule`（machine.xml 顶层 `System` 节点，必配、开机就查；`BaseStateComponent`、不算模块（不实现 `IModule`，`ISystemModule` 自己声明 Name / State / Abort），在根上自己一条扫描线程；下面挂 `WaferSize` 和四色灯；
   machine.xml `Language`；单例按 `ISystemModule` 找）：
@@ -758,7 +766,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   回答语言跟界面（服务传整机的 `Language`，en 开头用英文，别的用中文）。EC `MaxOutputTokens`（发出去是 `max_completion_tokens`，有的本地服务不认）、`Temperature`。
   回答 `AiAnswer`：正文（去前后空白）、模型、带了几条日志、哪些信号、用时。每次结果记一条 Info 日志（只进文件，界面自己报）。
 - 错误码：`ai.not_installed`、`ai.alarm_not_found` [来源, 报警码]（报警已不在当前报警里，不问模型）、`ai.timeout` [ms]、`ai.failed` [原因]、`ai.empty_answer`。
-- **服务** `IAiService`（`xyz.Service\Ai\AiService`）：`GetStatusAsync`（配了回 `AiStatusDto`（模型名），没配 `ai.not_installed`）、`ExplainAlarmAsync(AiAlarmRequest)`（回 `AiAnswerDto`）。
+- **服务** `IAiService`（`xyz.Service\Ai\AiService`）：`GetStatusAsync`（配了回 `AiStatusDto`（模型名），没配 `ai.not_installed`）、`ExplainAlarmAsync`（`RpcParams.Source` 报警来源、`RpcParams.Code` 报警码；回 `AiAnswerDto`）。
   客户端：实时报警页上面一条 AI 工具栏，连上后端问一次 `GetStatusAsync`，配了才显示；选中一条报警点"AI 分析"，等的时候按钮点不了，结果用公共确认弹窗显示（下面列参考了几条日志、几个信号、模型、用时，"仅供参考"）。
 
 ### 账号：登录、用户、角色（2026-10-21，见 decisions.md「登录和菜单权限」）
@@ -785,7 +793,7 @@ GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开�
 **开始扫描** `StartScanning`（machine.xml 里配了 `IsRun=true` 的根各起一条扫描线程——整机、PLC、IO、Safety、Computer、DataChart、RealChart、各模块、Dispatch；
 挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）。
 开完机宿主才从容器里的 `Rpc` 组件取地址端口（`app.Urls`，默认 localhost:5000，只走 HTTP/2）、映射 gRPC 服务、开始监听；
-退出时 `ServiceExtensions.StopComponents()`（`StopAll`，倒着 `OnStopping`）。
+退出时 `ServiceExtensions.StopComponents()`（`StopAll`：先停各根组件的扫描、等手上这一拍扫完，再倒着 `OnStopping`；之后宿主才释放容器）。
 新组件要连接、登记的写在自己的 `InitComponent`；要认别的组件、订阅、开机恢复的写在 `Bind`；要等都扫起来的写在 `OnStarted`；退出收尾写在 `OnStopping`；
 要自己扫描、自己推的根组件在 machine.xml 里配 `IsRun=true`——都不用改启动代码。根组件之间有先后的配 machine.xml 的 `InitOrder`（读点表的排在 IO 之后，用 PLC 的排在 PLC 之后）。
 
@@ -838,7 +846,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   IO 点表 `Config\IO\*.csv` 来自机型工程。
 - 节点顺序：System → Rpc → EC → Database → Alarm → Log → LedgerManager → Account → Plc → Io → Safety → Monitor（分组）→ Computer → DataChart → RealChart →
   LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Eap（Hsms、E30、E39、E87、E90、E40、E94）→ Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 machine.xml。
-- 外部工具 ToolBuilder（`D:\tools\ToolBuilder`，工程 ToolBuilder / ToolBuilder.Core / ToolBuilder.Smoke；源码不在本仓库）
+- 外部工具 ToolBuilder（工程 ToolBuilder / ToolBuilder.Core / ToolBuilder.Smoke；源码不在本仓库，各人放在哪不一定）
   按 `[Component]` / `[Machine]` 编辑 machine.xml，备份到 `Config\backup\`（已 gitignore）；工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）
   有专门的表格页；机械手示教点按普通组件编辑（2026-10-24 删了它手写的站点页、站点参数表和站点校验，参数全从示教点组件的 [Machine] 来）。
   改了 ToolBuilder 要跑它的 build.ps1 发布到 app-v2。
@@ -853,15 +861,15 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   一行：`【时间】 【级别】 【模块】 【部件】 内容`（没有部件那一格不写；改之前的旧文件照样认）。
 - **文件两种**（`Log\` 下，一天一个、超 100 MB 拆）：主日志 `xyz-日期.log`（运行、操作、动作指令收发原文）、轮询文件 `poll-日期.log`（状态轮询的一问一答，量大，日志历史页不查，只在机台上开文件看）。
   收发原文的级别那一格写方向（`LogHelper.Sent` 发 / `Received` 收）：`LogHelper.Comm`（主日志）、`LogHelper.InfoLoop`（轮询文件）。
-- **操作日志**（谁点了什么）：`xyz.GrpcHost\ActionFilter`（gRPC 服务端拦截器，在 `AddCodeFirstGrpc` 里挂，只做 gRPC 这一层）把方法名、来路、请求头的操作人交给 `xyz.Service\IActionFilterLog`
-  （实现 `ActionFilterLog`，`AddXyzServices` 注册成单例、构造注入给 `ActionFilter`；记不记、怎么记都在它里面，冒烟经接口测它）：每个调用进来记一条（`操作人@IP 服务.方法 参数JSON`）、回包记一条（成功 / 失败 错误码 [参数] / 出错，带用时），
+- **操作日志**（谁点了什么）：`xyz.GrpcHost\ActionFilter`（gRPC 服务端拦截器，在 `AddCodeFirstGrpc` 里挂，只做 gRPC 这一层）把方法名、来路、请求头的操作人交给 `xyz.Service\IActionFilter`
+  （实现是 `xyz.Service\ActionFilter`，跟宿主的拦截器同名；`AddXyzServices` 注册成单例、构造注入给宿主的 `ActionFilter`；记不记、怎么记都在它里面，冒烟经接口测它）：每个调用进来记一条（`操作人@IP 服务.方法 参数JSON`）、回包记一条（成功 / 失败 错误码 [参数] / 出错，带用时），
   第一层 `Operation`、只进主日志不推顶栏（`LogHelper.Operation`）。不记：`Get` / `Query` 开头的、`Subscribe` / `Publish`；参数原样记（密码也不打码，2026-10-26 用户定）、中文原样（`JsonHelper.ToLogText`）。
   操作人是客户端每次调用带的请求头 `xyz-user-bin`（`RpcHeaders.Operator`，UTF-8），服务里要"谁"的（账单调整、两个配方库、建 Job）也从这儿取：`RpcOperator.Of(context)`，没带记 `Unknown`；请求 DTO 上不再有 `Operator`。
 - Warn 以上的运行日志进 `LogQueue`，由日志组件（`LogComponent`，machine.xml 的 Log 节点）在它的 `Bind` 里接上：留最近 `RecentLogCount` 条（客户端连上补拉），每条推给客户端顶栏；接上之前的日志都在队列里攒着（最多 2000 条），不会丢。操作日志、收发原文不进队列。
 - **保留天数**：日志组件 machine.xml `KeepDays`（默认 30，0 = 不删），`Bind` 时 `LogHelper.SetKeepDays` 设到 NLog 各文件目标的 `MaxArchiveDays` 并把配置重新挂一遍（NLog 只在打开文件时按天数清，不重挂要等换天）；主日志、轮询文件、客户端日志（经 `LogSettingsDto.KeepDays`）共用。
 - **NLog**（`xyz.Common\Log\NLog.config`）：`async="true"`（调用线程只放进队列，设备线程不碰磁盘；队列满了丢弃，不让设备线程等）、`autoReload="false"`（热加载会冲掉代码设的天数）、不写控制台；
   宿主正常退出 / 启动失败 `LogHelper.Shutdown()`、未处理异常里 `LogHelper.Flush` 等几秒，不然崩溃原因还在队列里进程就没了。
-- **日志历史页的模块下拉**：日志组件 `Bind` 时从组件树（容器里的 `IReadOnlyList<ComponentBase>`）取最顶上那层（停用的不算）按先后，再加 `Operation`、`Host`，经 `LogSettingsDto.Modules` 给客户端；查询 `LogHistoryQuery.Module` 按第一层完全相同筛。
+- **日志历史页的模块下拉**：日志组件 `Bind` 时从组件树（容器里的 `IReadOnlyList<ComponentBase>`）取最顶上那层（停用的不算）按先后，再加 `Operation`、`Host`，经 `LogSettingsDto.Modules` 给客户端；查询参数 `RpcParams.Module` 按第一层完全相同筛。
 - 写法：中文、说清楚是什么、为什么、接下来会怎样（如"人工调整记录写库失败（账已经改了）"）。
 
 ## 10. 线程和错误处理

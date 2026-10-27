@@ -77,7 +77,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
 
     private static void NotifyLedger(string module)
     {
-        EventBus.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken, retain: false);
+        RemoteEventBus.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken, retain: false);
     }
 
     #region EAP 口子（E90 片跟踪）

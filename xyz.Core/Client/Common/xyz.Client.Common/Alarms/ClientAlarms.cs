@@ -32,7 +32,7 @@ public static class ClientAlarms
     public static event Action? Changed;
 
     /// <summary>
-    /// App 启动时（RemoteEventBus.Initialize 之后）调一次。
+    /// App 启动时（RemoteConnection.Initialize 之后）调一次。
     /// </summary>
     public static void Initialize()
     {
@@ -41,9 +41,9 @@ public static class ClientAlarms
             return;
         }
 
-        _subscription = EventBus.Register<AlarmDto>(AlarmDto.EventToken, OnAlarmChanged);
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        if (RemoteEventBus.IsConnected)
+        _subscription = RemoteEventBus.Register<AlarmDto>(AlarmDto.EventToken, OnAlarmChanged);
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
+        if (RemoteConnection.IsConnected)
         {
             OnConnectionChanged(true);
         }

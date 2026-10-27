@@ -3,7 +3,7 @@
 
 public class RobotDto
 {
-    /// <summary>模块实例名，与 EventBus token 一致，如 "Robot1"。</summary>
+    /// <summary>模块实例名，与 RemoteEventBus token 一致，如 "Robot1"。</summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>模块状态码，取值见 ModuleState/RobotState。</summary>

@@ -13,7 +13,7 @@ In-process checks (no host, no hardware):
 - `LogQueue.MinLevel` drops lower levels before they reach the queue;
 - `LogHelper` enqueues through the same path;
 - the client queue is consumed by `LogViewModel` (UI is the consumer, no polling);
-- `LogDto` survives the `EventEnvelope` JSON round-trip used across processes;
+- `LogDto` survives the `RemoteEventBus` envelope JSON round-trip used across processes;
 - `LogQueue.Stop()` stops delivery.
 
 Cross-process check against a running backend:
@@ -22,7 +22,7 @@ Cross-process check against a running backend:
 dotnet run --project tools/LogPipelineSmoke -- client 8
 ```
 
-Builds the real client composition (`RemoteEventBus` → `EventBus` → `ClientLog` → `LogViewModel`),
+Builds the real client composition (`RemoteConnection` → `RemoteEventBus` → `ClientLog` → `LogViewModel`),
 waits the given number of seconds, then prints:
 
 - `connected`: event stream state;

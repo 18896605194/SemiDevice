@@ -1,25 +1,31 @@
 ﻿# 机型层、测试、运行和验证
 
-## 1. 仓库顶层（`D:\Code`）
+## 1. 仓库顶层
 
-- `xyz.Core\`（平台：Shared / Service / Client）、`xyz.35021\`（机型 35021）、`tools\`（冒烟测试、部署和编码脚本、AdsRouter）、
-  `doc\`（`AxisPlc.md` 轴和 PLC 数据块、`interlock-design.md` 联锁设计草案未实现、`eventbus-guide.html` 事件总线说明）、`Libs\`（TwinCAT.Ads DLL；`xyz.Secs.dll` + `.xml`）。
-  `website\`、`HotShot\` 跟框架无关。
-- **xyz.Secs 不在这个仓库**（SECS / HSMS、GEM 各标准协议、EDA 的底层，2026-10-25 用户定）：源码 `D:\Secs\xyz.Secs`（自己的 sln、自己的 git，GitHub `18896605194/Secs`），
-  框架只引 `Libs\xyz.Secs.dll`。改它：在那边改、跑它的 `tools\SecsSmoke`，编 Release 时自动把 dll / pdb / xml 拷进 `D:\Code\Libs`（Debug 不拷；pdb 被 .gitignore 挡着），
+下面的路径都相对仓库根目录（各人 clone 在哪不一定，文档里不写盘符）。
+
+- `xyz.Core\`（平台：Shared / Service / Client）、`xyz.35021\`（机型 35021）、`tools\`（冒烟测试、部署和编码脚本、AdsRouter、`CdsLayoutEditor` / `CdsLayoutPreview` 两个小工具）、
+  `Libs\`（TwinCAT.Ads 的几个 DLL；`xyz.Secs.dll` + `.xml`）。`HotShot\` 跟框架无关。原来的 `doc\`、`website\` 已经不在仓库里了。
+- **xyz.Secs 不在这个仓库**（SECS / HSMS、GEM 各标准协议、EDA 的底层，2026-10-25 用户定）：源码是单独的 git 仓库（自己的 sln，GitHub `18896605194/Secs`），
+  框架只引 `Libs\xyz.Secs.dll`。改它：在那边改、跑它的 `tools\SecsSmoke`，编 Release 时它的 `CopyToFrameworkLibs` 把 dll / pdb / xml 拷进框架的 `Libs`
+  （拷去哪写在 xyz.Secs 的工程里，decisions.md「EDA」记的是 `D:\Code\Libs`、目录在才拷——框架仓库不在那儿的机器上不会拷，要手动拷进本仓库 `Libs\`；Debug 不拷；pdb 被 .gitignore 挡着），
   再回来编框架、跑 EapSmoke / HsmsSmoke / EdaSmoke。两边各提交各的；别在 Libs 里手放别的版本。
+  本仓库里的 `xyz.Core\Service\xyz.Secs\`、`tools\SecsSmoke\`、`tools\CollectionEventSmoke\` 只剩没进 git 的 bin / obj（编译残留），不是源码。
   另写小程序单独用这个 DLL（比如假 Host 探针）要自己加 `CoreWCF.Primitives` 包——DLL 一加载就要它（CoreWCF 生成的模块初始化）。
-- `xyz.Framework.sln`（48 个工程；`tools\IoIndexSmoke` 不在解决方案里，要单独编译）、`xyz.Framework.slnLaunch`（"Client + Service" 同时起宿主和客户端）。
-- `Directory.Build.props`：win-x64、x64、输出路径不带 RID（机型部署、ToolBuilder 依赖这个路径）。包版本写在各 csproj 里。
-- **编码**：源文件 UTF-8 **带 BOM**（.cs、.xaml、.csproj、.xml；skill 的 SKILL.md 例外，不加 BOM）。`.editorconfig` 本意如此，但它第 4 行的乱码注释把节头吞了，
-  现在实际不生效；`tools\check-bom.ps1` / `add-bom.ps1` / `verify-encoding.ps1` 可以查和补。
+- `xyz.Framework.sln`（48 个工程）。不在 sln 里、要单独编的：`tools\IoIndexSmoke`、`ComponentScanSmoke`、`BufferSmoke`、`FluidPipeSmoke`、
+  WPF 画面冒烟（`TankSceneSmoke`、`ChamberSceneSmoke`、`LoadPortSceneSmoke`、`*Visual3DSmoke`）、`CdsLayoutEditor` / `CdsLayoutPreview`。
+  没有 `.slnLaunch`，宿主和客户端按 §4 的先后各起各的。
+- 没有 `Directory.Build.props`：各工程都没设 RuntimeIdentifier / PlatformTarget，输出路径 `bin\<配置>\<框架>\` 不带 RID（机型部署、ToolBuilder 依赖这个路径）。包版本写在各 csproj 里。
+- **编码**：源文件 UTF-8 **带 BOM**（.cs、.xaml、.csproj、.xml；skill 的 SKILL.md 例外，不加 BOM）。`.editorconfig` 只有一节 `[*.{cs,xaml,csproj,md,resx,xml,config}]`：
+  `charset = utf-8-bom`、`end_of_line = crlf`。`.md` 也在里面，编辑器照它存会给 SKILL.md 加上 BOM，改完 SKILL.md 要看一眼头三个字节（应该是 `---`）；
+  `tools\check-bom.ps1` / `add-bom.ps1` / `verify-encoding.ps1` 可以查和补。
   PowerShell 5.1 跑含中文的 .ps1 也要存成带 BOM 的 UTF-8，否则按 GBK 读会解析出错。
 - Git：master；提交说明多数只写了 `1`，提交由用户自己做，**不要自作主张提交或推送**。
 
 ## 2. 机型层（以 `xyz.35021` 为例）
 
 - 命名空间 `xyz._35021.*`（数字开头前面加下划线）。
-- 后端 `Service\xyz.35021.Module`（→ xyz.Modules、xyz.Shared、xyz.35021.Shared）：
+- 后端 `Service\xyz.35021.Module`（→ xyz.Modules、xyz.Shared、xyz.35021.Shared；同目录的 `Service\xyz.35021.Service.csproj` 是空壳：在 sln 里、只引 xyz.Modules，没有源码也没人引用它）：
   - `Cds\IpaModule : BaseCdsModule`（IPA 供液，2026-10-18 只搭了架子：只推 `IpaDto` = IPA 的状态 + 下面各槽的 `TankDto`）；machine.xml 里 CDS → IPA → Tank1 / Tank2，
     点还没接（`DiIndex` / `DoIndex` 写 -1）。
   - `Loadport\LoadPortModule : BaseLoadPortModule`、`Robot\RobotModule : BaseRobotModule`、`Clean\ChamberModule : BaseChamberModule`、
@@ -38,7 +44,7 @@
     `LoadPortModule` 填 FCD 指令（开门 `CLOAD`、关门 `CULOD`、扫片 `MAPDO` + `GET:MAPDT`、Home / 夹紧 / 松开 / 复位 / 中止各一条，一圈一条 `GET:STATE`，`PODON` / `PODOF` 上报）；
     平台没有的设备、要加的互锁也在这儿加。新机型建一个类继承 `BaseLoadPortModule`，填自己品牌的指令。
   - **站点要中途交接**（顶针这类，分段取放）：站点类重写 `HandoffPickCore` / `HandoffPlaceCore` 起交接动作，machine.xml 里给这个站开 `HandoffOnPick` / `HandoffOnPlace`；
-    到这个站的机械手类要在类上声明 `ITransferRobotStep`、重写 `CreateExtend/RetractPick/PlaceOperation` 给伸臂缩臂的设备动作（没声明开机就报错），
+    到这个站的机械手类要在类上声明 `ITransferRobotStep`（它的 `ExtendPick` / `RetractPick` / `ExtendPlace` / `RetractPlace` 基类已经写好），再重写 `AddExtendPickSteps` / `AddRetractPickSteps` / `AddExtendPlaceSteps` / `AddRetractPlaceSteps` 加伸臂缩臂的设备指令（没声明开机就报错），
     见 decisions.md「分段取放」。
   - **Job 不归机型**：CJ / PJ 和任务组件沿用平台标准件；不同设备需要不同派单策略时，在平台提供相应的 `ISchedulerComponent` 调度组件，机型在 machine.xml 的 `Scheduler` 选择 Type，
     对外契约统一。35021 当前仍用 `xyz.Modules.TaskComponent`、`xyz.Modules.SchedulerComponent`；`BaseSchedulerComponent` 是后续公共逻辑整理项，见 decisions.md「调度可以有多个」。
@@ -51,7 +57,7 @@
 - `Shared\xyz.35021.Shared`（→ xyz.Shared）：机型错误码（`xyz._35021.Shared.Errors.ErrorCodes`，现在是空的）、机型推给界面的 DTO（`Dtos\IpaDto`）。
 - 客户端 `Client\xyz.35021.Client`：`[ClientModule("35021", "...")] Module35021 : IClientModule`，`Register` 里注册机型页面
   （`Manual.LoadPorts`、`Manual.Robot` 两个 keyed 页面），`PresentationAssembly` 指向机型语言包；`DeployToShell` 拷到客户端 `Modules\35021`。
-  `Client\Manual`（机型手动页，复用平台 xyz.Client.Manual 的控件）、`Client\Presentation\Localization`（机型独有文字）。
+  `Client\Manual`（单独的工程 `xyz.35021.Client.Manual`：机型手动页，复用平台 xyz.Client.Manual 的控件）、`Client\Presentation`（单独的工程 `xyz.35021.Client.Presentation`，`Localization` 下是机型独有文字）。
   主界面中间的"整机调度"35021 用平台默认的（照机械手示教点表自动摆）；别的机型要不同摆法，在 `Register` 里
   `services.AddKeyedSingleton<UserControl, 自己的View>(ClientViewKeys.MainDispatch)` 换掉这一块（见 client.md §3 主界面）。
   `Client\Manual\Views\TransferView`（"Transfer 调度"）是早先的半成品，没注册、没菜单。
@@ -69,7 +75,7 @@
 | SequenceSmoke | 流程配方库：machine.xml 节点和参数、站点分组（machine.xml 分组节点 + 机械手示教点表；只实现 `IProcessStation` 的热板分组也要选配方）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码、工艺步骤的配方要在工艺配方库里、Host 按名字列 / 取（JSON）/ 认 JSON 样子 / 存（新建或覆盖，检查跟本地一样）/ 删和上报口（改名报旧名删 + 新名建） |
 | ProcessRecipeSmoke | 工艺配方库：Host 按名字列 / 取（JSON，不带存 XML 用的属性）/ 存 / 删和上报口、machine.xml 节点和两张字段表（配方头、步骤）、字段表配错开机就报（字段节点上写了不认识的参数照常装上、记错误日志，按尺寸的 Max.12、按 Type 的 Source.A 不记）、步骤下拉的选项按腔体 Type 照 machine.xml 写的（Type 从所有 `IProcessStation` 收，热板也算）、配方头的 Type 和超时时间、Type 对不上的腔体挡下、新建/改名/保存/删除和按字段表的每一条检查、规整写法、字段都写进文件（老配方缺的按默认值补）、坏文件跳过、版本冲突、变更事件、配方对不对得上具体腔体、服务和字段表、腔体起工艺要配方在库里且对得上、没装库；晶圆尺寸（位置、到的上限 Max.8 / Max.12 跟着切，切尺寸写回真 machine.xml 只改那一个值、LF / CRLF 来回一字不差、没写 Size 的照缩进补一行） |
 | GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
-| DataCenterSmoke | 日志文件解析和历史查询、日志的两层名字（新格式带部件、旧格式照认、收发原文的方向；按模块筛只要第一层完全一样、选了级别不要收发原文、关键字搜部件；LogHelper 真写文件：收发原文进主日志、轮询原文进 poll 文件；装配出来的两层名字、日志组件的模块下拉选项、日志设置带保留天数和选项；KeepDays 按天删旧的主日志 / 拆出来的 / 轮询文件、近的留着）、操作日志（经 IActionFilterLog 测 ActionFilterLog：谁@哪台电脑 服务.方法 参数 / 成功、失败带错误码记 Warn、出错记 Error，Get / Query、订阅、上行发布不记、中文原样，操作人从请求头取、没带记 Unknown，不推界面；请求是 `RpcRequest` 时记 `Parameters` 那段 JSON：中文原样不带 \u、不带参数记 `{}`）、日志组件转发（接上之前攒的补进来、只留最近 N 条、每条推、日志服务从它取最近一段）、报警复位和报警历史（报出、清掉报警组件都推 `AlarmDto`；复位不带 Source 回 rpc.request_invalid、报警不动）、数据曲线采样（在自己的扫描里：配了 IsRun 才采、整周期一行不重复、停下时最后一批写进库）、信号名（SV、IO；DI 组件就是组件路径，不带 `__Di`；一个液位计只记一列）和日表、实时曲线在自己的扫描里推帧（带这一轮的标识、值跟信号表一样多）、数据曲线导出（后端按 1 小时一段、不抽稀、没有的列整列空、取消就停；进程里把服务直接交给客户端导出逻辑写 xlsx 读回核对：一天一张表、没数据的那天只有表头、整段没数据不建文件、后端中途出错 / 取消原来同名的文件不动不留临时文件、没装数据曲线回错误码）、进度弹框（`ProgressState` 开关、取消、后一次顶掉前一次；STA 线程里看 `ProgressOverlay` 过了 ShowDelay 才弹、跑完收起）、gRPC 服务按契约自动认（一个契约一个实现）。2026-10-25 起是 net10.0-windows、引客户端 DataCenter 工程 |
+| DataCenterSmoke | 日志文件解析和历史查询、日志的两层名字（新格式带部件、旧格式照认、收发原文的方向；按模块筛只要第一层完全一样、选了级别不要收发原文、关键字搜部件；LogHelper 真写文件：收发原文进主日志、轮询原文进 poll 文件；装配出来的两层名字、日志组件的模块下拉选项、日志设置带保留天数和选项；KeepDays 按天删旧的主日志 / 拆出来的 / 轮询文件、近的留着）、操作日志（经 `IActionFilter` 测 xyz.Service 的 `ActionFilter`：谁@哪台电脑 服务.方法 参数 / 成功、失败带错误码记 Warn、出错记 Error，Get / Query、订阅、上行发布不记、中文原样，操作人从请求头取、没带记 Unknown，不推界面；请求是 `RpcRequest` 时记 `Parameters` 那段 JSON：中文原样不带 \u、不带参数记 `{}`）、日志组件转发（接上之前攒的补进来、只留最近 N 条、每条推、日志服务从它取最近一段）、报警复位和报警历史（报出、清掉报警组件都推 `AlarmDto`；复位不带 Source 回 rpc.request_invalid、报警不动）、数据曲线采样（在自己的扫描里：配了 IsRun 才采、整周期一行不重复、停下时最后一批写进库）、信号名（SV、IO；DI 组件就是组件路径，不带 `__Di`；一个液位计只记一列）和日表、实时曲线在自己的扫描里推帧（带这一轮的标识、值跟信号表一样多）、数据曲线导出（后端按 1 小时一段、不抽稀、没有的列整列空、取消就停；进程里把服务直接交给客户端导出逻辑写 xlsx 读回核对：一天一张表、没数据的那天只有表头、整段没数据不建文件、后端中途出错 / 取消原来同名的文件不动不留临时文件、没装数据曲线回错误码）、进度弹框（`ProgressState` 开关、取消、后一次顶掉前一次；STA 线程里看 `ProgressOverlay` 过了 ShowDelay 才弹、跑完收起）、gRPC 服务按契约自动认（一个契约一个实现）。2026-10-25 起是 net10.0-windows、引客户端 DataCenter 工程 |
 | HsmsSmoke | HSMS 链路组件对假 EAP（按 S/F 分发、S9F3 / F5 / F7、SxF0、闸门、回完再做、断线重连、端口冲突）；SECS-II 编解码、HSMS 握手和计时器的 SecsSmoke 跟着 xyz.Secs 在它自己的仓库 |
 | EapSmoke | EAP 各标准对假 Host：配方管理 S7（列、取、问能不能下、下、删、全删、新名字按 JSON 样子分库、REMOTE 才收、配方变了的事件和 DV、本地编辑锁）、E30（通讯建立、控制状态、SV / EC / DV / 事件名单、Host 改 EC、报告定义和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存断线进缓存 / 按先后发 / 清掉）、Trace（S2F23 收下 / 周期、SVID、REPGSZ 不对的码、取消、同号替换、离线全停，S6F1 按包发、SMPLN 和值的个数、不满一包也发、TRID 原样带回）、E39（类型、属性名、带条件查属性）、E87（读到号等 Host、槽图一律等 Host、第二次 PWC 比对槽图和给片号、Load 好就在取放、取消、ReCreate、读码失败 Host 给号、E87 不自己卸、干完靠 CarrierRelease、端口说不能卸时放行回 CAACK=2、Host 启停用、存取方式、预告 / 绑定这些不支持的回 CAACK=1）、E90（片对象跟着账建、挪、做、跳过、删）、E40 / E94（建、命令、查询翻成 Job 管理的命令，状态转换报事件）；LoadPort（带一个假的 `ICarrier`）、Job 管理是假的，晶圆账是真的 |
 | EdaSmoke | EDA（Interface A，Freeze 2）对假的厂里客户端：用 SEMI WSDL 生成的客户端调设备，自己用 CoreWCF 起收数据的口。接口发现、建会话 / 问活 / 关会话 / 会话数上限；权限表（空着全放、照条目管、不认识的权限）；自描述（结构树、节点描述、类型、状态机、SEMI 对象、报警、单位，E164 部分）；读参数当前值；采集计划（毛病回报、重号、定义、取回、激活、定周期采样、事件、报警、在跑不能删、停用、删除）；开始停止条件（参数条件）；E164 标准事件（PJ 转换按号对、同号按状态认去向、E30 控制状态）；持久计划会话断了休眠、再连上接着跑、存库；设备定时问活；退出发会话关了。随机用 8800~9399 的端口 |
@@ -81,10 +87,12 @@
 | AccountSmoke | 账号：装配和 machine.xml 默认值（闲置分钟数、密码最短在 machine.xml 不在 EC，配错装配就报、配的分钟数跟着会话下来）、开机删老的 `User` / `Role` / `Menu` 表（名字像的不动）、第一次开机预置（管理员、访客、工程师、操作员各项档位，内置 admin）、重开不重复预置、登录（不分大小写、去空格、登录不对不说是哪一样、记最后登录、会话带闲置注销分钟数）、只存加盐哈希、建 / 改 / 停用 / 删账号和角色的各项检查和错误码、内置的动不了、访客角色不给账号、改 / 重置密码、存档位（管理员的不能存、编码和档位要对）、变了才推 `AccountChangedDto`、三个服务回包、系统设置的 `IsLoginEnabled`、账号库坏了回 `account.failed`；临时 SQLite |
 | IoIndexSmoke（不在 sln） | IO 点表下标和换算、点表按 CSV 读（带 BOM、列顺序和表头大小写不限、描述里带引号的逗号、中间空行）、`ExcelHelper` 写读 CSV（UTF-8 带 BOM、引号、空格子、没有行也有表头、不留临时文件）、PLC 门控、单点写、轴和执行器命令（气缸、阀的到位反馈是 DI 组件子节点 Opened / Closed / Feedback，配 -1 当没有；阀 NC / NO 开关写的值）、IO 组件在自己的扫描里按 EC 周期推整包 `IoDto`（骨架只建一次）、心跳（照 machine.xml 装、按 `IHeartbeat` 找得到、第一拍写通、满了间隔写反面、写不成报警且等满间隔再写同一个值、恢复后报警留着人工复位清、点表里没有的 DO 报警、-1 不发） |
 | OpcUaSmoke | OPC UA PLC（`OpcUaPlcComponent`）：本机用官方服务端包起假 PLC（DI / DO BOOL 数组、AI REAL 数组、AO INT 数组），走真网络测只算 `IPlcIo` 不算 `IPlcBlock`、按 `nsu=` 节点名连上、一次读回四个数组、REAL 不丢小数、下标越界、DO 只写一格且读回来才变、AO 按 INT 四舍五入且超范围 / 非数字不写、节点认不出 / 类型不对 / 命名空间不存在报数据读写失败但连接还在、PLC 停了按断线（缓存清掉、掉线报警）、重启后命名空间编号变了照样重连认回来、Close 以后不再连；固定用 48410 端口 |
-| ComponentScanSmoke（不在 sln） | 根组件按 machine.xml 的 `IsRun` 起扫描（不分大小写、默认不起、停用不起、分组节点下的根照起、子组件跟父组件一条线程、重复起不多开）；开机各阶段（`InitAll` 按 InitOrder 再按 machine.xml 先后、`Bind` / `OnStarted` 按 machine.xml 先后先父后子、`StopAll` 倒着来、出错不耽误后面）、组件进容器（`ComponentLoader.Register`：按 xyz 接口登记，取一类全部按 machine.xml 先后、停用的连同下面跳过，取一个拿最后登记的，没人实现的是 null，树本身也登记）；machine.xml 里写错参数名照常装上、那一项还是默认值、记一条错误日志带节点全路径 |
+| ComponentScanSmoke（不在 sln） | 根组件按 machine.xml 的 `IsRun` 起扫描（不分大小写、默认不起、停用不起、分组节点下的根照起、子组件跟父组件一条线程、重复起不多开）；开机各阶段（`InitAll` 按 InitOrder 再按 machine.xml 先后、`Bind` / `OnStarted` 按 machine.xml 先后先父后子、`StopAll` 倒着来、出错不耽误后面）；退出先停扫描（`StopAll` 等慢的根扫完手上这一拍才回来、之后根和子组件都不再扫、收尾时扫描已经停了、在自己的扫描里停自己不卡）、组件进容器（`ComponentLoader.Register`：按 xyz 接口登记，取一类全部按 machine.xml 先后、停用的连同下面跳过，取一个拿最后登记的，没人实现的是 null，树本身也登记）；machine.xml 里写错参数名照常装上、那一项还是默认值、记一条错误日志带节点全路径 |
 | TankSceneSmoke（不在 sln，WPF） | 信号灯 SignalLamp（触发亮绿、报警位亮红、没触发灭、读不到不知道色、名字原样）；供液槽三维图（TankScene 绑 TankModel）：七个液位的液面、液体颜色、右上角的字和点；信号灯跟各自的 DI 不跟液位（对不上时各亮各的、读不到的那盏不知道色）、machine.xml 没配的不画、没给槽 / 没收到推送一盏不画、换槽改绑且旧槽再变不影响；液面 0.2 s 过渡、中途换目标落最后一个、藏着直接落位、液位不知道不画液体；罐壁透明度依赖属性（外部设、绑定都传到三维件，图上没有滑块）、超范围不收；默认视角 / 正视图、前后两半罐壁跟相机分、滚轮缩放上下限；信号灯在图里、在罐右边、从下往上；英文字；没有绑定错误；`-- 目录` 出中英文图 |
 | `*Visual3DSmoke`、ChamberSceneSmoke、LoadPortSceneSmoke（不在 sln，WPF） | 三维硬件组件（门 / Bowl / Lift 未知时停在行程中间、整块变红；Disk 没有右键菜单）和腔体三维图（ChamberScene：从部件推送按角色挑出部件并搭建、部件动作名的叫法、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、图下面的视角工具栏（默认视角、俯视）、重搭）；LoadPort 三维图（LoadPortScene：槽数跟 machine.xml、片用 Disk 且就地换数据、点片选中、每个动作 0.5 s 且有先后、只亮在动的那块、门在半路、手动页显示模型的对接 / 门推法）；`-- 路径.png` 出图 |
-| EventBusSmoke | 跨进程事件总线（`-- server` / `-- client` / `-- probe`，看输出） |
+| BufferSmoke（不在 sln，WPF） | buffer 架子的界面件：XAML 绑定、集合、片在层间移动、颜色、左右对称、视图控件、缩放、空的和越界的状态 |
+| FluidPipeSmoke（不在 sln，WPF） | 管路控件 `FluidPipe`：常规控件、绑定、布局、渲染 |
+| EventBusSmoke | 两条事件总线。进程内 `EventBus`：同步、在发送方线程上、传原对象、按 token 分、全局订阅只收不带 token 的、没有黑板、退订和重复退订、回调里退订自己、订阅者抛异常进死信不耽误后面的、不交给跨进程的线；`RemoteEventBus` 不走网络的部分：Send 只交给线不在本进程派发、信封（类型全名 / token / 写黑板标记 / JSON）、后端黑板同一格留最后一条、通知类不写还擦掉同一格、Deliver 派发拆包副本、后订阅补发、通知类照发不补、protobuf 省掉的空 token 当全局、没人订的类型丢掉、解不开和订阅者抛异常进死信、线退订；跨进程（自己起后端子进程 `-- server 端口`，客户端走 `RemoteConnection`）：收到开流标记才算连上、先重放黑板、连之前的通知类和后端进程内 `EventBus` 发的不过来、按顺序到、按 token 不串、页面后订阅补发、后端停了报断开、回来按 3 秒一次重连上再重放、连接状态按连上 / 断开 / 再连上报 |
 
 - 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException("FAIL: " + message); } checks++; }`
   （if 后面也要大括号、单独一行，switch 用老写法，见 SKILL.md 硬规矩 2）；
@@ -103,19 +111,21 @@
   冒烟里搭好容器再走开机步骤，换了单例要重新 `Bind`；服务构造时取，换了要重新 new。IO 组件开机准备时读点表、取 PLC：点表写进它的 `PointTableDirectory`（DI.csv / DO.csv / AI.csv / AO.csv）再 `InitComponent()`。
   只测装配校验、不该换容器里那棵树的直接用 `ComponentLoader.Load`。
 - 数据：内存里造组件（`new LedgerManagerComponent()`、`SmokeIoc.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
-- 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；IoIndexSmoke、ComponentScanSmoke 单独编）。HsmsSmoke、EapSmoke 随机用 5600~5999 的端口，
+- 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；不在 sln 里的单独编，名单见 §1）。HsmsSmoke、EapSmoke 随机用 5600~5999 的端口，
   真宿主开着 EAP 链路（Hsms 启用、端口落在这一段）时别同时跑。
+- 同进程里要收后端推送的冒烟（组件 `RemoteEventBus.Send`、冒烟 `RemoteEventBus.Register` 接着查），开头 `SmokeIoc.Reset()` 后面调 `SmokeEvents.Loopback()`
+  （`SmokeShared\SmokeEvents.cs`，csproj 里链接进来）：RemoteEventBus 只把消息交给线、不在本进程派发，回环代替线把消息投回本进程，跟真客户端一样拿到拆包后的副本。
 - **新功能、改了行为都要在对应冒烟里加检查**；冒烟测试里的代码也守同样的编码规范（不写花括号模式匹配等）。
 
 ## 4. 运行起来看
 
 - 起法：先后端 `xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0\xyz.GrpcHost.exe`（托盘图标：灰 = 启动中、绿 = 正常、红 = 失败，单实例），
   再客户端 `xyz.Core\Client\xyz.Client\bin\Debug\net10.0-windows\xyz.Client.exe`。编译前先关掉它们，否则 DLL 被占着拷不进去。
-  用户开着、又不方便关的时候：把源码 `robocopy D:\Code <scratchpad>\fullbuild /E /XD bin obj .git .vs node_modules`（约 19 MB）拷出去，
+  用户开着、又不方便关的时候：把源码 `robocopy <仓库根目录> <scratchpad>\fullbuild /E /XD bin obj .git .vs node_modules`（约 19 MB）拷出去，
   在副本里编整个 sln、跑冒烟——机型工程的部署目标是相对路径，只部署进副本；别在原目录编 RfidSmoke 这类引用机型工程的冒烟。
 - 机型 DLL 要先部署（编译机型工程会自动部署），否则 machine.xml 里 `xyz._35021.*` 的 Type 找不到，后端起不来。
 - PLC 仿真：本机没装 TwinCAT 时要有 `xyzAdsRouter` 服务（`tools\AdsRouter\install-service.ps1`，真机上别装），
-  再起 `D:\仿真\统一仿真器\Start-35021.cmd`；顺序：路由 → 仿真器 → 后端 → 客户端。没有仿真器后端也能起，PLC 报通讯断开。
+  再起 PLC 仿真器（统一仿真器的 `Start-35021.cmd`；仿真器不在本仓库，装在哪各台机器不一样）；顺序：路由 → 仿真器 → 后端 → 客户端。没有仿真器后端也能起，PLC 报通讯断开。
 - 没有真设备时：LoadPort 的驱动、RFID 都连不上，开机日志各报一次，之后每 5 s（EC `ReconnectIntervalMs`）在后台重连、不刷日志；
   晶圆账槽位照登记（2026-10-06 起；以前 RFID 开不了整台 LoadPort 都不能动）。发动作会因为没连上失败、落 Error。机械手、腔体照常有。
 - 看英文界面：语言取后端 machine.xml `System/Language`，**改运行目录那份**（`bin\...\Config\machine.xml`），起完后端立刻改回去；不要改源 machine.xml。
@@ -126,7 +136,7 @@
 - UI 自动化走查的坑（2026-10-22 登录权限走查踩的）：模态框（登录框、选择弹窗）、右键小菜单在 UIA 里是主窗口的**子窗口**，
   在主窗口里往下找会连它们一起找到——按窗口找东西时遇到带句柄的 Window / Menu 子元素要跳过；标题叫 `xyz Client` 的窗口不止一个（取最大的那个）；
   截图用 `PrintWindow`，之前先看窗口是不是被人最小化了（最小化的只截出一条标题栏）；试"鼠标停在窗口上"一类的事要先把窗口提到最前、
-  用 `WindowFromPoint` 确认鼠标底下真是客户端。别的会话在 `D:\Code` 里改代码时，把源码 robocopy 到副本、在副本里编和跑（再把别人改了一半的文件换回提交版），
+  用 `WindowFromPoint` 确认鼠标底下真是客户端。别的会话在本仓库里改代码时，把源码 robocopy 到副本、在副本里编和跑（再把别人改了一半的文件换回提交版），
   免得占着它的 DLL、也免得编进它没改完的东西；宿主的库可以拷一份开发机的进去，在真数据上试。
 
 ## 5. 界面不连后端的离屏预览（改了页面或样式时用）

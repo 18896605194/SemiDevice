@@ -307,7 +307,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         var size = _waferSize;
         if (size is not null)
         {
-            size.Changed += _ => EventBus.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken, retain: false);
+            size.Changed += _ => RemoteEventBus.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken, retain: false);
         }
     }
 
@@ -596,7 +596,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
         var saved = result.Result as RecipeData;
         LogHelper.Info(this, saved is null ? message : $"{message}，版本 {saved.Revision}");
-        EventBus.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken, retain: false);
+        RemoteEventBus.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken, retain: false);
 
         var callback = E30Callback;
         if (callback is null)

@@ -28,7 +28,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     #region Column
 
     /// <summary>
-    /// 模块实例名，与 EventBus token / gRPC 参数一致，如 "Chamber1"。
+    /// 模块实例名，与 RemoteEventBus token / gRPC 参数一致，如 "Chamber1"。
     /// </summary>
     public string ModuleName { get; }
 
@@ -219,11 +219,11 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
 
         _stateSubscription?.Dispose();
-        _stateSubscription = EventBus.Register<ChamberDto>(ModuleName, OnStateReceived);
+        _stateSubscription = RemoteEventBus.Register<ChamberDto>(ModuleName, OnStateReceived);
 
         // 设备推送是留存消息：订上就补发最后一条，不用另外拉。
         _deviceDataSubscription?.Dispose();
-        _deviceDataSubscription = EventBus.Register<ChamberDeviceDataDto>(ModuleName, OnDeviceDataReceived);
+        _deviceDataSubscription = RemoteEventBus.Register<ChamberDeviceDataDto>(ModuleName, OnDeviceDataReceived);
 
         // 轴参数的默认值取 EC：EC 拉到（或改了）时把还空着的补上
         ClientEc.Changed -= OnEcChanged;
@@ -231,10 +231,10 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
         // 工艺配方列表：连上后端时拉，工艺配方库变了（新建、改名、删除）再拉
         _recipeSubscription?.Dispose();
-        _recipeSubscription = EventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, changed => _ = LoadRecipes());
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteEventBus.IsConnected);
+        _recipeSubscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, changed => _ = LoadRecipes());
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteConnection.IsConnected);
     }
 
     public void Dispose()
@@ -246,7 +246,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         _recipeSubscription?.Dispose();
         _recipeSubscription = null;
         ClientEc.Changed -= OnEcChanged;
-        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
+        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
     }
 
     private void OnConnectionChanged(bool connected)

@@ -33,6 +33,7 @@ using xyz.Tools;
 // 数据中心冒烟：日志文件解析与日志历史查询、报警服务（当前报警、人工复位、报警历史）、数据曲线（采样、信号名、日表）。
 // 不起宿主、不连设备；日志样本写在运行目录 Log 下一个不会跟真日志撞的日期，报警记录、数据曲线写临时库，跑完都删掉。
 SmokeIoc.Reset();
+SmokeEvents.Loopback(); // 后端推给界面的消息投回本进程收
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -119,7 +120,7 @@ try
         }
     }
 
-    using (EventBus.Register<LogDto>(LogDto.EventToken, dto =>
+    using (RemoteEventBus.Register<LogDto>(LogDto.EventToken, dto =>
            {
                lock (pushedLogs)
                {
@@ -361,7 +362,7 @@ try
     var device = new ProbeDevice("Tool1");
     var alarmService = new AlarmService();
     var pushedAlarms = new List<AlarmDto>();
-    using var alarmPushes = EventBus.Register<AlarmDto>(AlarmDto.EventToken, dto => pushedAlarms.Add(dto));
+    using var alarmPushes = RemoteEventBus.Register<AlarmDto>(AlarmDto.EventToken, dto => pushedAlarms.Add(dto));
     device.Fault();
     var active = JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!;
     Check(active.Count == 1 && active[0].Source == "Tool1" && active[0].Code == "ProbeFault"
@@ -685,7 +686,7 @@ try
     var realChart = new RealChartComponent { IsRun = true, WindowSeconds = 60 };
     SmokeIoc.Use<IRealChart>(realChart);
     var frames = new List<RealChartFrameDto>();
-    using (EventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
+    using (RemoteEventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
            {
                lock (frames)
                {
