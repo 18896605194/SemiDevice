@@ -1,0 +1,16 @@
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+      Background="{DynamicResource DarkSurfaceBackground}">
+    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+    <!-- 与二维一样声明和绑定，无须 DataContext 覆盖、相机或设备连接。 -->
+    <controls:Robot x:Name="Flat" Width="400" Height="400"
+        ArmType="{Binding ArmType}" ArmCount="{Binding ArmCount}" Arms="{Binding Arms}"
+        Rotation="{Binding Direction}" Travel="{Binding Travel}" ExtendedReach="{Binding Reach}"
+        IsAnimationEnabled="{Binding Animate}" />
+    <controls:Robot3D x:Name="Solid" Grid.Column="1" Width="400" Height="400"
+        ArmType="{Binding ArmType}" ArmCount="{Binding ArmCount}" Arms="{Binding Arms}"
+        Rotation="{Binding Direction}" Travel="{Binding Travel}" ExtendedReach="{Binding Reach}"
+        IsAnimationEnabled="{Binding Animate}" />
+    <controls:Robot3D x:Name="Bare" Visibility="Collapsed" />
+</Grid>

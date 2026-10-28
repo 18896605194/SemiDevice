@@ -1,0 +1,45 @@
+<local:RobotViewBase x:Class="xyz.Client.Presentation.Controls.Robot3D"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:xyz.Client.Presentation.Controls"
+    xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/DarkColors.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/RobotResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid ClipToBounds="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid x:Name="Scene" Background="Transparent"
+            PreviewMouseLeftButtonDown="OnDragStart" PreviewMouseLeftButtonUp="OnDragEnd"
+            MouseMove="OnDragMove" LostMouseCapture="OnDragLost" PreviewMouseWheel="OnZoom">
+            <Viewport3D x:Name="Viewport" ClipToBounds="True">
+                <Viewport3D.Camera>
+                    <OrthographicCamera x:Name="Camera" UpDirection="0,1,0" NearPlaneDistance="0.01" FarPlaneDistance="100000" />
+                </Viewport3D.Camera>
+                <ModelVisual3D>
+                    <ModelVisual3D.Content>
+                        <Model3DGroup>
+                            <AmbientLight Color="{StaticResource DarkHardwareAmbientLightColor}" />
+                            <DirectionalLight Color="{StaticResource DarkHardwareKeyLightColor}" Direction="-1,-3,-2" />
+                            <DirectionalLight Color="{StaticResource DarkHardwareFillLightColor}" Direction="2,-1,2" />
+                        </Model3DGroup>
+                    </ModelVisual3D.Content>
+                </ModelVisual3D>
+                <threeD:RobotVisual3D x:Name="Body" />
+            </Viewport3D>
+        </Grid>
+        <Border x:Name="ViewToolbar" Grid.Row="1" Style="{DynamicResource SceneToolbarBorderStyle}">
+            <StackPanel Orientation="Horizontal">
+                <Button Click="OnDefaultView" Content="{DynamicResource scene.default_view}" Style="{DynamicResource SceneToolButtonStyle}" />
+                <Button Click="OnTopView" Content="{DynamicResource scene.top_view}" Style="{DynamicResource SceneToolButtonStyle}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</local:RobotViewBase>
