@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Security.Cryptography;
 using SqlSugar;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Interfaces;
@@ -1251,7 +1252,7 @@ public class AccountElement : ElementBase, IAccount
     /// </summary>
     private static void NotifyChanged()
     {
-        RemoteEventBus.Send(new AccountChangedDto(), AccountChangedDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new AccountChangedDto(), AccountChangedDto.EventToken, retain: false);
     }
 
     private HandleResult NotReady()

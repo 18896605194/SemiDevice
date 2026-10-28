@@ -1,4 +1,5 @@
-﻿using xyz.Client.DataModels.ViewModels;
+﻿using xyz.Client.Common.Events;
+using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 using xyz.Tools;
@@ -46,7 +47,7 @@ public sealed class DispatchMapViewModel : BaseViewModel, IDisposable
     public override void Init()
     {
         _robotSubscription?.Dispose();
-        _robotSubscription = RemoteEventBus.Register<RobotDto>(RobotName, OnRobotState);
+        _robotSubscription = RemoteEventSubscriber.Register<RobotDto>(RobotName, OnRobotState);
     }
 
     public void Dispose()
@@ -78,8 +79,8 @@ public sealed class DispatchMapViewModel : BaseViewModel, IDisposable
 
         foreach (var station in stations)
         {
-            _stationSubscriptions.Add(RemoteEventBus.Register<LoadPortDto>(station.Name, station.UpdateLoadPort));
-            _stationSubscriptions.Add(RemoteEventBus.Register<ChamberDto>(station.Name, station.UpdateChamber));
+            _stationSubscriptions.Add(RemoteEventSubscriber.Register<LoadPortDto>(station.Name, station.UpdateLoadPort));
+            _stationSubscriptions.Add(RemoteEventSubscriber.Register<ChamberDto>(station.Name, station.UpdateChamber));
         }
     }
 

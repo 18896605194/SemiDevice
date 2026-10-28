@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
@@ -699,7 +700,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     /// <summary>
     /// 发布当前状态（扫描周期调用）：首次发布，之后只在状态变化时发布。
-    /// RemoteEventBus 留存最后一条消息，供界面晚订阅或重连时补发。
+    /// RemoteEventPublisher 留存最后一条消息，供界面晚订阅或重连时补发。
     /// </summary>
     protected override void PublishState()
     {
@@ -710,7 +711,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
 
         _lastPublishedState = dto;
-        RemoteEventBus.Send(dto, Name);
+        RemoteEventPublisher.Send(dto, Name);
     }
 
     #endregion

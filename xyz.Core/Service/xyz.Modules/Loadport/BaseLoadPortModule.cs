@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
@@ -575,7 +576,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         }
 
         _lastPublishedState = dto;
-        RemoteEventBus.Send(dto, Name);
+        RemoteEventPublisher.Send(dto, Name);
     }
 
     #endregion

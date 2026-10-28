@@ -5,13 +5,14 @@ using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.Presentation.Models;
 using xyz.Client.Presentation.ViewModels;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
-// 跨进程模式：连到正在运行的后端，用真实客户端的组合（RemoteConnection → RemoteEventBus → ClientLog → LogViewModel）
+// 跨进程模式：连到正在运行的后端，用真实客户端的组合（RemoteEventConnection → RemoteEventSubscriber → ClientLog → LogViewModel）
 // 数一段时间内界面能看到的日志条数。
 //   dotnet run --project tools/LogPipelineSmoke -- client [秒数]
 if (args.Length > 0 && args[0] == "client")
@@ -19,7 +20,7 @@ if (args.Length > 0 && args[0] == "client")
     var seconds = args.Length > 1 ? int.Parse(args[1]) : 8;
 
     GrpcClientFactory.Initialize();
-    RemoteConnection.Initialize();
+    RemoteEventConnection.Initialize();
 
     using var clientViewModel = new LogViewModel();
     clientViewModel.Init();
@@ -29,7 +30,7 @@ if (args.Length > 0 && args[0] == "client")
     var service = GrpcClientFactory.Create<ILogService>();
     var response = await service.GetRecentAsync(RpcRequest.Of((RpcParams.Count, 10)));
     var data = response.Data.Length > 160 ? response.Data[..160] : response.Data;
-    Console.WriteLine($"client mode: connected={RemoteConnection.IsConnected} viewModel.Logs={clientViewModel.Logs.Count} " +
+    Console.WriteLine($"client mode: connected={RemoteEventConnection.IsConnected} viewModel.Logs={clientViewModel.Logs.Count} " +
                       $"GetRecent.Success={response.Success} Data={data}");
     if (clientViewModel.Logs.Count > 0)
     {
@@ -181,7 +182,7 @@ Check(viewModel.Logs[^1].Level == "Error"
     "LogModel 映射被改变。");
 viewModel.Dispose();
 
-// 6) 跨进程序列化：LogDto 经 RemoteEventBus 打包成信封，再在另一头拆回来
+// 6) 跨进程序列化：LogDto 经 RemoteEventPublisher 打包成信封，再由 RemoteEventSubscriber 拆回来
 var original = new LogDto
 {
     Time = DateTime.Now,
@@ -192,15 +193,15 @@ var original = new LogDto
     Source = "Server",
 };
 var sent = new List<EventMessage>();
-using (RemoteEventBus.SubscribeSent(sent.Add))
+using (RemoteEventPublisher.SubscribeSent(sent.Add))
 {
-    RemoteEventBus.Send(original, LogDto.EventToken, retain: false);
+    RemoteEventPublisher.Send(original, LogDto.EventToken, retain: false);
 }
 Check(sent.Count == 1 && sent[0].TypeName == typeof(LogDto).FullName, "信封类型名被改变。");
 var received = new List<LogDto>();
-using (RemoteEventBus.Register<LogDto>(LogDto.EventToken, received.Add))
+using (RemoteEventSubscriber.Register<LogDto>(LogDto.EventToken, received.Add))
 {
-    RemoteEventBus.Deliver(sent[0]);
+    RemoteEventSubscriber.Deliver(sent[0]);
 }
 Check(received.Count == 1
       && received[0].Level == original.Level

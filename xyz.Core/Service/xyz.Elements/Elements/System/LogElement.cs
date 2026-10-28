@@ -1,4 +1,5 @@
-﻿using xyz.Common.Log;
+﻿using xyz.Common.Events;
+using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
@@ -103,6 +104,6 @@ public class LogElement : ElementBase, ILogElement
             }
         }
 
-        RemoteEventBus.Send(log, LogDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(log, LogDto.EventToken, retain: false);
     }
 }

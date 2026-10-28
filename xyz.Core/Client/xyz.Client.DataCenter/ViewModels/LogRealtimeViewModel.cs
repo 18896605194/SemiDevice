@@ -136,11 +136,11 @@ public class LogRealtimeViewModel : BaseViewModel
     public override void Init()
     {
         _subscription?.Dispose();
-        _subscription = RemoteEventBus.Register<LogDto>(LogDto.EventToken, dto => Receive(LogModel.From(dto)));
+        _subscription = RemoteEventSubscriber.Register<LogDto>(LogDto.EventToken, dto => Receive(LogModel.From(dto)));
 
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        if (RemoteConnection.IsConnected)
+        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        if (RemoteEventConnection.IsConnected)
         {
             OnConnectionChanged(true);
         }

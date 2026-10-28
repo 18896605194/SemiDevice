@@ -1685,11 +1685,12 @@
 - **为什么**：原来一条 EventBus 两用：后端 `Send` 先派发本进程订阅者、再自动交给 EventService 推给所有客户端；客户端收到的经 `Deliver` 灌进同一条总线（不往外抄，防回声）；黑板既给进程内补发、又给连上的客户端重放。
   查下来进程内一处没人用（后端 20 处只发、客户端 29 处只收），合在一起只剩代价：推什么出去不是显式定的、每次发都转 JSON、同一个 Register 回调在哪个线程、拿到原对象还是副本要看消息从哪来。
 - **现在**：`EventBus` 只管进程内（同步、在发送方线程上调、传原对象、没有黑板、订阅者抛异常进死信不耽误别人）；`RemoteEventBus` 只管跨进程（后端 `Send`、客户端 `Register`，写法跟 EventBus 一样）。
-  两个类互不调用，后端一件事既要本进程知道、又要推给界面就各调一次。都在 `xyz.Tools\Events`（RemoteEventBus 两头都用：后端发、客户端收）。
+  两个类互不调用，后端一件事既要本进程知道、又要推给界面就各调一次。都在 `xyz.Tools\Events`（RemoteEventBus 两头都用：后端发、客户端收）。10-28 拆成后端 `RemoteEventPublisher`、客户端 `RemoteEventSubscriber` 两半，见「跨进程事件拆成发、收两半」。
 - **黑板**（用户："进程内不需要黑板吧，跨进程还是需要的吧"）：进程内想知道对方现在的状态按接口问它；跨进程两头各一块，后端给刚连上的客户端重放，客户端给后订阅的页面补发。
   `retain: false` 不写、还擦掉同一格，后端 `Send` 和客户端 `Deliver` 一样（原来客户端收到通知类不擦）。
-- **线**：后端 `EventService` 只跟 RemoteEventBus 打交道（`SubscribeSent` 拿新发的、`GetRetained` 取黑板）；客户端原来的 `RemoteEventBus`（流泵）改名 `RemoteConnection`，收到的经 `RemoteEventBus.Deliver` 送进来。
+- **线**：后端 `EventService` 只跟 RemoteEventBus 打交道（`SubscribeSent` 拿新发的、`GetRetained` 取黑板）；客户端原来的 `RemoteEventBus`（流泵）改名 `RemoteConnection`（10-28 再改叫 `RemoteEventConnection`），收到的经 `RemoteEventBus.Deliver` 送进来。
   名字是用户问"RemoteEventBus 和 RemoteBus 有啥区别"以后定的：总线叫 RemoteEventBus（跟 EventBus 成对），客户端的线叫 RemoteConnection。
+  10-28 用户嫌 RemoteConnection 看着像管所有远程连接（其实只管事件这一条线，命令不走它），改叫 `RemoteEventConnection`（用户："RemoteEventConnection 改成这个"），跟 RemoteEventBus 成对：一个是收消息的线，一个是分发。
 - **删掉往回发**：`SendToServer`、契约 `IEventService.PublishAsync` 正式代码没人用，命令走 gRPC。
 - **信封留着、藏起来**（用户问能不能不要 EventMessage、写成 CommunityToolkit 信使那样）：业务代码本来就只写 Send / Register；gRPC 推送流要一个固定类型，DTO 不带 ProtoContract（10-26 的规矩），
   所以 `EventMessage` 留着；打包、拆包的 `EventEnvelope` 删了，并成 RemoteEventBus 的私有方法。订阅凭据单独成文件 `Subscription`（原来是 EventBus 里的嵌套类）。
@@ -1697,6 +1698,16 @@
   自己起后端子进程测跨进程和断线重连；LogPipelineSmoke 的信封往返改成走 RemoteEventBus。
   IoIndexSmoke 原来拿两次推送收到的对象比 `ReferenceEquals` 验"骨架只建一次"，收到的变成副本以后改成看 IO 元件里存着的那份骨架（反射读 `_snapshot`）。
 - **没改的**：刚连上时同一条状态可能到两次（EventService 先订上、再取黑板，中间正好发了一条），状态类无害。
+
+## 跨进程事件拆成发、收两半（2026-10-28，用户："RemoteEventBus 这个里面应该是有客户端用的和服务端用的能不能就是分开搞两个类"；名字："RemoteEventPublisher …RemoteEventSubscriber 就叫这两个"）
+- **为什么**：一个进程只用到一半（后端只调 Send / SubscribeSent / GetRetained，客户端只调 Register / Deliver），黑板两头本来就各是一块；合在 xyz.Tools 里两边都看得见对方那半，
+  客户端写 `Send` 照样能编译、发不出去，还写进客户端自己的黑板，后订阅的页面会把它当当前状态补发；后端写 `Register` 也能编译，回调永远不来。
+- **现在**：后端 `xyz.Common\Events\RemoteEventPublisher`（命名空间 xyz.Common.Events：Send、给 EventService 的 SubscribeSent / GetRetained、打包），
+  客户端 `xyz.Client.Common\Events\RemoteEventSubscriber`（Register、给 RemoteEventConnection 的 Deliver、拆包），各自一块黑板、一个死信事件；
+  两边共用的只剩 xyz.Tools 里的信封 `EventMessage` 和黑板规则 `RetainedBoard`（不带锁，用的地方在自己的锁里调）。方法名、行为都没变；xyz.Common 为此引用 xyz.Tools。
+- **冒烟**：同进程收推送的冒烟（Account、Cds、Chamber、IoIndex、OperationWait、ProcessRecipe、Sequence、WaferLedger）加引用 xyz.Client.Common，写在原来的引用前面——
+  两边工程都往输出目录拷 `Log\NLog.config`，要留后端那份（EventBusSmoke、LogPipelineSmoke 原来就是这个顺序）；回环改成 `RemoteEventPublisher.SubscribeSent(RemoteEventSubscriber.Deliver)`。
+- **没做的**：两边的死信正式代码都没人订（客户端页面回调抛异常、拆包失败现在悄悄吞掉），接不接 ClientLog 用户还没定。
 - **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告），不在 sln 里的 16 个工程单独编 0 错误；35 个冒烟全过（EventBusSmoke 34 项；一起跑时 WPF 画面冒烟、Hsms
   按时间点的检查偶尔没赶上，单独重跑都过）；机型 35021 重新部署；真宿主 + LogPipelineSmoke 客户端模式：连上，界面的 LogViewModel 收到后端推的日志。
   （头一遍汇总时 IoIndexSmoke 只看了最后打出的 PASS 行、没看退出码，漏了上面那条失败，第二遍才发现、修好。）
@@ -1728,7 +1739,7 @@
   OpcUaSmoke 偶发挂在"PLC 的值变了，读回来跟着变"（连跑 3 次过 2 次），跟槽无关、没改：冒烟改完值马上 Tick，离上次读不到 `ReadIntervalMs`（冒烟设 10 ms）这一拍不读，缓存还是旧值。
 
 ## xyz.Tools 分子目录、只归类（2026-10-27，用户："xyz.Tools 这个下面是不是最好分一下类用文件夹"、"这几种Helper 也好一个文件夹整合起来"）
-- `Events\`（EventBus、RemoteEventBus、EventMessage、Subscription）、`Excel\`（ExcelHelper 和它的列、表、读取器）、`Helpers\`（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件。
+- `Events\`（EventBus、EventMessage、RetainedBoard、Subscription；RemoteEventBus 10-28 拆走了，见「跨进程事件拆成发、收两半」）、`Excel\`（ExcelHelper 和它的列、表、读取器）、`Helpers\`（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件。
   一开始单个文件的 Helper 留在根目录，用户要求也收进一个文件夹。
 - 命名空间都还是 `xyz.Tools`（跟元件 `Elements\<类别>`、模块下的 `Enums\` 一样只归类），调用的地方不用改；写进了 SKILL.md 硬规矩第 5 条的例外。
 - 后端 `xyz.Common` 照做（用户："这种后台的也整一下用一个Helpers文件夹"）：`DateTimeHelper`、`ValueHelper` 收进 `Helpers\`，命名空间还是 `xyz.Common`，调用的地方不用改；
@@ -1758,7 +1769,7 @@
 
 ## 通用回显 RpcService 删了（2026-10-27，用户贴了 `RpcService` 问"这个是干啥的，目前还有用吗"，听了没人调用以后："直接删除吧"）
 - **起因**：`IRpcService`（xyz.Shared）+ 宿主里的 `RpcService` 是 9-05 建项目时带的 gRPC 样板，`InvokeAsync` 把 `Parameters` 原样回去，当初想所有功能都从这一个口子进。
-  后来每个功能各有契约、开机按契约自动认（见「推送和开机归元件自己」里的「gRPC 服务自动认」），唯一调它的 `RpcClient` 10-26 已删；客户端连没连上看事件流（`RemoteConnection`），也不靠它。
+  后来每个功能各有契约、开机按契约自动认（见「推送和开机归元件自己」里的「gRPC 服务自动认」），唯一调它的 `RpcClient` 10-26 已删；客户端连没连上看事件流（`RemoteEventConnection`），也不靠它。
   可自动认照样把它注册、映射上，等于后端开着一个没人用、发什么回什么的口子，DataCenterSmoke 还得为它开个例外。
 - **做法**：两个文件删掉；DataCenterSmoke 第 6 节（gRPC 服务按契约自动认）去掉排除它的那一行和提示里的半句，现在 xyz.Shared 里的契约一个不落都要认出一个实现。
 - **验证**：整编 0 错误；sln 里 19 个冒烟全过，共 4,333 项（DataCenterSmoke 124 项）。

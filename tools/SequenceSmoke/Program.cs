@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using xyz.Client.Common.Events;
 using xyz.Elements;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
@@ -114,7 +115,7 @@ try
         Check(GroupsText() == groups12, "12 寸：分组照 12 寸那张示教点表，实际 " + GroupsText());
 
         var sizeChanged = new List<int>();
-        using (RemoteEventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => sizeChanged.Add(dto.Index)))
+        using (RemoteEventSubscriber.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => sizeChanged.Add(dto.Index)))
         {
             sizeProbe.SetSize(8);
         }
@@ -127,7 +128,7 @@ try
         SmokeIoc.Use<IWaferSize>(null);
         library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
         var afterRebind = new List<int>();
-        using (RemoteEventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => afterRebind.Add(dto.Index)))
+        using (RemoteEventSubscriber.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => afterRebind.Add(dto.Index)))
         {
             sizeProbe.SetSize(8);
         }
@@ -138,7 +139,7 @@ try
     // 2. 新建：空编号上建，名称去掉首尾空白；内容按默认（LoadPort 全勾 → 第一个要工艺配方的分组全勾、配方留空 → LoadPort 全勾），
     //    版本 1，记创建人；写成 001.xml。名称、编号不对的回错误码，不建、不发事件。
     var changed = new List<int>();
-    using var changedSubscription = RemoteEventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => changed.Add(dto.Index));
+    using var changedSubscription = RemoteEventSubscriber.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => changed.Add(dto.Index));
     var created = library.Create(1, "  SC1_CLEAN ", "Tester");
     Check(created.IsSuccess && Data(created) is not null && Data(created)!.Name == "SC1_CLEAN" && Data(created)!.Revision == 1
           && Data(created)!.CreatedBy == "Tester" && Data(created)!.ModifiedBy == "Tester", "新建：版本 1，记创建人");

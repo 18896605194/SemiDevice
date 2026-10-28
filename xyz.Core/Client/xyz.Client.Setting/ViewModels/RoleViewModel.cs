@@ -174,11 +174,11 @@ public class RoleViewModel : BaseViewModel
         BuildRows();
 
         _accountSubscription?.Dispose();
-        _accountSubscription = RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadRolesAsync(null));
+        _accountSubscription = RemoteEventSubscriber.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadRolesAsync(null));
 
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
+        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteEventConnection.IsConnected);
     }
 
     private void OnConnectionChanged(bool connected)

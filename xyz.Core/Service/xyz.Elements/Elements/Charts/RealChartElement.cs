@@ -1,4 +1,5 @@
 ﻿using xyz.Common;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Interfaces;
@@ -168,7 +169,7 @@ public class RealChartElement : ElementBase, IRealChart
     {
         try
         {
-            RemoteEventBus.Send(ToFrame(record), RealChartFrameDto.EventToken, retain: false);
+            RemoteEventPublisher.Send(ToFrame(record), RealChartFrameDto.EventToken, retain: false);
             _lastPushFault = null;
         }
         catch (Exception exception)

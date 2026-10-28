@@ -5,13 +5,14 @@
 ## 1. 工程和依赖方向
 
 ```
-Shared\xyz.Tools      EventBus、RemoteEventBus、JsonHelper、XmlHelper、IocHelper、ExcelHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
-                      子目录只归类、命名空间都是 xyz.Tools：Events\（进程内 EventBus、跨进程 RemoteEventBus、信封 EventMessage、订阅凭据 Subscription）、
+Shared\xyz.Tools      EventBus、跨进程事件的信封和黑板、JsonHelper、XmlHelper、IocHelper、ExcelHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
+                      子目录只归类、命名空间都是 xyz.Tools：Events\（进程内 EventBus、跨进程的信封 EventMessage 和黑板 RetainedBoard、订阅凭据 Subscription）、
                       Excel\（ExcelHelper 和它的列、表）、Helpers\（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件
 Shared\xyz.Shared     契约：Services\I*Service、Dtos\、Errors\ErrorCodes、Rpc\（→ Tools）
 Service\xyz.Common    日志：LogHelper（后端记日志一律走它）、ILogSource（两层名字）、LogQueue、LogFileReader、NLog.config；
                       帮助类在 Helpers\（只归类，命名空间还是 xyz.Common）：DateTimeHelper（本机时间 ↔ UTC 毫秒）、ValueHelper（数据类型、值的换算）；
                       日志在 Log\（命名空间 xyz.Common.Log）
+                      跨进程事件的发送方在 Events\（RemoteEventPublisher，命名空间 xyz.Common.Events；→ Tools）
 Service\xyz.Configs   machine.xml（读 machine.xml）、配置模型、Paths.json（→ Common、Tools）；machine.xml 本身归机型（如 xyz.35021.Module\Config\machine.xml）
 Service\xyz.Database  SqlSugar：XyzDb、实体、分表
 Service\xyz.Drivers   纯协议/通讯（不引用 Elements）
@@ -25,7 +26,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 ```
 
 - 元件层引用 xyz.Shared：错误码、EAP 接口用到的 DTO、元件自己推给界面的 DTO（2026-10-05 起；原来不引用）。**推送是元件自己的事**
-  （2026-10-18 起）：元件在自己的扫描或钩子里 `RemoteEventBus.Send`，转 DTO 走映射元件，启动代码里不搭桥（见 §5「事件推送」）。
+  （2026-10-18 起）：元件在自己的扫描或钩子里 `RemoteEventPublisher.Send`，转 DTO 走映射元件，启动代码里不搭桥（见 §5「事件推送」）。
   元件层的内部成员只对 xyz.Modules 开放（`InternalsVisibleTo`）：模块基类要控制
   ModuleRoutine"什么时候算真正做完"（`DeferCompletion` / `NotifyCompletion`）；所以 xyz.Modules 里重写 `protected internal` 的成员
   （`OnSettingLoaded`）要写 `protected internal override`，机型工程照旧 `protected override`。
@@ -325,7 +326,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   轴手动页参数默认值 EC：`MoveSpeed`、`JogSpeed`（点动 / 步进速度）、`JogStep`（步距）。
   轴的"目标已在到位容差里就不发"只用于绝对定位（MoveTo）；相对移动（MoveBy，步进）照发——步距默认 1 跟到位容差默认 1 一样大，
   以前会被当成已经到位、根本不走（2026-10-04 联调时发现）。联锁还没做。
-- 状态推送：`PublishState()` 里 `RemoteEventBus.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
+- 状态推送：`PublishState()` 里 `RemoteEventPublisher.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
   能放片的模块在推送里带上晶圆账（`LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name)`，腔体是 `Slots`），并在 HasStateChanged 里比较——
   账一变下一拍就推给所有界面，不另发通知；界面画片以账为准（见 decisions.md）。
 - 流程配方库 `Recipe\SequenceElement`（machine.xml `Sequence` 节点，参数：`Capacity` 99 个编号、`Folder` `Recipe\Sequence`、`NameMaxLength` 32）：
@@ -718,16 +719,19 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （`DataChartService.Next`），读库放 `Task.Run`；客户端取消时 `context.CancellationToken` 停。
 
 ### 事件推送
-- 两条总线（2026-10-27 用户定，互不相通、不转发）：推给界面用跨进程的 `RemoteEventBus`；后端元件之间要通知用进程内的 `EventBus`
+- 两条总线（2026-10-27 用户定，互不相通、不转发）：推给界面用跨进程的 `RemoteEventPublisher`（后端发）/ `RemoteEventSubscriber`（客户端收）；后端元件之间要通知用进程内的 `EventBus`
   （同步、在发送方线程上调、传原对象、没有黑板），它发的不出进程。想知道别的元件现在的状态按接口问它，不靠黑板。
-- 线：后端 `xyz.Service\Events\EventService`（客户端连上先发开流标记，再重放黑板，之后转发每条新发的）、客户端 `RemoteConnection`（client.md §4）；
+- 线：后端 `xyz.Service\Events\EventService`（客户端连上先发开流标记，再重放黑板，之后转发每条新发的）、客户端 `RemoteEventConnection`（client.md §4）；
   黑板两头各一块：后端给刚连上的客户端重放，客户端给后订阅的页面补发。客户端不往后端发事件，命令走 gRPC。信封 `EventMessage` 只在这条线上用，业务代码不碰。
-- `RemoteEventBus.Send(dto, token, retain)`：
+- 发、收两半（2026-10-28 用户定）：后端 `xyz.Common\Events\RemoteEventPublisher`（`Send`、给 EventService 的 `SubscribeSent` / `GetRetained`），
+  客户端 `xyz.Client.Common\Events\RemoteEventSubscriber`（`Register`、给 RemoteEventConnection 的 `Deliver`）；对面工程引用不到，客户端写不出 Send、后端写不出 Register。
+  两边共用的只有 xyz.Tools 里的信封 `EventMessage` 和黑板规则 `RetainedBoard`（不带锁，用的地方在自己的锁里调）。
+- `RemoteEventPublisher.Send(dto, token, retain)`：
   - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"SystemState"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的设备状态推送 `ChamberDeviceDataDto`）也用模块名，类型不同互不覆盖；
     不是模块的部件跟着它上面的模块推（供液槽的 `TankDto` 装在机型 IPA 模块的 `IpaDto` 里一起推，token 是模块名，留存，变了才推）；
   - "发生了一件事"类用 `retain: false`（不写黑板，同一格的旧状态擦掉）。
-- **推送是元件自己的事**（2026-10-18 起，启动代码里不搭桥、没有 `*Publisher`）：值一变的在变的地方发（EC 元件 `EcItemDto`、报警元件 `AlarmDto`、
+- **推送是元件自己的事**（2026-10-18 起，启动代码里不搭桥、没有各功能自己的 `*Publisher` 桥）：值一变的在变的地方发（EC 元件 `EcItemDto`、报警元件 `AlarmDto`、
   晶圆账 `WaferLedgerChangedDto`、两个配方库的变更 DTO、日志元件每条日志 `LogDto`，切晶圆尺寸时工艺配方库推一条编号 0 的）；每拍比、变了才推的在自己的 `OnScan` 里发
   （模块状态、整机的设备总状态、IPA）；按周期推的也在自己的 `OnScan` 里看时间（IO 整包按 EC `PublishIntervalMs`，实时曲线把数据曲线采到的行一帧一帧推）——
   所以要推的根元件在 machine.xml 配 `IsRun=true`。推失败吞住，同一个错只记一次日志。C# 事件（`AlarmChanged`、`ValueChanged`、`Wafer*`）留给后端里别的元件订（E30 订报警和 EC 变化，晶圆账自己接给 E90）。

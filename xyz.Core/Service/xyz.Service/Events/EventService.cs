@@ -1,6 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using ProtoBuf.Grpc;
+using xyz.Common.Events;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 using xyz.Tools;
@@ -18,8 +19,8 @@ public class EventService : BaseService, IEventService
       
         channel.Writer.TryWrite(new EventMessage());  //发一条空的消息
 
-        var subscription = RemoteEventBus.SubscribeSent(message => channel.Writer.TryWrite(message));  //
-        foreach (var retained in RemoteEventBus.GetRetained())  //获取黑板上的内容，发送一下
+        var subscription = RemoteEventPublisher.SubscribeSent(message => channel.Writer.TryWrite(message));  //
+        foreach (var retained in RemoteEventPublisher.GetRetained())  //获取黑板上的内容，发送一下
         {
             channel.Writer.TryWrite(retained);
         }

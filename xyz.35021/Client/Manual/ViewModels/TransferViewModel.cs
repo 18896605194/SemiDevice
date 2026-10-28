@@ -1,4 +1,5 @@
-﻿using xyz.Client.Common.Log;
+﻿using xyz.Client.Common.Events;
+using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Models;
@@ -64,7 +65,7 @@ public class TransferViewModel : BaseViewModel, IDisposable
         }
 
         _stateSubscription?.Dispose();
-        _stateSubscription = RemoteEventBus.Register<RobotDto>(moduleName, Robot.Update);
+        _stateSubscription = RemoteEventSubscriber.Register<RobotDto>(moduleName, Robot.Update);
     }
 
     public void Dispose()

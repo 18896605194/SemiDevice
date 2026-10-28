@@ -2,6 +2,7 @@
 using System.Reflection;
 using System.Threading.Channels;
 using SqlSugar;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Collectors;
@@ -524,7 +525,7 @@ public class AlarmElement : ElementBase, IAlarm
 
         try
         {
-            RemoteEventBus.Send(_mapper.Map<AlarmDto>(alarm), AlarmDto.EventToken, retain: false);
+            RemoteEventPublisher.Send(_mapper.Map<AlarmDto>(alarm), AlarmDto.EventToken, retain: false);
         }
         catch (Exception exception)
         {

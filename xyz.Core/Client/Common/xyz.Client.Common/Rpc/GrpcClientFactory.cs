@@ -25,13 +25,10 @@ public static class GrpcClientFactory
     /// </summary>
     private static CallInvoker? _invoker;
 
-    /// <summary>
-    /// 在程序启动时调用一次，创建全局唯一的 GrpcChannel。
-    /// </summary>
     public static void Initialize(string? address = null)
     {
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
-        var config = ReadClientConfig();
+        var config = ReadClientConfig();  //读出服务端的基础配置就是地址
         address ??= config.GrpcAddress ?? DefaultAddress;
         int maxMessageSizeMb = DefaultMaxMessageSizeMb;
         if (config.MaxMessageSizeMb > 0)
@@ -39,11 +36,12 @@ public static class GrpcClientFactory
             maxMessageSizeMb = config.MaxMessageSizeMb;
         }
 
+        //创建通道，记录地址 
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
             MaxReceiveMessageSize = maxMessageSizeMb * 1024 * 1024,
         });
-        _invoker = channel.Intercept(new UserHeader());
+        _invoker = channel.Intercept(new UserHeader());  //创建通道增加外壳
         ClientLog.Info("Client", $"gRPC 通道：{address}，单条消息上限 {maxMessageSizeMb} MB");
     }
 
@@ -87,8 +85,7 @@ public static class GrpcClientFactory
 
     private static CallInvoker GetInvoker()
     {
-        return _invoker
-            ?? throw new InvalidOperationException("请先在程序启动时调用 GrpcClientFactory.Initialize()");
+        return _invoker?? throw new InvalidOperationException("请先在程序启动时调用 GrpcClientFactory.Initialize()");
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 ﻿using System.Threading.Channels;
 using SqlSugar;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Enums;
@@ -77,7 +78,7 @@ public class LedgerManagerElement : ElementBase, ILedgerManager
 
     private static void NotifyLedger(string module)
     {
-        RemoteEventBus.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken, retain: false);
     }
 
     #region EAP 口子（E90 片跟踪）

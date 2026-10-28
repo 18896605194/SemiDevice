@@ -1,6 +1,7 @@
 ﻿using SqlSugar;
 using System.Globalization;
 using System.Threading.Channels;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Attributes;
@@ -2300,7 +2301,7 @@ public class JobManager : ElementBase, IJobManager
 
         try
         {
-            RemoteEventBus.Send(snapshot, JobListDto.EventToken);
+            RemoteEventPublisher.Send(snapshot, JobListDto.EventToken);
         }
         catch (Exception exception)
         {

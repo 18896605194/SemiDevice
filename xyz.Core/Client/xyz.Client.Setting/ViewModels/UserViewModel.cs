@@ -120,11 +120,11 @@ public class UserViewModel : BaseViewModel
     public override void Init()
     {
         _accountSubscription?.Dispose();
-        _accountSubscription = RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadAsync());
+        _accountSubscription = RemoteEventSubscriber.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadAsync());
 
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
+        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteEventConnection.IsConnected);
     }
 
     private void OnConnectionChanged(bool connected)

@@ -6,6 +6,7 @@ using MiniExcelLibs;
 using NLog;
 using ProtoBuf.Grpc;
 using SqlSugar;
+using xyz.Client.Common.Events;
 using xyz.Client.DataCenter.Models;
 using xyz.Client.Presentation.Controls;
 using xyz.Client.Presentation.Models;
@@ -119,7 +120,7 @@ try
         }
     }
 
-    using (RemoteEventBus.Register<LogDto>(LogDto.EventToken, dto =>
+    using (RemoteEventSubscriber.Register<LogDto>(LogDto.EventToken, dto =>
            {
                lock (pushedLogs)
                {
@@ -361,7 +362,7 @@ try
     var device = new ProbeDevice("Tool1");
     var alarmService = new AlarmService();
     var pushedAlarms = new List<AlarmDto>();
-    using var alarmPushes = RemoteEventBus.Register<AlarmDto>(AlarmDto.EventToken, dto => pushedAlarms.Add(dto));
+    using var alarmPushes = RemoteEventSubscriber.Register<AlarmDto>(AlarmDto.EventToken, dto => pushedAlarms.Add(dto));
     device.Fault();
     var active = JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!;
     Check(active.Count == 1 && active[0].Source == "Tool1" && active[0].Code == "ProbeFault"
@@ -685,7 +686,7 @@ try
     var realChart = new RealChartElement { IsRun = true, WindowSeconds = 60 };
     SmokeIoc.Use<IRealChart>(realChart);
     var frames = new List<RealChartFrameDto>();
-    using (RemoteEventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
+    using (RemoteEventSubscriber.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
            {
                lock (frames)
                {

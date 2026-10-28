@@ -9,10 +9,11 @@ using Microsoft.Extensions.Logging;
 using ProtoBuf.Grpc.Server;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Rpc;
+using xyz.Common.Events;
 using xyz.Service.Events;
 using xyz.Tools;
 
-// 事件总线冒烟：进程内 EventBus、跨进程 RemoteEventBus 各管各的，互不相通
+// 事件总线冒烟：进程内 EventBus、跨进程 RemoteEventPublisher / RemoteEventSubscriber 各管各的，互不相通
 //   dotnet run --project tools\EventBusSmoke                 全部检查（跨进程那段自己起后端子进程）
 //   dotnet run --project tools\EventBusSmoke -- server 端口   只起事件后端（给上面那段用，也能手动起来看）
 if (args.Length > 1 && args[0] == "server")
@@ -36,7 +37,7 @@ LocalBus();
 RemoteBusAlone();
 CrossProcess();
 
-Console.WriteLine($"PASS: {checks} event bus checks (进程内 EventBus、RemoteEventBus 的发和收、黑板、死信、跨进程推送、断线重连后重放)");
+Console.WriteLine($"PASS: {checks} event bus checks (进程内 EventBus、RemoteEventPublisher / RemoteEventSubscriber 的发和收、黑板、死信、跨进程推送、断线重连后重放)");
 return 0;
 
 // 进程内：同步、原对象、按 token 分、没有黑板、退订、出错隔离、不出进程
@@ -122,7 +123,7 @@ void LocalBus()
     #region 不出进程：EventBus 发的不交给跨进程的线
 
     var sent = new List<EventMessage>();
-    var listener = RemoteEventBus.SubscribeSent(sent.Add);
+    var listener = RemoteEventPublisher.SubscribeSent(sent.Add);
     EventBus.Send(new LocalMessage { Text = "local only" }, "A");
     listener.Dispose();
     Check(sent.Count == 0, "进程内：EventBus 发的不会交给跨进程的线");
@@ -130,7 +131,7 @@ void LocalBus()
     #endregion
 }
 
-// RemoteEventBus 本身（不走网络）：发只交给线、信封、后端黑板；收派发副本、补发、通知类擦格子、死信
+// RemoteEventPublisher / RemoteEventSubscriber 本身（不走网络）：发只交给线、信封、后端黑板；收派发副本、补发、通知类擦格子、死信
 void RemoteBusAlone()
 {
     #region 发：只交给线，不在本进程派发
@@ -138,10 +139,10 @@ void RemoteBusAlone()
     var sent = new List<EventMessage>();
     var remote = new List<TickMessage>();
     var local = new List<TickMessage>();
-    var listener = RemoteEventBus.SubscribeSent(sent.Add);
-    var remotePage = RemoteEventBus.Register<TickMessage>("r1", remote.Add);
+    var listener = RemoteEventPublisher.SubscribeSent(sent.Add);
+    var remotePage = RemoteEventSubscriber.Register<TickMessage>("r1", remote.Add);
     var localSubscription = EventBus.Register<TickMessage>("r1", local.Add);
-    RemoteEventBus.Send(new TickMessage { Sequence = 1, Token = "r1" }, "r1");
+    RemoteEventPublisher.Send(new TickMessage { Sequence = 1, Token = "r1" }, "r1");
     listener.Dispose();
     remotePage.Dispose();
     localSubscription.Dispose();
@@ -156,38 +157,38 @@ void RemoteBusAlone()
 
     #region 后端黑板：同一格只留最后一条；通知类不写，还会擦掉同一格
 
-    RemoteEventBus.Send(new TickMessage { Sequence = 1, Token = "r2" }, "r2");
-    RemoteEventBus.Send(new TickMessage { Sequence = 2, Token = "r2" }, "r2");
-    RemoteEventBus.Send(new TickMessage { Sequence = 3, Token = "r2n" }, "r2n", retain: false);
-    var board = RemoteEventBus.GetRetained().Where(item => item.Token == "r2" || item.Token == "r2n").ToList();
+    RemoteEventPublisher.Send(new TickMessage { Sequence = 1, Token = "r2" }, "r2");
+    RemoteEventPublisher.Send(new TickMessage { Sequence = 2, Token = "r2" }, "r2");
+    RemoteEventPublisher.Send(new TickMessage { Sequence = 3, Token = "r2n" }, "r2n", retain: false);
+    var board = RemoteEventPublisher.GetRetained().Where(item => item.Token == "r2" || item.Token == "r2n").ToList();
     var last = board.Count == 1 ? JsonHelper.Deserialize<TickMessage>(board[0].Payload) : null;
     Check(board.Count == 1 && board[0].Token == "r2" && last is not null && last.Sequence == 2, "黑板：同一格只留最后一条，通知类不写");
-    RemoteEventBus.Send(new TickMessage { Sequence = 4, Token = "r2" }, "r2", retain: false);
-    Check(RemoteEventBus.GetRetained().All(item => item.Token != "r2"), "黑板：同一格发一条通知类，旧状态擦掉");
+    RemoteEventPublisher.Send(new TickMessage { Sequence = 4, Token = "r2" }, "r2", retain: false);
+    Check(RemoteEventPublisher.GetRetained().All(item => item.Token != "r2"), "黑板：同一格发一条通知类，旧状态擦掉");
 
     #endregion
 
     #region 收：Deliver 进来派发副本；黑板补发；通知类照发但擦格子；空 token 当全局
 
     var received = new List<TickMessage>();
-    var page = RemoteEventBus.Register<TickMessage>("r3", received.Add);
+    var page = RemoteEventSubscriber.Register<TickMessage>("r3", received.Add);
     var original = new TickMessage { Sequence = 7, Token = "r3" };
-    RemoteEventBus.Deliver(Envelope(original, "r3", retain: true));
+    RemoteEventSubscriber.Deliver(Envelope(original, "r3", retain: true));
     Check(received.Count == 1 && received[0].Sequence == 7 && !ReferenceEquals(received[0], original), "收：按 token 调订阅者，拿到的是拆包出来的副本");
     var late = new List<TickMessage>();
-    var latePage = RemoteEventBus.Register<TickMessage>("r3", late.Add);
+    var latePage = RemoteEventSubscriber.Register<TickMessage>("r3", late.Add);
     Check(late.Count == 1 && late[0].Sequence == 7, "收：黑板上有的，页面后订阅马上补发最后一条");
-    RemoteEventBus.Deliver(Envelope(new TickMessage { Sequence = 8, Token = "r3" }, "r3", retain: false));
+    RemoteEventSubscriber.Deliver(Envelope(new TickMessage { Sequence = 8, Token = "r3" }, "r3", retain: false));
     var later = new List<TickMessage>();
-    var laterPage = RemoteEventBus.Register<TickMessage>("r3", later.Add);
+    var laterPage = RemoteEventSubscriber.Register<TickMessage>("r3", later.Add);
     page.Dispose();
     latePage.Dispose();
     laterPage.Dispose();
     Check(received.Count == 2 && late.Count == 2 && later.Count == 0, "收：通知类照样派发，不写黑板，同一格的旧状态擦掉");
 
     var global = new List<TickMessage>();
-    var globalPage = RemoteEventBus.Register<TickMessage>(global.Add);
-    RemoteEventBus.Deliver(Envelope(new TickMessage { Sequence = 9 }, null, retain: false));
+    var globalPage = RemoteEventSubscriber.Register<TickMessage>(global.Add);
+    RemoteEventSubscriber.Deliver(Envelope(new TickMessage { Sequence = 9 }, null, retain: false));
     globalPage.Dispose();
     Check(global.Count == 1 && global[0].Sequence == 9, "收：protobuf 省掉的空 token 当全局消息");
 
@@ -201,20 +202,20 @@ void RemoteBusAlone()
         dead.Add(message);
     }
 
-    RemoteEventBus.DeadLetter += OnDead;
-    RemoteEventBus.Deliver(new EventMessage { TypeName = "Nobody.Knows", Token = "r5", Payload = "{}" });
+    RemoteEventSubscriber.DeadLetter += OnDead;
+    RemoteEventSubscriber.Deliver(new EventMessage { TypeName = "Nobody.Knows", Token = "r5", Payload = "{}" });
     Check(dead.Count == 0, "死信：没人订的类型直接丢掉，不算死信");
-    var badPage = RemoteEventBus.Register<TickMessage>("r5", _ => { });
-    RemoteEventBus.Deliver(new EventMessage { TypeName = typeof(TickMessage).FullName!, Token = "r5", Payload = "不是 JSON" });
+    var badPage = RemoteEventSubscriber.Register<TickMessage>("r5", _ => { });
+    RemoteEventSubscriber.Deliver(new EventMessage { TypeName = typeof(TickMessage).FullName!, Token = "r5", Payload = "不是 JSON" });
     badPage.Dispose();
     Check(dead.Count == 1, "死信：解不开的消息进死信，不往外抛");
     var good = new List<TickMessage>();
-    var throwing = RemoteEventBus.Register<TickMessage>("r6", _ => throw new InvalidOperationException("页面出错"));
-    var goodPage = RemoteEventBus.Register<TickMessage>("r6", good.Add);
-    RemoteEventBus.Deliver(Envelope(new TickMessage { Sequence = 1, Token = "r6" }, "r6", retain: false));
+    var throwing = RemoteEventSubscriber.Register<TickMessage>("r6", _ => throw new InvalidOperationException("页面出错"));
+    var goodPage = RemoteEventSubscriber.Register<TickMessage>("r6", good.Add);
+    RemoteEventSubscriber.Deliver(Envelope(new TickMessage { Sequence = 1, Token = "r6" }, "r6", retain: false));
     throwing.Dispose();
     goodPage.Dispose();
-    RemoteEventBus.DeadLetter -= OnDead;
+    RemoteEventSubscriber.DeadLetter -= OnDead;
     Check(good.Count == 1 && dead.Count == 2, "死信：一个页面抛异常进死信，不耽误后面的");
 
     #endregion
@@ -222,16 +223,16 @@ void RemoteBusAlone()
     #region 线：退订以后不再拿到新发的
 
     var after = new List<EventMessage>();
-    var afterListener = RemoteEventBus.SubscribeSent(after.Add);
+    var afterListener = RemoteEventPublisher.SubscribeSent(after.Add);
     afterListener.Dispose();
     afterListener.Dispose();
-    RemoteEventBus.Send(new TickMessage(), "r7", retain: false);
+    RemoteEventPublisher.Send(new TickMessage(), "r7", retain: false);
     Check(after.Count == 0, "线：退订以后不再拿到新发的，重复退订不出错");
 
     #endregion
 }
 
-// 跨进程：起后端子进程，客户端照真实的走 RemoteConnection（控制台没有界面线程，回调在接收线程上）
+// 跨进程：起后端子进程，客户端照真实的走 RemoteEventConnection（控制台没有界面线程，回调在接收线程上）
 void CrossProcess()
 {
     var port = FreePort();
@@ -239,19 +240,19 @@ void CrossProcess()
     var lives = new ConcurrentQueue<TickMessage>();
     var notices = new ConcurrentQueue<TickMessage>();
     var changes = new ConcurrentQueue<bool>();
-    using var tickPage = RemoteEventBus.Register<TickMessage>("tick", ticks.Enqueue);
-    using var livePage = RemoteEventBus.Register<TickMessage>("live", lives.Enqueue);
-    using var noticePage = RemoteEventBus.Register<TickMessage>("notice", notices.Enqueue);
-    RemoteConnection.ConnectionChanged += changes.Enqueue;
+    using var tickPage = RemoteEventSubscriber.Register<TickMessage>("tick", ticks.Enqueue);
+    using var livePage = RemoteEventSubscriber.Register<TickMessage>("live", lives.Enqueue);
+    using var noticePage = RemoteEventSubscriber.Register<TickMessage>("notice", notices.Enqueue);
+    RemoteEventConnection.ConnectionChanged += changes.Enqueue;
 
     GrpcClientFactory.Initialize($"http://localhost:{port}");
-    RemoteConnection.Initialize();
+    RemoteEventConnection.Initialize();
     var server = StartServer(port);
     try
     {
         #region 连上：先重放黑板；连之前的通知类、后端进程内发的都不过来
 
-        Check(WaitUntil(() => RemoteConnection.IsConnected, 20000), "跨进程：连上后端（收到开流标记才算）");
+        Check(WaitUntil(() => RemoteEventConnection.IsConnected, 20000), "跨进程：连上后端（收到开流标记才算）");
         Check(WaitUntil(() => lives.Count >= 3 && notices.Count >= 3, 10000), "跨进程：连着时后端新发的状态类、通知类都推过来");
         Check(ticks.Count == 1 && ticks.First().Sequence == 0, "跨进程：连上先重放黑板（连之前发的状态类），后端进程内 EventBus 发的不过来");
         Check(notices.All(item => item.Sequence > 0), "跨进程：连之前发的通知类不补发");
@@ -259,7 +260,7 @@ void CrossProcess()
         Check(lives.All(item => item.Token == "live") && notices.All(item => item.Token == "notice"), "跨进程：按 token 分开，不串");
 
         var lateTicks = new List<TickMessage>();
-        var lateTickPage = RemoteEventBus.Register<TickMessage>("tick", lateTicks.Add);
+        var lateTickPage = RemoteEventSubscriber.Register<TickMessage>("tick", lateTicks.Add);
         lateTickPage.Dispose();
         Check(lateTicks.Count == 1 && lateTicks[0].Sequence == 0, "跨进程：页面后订阅，客户端黑板马上补发");
 
@@ -269,12 +270,12 @@ void CrossProcess()
 
         server.Kill(entireProcessTree: true);
         server.WaitForExit();
-        Check(WaitUntil(() => !RemoteConnection.IsConnected, 10000), "跨进程：后端停了，连接状态变成断开");
+        Check(WaitUntil(() => !RemoteEventConnection.IsConnected, 10000), "跨进程：后端停了，连接状态变成断开");
         ticks.Clear();
         var stopped = server;
         server = StartServer(port);
         stopped.Dispose();
-        Check(WaitUntil(() => RemoteConnection.IsConnected, 20000), "跨进程：后端回来，按 3 秒一次重连上");
+        Check(WaitUntil(() => RemoteEventConnection.IsConnected, 20000), "跨进程：后端回来，按 3 秒一次重连上");
         Check(WaitUntil(() => !ticks.IsEmpty, 5000) && ticks.First().Sequence == 0, "跨进程：重连上再重放一遍黑板");
         Check(changes.SequenceEqual(new[] { true, false, true }), "跨进程：连接状态按连上、断开、再连上报");
 
@@ -363,8 +364,8 @@ static bool NotDescending(IEnumerable<TickMessage> messages)
 // 后端子进程：连之前先发三条（状态类写黑板、通知类不写、进程内的不出进程），之后每 200 毫秒推一条状态类、一条通知类
 static async Task RunServer(int port)
 {
-    RemoteEventBus.Send(new TickMessage { Sequence = 0, Token = "tick" }, "tick");
-    RemoteEventBus.Send(new TickMessage { Sequence = -100, Token = "notice" }, "notice", retain: false);
+    RemoteEventPublisher.Send(new TickMessage { Sequence = 0, Token = "tick" }, "tick");
+    RemoteEventPublisher.Send(new TickMessage { Sequence = -100, Token = "notice" }, "notice", retain: false);
     EventBus.Send(new TickMessage { Sequence = -1, Token = "tick" }, "tick");
 
     var builder = WebApplication.CreateBuilder();
@@ -382,8 +383,8 @@ static async Task RunServer(int port)
         {
             await Task.Delay(200);
             sequence++;
-            RemoteEventBus.Send(new TickMessage { Sequence = sequence, Token = "live" }, "live");
-            RemoteEventBus.Send(new TickMessage { Sequence = sequence, Token = "notice" }, "notice", retain: false);
+            RemoteEventPublisher.Send(new TickMessage { Sequence = sequence, Token = "live" }, "live");
+            RemoteEventPublisher.Send(new TickMessage { Sequence = sequence, Token = "notice" }, "notice", retain: false);
         }
     });
 

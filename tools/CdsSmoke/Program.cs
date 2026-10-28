@@ -1,4 +1,5 @@
-﻿using xyz.Elements;
+﻿using xyz.Client.Common.Events;
+using xyz.Elements;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
@@ -453,7 +454,7 @@ try
     Check(pushed.LL is not null && pushed.H is not null && pushed.L is null && pushed.HH is null && pushed.Overfill is null,
         "槽给出配了的信号，没挂的是 null");
     var received = new List<IpaDto>();
-    using var subscription = RemoteEventBus.Register<IpaDto>(ipa.Name, dto => received.Add(dto));
+    using var subscription = RemoteEventSubscriber.Register<IpaDto>(ipa.Name, dto => received.Add(dto));
     plc.SetDi(10, true);
     plc.SetDi(11, false);
     // IPA 开机 Bind 时取映射元件：换了要重新 Bind
@@ -494,7 +495,7 @@ try
     ipa.Tick();
     Check(received.Count == 6 && received[5].State == ModuleState.Idle, "IPA 自己的状态变了：也推");
     IpaDto? late = null;
-    using (RemoteEventBus.Register<IpaDto>(ipa.Name, dto => late = dto))
+    using (RemoteEventSubscriber.Register<IpaDto>(ipa.Name, dto => late = dto))
     {
         Check(late is not null && late.State == ModuleState.Idle && late.Tanks[0].State == (int)TankState.Ready,
             "留存：后打开的页面一订上就拿到最新一条");

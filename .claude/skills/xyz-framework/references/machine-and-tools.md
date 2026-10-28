@@ -92,7 +92,7 @@
 | `*Visual3DSmoke`、ChamberSceneSmoke、LoadPortSceneSmoke（不在 sln，WPF） | 三维硬件组件（门 / Bowl / Lift 未知时停在行程中间、整块变红；Disk 没有右键菜单）和腔体三维图（ChamberScene：从部件推送按角色挑出部件并搭建、部件动作名的叫法、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、图下面的视角工具栏（默认视角、俯视）、重搭）；LoadPort 三维图（LoadPortScene：槽数跟 machine.xml、片用 Disk 且就地换数据、点片选中、每个动作 0.5 s 且有先后、只亮在动的那块、门在半路、手动页显示模型的对接 / 门推法）；`-- 路径.png` 出图 |
 | BufferSmoke（不在 sln，WPF） | buffer 架子的界面件：XAML 绑定、集合、片在层间移动、颜色、左右对称、视图控件、缩放、空的和越界的状态 |
 | FluidPipeSmoke（不在 sln，WPF） | 管路控件 `FluidPipe`：常规控件、绑定、布局、渲染 |
-| EventBusSmoke | 两条事件总线。进程内 `EventBus`：同步、在发送方线程上、传原对象、按 token 分、全局订阅只收不带 token 的、没有黑板、退订和重复退订、回调里退订自己、订阅者抛异常进死信不耽误后面的、不交给跨进程的线；`RemoteEventBus` 不走网络的部分：Send 只交给线不在本进程派发、信封（类型全名 / token / 写黑板标记 / JSON）、后端黑板同一格留最后一条、通知类不写还擦掉同一格、Deliver 派发拆包副本、后订阅补发、通知类照发不补、protobuf 省掉的空 token 当全局、没人订的类型丢掉、解不开和订阅者抛异常进死信、线退订；跨进程（自己起后端子进程 `-- server 端口`，客户端走 `RemoteConnection`）：收到开流标记才算连上、先重放黑板、连之前的通知类和后端进程内 `EventBus` 发的不过来、按顺序到、按 token 不串、页面后订阅补发、后端停了报断开、回来按 3 秒一次重连上再重放、连接状态按连上 / 断开 / 再连上报 |
+| EventBusSmoke | 两条事件总线。进程内 `EventBus`：同步、在发送方线程上、传原对象、按 token 分、全局订阅只收不带 token 的、没有黑板、退订和重复退订、回调里退订自己、订阅者抛异常进死信不耽误后面的、不交给跨进程的线；`RemoteEventPublisher` / `RemoteEventSubscriber` 不走网络的部分：Send 只交给线不在本进程派发、信封（类型全名 / token / 写黑板标记 / JSON）、后端黑板同一格留最后一条、通知类不写还擦掉同一格、Deliver 派发拆包副本、后订阅补发、通知类照发不补、protobuf 省掉的空 token 当全局、没人订的类型丢掉、解不开和订阅者抛异常进死信、线退订；跨进程（自己起后端子进程 `-- server 端口`，客户端走 `RemoteEventConnection`）：收到开流标记才算连上、先重放黑板、连之前的通知类和后端进程内 `EventBus` 发的不过来、按顺序到、按 token 不串、页面后订阅补发、后端停了报断开、回来按 3 秒一次重连上再重放、连接状态按连上 / 断开 / 再连上报 |
 
 - 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException("FAIL: " + message); } checks++; }`
   （if 后面也要大括号、单独一行，switch 用老写法，见 SKILL.md 硬规矩 2）；
@@ -113,8 +113,9 @@
 - 数据：内存里造元件（`new LedgerManagerElement()`、`SmokeIoc.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
 - 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；不在 sln 里的单独编，名单见 §1）。HsmsSmoke、EapSmoke 随机用 5600~5999 的端口，
   真宿主开着 EAP 链路（Hsms 启用、端口落在这一段）时别同时跑。
-- 同进程里要收后端推送的冒烟（元件 `RemoteEventBus.Send`、冒烟 `RemoteEventBus.Register` 接着查），开头 `SmokeIoc.Reset()` 后面调 `SmokeEvents.Loopback()`
-  （`SmokeShared\SmokeEvents.cs`，csproj 里链接进来）：RemoteEventBus 只把消息交给线、不在本进程派发，回环代替线把消息投回本进程，跟真客户端一样拿到拆包后的副本。
+- 同进程里要收后端推送的冒烟（元件 `RemoteEventPublisher.Send`、冒烟 `RemoteEventSubscriber.Register` 接着查），开头 `SmokeIoc.Reset()` 后面调 `SmokeEvents.Loopback()`
+  （`SmokeShared\SmokeEvents.cs`，csproj 里链接进来）：RemoteEventPublisher 只把消息交给线、不在本进程派发，回环代替线把消息交给本进程的 RemoteEventSubscriber，跟真客户端一样拿到拆包后的副本。
+  这类冒烟要引用 xyz.Client.Common（订阅方在那），写在别的工程引用前面：两边工程都往输出目录拷 `Log\NLog.config`，要留后端那份。
 - **新功能、改了行为都要在对应冒烟里加检查**；冒烟测试里的代码也守同样的编码规范（不写花括号模式匹配等）。
 
 ## 4. 运行起来看

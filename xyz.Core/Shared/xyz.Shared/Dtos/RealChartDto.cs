@@ -43,7 +43,7 @@ public class RealChartRecentDto
 }
 
 /// <summary>
-/// 实时曲线的一帧：一个采样周期一帧，后端主动推（RemoteEventBus，token = EventToken，不留存）。
+/// 实时曲线的一帧：一个采样周期一帧，后端主动推（RemoteEventPublisher，token = EventToken，不留存）。
 /// Values 按信号表（RealChartLayoutDto.Signals）的顺序，null = 读不到。
 /// </summary>
 public class RealChartFrameDto

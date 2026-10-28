@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text.Json;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Attributes;
@@ -184,7 +185,7 @@ public class SequenceElement : ElementBase, ISequenceElement
     private void OnWaferSizeChanged(int size)
     {
         BuildGroups();
-        RemoteEventBus.Send(new SequenceChangedDto(), SequenceListDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new SequenceChangedDto(), SequenceListDto.EventToken, retain: false);
     }
 
     /// <summary>
@@ -366,7 +367,7 @@ public class SequenceElement : ElementBase, ISequenceElement
 
         var saved = result.Result as SequenceData;
         LogHelper.Info(this, saved is null ? message : $"{message}，版本 {saved.Revision}");
-        RemoteEventBus.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
 
         var callback = E30Callback;
         if (callback is null)

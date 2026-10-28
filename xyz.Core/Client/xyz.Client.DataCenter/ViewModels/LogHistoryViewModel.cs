@@ -124,9 +124,9 @@ public class LogHistoryViewModel : BaseViewModel
 
     public override void Init()
     {
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        if (RemoteConnection.IsConnected)
+        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        if (RemoteEventConnection.IsConnected)
         {
             OnConnectionChanged(true);
         }

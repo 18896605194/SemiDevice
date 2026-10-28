@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Common\xyz.Client.Common.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Elements\xyz.Elements.csproj" />
     <!-- 槽的推送跟着机型的 IPA 模块走（IpaModule、IpaDto 在机型层） -->
     <ProjectReference Include="..\..\xyz.35021\Service\xyz.35021.Module\xyz.35021.Module.csproj" />

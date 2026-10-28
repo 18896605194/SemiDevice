@@ -1,4 +1,5 @@
 ﻿using xyz.Common;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Models;
 using xyz.Shared.Dtos;
@@ -39,7 +40,7 @@ public partial class IoElement
             RefreshValues(_snapshot);
 
             // 状态类消息：留存着，客户端连上立刻拿到当前这一包，不用等下一次
-            RemoteEventBus.Send(_snapshot, IoDto.EventToken);
+            RemoteEventPublisher.Send(_snapshot, IoDto.EventToken);
             _lastPublishFault = null;
         }
         catch (Exception exception)

@@ -6,9 +6,9 @@ using xyz.Tools;
 namespace xyz.Client.Common.Events;
 
 /// <summary>
-/// 客户端连后端的事件线：保持一条推送流、断线 3 秒重连，收到的消息转到界面线程交给 RemoteEventBus
+/// 客户端连后端的事件
 /// </summary>
-public static class RemoteConnection
+public static class RemoteEventConnection
 {
     private const int ReconnectDelayMs = 3000;
 
@@ -47,17 +47,14 @@ public static class RemoteConnection
         {
             try
             {
-                var service = GrpcClientFactory.Create<IEventService>();
-                var stream = service.SubscribeAsync(new EventSubscription());
-
-                // 调 SubscribeAsync 时还没真正连上（后端不在线要等枚举时才抛），收到第一条才算连上；
-                // 后端开流先发一条空信封作标记，标记本身不投递。
+                var service = GrpcClientFactory.Create<IEventService>();  //获取后台的服务
+                var stream = service.SubscribeAsync(new EventSubscription());  //告诉后端有消息就推送过来
                 await foreach (var envelope in stream)
                 {
                     SetConnected(true);
                     if (!string.IsNullOrEmpty(envelope.TypeName))
                     {
-                        DeliverOnUi(envelope);
+                        DeliverOnUi(envelope);  //推给每一个界面的订阅的
                     }
                 }
             }
@@ -75,11 +72,11 @@ public static class RemoteConnection
     {
         if (_uiContext is null)
         {
-            RemoteEventBus.Deliver(envelope);
+            RemoteEventSubscriber.Deliver(envelope);
         }
         else
         {
-            _uiContext.Post(_ => RemoteEventBus.Deliver(envelope), null);
+            _uiContext.Post(_ => RemoteEventSubscriber.Deliver(envelope), null);
         }
     }
 

@@ -1,4 +1,5 @@
 ﻿using SqlSugar;
+using xyz.Client.Common.Events;
 using xyz.Elements;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
@@ -39,7 +40,7 @@ string dbPath = Path.Combine(Path.GetTempPath(), $"account-smoke-{Guid.NewGuid()
 XyzDb.Register(DbName, $"DataSource={dbPath}", DbType.Sqlite);
 
 int changed = 0;
-using var subscription = RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, _ => changed++);
+using var subscription = RemoteEventSubscriber.Register<AccountChangedDto>(AccountChangedDto.EventToken, _ => changed++);
 
 try
 {

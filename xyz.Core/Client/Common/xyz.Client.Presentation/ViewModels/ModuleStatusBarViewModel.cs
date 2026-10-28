@@ -30,11 +30,11 @@ public sealed class ModuleStatusBarViewModel : BaseViewModel
     public override void Init()
     {
         _subscription?.Dispose();
-        _subscription = RemoteEventBus.Register<ModuleStatusListDto>(ModuleStatusListDto.EventToken, OnModulesChanged);
+        _subscription = RemoteEventSubscriber.Register<ModuleStatusListDto>(ModuleStatusListDto.EventToken, OnModulesChanged);
 
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
+        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteEventConnection.IsConnected);
     }
 
     private void OnConnectionChanged(bool connected)

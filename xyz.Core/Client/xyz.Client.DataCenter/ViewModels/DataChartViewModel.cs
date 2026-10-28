@@ -323,8 +323,8 @@ public class DataChartViewModel : BaseViewModel
 
         _reconnect?.Dispose();
         _reconnect = Observable
-            .FromEvent<bool>(handler => RemoteConnection.ConnectionChanged += handler,
-                handler => RemoteConnection.ConnectionChanged -= handler)
+            .FromEvent<bool>(handler => RemoteEventConnection.ConnectionChanged += handler,
+                handler => RemoteEventConnection.ConnectionChanged -= handler)
             .Where(connected => connected && Signals.Count == 0)
             .Subscribe(connected => _ = LoadSignalsAsync());
 

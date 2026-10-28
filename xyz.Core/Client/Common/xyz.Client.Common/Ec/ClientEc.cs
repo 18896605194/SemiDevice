@@ -31,7 +31,7 @@ public static class ClientEc
     public static event Action? Changed;
 
     /// <summary>
-    /// App 启动时（RemoteConnection.Initialize 之后）调一次。
+    /// App 启动时（RemoteEventConnection.Initialize 之后）调一次。
     /// </summary>
     public static void Initialize()
     {
@@ -40,9 +40,9 @@ public static class ClientEc
             return;
         }
 
-        _subscription = RemoteEventBus.Register<EcItemDto>(EcItemDto.EventToken, Update);
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        if (RemoteConnection.IsConnected)
+        _subscription = RemoteEventSubscriber.Register<EcItemDto>(EcItemDto.EventToken, Update);
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        if (RemoteEventConnection.IsConnected)
         {
             OnConnectionChanged(true);
         }

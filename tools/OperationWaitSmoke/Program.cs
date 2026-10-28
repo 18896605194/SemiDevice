@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using xyz.Client.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Interfaces;
 using xyz.Elements.Models;
@@ -2019,7 +2020,7 @@ port.E87Callback = null;
     SmokeIoc.Use<IMapper>(new MapperElement());
     ec.Bind(); // EC 元件开机 Bind 时取映射元件
     var pushedEc = new List<EcItemDto>();
-    using (RemoteEventBus.Register<EcItemDto>(EcItemDto.EventToken, dto => pushedEc.Add(dto)))
+    using (RemoteEventSubscriber.Register<EcItemDto>(EcItemDto.EventToken, dto => pushedEc.Add(dto)))
     {
         Check(ec.Set(ecPort.FullPath, nameof(ecPort.HomeTimeout), "4321"), "改 EC 值");
     }
@@ -2395,7 +2396,7 @@ port.E87Callback = null;
 
     // 整机自己推顶栏的设备总状态（EquipmentStatusDto，留存）：每拍算一次，变了才推（在做动作就是运行中）
     var statusPushes = new List<EquipmentStatusDto>();
-    using var statusSubscription = RemoteEventBus.Register<EquipmentStatusDto>(EquipmentStatusDto.EventToken, dto => statusPushes.Add(dto));
+    using var statusSubscription = RemoteEventSubscriber.Register<EquipmentStatusDto>(EquipmentStatusDto.EventToken, dto => statusPushes.Add(dto));
     statusPushes.Clear();
     machine.Tick();
     machine.Tick();
@@ -2403,7 +2404,7 @@ port.E87Callback = null;
 
     // 整机推各模块的状态和生产 / 维护（ModuleStatusListDto，留存，顶栏模块行用）：整机不在里面、先后同模块表，有一个变了才推整张表
     var modulePushes = new List<ModuleStatusListDto>();
-    using var moduleSubscription = RemoteEventBus.Register<ModuleStatusListDto>(ModuleStatusListDto.EventToken, dto => modulePushes.Add(dto));
+    using var moduleSubscription = RemoteEventSubscriber.Register<ModuleStatusListDto>(ModuleStatusListDto.EventToken, dto => modulePushes.Add(dto));
     Check(modulePushes.Count == 1 && modulePushes[0].Modules.Select(module => module.Name).SequenceEqual(["SysRobot", "SysLP", "SysPM"])
           && modulePushes[0].Modules.Select(module => module.Kind).SequenceEqual([sysRobot.Kind, sysPort.Kind, sysChamber.Kind])
           && modulePushes[0].Modules.All(module => module.State == ModuleState.NotInit && module.Mode == ModuleMode.Maintenance),

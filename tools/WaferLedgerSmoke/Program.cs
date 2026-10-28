@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using xyz.Client.Common.Events;
 using xyz.Elements;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
@@ -149,7 +150,7 @@ ledger.WaferMoved += (w, module, slot) => events.Add($"moved:{module}.{slot}->{w
 ledger.WaferUpdated += w => events.Add($"updated:{w.WaferId}");
 ledger.WaferDeleted += w => events.Add($"deleted:{w.Module}.{w.Slot}");
 var ledgerPushes = new List<string>();
-var ledgerPushSubscription = RemoteEventBus.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, dto => ledgerPushes.Add(dto.Module));
+var ledgerPushSubscription = RemoteEventSubscriber.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, dto => ledgerPushes.Add(dto.Module));
 ledger.Create("LoadPort1", 9);
 ledger.Move("LoadPort1", 9, "Robot1", 2);
 ledger.SetLotId("Robot1", 2, "LOT-B");

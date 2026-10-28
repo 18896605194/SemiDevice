@@ -535,11 +535,11 @@ public class ProcessRecipeViewModel : BaseViewModel
     public override void Init()
     {
         _subscription?.Dispose();
-        _subscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, _ => RequestReload());
+        _subscription = RemoteEventSubscriber.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, _ => RequestReload());
 
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
+        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteEventConnection.IsConnected);
     }
 
     /// <summary>

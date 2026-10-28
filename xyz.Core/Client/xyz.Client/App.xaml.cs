@@ -83,7 +83,7 @@ public partial class App : Application
 
             GrpcClientFactory.Initialize();
 
-            // 界面语言跟后端 machine.xml 的 System 节点走：先换好语言包再建界面。顺带拿回装了哪些模块、哪些是腔体、要不要登录。
+            //获取一下界面语言，这个就属于第一次连接。
             var fetched = await ApplySystemLanguageAsync(loadingWindow);
             var settings = fetched ?? new SystemSettingsDto();
             await ReportAsync(loadingWindow, 20, L10n.Get("shell.loading.channel"));
@@ -92,7 +92,7 @@ public partial class App : Application
 
             #region 前后端事件的处理初始化
 
-            RemoteConnection.Initialize();
+            RemoteEventConnection.Initialize();
             ClientAlarms.Initialize();
             ClientEc.Initialize();
 
@@ -155,10 +155,9 @@ public partial class App : Application
 
     /// <summary>
     /// 界面语言跟后端 machine.xml 的 System 节点（Language）走：启动时问一次后端，换好语言包再建界面。
-    /// 后端还没起来（连不上）就每秒再问一次，最多等 BackendWaitSeconds——模块表只在这儿拿一次，
-    /// 没拿到的话 IO、腔体这些按模块分的菜单整场都是空的。
-    /// 等到头还没拿到返回 null（用默认的简体中文，要不要登录连上以后再定）；改了语言重启客户端生效。
     /// </summary>
+    /// <param name="loadingWindow"></param>
+    /// <returns></returns>
     private static async Task<SystemSettingsDto?> ApplySystemLanguageAsync(LoadingWindow loadingWindow)
     {
         var waitUntil = DateTime.UtcNow.AddSeconds(BackendWaitSeconds);
