@@ -23,7 +23,7 @@ namespace xyz.Client;
 
 public partial class App : Application
 {
-    private const int StepDelayMs = 180;
+    private const int StepDelayMs = 200;
 
     /// <summary>
     /// 等后端最多多久。后端要先装配、连完设备才开始监听端口（设备不在线时 TCP 连接要等系统超时），
