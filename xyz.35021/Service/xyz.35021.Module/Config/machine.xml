@@ -10,7 +10,6 @@
 	<Setting Name="Rpc" Type="xyz.Elements.Elements.RpcElement">
 		<Value Name="Host" Value="localhost" />
 		<Value Name="Port" Value="5000" />
-		<Value Name="MaxMessageSizeMb" Value="26" />
 	</Setting>
 	<Setting Name="EC" Type="xyz.Elements.Elements.EcElement" />
 	<Setting Name="Database">

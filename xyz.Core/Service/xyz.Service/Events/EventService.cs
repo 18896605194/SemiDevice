@@ -2,7 +2,6 @@
 using System.Threading.Channels;
 using ProtoBuf.Grpc;
 using xyz.Common.Events;
-using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -13,7 +12,7 @@ namespace xyz.Service.Events;
 /// </summary>
 public class EventService : BaseService, IEventService
 {
-    public IAsyncEnumerable<EventMessage> SubscribeAsync(EventSubscription request, CallContext context = default)
+    public IAsyncEnumerable<EventMessage> SubscribeAsync(CallContext context = default)
     {
         var channel = Channel.CreateUnbounded<EventMessage>(new UnboundedChannelOptions { SingleReader = true });
       

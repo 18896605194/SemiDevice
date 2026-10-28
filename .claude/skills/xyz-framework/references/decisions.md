@@ -775,7 +775,7 @@
   跟主界面下面要做的 Job 页（看在跑的、发命令）是两回事。一页四块：上面 CJ（按建的时刻查、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前）| PJ（选中 CJ 下面的，按 `ControlJobRowId` 取），
   下面晶圆（选中 PJ 的每一片）| 任务（选中那一片的任务明细，就是 PJ 行里存的 JSON）。结果列界面按库里的转换号认：CJ #10 完成、#11 停止、#12 中止（标着重启的叫重启中止）、EndedBy #2 取消，
   PJ #7 / #16 / #17 / #18；片按任务认（有一格出错算出错、全完成算完成、PJ 结束了还没走完算没做完）。一次最多返回多少个 CJ 是 Job 节点的 machine.xml `HistoryQueryMaxCount`（默认 1000，
-  超出界面提示截断）——不限的话查一大段时间回包会超过 gRPC 单条消息上限（2026-10-25 起 26 MB，见「gRPC 单条消息上限」）。没做的：每一步的时刻（任务明细里没有时间，要的话得给 `JobWaferDto` 加片的内部标识再去连片子流水）、
+  超出界面提示截断）——不限的话查一大段时间回包会超过 gRPC 单条消息上限（客户端收的，10-28 起 16 MB，见「gRPC 单条消息上限」）。没做的：每一步的时刻（任务明细里没有时间，要的话得给 `JobWaferDto` 加片的内部标识再去连片子流水）、
   不归任何 CJ 的 PJ（没进 CJ 就取消的）不列。
 - **重启以后**（2026-10-05 用户定的，行业通常也这么收场）：Job 不接着跑；库里上次没做完的记成中止（标着重启）；机内的片人到现场确认片位后收回，
   再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。全部回片 2026-10-06 删了（用户："整体回片先不做"），2026-10-15 跟整机一起做回来、2026-10-23 重做（见「全部回片」：主界面手动点、整机 Idle 且没有 Job 在跑时才能做，路线照晶圆账倒着走）。
@@ -1515,6 +1515,9 @@
 - **后端在 `AddCodeFirstGrpc` 的选项回调里从 Rpc 元件取**：回调第一次执行是映射服务的时候，那时已经开完机、容器里取得到；没配 Rpc 节点按 26。
 - **数据曲线本来就碰不到**：每条曲线最多 `QueryMaxPoints`（4000）点、一次最多 `QueryMaxSignals`（20）条，回包约 1 MB，跟查多长时间无关；放大、拖动按看到的那段重查。
   26 MB 是给以后调大条数、点数留的余量。要拿一大段原始数据走导出，不走画图这条查询。
+- **10-28 改成两头各管各的**（用户问"为什么会有两个，还要前端设置一遍，后端设置一遍"，听了"上限只管自己收的"以后："后端往前端的…就是16，前端往后端的，你就搞成4"）：
+  后端收的（请求）不再配——Rpc 节点的 `MaxMessageSizeMb`、`IRpc` 上的这一项、宿主 `AddCodeFirstGrpc` 里的设置都删了，用 gRPC 默认 4 MB（请求都是几个参数的 JSON，最大的配方保存 / 导入也是 KB 级）；
+  客户端收的（回包、推送）16 MB，写在 `GrpcClientFactory`，exe 旁 `client.json` 的 `MaxMessageSizeMb` 照样能改。现场 machine.xml 里还留着 `MaxMessageSizeMb` 的，开机会记一条不认识的参数，删掉那行即可。
 
 ## 数据曲线导出 Excel、公共进度弹框（2026-10-25，用户一条条定的，样稿在桌面"进度条控件样稿"）
 
@@ -1607,7 +1610,7 @@
 - **请求类全删**：46 个 `XxxRequest` / `XxxQuery`（`SequenceSaveRequest`、`LoginRequest`、`ChamberAxisMoveRequest`、`AlarmHistoryQuery`……）删了，参数名就是原来的属性名；
   收 `string module` 的 25 个方法（LoadPort / 机械手 / 腔体）也改成收 `RpcRequest`（参数 `Module`）。参数里本身是一组数据的类型（`SequenceStepDto`、`ProcessRecipeStepDto`、
   `JobSlotDto`、`RolePermissionItem`）留着，回包里也在用。
-- **只剩这几个带 `[ProtoContract]`**：`RpcRequest`、`RpcResponse`，加事件流的 `EventMessage`、`EventSubscription`（事件流这次没动）；别的 DTO 都是普通类、走 JSON。
+- **只剩这几个带 `[ProtoContract]`**：`RpcRequest`、`RpcResponse`，加事件流的 `EventMessage`、`EventSubscription`（事件流这次没动；`EventSubscription` 10-28 删了，见「跨进程事件拆成发、收两半」）；别的 DTO 都是普通类、走 JSON。
 - **契约注释不写参数**（2026-10-26 用户改，原来每个方法注释写"参数：名字（类型）"、可选的标"可不带"）：用户改 IAccountService 时特意删的，
   随后其余契约一起删了；注释一句短话说清是什么，要传什么看服务里的 `TryGet` / `Get`。
 - **取不到回 `rpc.request_invalid`**（`ErrorCodes.RequestInvalid`，语言包"请求参数不对：客户端和后端的版本可能对不上"）：`BaseService.InvalidRequest()`，不是它派生的服务各有一个同名私有方法，
@@ -1707,6 +1710,8 @@
   两边共用的只剩 xyz.Tools 里的信封 `EventMessage` 和黑板规则 `RetainedBoard`（不带锁，用的地方在自己的锁里调）。方法名、行为都没变；xyz.Common 为此引用 xyz.Tools。
 - **冒烟**：同进程收推送的冒烟（Account、Cds、Chamber、IoIndex、OperationWait、ProcessRecipe、Sequence、WaferLedger）加引用 xyz.Client.Common，写在原来的引用前面——
   两边工程都往输出目录拷 `Log\NLog.config`，要留后端那份（EventBusSmoke、LogPipelineSmoke 原来就是这个顺序）；回环改成 `RemoteEventPublisher.SubscribeSent(RemoteEventSubscriber.Deliver)`。
+- **订阅请求删了**（同日，用户："用不到就不留"）：`IEventService.SubscribeAsync(CallContext context = default)` 不带请求参数，`EventSubscription`（里面只有一个从没用过的预留 `Filters`）删了。
+  gRPC 服务端流开头照样先发一条消息，只是变成 protobuf-net.Grpc 自带的空消息；以后真要按需推送（第③条全量广播），再按到时候的形态加（多半要重拨或改双向流，一次性的请求不够用）。
 - **没做的**：两边的死信正式代码都没人订（客户端页面回调抛异常、拆包失败现在悄悄吞掉），接不接 ClientLog 用户还没定。
 - **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告），不在 sln 里的 16 个工程单独编 0 错误；35 个冒烟全过（EventBusSmoke 34 项；一起跑时 WPF 画面冒烟、Hsms
   按时间点的检查偶尔没赶上，单独重跑都过）；机型 35021 重新部署；真宿主 + LogPipelineSmoke 客户端模式：连上，界面的 LogViewModel 收到后端推的日志。

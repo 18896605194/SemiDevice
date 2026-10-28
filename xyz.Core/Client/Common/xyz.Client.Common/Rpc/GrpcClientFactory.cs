@@ -51,7 +51,7 @@ public static class GrpcClientFactory
     }
 
     /// <summary>
-    /// 读 exe 旁的 client.json（可缺），例如 { "GrpcAddress": "http://localhost:5050", "MaxMessageSizeMb": 26 }。
+    /// 读 exe 旁的 client.json（可缺），例如 { "GrpcAddress": "http://localhost:5050", "MaxMessageSizeMb": 16 }。
     /// 文件不存在、格式不对、字段缺失都按默认值处理，不让配置问题挡启动。
     /// </summary>
     private static ClientConfig ReadClientConfig()

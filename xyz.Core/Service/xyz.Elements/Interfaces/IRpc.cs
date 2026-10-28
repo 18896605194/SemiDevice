@@ -14,9 +14,4 @@ public interface IRpc
     /// 监听地址（localhost 或明确的 IP）
     /// </summary>
     string Host { get; }
-
-    /// <summary>
-    /// 单条消息最大多少 MB（后端收的上限）
-    /// </summary>
-    int MaxMessageSizeMb { get; }
 }

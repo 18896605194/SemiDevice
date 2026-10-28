@@ -4,7 +4,7 @@ using xyz.Tools;
 namespace xyz.Client.Common.Events;
 
 /// <summary>
-/// 跨进程事件的订阅方（客户端）：页面调 Register 订，RemoteEventConnection 收到的经 Deliver 送进来
+/// 跨进程事件的订阅
 /// </summary>
 public static class RemoteEventSubscriber
 {

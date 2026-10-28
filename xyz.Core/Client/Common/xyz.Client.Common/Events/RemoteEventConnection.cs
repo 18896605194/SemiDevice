@@ -1,5 +1,4 @@
 ﻿using xyz.Client.Common.Rpc;
-using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -48,7 +47,7 @@ public static class RemoteEventConnection
             try
             {
                 var service = GrpcClientFactory.Create<IEventService>();  //获取后台的服务
-                var stream = service.SubscribeAsync(new EventSubscription());  //告诉后端有消息就推送过来
+                var stream = service.SubscribeAsync();  //告诉后端有消息就推送过来
                 await foreach (var envelope in stream)
                 {
                     SetConnected(true);

@@ -689,7 +689,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 2. **请求不建类**（2026-10-26 用户定）：一律 `RpcRequest`，参数按名字装在 `Parameters`（JSON 对象）里。契约注释一句短话说清是什么，不写参数
    （2026-10-26 用户改，原来写"参数：名字（类型）"）；要传什么看服务里的 `TryGet` / `Get`。
    参数名用 `Shared\xyz.Shared\Rpc\RpcParams.cs` 里的常量（值就是名字本身），客户端装、服务端取都用它，名字只写这一份；新参数名先加进去，已有的同义名字直接用（`Module`、`Index`、`Start` / `End`……）。
-   返回数据放 `Shared\xyz.Shared\Dtos`（普通类，走 JSON），不加 `[ProtoContract]`——全仓只有 `RpcRequest`、`RpcResponse`（和事件流的 `EventMessage`、`EventSubscription`）带它。
+   返回数据放 `Shared\xyz.Shared\Dtos`（普通类，走 JSON），不加 `[ProtoContract]`——全仓只有 `RpcRequest`、`RpcResponse`（和事件流的信封 `EventMessage`）带它。
 3. 实现 `Service\xyz.Service\<领域>\XxxService.cs`：`public class XxxService : BaseService, IXxxService`。取参数：必带的 `request.TryGet<int>(RpcParams.Index, out var index)`、`request.TryGet<string>(RpcParams.Module, out var module)`
    （一律写 `TryGet<类型>(名字, out var 变量)`：字符串、列表写成 `out string x` 会报可能为 null；几个写进一个 if，取不到回 `InvalidRequest()` → `rpc.request_invalid`，
    async 方法里 `return await InvalidRequest();`；名字不分大小写，没带、是 null、类型对不上都算取不到），可不带的 `request.Get(RpcParams.Keyword, string.Empty)`
@@ -715,7 +715,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   查库、读文件放 `Task.Run` 里 try/catch 转错误码。
 - 找模块：`FindModule<IXxx>(name)`（按接口，`ILoadPort` / `IRobot` / `IChamber`），找不到 `ModuleNotFound(name)`。
 - 一次回不完的大数据（数据曲线导出）走服务端流：契约 `IAsyncEnumerable<RpcResponse> ExportAsync(RpcRequest, CallContext)`，一段一条 `RpcResponse.Ok(JSON)`，
-  每条远小于 gRPC 单条上限（26 MB，见 decisions.md）；出错推一条 `Fail` 就结束。迭代器的 try 里不能 yield，读下一段放一个返回"段 / 原因"的方法里接住
+  每条远小于客户端收的单条上限（16 MB，见 decisions.md「gRPC 单条消息上限」）；出错推一条 `Fail` 就结束。迭代器的 try 里不能 yield，读下一段放一个返回"段 / 原因"的方法里接住
   （`DataChartService.Next`），读库放 `Task.Run`；客户端取消时 `context.CancellationToken` 停。
 
 ### 事件推送

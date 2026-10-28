@@ -23,7 +23,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 ## 2. 启动顺序（`xyz.Client\App.xaml.cs`）
 
 1. 挂全局异常（Dispatcher / AppDomain / TaskScheduler），一律 `ClientLog.Error("Client", ...)`；显示加载窗口。
-2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`、单条消息上限 26 MB，exe 旁 `client.json` 的 `GrpcAddress`、`MaxMessageSizeMb` 可改，跟后端 machine.xml 的 Rpc 节点一致）。
+2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`；客户端收的单条消息上限 16 MB，管后端发来的回包和推送；exe 旁 `client.json` 的 `GrpcAddress`、`MaxMessageSizeMb` 可改。后端收的不配，用 gRPC 默认 4 MB）。
    通道外面包一层私有的 `UserHeader`（gRPC 客户端拦截器）：每次调用都在请求头 `xyz-user-bin` 带上 `ClientSession.UserName`（UTF-8），后端记操作日志、
    账单调整和配方的操作人都从这儿取——请求 DTO 上不再带 `Operator`，页面里也不用填（2026-10-26）。
 3. 问后端系统设置 `ISystemService.GetSettingsAsync`（3 s 超时，每 1 s 重试，最多等 30 s）→ `L10n.Apply(语言)`；
