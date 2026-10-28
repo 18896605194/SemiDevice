@@ -492,7 +492,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），成功执行后当场发布；创建校验或状态命令被拒不发布。检查、加锁、执行、发布、异常处理直接写在各入口里，
   不再使用 Execute / WithProcessJob 委托包装；PJ 创建逻辑直接在 CreateProcessJobAsync 内。本地建 Job（`JobService.CreateAsync`）也是一个个建 PJ（给了 LoadPort 按它找，没给按载具号找）
   再建 CJ，中途被拒撤掉已建的 PJ。PJ / CJ 创建检查 Queue 结果，失败撤销本次登记及任务或关联；CJ 失败保留先前独立创建的 PJ。扫描一拍：① 调度引擎收做完的、记回任务表 → ② 核对片位 → ③ JobManager 分别检查 PJ、CJ 推进条件，提交状态动作（先 PJ 后 CJ，转到不再转），再按 PJ 状态给行定许可 →
-  ④ 调度派任务（Manual 不派）→ ⑤ 直接发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍发布；全貌（JSON）跟上次交去写的不一样才交给存库线程合并写入（2026-10-22），上一批没写进库期间每拍都交。
+  ④ 调度派任务（Manual 不派）→ ⑤ 发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍把全貌转一次 JSON：跟上次推的不一样才推（2026-10-28），跟上次交去写的不一样才交给存库线程合并写入（2026-10-22），上一批没写进库期间每拍都交。
   不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
   EAP 按载具号找：`IJobManager.FindControlJobByCarrier` 在 Job 锁内调用 `CjManager.FindByCarrier`，从 CJ 字典读取并返回 DTO 副本；`FindProcessJobsByCarrier` 在锁内读取当前 PJ，包括保留在 CJ 下的已结束 PJ。Snapshot 查询在锁内生成 DTO，不缓存 `_snapshot`。PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
   machine.xml：`IsEnable`、`ProcessJobAutoStart`、`ControlJobAutoStart`、`IsPersistent`、`Database`、`HistoryQueryMaxCount`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。

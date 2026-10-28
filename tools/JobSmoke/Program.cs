@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Interfaces;
 using xyz.Elements.Models;
@@ -943,8 +944,30 @@ try
     {
         processManager.StateChanged -= RejectProcessQueue;
     }
-    Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-QUEUE-FAIL", [1], "SEQ_A", null)).IsSuccess,
-        "PJ 入队失败后可用相同名称和晶圆重新创建");
+    // Job 列表推送跟写库一样按全貌比：这时还没有 Job，连扫 20 拍一条都不推；建上 PJ 才推，推的是带上它的全貌
+    var jobPushes = new List<JobListDto>();
+    using (RemoteEventPublisher.SubscribeSent(message =>
+    {
+        if (message.TypeName == typeof(JobListDto).FullName)
+        {
+            jobPushes.Add(JsonHelper.Deserialize<JobListDto>(message.Payload)!);
+        }
+    }))
+    {
+        // 先扫一拍再清：前面那次被拒的建 PJ 推没推过不算在这里
+        Tick();
+        jobPushes.Clear();
+        for (int tick = 0; tick < 20; tick++)
+        {
+            Tick();
+        }
+
+        Check(jobPushes.Count == 0, "Job 推送：全貌没变，每拍照样扫但不重复推");
+        Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-QUEUE-FAIL", [1], "SEQ_A", null)).IsSuccess,
+            "PJ 入队失败后可用相同名称和晶圆重新创建");
+        Check(jobPushes.Count > 0 && jobPushes[^1].ProcessJobs.Any(job => job.Id == "PJ-QUEUE-FAIL"),
+            "Job 推送：建了 PJ 就推，推的是带上它的全貌");
+    }
     void RejectControlQueue(ControlJob job, ControlJobState state, int transition)
     {
         if (job.Id == "CJ-QUEUE-FAIL" && transition == 1)

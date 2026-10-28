@@ -798,6 +798,8 @@
 - **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
   **2026-10-22 用户："写入数据库没有必要每一次都写"**（扫描改成 10ms 以后一秒交 100 次写库）：发布时把全貌转成 JSON 跟上次交去写的比，一样就不交写库
   （还是不加 dirty 标记）；推送照旧每拍发。上一批没写进库期间每次发布都交，写好了再只在变了时交。
+  **2026-10-28 用户："推送不做比较，每次都 Send……这个应该和写库保持一致"**（实测一秒推 93 条 JobListDto，每条都 Post 到客户端界面线程）：推送也拿全貌 JSON 跟上次推的比，
+  一样就不推，还是不加 dirty 标记；JSON 只转一次，写库、推送各比各的上一次（没开存库、库写不进去只影响写库那边）；推成了才记下，推失败下一拍再推。
 - **CJ 按载具号查询（2026-10-07 用户明确）**：从 CjManager 管理的真实 CJ 对象查，不能查发布快照；JobManager 加锁调用 FindByCarrier 并返回 DTO 副本。
 - **CJ 参考结构统一（2026-10-07 用户明确）**：按桌面参考工程 ControlJobManager / ControlJobStateMachine / BaseStateMachine 统一，替代之前的逐命令查字典设计。`Dictionary<string, CjEntity>` 保存私有实体（CJ + 独立状态机），外部只拿 ControlJobs；Add 只注册、Queue 入队、Get 按 ID 查询、Remove 检查 ID 和对象引用，旧对象不能操作同 ID 新对象。不保留订单计数，不依赖 PJ；外部命令及 PJ 协调在 JobManager。
 - **CJ 状态表和基类（2026-10-07 用户确认参考）**：CjStateMachine 不持有 Job，继承 BaseStateMachine<TState,TAction>，类内 BuildTransitions 建立字典，key=(state,action)，value=StateTransition<TState>。基类提供 CurrentState、OnStateChanged、StateChange，并执行 OnEntry / PreCheck / ProcessState / Execute / TargetState / OnExit / ErrorHandler；管理器用对象参数提交 Queue / Select / Activate / Pause / Resume / Complete / Abort / FinishAbort / Rollback 等动作，订阅通知同步 CJ 状态和时间。不向 JobManager 暴露状态机，不提供自动 Advance。
@@ -1712,6 +1714,7 @@
   两边工程都往输出目录拷 `Log\NLog.config`，要留后端那份（EventBusSmoke、LogPipelineSmoke 原来就是这个顺序）；回环改成 `RemoteEventPublisher.SubscribeSent(RemoteEventSubscriber.Deliver)`。
 - **订阅请求删了**（同日，用户："用不到就不留"）：`IEventService.SubscribeAsync(CallContext context = default)` 不带请求参数，`EventSubscription`（里面只有一个从没用过的预留 `Filters`）删了。
   gRPC 服务端流开头照样先发一条消息，只是变成 protobuf-net.Grpc 自带的空消息；以后真要按需推送（第③条全量广播），再按到时候的形态加（多半要重拨或改双向流，一次性的请求不够用）。
+- **打包不单拆方法**（同日，用户贴出 `Pack` 说"这个方法不需要单独的一个方法"）：它只在 `Send` 里调一次，信封直接在 `Send` 的"打包"区域里 new。
 - **没做的**：两边的死信正式代码都没人订（客户端页面回调抛异常、拆包失败现在悄悄吞掉），接不接 ClientLog 用户还没定。
 - **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告），不在 sln 里的 16 个工程单独编 0 错误；35 个冒烟全过（EventBusSmoke 34 项；一起跑时 WPF 画面冒烟、Hsms
   按时间点的检查偶尔没赶上，单独重跑都过）；机型 35021 重新部署；真宿主 + LogPipelineSmoke 客户端模式：连上，界面的 LogViewModel 收到后端推的日志。

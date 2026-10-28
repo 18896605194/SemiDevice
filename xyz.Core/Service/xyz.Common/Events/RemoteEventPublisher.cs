@@ -49,7 +49,14 @@ public static class RemoteEventPublisher
 
         #region 打包：消息转成 JSON 装进信封
 
-        var envelope = Pack(message, token, retain);
+        var envelope = new EventMessage
+        {
+            TypeName = typeof(TMessage).FullName ?? string.Empty,
+            Token = token,
+            Payload = JsonHelper.Serialize(message),
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Retain = retain,
+        };
 
         #endregion
 
@@ -58,7 +65,7 @@ public static class RemoteEventPublisher
         List<Action<EventMessage>> listeners;
         lock (Gate)
         {
-            Board.Remember(envelope);
+            Board.Remember(envelope); //把传递的数据载体写进黑板
             listeners = _sentListeners;
         }
 
@@ -116,25 +123,6 @@ public static class RemoteEventPublisher
         {
             return Board.Snapshot();
         }
-    }
-
-    #endregion
-
-    #region 小方法：打包
-
-    /// <summary>
-    /// 打包：消息转成 JSON 装进信封，带上类型名、token、时间和要不要写黑板
-    /// </summary>
-    private static EventMessage Pack<TMessage>(TMessage message, string token, bool retain) where TMessage : class
-    {
-        return new EventMessage
-        {
-            TypeName = typeof(TMessage).FullName ?? string.Empty,
-            Token = token,
-            Payload = JsonHelper.Serialize(message),
-            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Retain = retain,
-        };
     }
 
     #endregion

@@ -33,8 +33,7 @@ public class EventService : BaseService, IEventService
         return ReadStream(channel.Reader, context.CancellationToken);
     }
 
-    private static async IAsyncEnumerable<EventMessage> ReadStream(
-        ChannelReader<EventMessage> reader,
+    private static async IAsyncEnumerable<EventMessage> ReadStream( ChannelReader<EventMessage> reader,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
