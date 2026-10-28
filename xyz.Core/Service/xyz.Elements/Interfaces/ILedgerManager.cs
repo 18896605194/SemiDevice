@@ -1,12 +1,14 @@
 ﻿using xyz.Elements.Enums;
 using xyz.Elements.Models;
 using xyz.Database.Wafers;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 晶圆账
 /// </summary>
+[Ioc]
 public interface ILedgerManager
 {
     bool IsEnable { get; }

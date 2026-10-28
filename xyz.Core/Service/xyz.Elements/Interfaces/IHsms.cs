@@ -1,10 +1,12 @@
 ﻿using xyz.Secs.Gem;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// HSMS 链路
 /// </summary>
+[Ioc]
 public interface IHsms
 {
     /// <summary>

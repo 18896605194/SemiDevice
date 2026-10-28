@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// PLC 的 DI/DO/AI/AO 点位读写
 /// </summary>
+[Ioc]
 public interface IPlcIo
 {
     /// <summary>

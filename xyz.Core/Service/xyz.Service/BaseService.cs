@@ -21,6 +21,22 @@ public abstract class BaseService
     }
 
     /// <summary>
+    /// 按名字找模块元件：名字是空的就取这一类全部，照 machine.xml 先后（状态快照按模块名查一个、不给名字查全部）
+    /// </summary>
+    protected static IReadOnlyList<TModule> FindModules<TModule>(string name) where TModule : class, IModule
+    {
+        var modules = IocHelper.GetServices<TModule>();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return modules;
+        }
+
+        return modules
+            .Where(module => string.Equals(module.Name, name, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    /// <summary>
     /// 失败回包：错误码 + 参数（顺序见错误码的注释），能直接回 Task 的地方都用它
     /// </summary>
     protected static Task<RpcResponse> Fail(string code, params string[] args)

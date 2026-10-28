@@ -1,10 +1,12 @@
 ﻿using xyz.Secs.Gem.E30;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// GEM（E30）
 /// </summary>
+[Ioc]
 public interface IE30Element
 {
     /// <summary>

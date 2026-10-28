@@ -1,10 +1,12 @@
 ﻿using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 模块对 Job 提供的载具信息读取及准入能力；不负责创建 Job、分配晶圆或占用回片槽。
 /// </summary>
+[Ioc]
 public interface IJobAccess : IModule
 {
     /// <summary>

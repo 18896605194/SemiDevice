@@ -1,11 +1,13 @@
 ﻿using xyz.Elements.Models;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// AI 助手：只读报警、日志、信号，给建议，不动设备
 /// </summary>
+[Ioc]
 public interface IAi
 {
     /// <summary>

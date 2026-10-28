@@ -183,9 +183,7 @@ public class LoadPortService : BaseService, ILoadPortService
     public Task<RpcResponse> GetStateAsync(RpcRequest request)
     {
         string module = request.Get(RpcParams.Module, string.Empty);
-        var dto = IocHelper.GetServices<ILoadPort>()
-            .Where(port => string.IsNullOrWhiteSpace(module)
-                           || string.Equals(port.Name, module, StringComparison.OrdinalIgnoreCase))
+        var dto = FindModules<ILoadPort>(module)
             .Select(port => port.CreateStateDto())
             .ToList();
 

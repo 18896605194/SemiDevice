@@ -1,12 +1,14 @@
 ﻿using xyz.Elements.Elements;
 using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Modules;
 
 /// <summary>
 /// 完整机械手模块：继承公共搬运能力，并提供回原点、伺服控制、诊断及服务接口。
 /// </summary>
+[Ioc]
 public interface IRobot : ITransferRobot
 {
     #region 状态

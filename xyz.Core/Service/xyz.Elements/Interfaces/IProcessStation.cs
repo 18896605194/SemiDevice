@@ -2,12 +2,14 @@
 using xyz.Elements.Interfaces;
 using xyz.Elements.Models;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 能做工艺的站点：工艺配方、流程配方、Job 按它认（腔体、以后的热板冷板都实现它）
 /// </summary>
+[Ioc]
 public interface IProcessStation : IModule
 {
     /// <summary>

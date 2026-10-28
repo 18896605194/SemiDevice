@@ -1,12 +1,14 @@
 ﻿using xyz.Elements.Elements;
 using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Modules;
 
 /// <summary>
 /// 腔体：带卡盘、摆臂、气缸的那种，腔体手动页按它认；工艺那几个在 IProcessStation
 /// </summary>
+[Ioc]
 public interface IChamber : IProcessStation
 {
     #region 整腔动作

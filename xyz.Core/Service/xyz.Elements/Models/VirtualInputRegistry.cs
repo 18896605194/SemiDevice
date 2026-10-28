@@ -3,7 +3,9 @@ using xyz.Elements.Interfaces;
 
 namespace xyz.Elements.Models;
 
-/// <summary>一棵装配树的虚拟输入索引和依赖关系；不使用跨设备/跨装配的静态点表。</summary>
+/// <summary>
+/// 虚拟输入索引
+/// </summary>
 internal sealed class VirtualInputRegistry
 {
     private readonly Dictionary<IoReference, IVirtualInputElement> _points;

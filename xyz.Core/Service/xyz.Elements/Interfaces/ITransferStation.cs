@@ -1,12 +1,14 @@
 ﻿using xyz.Elements.Elements;
 using xyz.Elements.Models;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 机械手可服务工位的交互逻辑
 /// </summary>
+[Ioc]
 public interface ITransferStation : IModule
 {
     int SlotCount { get; }

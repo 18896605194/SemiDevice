@@ -816,8 +816,8 @@ GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开�
 登记槽位，轴登记收发块；子元件基类递归，不动硬件）→ **Bind** `BindAll`（整棵树按 machine.xml 先后、先父后子：晶圆账开机恢复、整机 / 搬运管理 / Job 认模块、
 两个配方库认站点和腔体、EAP 接各标准（不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）、数据曲线定信号表、实时曲线接上数据曲线）→
 **开始扫描** `StartScanning`（machine.xml 里配了 `IsRun=true` 的根各起一条扫描线程——整机、PLC、IO、Safety、Computer、DataChart、RealChart、各模块、Dispatch；
-挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）→
-**开机推送** `PublishAll`（整棵树按 machine.xml 先后挨个 `PublishOnStartup`，推的都留在黑板上，客户端连上就重放）。
+挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `NotifyStartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）→
+**开机推送** `PublishStartupAll`（整棵树按 machine.xml 先后挨个 `PublishOnStartup`，推的都留在黑板上，客户端连上就重放）。
 开完机宿主才从容器里的 `Rpc` 元件取地址端口（`app.Urls`，默认 localhost:5000，只走 HTTP/2）、映射 gRPC 服务、开始监听；
 退出时 `ServiceExtensions.StopElements()`（`StopAll`：先停各根元件的扫描、等手上这一拍扫完，再倒着 `OnStopping`；之后宿主才释放容器）。
 新元件要连接、登记的写在自己的 `InitElement`；要认别的元件、订阅、开机恢复的写在 `Bind`；要等都扫起来的写在 `OnStarted`；界面一连上就要拿到的写在 `PublishOnStartup`；退出收尾写在 `OnStopping`；

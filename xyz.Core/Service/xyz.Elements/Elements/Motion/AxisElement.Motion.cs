@@ -60,8 +60,8 @@ public partial class AxisElement
             return;
         }
 
-        // 不在装起来的那棵树上的（单独建的）没有可比的
-        var axes = IocHelper.GetServices<IAxis>().OfType<AxisElement>().ToList();
+        // 轴是部件、不进容器，整机自检从元件树上找；不在装起来的那棵树上的（单独建的）没有可比的
+        var axes = ElementLoader.FindAll<AxisElement>();
         if (!axes.Contains(this))
         {
             return;

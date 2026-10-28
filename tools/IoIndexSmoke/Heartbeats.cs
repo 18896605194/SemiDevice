@@ -51,8 +51,8 @@ static class Heartbeats
             Check(heartbeat.FullPath == "Plc.Heartbeat" && heartbeat.DoIndex == 0 && heartbeat.IntervalMs == 200,
                 "心跳照 machine.xml 装：路径带 Plc 分组，DO 号和间隔从 machine.xml 来");
             Check(idle.DoIndex == -1 && idle.IntervalMs == 1000, "没配的用默认值：DO -1、间隔 1000 ms");
-            Check(IocHelper.GetServices<IHeartbeat>().SequenceEqual(new IHeartbeat[] { heartbeat, missing, idle }),
-                "按 IHeartbeat 找得到，按 machine.xml 先后");
+            Check(ElementLoader.FindAll<IHeartbeat>().SequenceEqual(new IHeartbeat[] { heartbeat, missing, idle }),
+                "心跳是部件、不进容器：在元件树上找得到，按 machine.xml 先后");
             Check(!heartbeat.IsAlive, "还没写过 IsAlive 是 false");
 
             bool Active(ElementBase source)

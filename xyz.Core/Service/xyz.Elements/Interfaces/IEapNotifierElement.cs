@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// EAP 上报口
 /// </summary>
+[Ioc]
 public interface IEapNotifierElement
 {
     /// <summary>

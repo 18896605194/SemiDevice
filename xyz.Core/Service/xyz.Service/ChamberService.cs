@@ -295,9 +295,7 @@ public class ChamberService : BaseService, IChamberService
     public Task<RpcResponse> GetStateAsync(RpcRequest request)
     {
         string module = request.Get(RpcParams.Module, string.Empty);
-        var dto = IocHelper.GetServices<IChamber>()
-            .Where(chamber => string.IsNullOrWhiteSpace(module)
-                              || string.Equals(chamber.Name, module, StringComparison.OrdinalIgnoreCase))
+        var dto = FindModules<IChamber>(module)
             .Select(chamber => chamber.CreateStateDto())
             .ToList();
 

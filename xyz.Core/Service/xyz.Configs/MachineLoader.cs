@@ -12,17 +12,12 @@ namespace xyz.Configs;
 /// </summary>
 public static class MachineLoader
 {
+    #region 找文件
+
     /// <summary>
     /// 配置目录（machine.xml 所在目录）；ec.xml 和各编号表（EcDefinitions.xml 等）都跟它放一起。
     /// </summary>
     public static string ConfigDirectory => Path.GetDirectoryName(FindConfigFile())!;
-
-    public static IReadOnlyList<ModuleConfig> Load()
-    {
-        var path = FindConfigFile(); //寻找文件地址
-        var config = XmlHelper.Deserialize<MachineSettings>(path);//映射到MachineSettings
-        return config?.Modules ?? [];
-    }
 
     /// <summary>
     /// 找 machine.xml：只认运行目录 Paths.json 里 ConfigPath 指的目录
@@ -59,11 +54,28 @@ public static class MachineLoader
         return machineFile;
     }
 
+    #endregion
+
+    #region 读配置树
+
+    public static IReadOnlyList<ModuleConfig> Load()
+    {
+        var path = FindConfigFile(); //寻找文件地址
+        var config = XmlHelper.Deserialize<MachineSettings>(path);//映射到MachineSettings
+        return config?.Modules ?? [];
+    }
+
+    #endregion
+
+    #region 写回一个参数
+
     /// <summary>
-    /// 把一个参数写回 machine.xml（界面上改、改完一直生效的，现在只有 System 的晶圆尺寸）：settingPath 是元件全路径（"System"、"Chamber.Chamber1"，
-    /// 分组节点的名字也在里面），按它一层层找到 Setting，改下面同名的 Value（不分大小写），没有就照上一行的缩进加一行。
-    /// 别的内容、缩进、换行原样不动；先写临时文件再换上去，写到一半出事不会把 machine.xml 写坏。找不到节点、写不了文件就抛，调用方转成错误码。
+    /// 正常不会调用 目前只有改变wafer尺寸会调用
     /// </summary>
+    /// <param name="settingPath"></param>
+    /// <param name="name"></param>
+    /// <param name="value"></param>
+    /// <exception cref="InvalidOperationException"></exception>
     public static void SaveValue(string settingPath, string name, string value)
     {
         string file = FindConfigFile();
@@ -99,9 +111,6 @@ public static class MachineLoader
         {
             AddValue(node, new XElement("Value", new XAttribute("Name", name), new XAttribute("Value", value)));
         }
-
-        // 解析时 CRLF 都变成了 LF，写回时换回原文件用的那种（仓库里是 LF，git 签出、现场编辑过的可能是 CRLF）；
-        // 编码跟源文件一样是带 BOM 的 UTF-8
         var settings = new XmlWriterSettings
         {
             Encoding = new UTF8Encoding(true),
@@ -140,4 +149,6 @@ public static class MachineLoader
 
         node.AddFirst(new XText(nodeIndent + "\t"), value);
     }
+
+    #endregion
 }

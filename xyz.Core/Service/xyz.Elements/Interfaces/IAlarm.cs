@@ -1,10 +1,12 @@
 ﻿using xyz.Elements.Models;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 报警元件接口
 /// </summary>
+[Ioc]
 public interface IAlarm
 {
     /// <summary>

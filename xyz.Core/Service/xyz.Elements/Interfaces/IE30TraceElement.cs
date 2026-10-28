@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// EAP Trace 数据采集（S2F23 / S6F1）
 /// </summary>
+[Ioc]
 public interface IE30TraceElement
 {
     /// <summary>

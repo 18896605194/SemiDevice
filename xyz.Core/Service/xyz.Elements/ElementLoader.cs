@@ -5,17 +5,19 @@ using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Models;
 using xyz.Configs.Models;
+using xyz.Tools;
 
 namespace xyz.Elements;
 
 /// <summary>
-/// 元件装载器：按 machine.xml 的 Setting/Value 树构建元件实例
+/// Element装载器
 /// </summary>
 public static class ElementLoader
 {
     /// <summary>
-    /// 开机第一步：根元件按 InitOrder、再按 machine.xml 先后做开机准备，子元件由基类递归带着做
+    /// 开始加载并且调用组件
     /// </summary>
+    /// <param name="roots"></param>
     public static void InitAll(IEnumerable<ElementBase> roots)
     {
         foreach (var root in roots.Where(root => root.IsEnabled).OrderBy(root => root.InitOrder))
@@ -28,7 +30,7 @@ public static class ElementLoader
     }
 
     /// <summary>
-    /// 开机第二步：开机准备都做完、开始扫描之前，整棵树按 machine.xml 先后挨个 Bind
+    /// 所有的绑定开始，bind里面会拿对象
     /// </summary>
     public static void BindAll(IEnumerable<ElementBase> roots)
     {
@@ -39,8 +41,9 @@ public static class ElementLoader
     }
 
     /// <summary>
-    /// 开机第三步：初始化和依赖绑定完成后统一启动根元件。子元件已在父元件的扫描树中，不能重复起线程。
+    /// 找节点里面带IsRun并且是启用的
     /// </summary>
+    /// <param name="roots"></param>
     public static void StartScanning(IEnumerable<ElementBase> roots)
     {
         foreach (var root in roots)
@@ -53,9 +56,10 @@ public static class ElementLoader
     }
 
     /// <summary>
-    /// 开机第四步：都开始扫描以后，整棵树按 machine.xml 先后挨个 OnStarted
+    /// OnStarted  开启一些动作
     /// </summary>
-    public static void StartedAll(IEnumerable<ElementBase> roots)
+    /// <param name="roots"></param>
+    public static void NotifyStartedAll(IEnumerable<ElementBase> roots)
     {
         foreach (var element in Walk(roots))
         {
@@ -66,7 +70,7 @@ public static class ElementLoader
     /// <summary>
     /// 开机第五步：都起来以后，整棵树按 machine.xml 先后挨个 PublishOnStartup；一个出错不耽误后面的
     /// </summary>
-    public static void PublishAll(IEnumerable<ElementBase> roots)
+    public static void PublishStartupAll(IEnumerable<ElementBase> roots)
     {
         foreach (var element in Walk(roots))
         {
@@ -82,7 +86,7 @@ public static class ElementLoader
     }
 
     /// <summary>
-    /// 宿主退出：先停根元件的扫描（等手上这一拍扫完），再整棵树倒着挨个 OnStopping（后起来的先收）；一个出错不耽误后面的
+    /// 退出 停止扫描，还有断plc以及有一些需要落盘的数据操作
     /// </summary>
     public static void StopAll(IEnumerable<ElementBase> roots)
     {
@@ -90,7 +94,7 @@ public static class ElementLoader
         var rootList = roots.ToList();
         foreach (var root in rootList)
         {
-            root.StopScan();
+            root.StopScan(); //停止扫描
         }
 
         foreach (var element in Walk(rootList).Reverse())
@@ -127,7 +131,7 @@ public static class ElementLoader
     }
 
     /// <summary>
-    /// 把 MachineLoader.Load() 的配置树装载为元件实例树，返回根元件列表（含模块）。
+    /// MachineLoader.Load() 里面用到的组件映射过来
     /// </summary>
     public static List<ElementBase> Load(IEnumerable<ModuleConfig> settings)
     {
@@ -139,8 +143,6 @@ public static class ElementLoader
             Build(setting, catalog, parent: null, parentPath: string.Empty, roots);
         }
 
-        // 构造时挂好的子元件（machine.xml 里不写 Type 的那种）还没有路径，这里接在父元件后面补上；
-        // 顺带定日志的两层名字：最顶上那个元件的全路径是第一层（日志历史页的模块下拉就是这些）。
         foreach (var root in roots)
         {
             AssignFullPath(root, parentPath: string.Empty, modulePath: string.Empty);
@@ -152,9 +154,10 @@ public static class ElementLoader
     }
 
     /// <summary>
-    /// 元件进容器：整棵树照 machine.xml 先后（父在前、子在后，停用的连同下面的都跳过），每个元件按它实现的 xyz 接口登记成单例；
-    /// 一类有好几个的（LoadPort、腔体）用的地方取全部，只有一个的（搬运管理、晶圆账）取一个。树本身也登记，宿主开机、收尾按它走
+    /// 元件进容器：只按打了 [Ioc] 的接口登记；模块内部的部件（阀、喷嘴、DI、轴）不打标记，由父元件在自己子树里找
     /// </summary>
+    /// <param name="services"></param>
+    /// <param name="roots"></param>
     public static void Register(IServiceCollection services, IReadOnlyList<ElementBase> roots)
     {
         services.AddSingleton(roots);
@@ -162,12 +165,35 @@ public static class ElementLoader
         {
             foreach (var contract in element.GetType().GetInterfaces())
             {
-                if (contract.Namespace is not null && contract.Namespace.StartsWith("xyz", StringComparison.Ordinal))
+                if (contract.GetCustomAttribute<IocAttribute>() is not null)
                 {
                     services.AddSingleton(contract, element);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 整棵元件树里按类型或接口找全部，照 machine.xml 先后；给没打 [Ioc]、不进容器的部件用（轴、寿命、心跳）
+    /// </summary>
+    public static IReadOnlyList<T> FindAll<T>() where T : class
+    {
+        var roots = IocHelper.GetService<IReadOnlyList<ElementBase>>();
+        if (roots is null)
+        {
+            return [];
+        }
+
+        var found = new List<T>();
+        foreach (var element in Walk(roots))
+        {
+            if (element is T matched)
+            {
+                found.Add(matched);
+            }
+        }
+
+        return found;
     }
 
     private static void AssignFullPath(ElementBase element, string parentPath, string modulePath)

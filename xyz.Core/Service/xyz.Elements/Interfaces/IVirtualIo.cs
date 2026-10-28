@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 虚拟 IO：程序写的虚拟 DO，按点号读写，用法跟 IIo 一样
 /// </summary>
+[Ioc]
 public interface IVirtualIo
 {
     /// <summary>

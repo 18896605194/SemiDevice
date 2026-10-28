@@ -2,10 +2,12 @@
 using xyz.Elements.Enums;
 using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Modules;
 
 
+[Ioc]
 public interface ILoadPort : ILoadPortAccess, IJobAccess
 {
     #region 动作

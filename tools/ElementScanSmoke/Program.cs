@@ -95,8 +95,9 @@ Check(selfStop.Count == 1, "after stopping itself the root scans no more");
 
 // 开机各阶段（元件自己的开机准备、收尾都挂在这几个钩子上）：元件初始化按 InitOrder、再按 machine.xml 先后，子元件跟着父元件；
 // Bind、OnStarted、开机推送 PublishOnStartup 按 machine.xml 先后（先父后子），推送一个出错不耽误后面的；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
-// 进容器（宿主开机装配那一步，ElementLoader.Register）：每个元件按它实现的 xyz 接口登记，取一类全部按 machine.xml 先后、停用的连同下面跳过，
-// 同一接口登记了好几个、取一个的拿最后登记的，没人实现的取不到（null）；装好的树本身也登记（宿主开机、收尾按它走）。
+// 进容器（宿主开机装配那一步，ElementLoader.Register）：每个元件只按打了 [Ioc] 的接口登记，没打的接口实现了也进不去（模块内部的部件就靠这个挡在容器外），
+// 取一类全部按 machine.xml 先后、停用的连同下面跳过，同一接口登记了好几个、取一个的拿最后登记的，没人实现的取不到（null）；
+// 装好的树本身也登记（宿主开机、收尾按它走），不进容器的部件用 ElementLoader.FindAll 在树上找。
 const string lifecycleXml = """
     <ArrayOfSetting>
       <Setting Name="Late" Type="LifecycleProbe">
@@ -119,16 +120,18 @@ Check(string.Join(",", IocHelper.GetServices<ILifecycleProbe>().Select(probe => 
     "every element goes in by its xyz interfaces in machine.xml order; a disabled node is skipped with everything under it");
 Check(IocHelper.GetService<ILifecycleProbe>()?.Name == "Faulty" && IocHelper.GetService<INotInstalledProbe>() is null,
     "asking for one gives the last registered; an interface nobody implements is not installed (null)");
+Check(IocHelper.GetService<IUnmarkedProbe>() is null && ElementLoader.FindAll<IUnmarkedProbe>().Count == 4,
+    "an interface without [Ioc] stays out of the container even though elements implement it; FindAll still finds them on the tree");
 ElementLoader.InitAll(lifecycleRoots);
 ElementLoader.BindAll(lifecycleRoots);
-ElementLoader.StartedAll(lifecycleRoots);
-ElementLoader.PublishAll(lifecycleRoots);
+ElementLoader.NotifyStartedAll(lifecycleRoots);
+ElementLoader.PublishStartupAll(lifecycleRoots);
 ElementLoader.StopAll(lifecycleRoots);
 Check(LifecycleProbe.Calls("Init") == "Early,Late,LateChild,Faulty", "InitAll goes by InitOrder, then machine.xml order; children follow their parent");
 Check(LifecycleProbe.Calls("Bind") == "Late,LateChild,Early,Faulty" && LifecycleProbe.Calls("Started") == "Late,LateChild,Early,Faulty",
     "Bind and OnStarted run in machine.xml order, parent before child");
 Check(LifecycleProbe.Calls("Publish") == "Late,LateChild,Early,Faulty",
-    "PublishAll runs PublishOnStartup in machine.xml order, parent before child, and an element that throws does not stop startup");
+    "PublishStartupAll runs PublishOnStartup in machine.xml order, parent before child, and an element that throws does not stop startup");
 Check(LifecycleProbe.Calls("Stopping") == "Faulty,Early,LateChild,Late", "StopAll runs in reverse and keeps going after an element throws");
 
 // machine.xml 里写错的参数名（元件上没有这个 [Machine] 属性）：照常装上，那一项还是默认值，记一条错误日志（开机读配置的事记在 Host 下），写清哪个节点、哪个名字
@@ -234,7 +237,7 @@ public sealed class DisabledScanProbe : ScanProbe
 
 // 记下每个阶段走到了谁
 [Element]
-public class LifecycleProbe : ElementBase, ILifecycleProbe
+public class LifecycleProbe : ElementBase, ILifecycleProbe, IUnmarkedProbe
 {
     private static readonly ConcurrentQueue<(string Stage, string Name)> Log = new();
 
@@ -296,16 +299,23 @@ public sealed class FaultyLifecycleProbe : LifecycleProbe
     }
 }
 
-// 探针的接口放在 xyz 开头的命名空间里：装配器只按 xyz 的接口登记
+// 探针的接口打上 [Ioc]：装配器只按打了标记的接口登记
 namespace xyz.Smoke
 {
+    [Ioc]
     public interface ILifecycleProbe
     {
         string Name { get; }
     }
 
     // 谁都没实现：取不到
+    [Ioc]
     public interface INotInstalledProbe
+    {
+    }
+
+    // 没打标记：元件实现了也不进容器
+    public interface IUnmarkedProbe
     {
     }
 }

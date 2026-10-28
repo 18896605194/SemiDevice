@@ -1,11 +1,13 @@
 ﻿using xyz.Elements.Elements;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 模块（带状态和动作的元件）都有的
 /// </summary>
+[Ioc]
 public interface IModule
 {
     /// <summary>

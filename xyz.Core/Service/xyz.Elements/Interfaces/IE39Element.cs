@@ -1,10 +1,12 @@
 ﻿using xyz.Secs.Gem.E39;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// E39 对象服务
 /// </summary>
+[Ioc]
 public interface IE39Element
 {
     /// <summary>

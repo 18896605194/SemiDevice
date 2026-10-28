@@ -1,10 +1,12 @@
 ﻿using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 账号：登录、用户、角色和各菜单的权限
 /// </summary>
+[Ioc]
 public interface IAccount
 {
     /// <summary>

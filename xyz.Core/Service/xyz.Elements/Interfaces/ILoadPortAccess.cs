@@ -1,12 +1,14 @@
 ﻿using xyz.Elements.Elements;
 using xyz.Elements.Enums;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// LoadPort 对外 给 EAP 用的那一面（E87 管载具、E84 交接）
 /// </summary>
+[Ioc]
 public interface ILoadPortAccess : IModule
 {
     #region 状态

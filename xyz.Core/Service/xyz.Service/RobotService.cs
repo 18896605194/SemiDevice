@@ -233,9 +233,7 @@ public class RobotService : BaseService, IRobotService
     public Task<RpcResponse> GetStateAsync(RpcRequest request)
     {
         string module = request.Get(RpcParams.Module, string.Empty);
-        var dto = IocHelper.GetServices<IRobot>()
-            .Where(robot => string.IsNullOrWhiteSpace(module)
-                            || string.Equals(robot.Name, module, StringComparison.OrdinalIgnoreCase))
+        var dto = FindModules<IRobot>(module)
             .Select(robot => robot.CreateStateDto())
             .ToList();
 

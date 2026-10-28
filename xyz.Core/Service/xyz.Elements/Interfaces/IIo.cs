@@ -1,11 +1,13 @@
 ﻿using xyz.Elements.Models;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// IO 点表
 /// </summary>
+[Ioc]
 public interface IIo
 {
     /// <summary>

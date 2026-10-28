@@ -1,10 +1,12 @@
 ﻿using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 日志：设置，加上转给界面的最近日志
 /// </summary>
+[Ioc]
 public interface ILogElement
 {
     /// <summary>

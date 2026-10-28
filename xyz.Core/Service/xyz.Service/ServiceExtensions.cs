@@ -65,6 +65,8 @@ public static class ServiceExtensions
         Require<ISystemModule>("System", "整机");
         Require<IMapper>("Mapper", "对象映射（报警、EC、曲线推给界面都靠它转）");
         Require<ILogElement>("Log", "日志（转给界面的实时日志、最近日志）");
+        Require<IAlarm>("Alarm", "报警");
+        Require<IIo>("Io", "IO 点表");
 
         #endregion
 
@@ -90,16 +92,15 @@ public static class ServiceExtensions
         ElementLoader.InitAll(roots);
         ElementLoader.BindAll(roots);
         ElementLoader.StartScanning(roots);
-        ElementLoader.StartedAll(roots);
-        ElementLoader.PublishAll(roots);
+        ElementLoader.NotifyStartedAll(roots);
+        ElementLoader.PublishStartupAll(roots);
 
         #endregion
 
         #region 开机汇总日志
 
         var scanningRoots = roots.Where(root => root.IsEnabled && root.IsRun).ToList();
-        LogHelper.Info(LogHelper.HostModule, $"根元件装配 {roots.Count} 个，模块 {IocHelper.GetServices<IModule>().Count} 个，启动独立扫描 {scanningRoots.Count} 个："
-            + string.Join(", ", scanningRoots.Select(root => root.FullPath)));
+        LogHelper.Info(LogHelper.HostModule, $"根元件装配 {roots.Count} 个，模块 {IocHelper.GetServices<IModule>().Count} 个，启动独立扫描 {scanningRoots.Count} 个："+ string.Join(", ", scanningRoots.Select(root => root.FullPath)));
 
         #endregion
     }

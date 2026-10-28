@@ -1,9 +1,11 @@
 ﻿using xyz.Elements.Elements;
 using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Modules;
 
+[Ioc]
 public interface IAligner : IModule
 {
     HandleResult<ModuleRoutine> Home();

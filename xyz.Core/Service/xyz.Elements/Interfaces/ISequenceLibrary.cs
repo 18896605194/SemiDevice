@@ -1,10 +1,12 @@
 ﻿using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 流程配方库 对外接口 和eap对接
 /// </summary>
+[Ioc]
 public interface ISequenceLibrary
 {
     /// <summary>

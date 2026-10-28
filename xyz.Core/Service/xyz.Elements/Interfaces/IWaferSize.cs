@@ -1,10 +1,12 @@
 ﻿using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 整机晶圆尺寸（8 / 12 寸）
 /// </summary>
+[Ioc]
 public interface IWaferSize
 {
     /// <summary>

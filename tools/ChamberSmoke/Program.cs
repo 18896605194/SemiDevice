@@ -1020,8 +1020,8 @@ try
         var gate = (CylinderElement)SmokeIoc.Load([gateConfig]).Single();
         var life = Find<CountLifetimeProbe>(gate, "Lifetime");
         ElementLoader.BindAll([gate]);
-        Check(ReferenceEquals(IocHelper.GetServices<ICountLifetime>().Single(), life) && life.FullPath == "Gate.Lifetime",
-            "寿命元件按 ICountLifetime 找得到，路径挂在气缸下面");
+        Check(ReferenceEquals(ElementLoader.FindAll<ICountLifetime>().Single(), life) && life.FullPath == "Gate.Lifetime",
+            "寿命元件是部件、不进容器：在元件树上找得到，路径挂在气缸下面");
 
         bool Active(string code)
         {
@@ -1124,8 +1124,8 @@ try
         var bath = (TimeLifetimeProbe)SmokeIoc.Load([bathConfig]).Single();
         bath.Clock = bathStarted;
         ElementLoader.BindAll([bath]);
-        Check(ReferenceEquals(IocHelper.GetServices<ITimeLifetime>().Single(), bath) && bath.UsedTime == TimeSpan.Zero,
-            "时间寿命元件按 ITimeLifetime 找得到；刚开机已用时间是 0");
+        Check(ReferenceEquals(ElementLoader.FindAll<ITimeLifetime>().Single(), bath) && bath.UsedTime == TimeSpan.Zero,
+            "时间寿命元件是部件、不进容器：在元件树上找得到；刚开机已用时间是 0");
 
         bool BathActive(string code)
         {

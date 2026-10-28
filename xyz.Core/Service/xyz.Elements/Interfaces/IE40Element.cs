@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// E40（PJ）
 /// </summary>
+[Ioc]
 public interface IE40Element
 {
     /// <summary>

@@ -1,10 +1,12 @@
 ﻿using xyz.Elements.Models;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 数据曲线
 /// </summary>
+[Ioc]
 public interface IDataChart
 {
     /// <summary>

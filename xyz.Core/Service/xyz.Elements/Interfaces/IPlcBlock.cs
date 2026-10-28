@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// PLC 的数据块读写（轴的收发块）
 /// </summary>
+[Ioc]
 public interface IPlcBlock
 {
     /// <summary>

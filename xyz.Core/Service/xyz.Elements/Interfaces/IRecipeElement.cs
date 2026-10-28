@@ -1,12 +1,14 @@
 ﻿using xyz.Elements.Interfaces;
 using xyz.Elements.Models;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 工艺配方库
 /// </summary>
+[Ioc]
 public interface IRecipeElement : IRecipeLibrary
 {
     /// <summary>

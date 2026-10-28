@@ -1,12 +1,14 @@
 ﻿using xyz.Elements.Enums;
 using xyz.Elements.Models;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// job 管理
 /// </summary>
+[Ioc]
 public interface IJobManager
 {
     /// <summary>

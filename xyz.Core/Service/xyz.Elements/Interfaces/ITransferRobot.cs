@@ -1,12 +1,14 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using xyz.Elements.Elements;
 using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 机械手的公共搬运能力；与ITransferStation 配合
 /// </summary>
+[Ioc]
 public interface ITransferRobot : IModule
 {
     /// <summary>

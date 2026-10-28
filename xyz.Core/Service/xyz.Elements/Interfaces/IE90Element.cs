@@ -1,10 +1,12 @@
 ﻿using xyz.Secs.Gem.E90;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// E90（片跟踪）
 /// </summary>
+[Ioc]
 public interface IE90Element
 {
     /// <summary>

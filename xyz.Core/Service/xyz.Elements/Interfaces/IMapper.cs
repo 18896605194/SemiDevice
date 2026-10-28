@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 对象映射：一个类转成另一个类
 /// </summary>
+[Ioc]
 public interface IMapper
 {
     /// <summary>

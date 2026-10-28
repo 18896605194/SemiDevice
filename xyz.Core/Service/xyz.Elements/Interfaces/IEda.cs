@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// EDA（Interface A）：给厂里 FDC / APC 这类系统采数据的 Web 服务
 /// </summary>
+[Ioc]
 public interface IEda
 {
     /// <summary>

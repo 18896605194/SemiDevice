@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// E87（载具管理）
 /// </summary>
+[Ioc]
 public interface IE87Element
 {
     /// <summary>

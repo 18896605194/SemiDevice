@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// 整机安全信号
 /// </summary>
+[Ioc]
 public interface ISafety
 {
     /// <summary>

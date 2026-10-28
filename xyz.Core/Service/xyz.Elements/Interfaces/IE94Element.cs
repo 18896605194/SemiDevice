@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// E94（CJ）
 /// </summary>
+[Ioc]
 public interface IE94Element
 {
     /// <summary>

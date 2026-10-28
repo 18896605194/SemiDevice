@@ -1,8 +1,10 @@
 ﻿using xyz.Shared.Dtos;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
 
+[Ioc]
 public interface IRecipeLibrary
 {
     /// <summary>库里全部工艺配方的名字，按编号从小到大。</summary>

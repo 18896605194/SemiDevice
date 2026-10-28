@@ -1,4 +1,5 @@
 ﻿using xyz.Elements.Models;
+using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
@@ -6,6 +7,7 @@ namespace xyz.Elements.Interfaces;
 /// 收元件报的事件（GEM 的 Collection Event）：E30 拿去发 S6F11，EDA 拿去按采集计划采。
 /// 元件经 ElementBase.RaiseEvent 报，一次发给全部收事件的元件；要不要、怎么报各自定
 /// </summary>
+[Ioc]
 public interface IEventReceiver
 {
     /// <summary>

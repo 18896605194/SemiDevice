@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// gRPC 服务地址
 /// </summary>
+[Ioc]
 public interface IRpc
 {
     /// <summary>

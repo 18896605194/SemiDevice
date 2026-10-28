@@ -1,8 +1,11 @@
-﻿namespace xyz.Elements.Interfaces;
+﻿using xyz.Elements.Attributes;
+
+namespace xyz.Elements.Interfaces;
 
 /// <summary>
 /// EAP 配方管理（S7）
 /// </summary>
+[Ioc]
 public interface IE30RecipeElement
 {
     /// <summary>
