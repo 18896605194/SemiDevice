@@ -11,22 +11,13 @@ using xyz.Tools;
 namespace xyz.Client.Common.Rpc;
 
 /// <summary>
-/// 通用 gRPC 客户端工厂。
-/// Channel 由程序启动时初始化一次，后续所有服务代理共用。
-/// 地址优先级：显式传参 &gt; client.json 的 GrpcAddress（跟客户端 exe 同目录，可选）&gt; 默认 localhost:5000。
-/// 端口必须在连上后端之前就知道——后端的端口配在 machine.xml 的 Rpc 节点里，客户端没法走 gRPC 去问
-/// （鸡生蛋），所以客户端这边的覆盖走本地文件，和后端 machine.xml 保持一致即可。
-/// 单条消息上限（MaxMessageSizeMb）同理：默认 26 MB，client.json 可改，和后端 Rpc 节点保持一致。
-/// 每次调用都经 <see cref="UserHeader"/> 带上当前操作人，后端记操作日志、账单调整和配方的操作人都从这里取。
+///  客户端工厂
 /// </summary>
 public static class GrpcClientFactory
 {
     private const string DefaultAddress = "http://localhost:5000";
 
-    /// <summary>
-    /// 单条消息上限：gRPC 默认 4 MB，放到 26 MB 给大查询留余量
-    /// </summary>
-    private const int DefaultMaxMessageSizeMb = 26;
+    private const int DefaultMaxMessageSizeMb = 16;
 
 
     /// <summary>

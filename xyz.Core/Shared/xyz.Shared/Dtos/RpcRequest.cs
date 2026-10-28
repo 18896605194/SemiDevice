@@ -6,14 +6,11 @@ using xyz.Tools;
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 通用 RPC 请求：参数按名字装在 Parameters 里（一个 JSON 对象），跟 RpcResponse 对称
+/// 通用 RPC 请求
 /// </summary>
 [ProtoContract]
 public class RpcRequest
 {
-    /// <summary>
-    /// 参数：JSON 对象，名字 → 值；不带参数是空串
-    /// </summary>
     [ProtoMember(1)]
     public string Parameters { get; set; } = string.Empty;
 

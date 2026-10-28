@@ -370,10 +370,10 @@ static async Task RunServer(int port)
     var builder = WebApplication.CreateBuilder();
     builder.Logging.ClearProviders();
     builder.WebHost.ConfigureKestrel(options =>
-        options.ListenLocalhost(port, listen => listen.Protocols = HttpProtocols.Http2));
-    builder.Services.AddCodeFirstGrpc();
+        options.ListenLocalhost(port, listen => listen.Protocols = HttpProtocols.Http2)); //设置http2
+    builder.Services.AddCodeFirstGrpc(); //CodeFirst 模式
     var app = builder.Build();
-    app.MapGrpcService<EventService>();
+    app.MapGrpcService<EventService>(); //
 
     _ = Task.Run(async () =>
     {

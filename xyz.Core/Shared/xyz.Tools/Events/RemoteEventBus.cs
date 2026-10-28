@@ -7,6 +7,8 @@ namespace xyz.Tools;
 /// </summary>
 public static class RemoteEventBus
 {
+    #region 表：订阅、类型、黑板、收件人，共用一把锁
+
     private static readonly object Gate = new();
     private static readonly Dictionary<(string TypeName, string Token), List<Action<object>>> Handlers = new();
     private static readonly Dictionary<string, Type> MessageTypes = new();
@@ -18,10 +20,18 @@ public static class RemoteEventBus
 
     private static List<Action<EventMessage>> _sentListeners = new();
 
+    #endregion
+
+    #region 死信：消息解不开、订阅者回调出错时报出来
+
     /// <summary>
     /// 死信：消息解不开或订阅者回调抛异常时触发，用来查两头消息类型对不上这类问题
     /// </summary>
     public static event Action<EventMessage, Exception>? DeadLetter;
+
+    #endregion
+
+    #region 后端发消息：业务代码调 Send，推给所有连着的客户端
 
     /// <summary>
     /// 后端发状态类消息（默认）：写黑板，刚连上的客户端、后打开的页面都能马上拿到最新一条
@@ -39,13 +49,24 @@ public static class RemoteEventBus
         ArgumentNullException.ThrowIfNull(message);
         token ??= string.Empty;
 
+        #region 打包：消息转成 JSON 装进信封
+
         var envelope = Pack(message, token, retain);
+
+        #endregion
+
+        #region 写黑板、取收件人：在锁里做，真正发在锁外
+
         List<Action<EventMessage>> listeners;
         lock (Gate)
         {
             Remember(envelope);
             listeners = _sentListeners;
         }
+
+        #endregion
+
+        #region 发给每个收件人：一个收件人就是一台连着的客户端，出错进死信
 
         foreach (var listener in listeners)
         {
@@ -58,7 +79,13 @@ public static class RemoteEventBus
                 DeadLetter?.Invoke(envelope, ex);
             }
         }
+
+        #endregion
     }
+
+    #endregion
+
+    #region 客户端订消息：页面调 Register，按类型 + token 收
 
     /// <summary>
     /// 客户端订阅全局消息（token 为空串）
@@ -76,9 +103,15 @@ public static class RemoteEventBus
         ArgumentNullException.ThrowIfNull(handler);
         token ??= string.Empty;
 
+        #region 键和包装：各种类型的回调放在同一张表里，统一包成收 object 的
+
         var type = typeof(TMessage);
         var key = (type.FullName!, token);
         Action<object> wrapped = message => handler((TMessage)message);
+
+        #endregion
+
+        #region 登记：记下类型、加进这一格，顺便看黑板上有没有
 
         EventMessage? replay;
         lock (Gate)
@@ -94,7 +127,10 @@ public static class RemoteEventBus
             Retained.TryGetValue(key, out replay); // 从黑板中获取
         }
 
-        // 补发：页面比消息晚订阅，也能马上拿到当前状态
+        #endregion
+
+        #region 补发：页面比消息晚订阅，也能马上拿到当前状态
+
         if (replay is not null)
         {
             try
@@ -107,6 +143,10 @@ public static class RemoteEventBus
             }
         }
 
+        #endregion
+
+        #region 退订凭据：Dispose 时从这一格删掉
+
         return new Subscription(() =>
         {
             lock (Gate)
@@ -117,7 +157,13 @@ public static class RemoteEventBus
                 }
             }
         });
+
+        #endregion
     }
+
+    #endregion
+
+    #region 后端 EventService 用：登记收件人、取黑板快照
 
     /// <summary>
     /// 只给后端 EventService 用：拿到每一条新发出的消息，转给连着的客户端
@@ -125,8 +171,6 @@ public static class RemoteEventBus
     public static IDisposable SubscribeSent(Action<EventMessage> listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
-
-        // 换整张表，不改旧表：Send 在锁外遍历的是它拿到的那张
         lock (Gate)
         {
             _sentListeners = new List<Action<EventMessage>>(_sentListeners) { listener };
@@ -154,6 +198,10 @@ public static class RemoteEventBus
         }
     }
 
+    #endregion
+
+    #region 客户端 RemoteConnection 用：收到的消息送进来，写黑板、分给订阅的页面
+
     /// <summary>
     /// 只给客户端 RemoteConnection 用：把收到的消息送进来，写黑板、调订阅者
     /// </summary>
@@ -161,9 +209,14 @@ public static class RemoteEventBus
     {
         ArgumentNullException.ThrowIfNull(envelope);
 
-        // protobuf 传输会省略默认值字段，空 token 在接收端为 null，这里归一化回空串
+        #region 归一化：protobuf 传输会省略默认值字段，空 token 在接收端为 null，换回空串
+
         envelope.TypeName ??= string.Empty;
         envelope.Token ??= string.Empty;
+
+        #endregion
+
+        #region 写黑板、查表：没人订的只留在黑板上；订了的复制一份，到锁外再调
 
         Type? type;
         Action<object>[] handlers;
@@ -179,6 +232,10 @@ public static class RemoteEventBus
             handlers = list.ToArray();
         }
 
+        #endregion
+
+        #region 拆包：JSON 转回消息，只拆一次，几个订阅者共用
+
         object message;
         try
         {
@@ -189,6 +246,10 @@ public static class RemoteEventBus
             DeadLetter?.Invoke(envelope, ex);
             return;
         }
+
+        #endregion
+
+        #region 挨个调：一个回调出错只进死信，不耽误别的
 
         foreach (var handler in handlers)
         {
@@ -201,7 +262,13 @@ public static class RemoteEventBus
                 DeadLetter?.Invoke(envelope, ex);
             }
         }
+
+        #endregion
     }
+
+    #endregion
+
+    #region 小方法：写黑板、打包、拆包
 
     /// <summary>
     /// 写黑板（调用方持锁）：状态类盖掉同一格，通知类把同一格擦掉
@@ -242,4 +309,6 @@ public static class RemoteEventBus
         return JsonHelper.Deserialize(envelope.Payload, type)
                ?? throw new JsonException($"类型 {type.Name} 反序列化结果为 null");
     }
+
+    #endregion
 }

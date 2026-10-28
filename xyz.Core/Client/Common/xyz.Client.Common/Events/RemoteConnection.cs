@@ -1,5 +1,4 @@
-﻿using xyz.Client.Common.Log;
-using xyz.Client.Common.Rpc;
+﻿using xyz.Client.Common.Rpc;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 using xyz.Tools;
@@ -39,17 +38,7 @@ public static class RemoteConnection
 
         _uiContext = SynchronizationContext.Current;
 
-        // 事件流泵是长驻任务，不用 Task.Run 占线程池：
-        // 用 LongRunning 起独立线程，并保留任务句柄，异常退出时能记日志。
-        _pumpTask = Task.Factory
-            .StartNew(RunLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)
-            .Unwrap();
-
-        _pumpTask.ContinueWith(
-            task => ClientLog.Error(nameof(RemoteConnection), $"事件流泵异常退出：{task.Exception?.GetBaseException().Message}"),
-            CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted,
-            TaskScheduler.Default);
+        _pumpTask = Task.Run(RunLoop);
     }
 
     private static async Task RunLoop()

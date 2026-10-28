@@ -15,11 +15,10 @@ public class EventService : BaseService, IEventService
     public IAsyncEnumerable<EventMessage> SubscribeAsync(EventSubscription request, CallContext context = default)
     {
         var channel = Channel.CreateUnbounded<EventMessage>(new UnboundedChannelOptions { SingleReader = true });
+      
+        channel.Writer.TryWrite(new EventMessage());  //发一条空的消息
 
-        // 开流标记：先发一条空信封（TypeName 为空），客户端收到第一条才算真正连上，不靠有没有留存消息。
-        channel.Writer.TryWrite(new EventMessage());
-
-        var subscription = RemoteEventBus.SubscribeSent(message => channel.Writer.TryWrite(message));
+        var subscription = RemoteEventBus.SubscribeSent(message => channel.Writer.TryWrite(message));  //
         foreach (var retained in RemoteEventBus.GetRetained())  //获取黑板上的内容，发送一下
         {
             channel.Writer.TryWrite(retained);

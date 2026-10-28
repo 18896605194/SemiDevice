@@ -3,9 +3,6 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Shared.Services;
 
-/// <summary>
-/// LoadPort 服务契约
-/// </summary>
 [ServiceContract]
 public interface ILoadPortService
 {
