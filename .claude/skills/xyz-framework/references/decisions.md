@@ -31,7 +31,7 @@
   批量大小、积压告警、推送周期、超时、防抖进 ec.xml。代码里不留魔法数。
 - **machine.xml 参数的特性叫 `[Machine]`**（2026-10-24，用户定的，"就叫 Machine"）：不要像是给编辑器用的名字，也不要 `[Config]`（都被否过）。
   类 `MachineAttribute`，参数照旧（默认值、分组、说明、Required），EC 照旧用 `[VariableMark(VariableType.EC, ...)]`。
-- **配置文件叫 machine.xml**（2026-10-24，用户定的，跟 `[Machine]` 对上）：读文件的类 `MachineXml`、根模型 `MachineSettings`，35021 的部署目标 `DeployMachineToHost`，
+- **配置文件叫 machine.xml**（2026-10-24，用户定的，跟 `[Machine]` 对上）：读文件的类 `MachineLoader`、根模型 `MachineSettings`，35021 的部署目标 `DeployMachineToHost`，
   参数分组 `#region Machine`；ToolBuilder 的工程叫 ToolBuilder.*，管路布局目录按文件名取（`CdsLayouts/machine/`）。**改名就彻底改**（用户："……任何东西，都不要出现在程序里面了"）：
   代码、脚本、测试、界面文字里不留旧名字，不做旧文件兼容、不做自动改名，机台上的文件升级时现场改；药液名 SC1 / SC2、Windows 命令 `sc.exe` 跟它无关，照旧。
 - **开关量配置一律 bool**（2026-10-02）：涉及 High/Low 的配置全部改成 bool，不做兼容。
@@ -291,7 +291,7 @@
   **不放 EC**（用户："ec 其实是随时能切换的"）；**整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外）没片才让切**（用户定的条件），
   后端 `IEquipmentService.SetWaferSizeAsync` 查，不行回原因。LoadPort 上的片盒不算（换尺寸本来要换盒）。
 - 存在 machine.xml：System 节点下一个子元件 `WaferSize`（`WaferSizeElement`，machine.xml `Size` = 8 / 12，元件层，摆臂直接取得到），
-  切的时候后端只改这一个值写回 machine.xml（`MachineXml.SaveValue`：别的内容、缩进、换行、BOM 原样，先写临时文件再换），马上生效，重启后还是它。
+  切的时候后端只改这一个值写回 machine.xml（`MachineLoader.SaveValue`：别的内容、缩进、换行、BOM 原样，先写临时文件再换），马上生效，重启后还是它。
   当前尺寸跟设备总状态推送（`EquipmentStatusDto.WaferSize`）走。
 - **边缘示教位 8 寸、12 寸各一个、Center 共用**（用户选的）：两种片都放在卡盘正中，中心是同一个轴位置，只有边缘不一样；来回切不用重新示教。
 - **配方上限按尺寸手写**：字段表里 `Max.8` / `Max.12`（跟 `Source.类型` 一个写法），切到哪个尺寸用哪个，没写的用 `Max`；35021 的"位置""到"写 100 / 150。

@@ -2,9 +2,6 @@
 
 namespace xyz.Configs.Models;
 
-/// <summary>
-/// machine.xml 配置中的 Setting 节点（模块）。
-/// </summary>
 [XmlType("Setting")]
 public class ModuleConfig
 {

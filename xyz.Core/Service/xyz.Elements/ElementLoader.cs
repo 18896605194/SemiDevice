@@ -127,7 +127,7 @@ public static class ElementLoader
     }
 
     /// <summary>
-    /// 把 MachineXml.Load() 的配置树装载为元件实例树，返回根元件列表（含模块）。
+    /// 把 MachineLoader.Load() 的配置树装载为元件实例树，返回根元件列表（含模块）。
     /// </summary>
     public static List<ElementBase> Load(IEnumerable<ModuleConfig> settings)
     {

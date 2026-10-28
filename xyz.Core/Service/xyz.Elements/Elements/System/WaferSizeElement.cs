@@ -95,7 +95,7 @@ public class WaferSizeElement : ElementBase, IWaferSize
 
             try
             {
-                MachineXml.SaveValue(FullPath, nameof(Size), sizeText);
+                MachineLoader.SaveValue(FullPath, nameof(Size), sizeText);
             }
             catch (Exception exception)
             {

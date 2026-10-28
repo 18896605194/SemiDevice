@@ -8,21 +8,56 @@ using xyz.Configs.Models;
 namespace xyz.Configs;
 
 /// <summary>
-/// machine.xml 配置文件读取器（先解析模块级 Setting 节点）。
+/// machine.xml 配置文件读取器
 /// </summary>
-public static class MachineXml
+public static class MachineLoader
 {
-    public static IReadOnlyList<ModuleConfig> Load()
-    {
-        var path = FindConfigFile();
-        var config = XmlHelper.Deserialize<MachineSettings>(path);
-        return config?.Modules ?? [];
-    }
-
     /// <summary>
     /// 配置目录（machine.xml 所在目录）；ec.xml 和各编号表（EcDefinitions.xml 等）都跟它放一起。
     /// </summary>
     public static string ConfigDirectory => Path.GetDirectoryName(FindConfigFile())!;
+
+    public static IReadOnlyList<ModuleConfig> Load()
+    {
+        var path = FindConfigFile(); //寻找文件地址
+        var config = XmlHelper.Deserialize<MachineSettings>(path);//映射到MachineSettings
+        return config?.Modules ?? [];
+    }
+
+    /// <summary>
+    /// 找 machine.xml：只认运行目录 Paths.json 里 ConfigPath 指的目录
+    /// </summary>
+    private static string FindConfigFile()
+    {
+        string pathsFile = Path.Combine(AppContext.BaseDirectory, "Paths.json");
+        if (!File.Exists(pathsFile))
+        {
+            throw new FileNotFoundException($"运行目录没有 Paths.json（machine.xml 在哪儿由它指）：{pathsFile}");
+        }
+
+        string? configPath = null;
+        using (var document = JsonDocument.Parse(File.ReadAllText(pathsFile)))
+        {
+            if (document.RootElement.TryGetProperty("ConfigPath", out var value))
+            {
+                configPath = value.GetString();
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(configPath))
+        {
+            throw new InvalidOperationException($"{pathsFile} 里没配 ConfigPath（machine.xml 所在目录）");
+        }
+
+        string directory = Path.GetFullPath(configPath, AppContext.BaseDirectory);
+        string machineFile = Path.Combine(directory, "machine.xml");
+        if (!File.Exists(machineFile))
+        {
+            throw new FileNotFoundException($"配置目录未找到 machine.xml：{directory}");
+        }
+
+        return machineFile;
+    }
 
     /// <summary>
     /// 把一个参数写回 machine.xml（界面上改、改完一直生效的，现在只有 System 的晶圆尺寸）：settingPath 是元件全路径（"System"、"Chamber.Chamber1"，
@@ -104,53 +139,5 @@ public static class MachineXml
         }
 
         node.AddFirst(new XText(nodeIndent + "\t"), value);
-    }
-
-    private static string FindConfigFile()
-    {
-        var pathsFile = Path.Combine(AppContext.BaseDirectory, "Paths.json");
-        if (File.Exists(pathsFile))
-        {
-            var configPath = ReadConfigPath();
-            if (string.IsNullOrWhiteSpace(configPath))
-            {
-                throw new InvalidOperationException("Paths.json 中未配置 ConfigPath");
-            }
-
-            var fullPath = Path.GetFullPath(configPath, AppContext.BaseDirectory);
-            var machineFile = Path.Combine(fullPath, "machine.xml");
-            if (!File.Exists(machineFile))
-            {
-                throw new FileNotFoundException($"配置目录未找到 machine.xml: {fullPath}");
-            }
-
-            return machineFile;
-        }
-
-        // 没有 Paths.json 时的兼容查找
-        var candidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "machine.xml"),
-            Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml"),
-            Path.Combine(Directory.GetCurrentDirectory(), "machine.xml"),
-            Path.Combine(Directory.GetCurrentDirectory(), "Config", "machine.xml")
-        };
-
-        return candidates.FirstOrDefault(File.Exists)
-            ?? throw new FileNotFoundException("未找到 machine.xml 配置文件");
-    }
-
-    private static string? ReadConfigPath()
-    {
-        var pathsFile = Path.Combine(AppContext.BaseDirectory, "Paths.json");
-        if (!File.Exists(pathsFile))
-        {
-            return null;
-        }
-
-        using var document = JsonDocument.Parse(File.ReadAllText(pathsFile));
-        return document.RootElement.TryGetProperty("ConfigPath", out var value)
-            ? value.GetString()
-            : null;
     }
 }

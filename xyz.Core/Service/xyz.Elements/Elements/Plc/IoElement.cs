@@ -136,7 +136,7 @@ public partial class IoElement : ElementBase, IIo
         // 全限定：元件基类自己有个 Path 属性（元件路径），这儿的 Path 不是它。
         string directory = System.IO.Path.IsPathRooted(PointTableDirectory)
             ? PointTableDirectory
-            : System.IO.Path.Combine(MachineXml.ConfigDirectory, PointTableDirectory);
+            : System.IO.Path.Combine(MachineLoader.ConfigDirectory, PointTableDirectory);
 
         Di.Load(System.IO.Path.Combine(directory, "DI.csv"), this);
         Do.Load(System.IO.Path.Combine(directory, "DO.csv"), this);

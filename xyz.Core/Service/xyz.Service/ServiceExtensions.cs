@@ -24,7 +24,7 @@ public static class ServiceExtensions
     {
         #region 装元件树
 
-        var settings = MachineXml.Load();//装机文件加载
+        var settings = MachineLoader.Load();//装机文件加载
         services.AddSingleton<IReadOnlyList<ModuleConfig>>(settings);
 
         var roots = ElementLoader.Load(settings);
@@ -81,7 +81,7 @@ public static class ServiceExtensions
             LogHelper.Warn(LogHelper.HostModule, "machine.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
         }
 
-        IocHelper.GetRequiredService<GemCollectors>().Merge(roots, MachineXml.ConfigDirectory);
+        IocHelper.GetRequiredService<GemCollectors>().Merge(roots, MachineLoader.ConfigDirectory);
 
         #endregion
 

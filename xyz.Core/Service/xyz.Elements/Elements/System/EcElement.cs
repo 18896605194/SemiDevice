@@ -64,7 +64,7 @@ public class EcElement : ElementBase, IEc
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
-        Load(System.IO.Path.Combine(MachineXml.ConfigDirectory, "ec.xml"));
+        Load(System.IO.Path.Combine(MachineLoader.ConfigDirectory, "ec.xml"));
     }
 
     /// <summary>

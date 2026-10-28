@@ -98,7 +98,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   键是"元件全路径.属性名"。ec.xml 不随源码，后端启动时 `EcElement.Merge` 按元件树生成：文件没有、或者是空的（清空了），照元件树整份建；
   有内容才往里合并（只补新项、不动已有值，元件树上没有了的旧项留着不列）。想清掉旧项就把文件清空或删掉、重起宿主；界面在 设置 → EC 设置 改，
   后端校验格式/范围后写回并推送。
-- machine.xml 一般只由 ToolBuilder 改、重启生效；**运行时要改、改完一直生效的**（现在只有晶圆尺寸 `WaferSizeElement.Size`，主界面切换）用 `MachineXml.SaveValue(元件全路径, 参数名, 值)`
+- machine.xml 一般只由 ToolBuilder 改、重启生效；**运行时要改、改完一直生效的**（现在只有晶圆尺寸 `WaferSizeElement.Size`，主界面切换）用 `MachineLoader.SaveValue(元件全路径, 参数名, 值)`
   写回宿主读的那份 machine.xml：只改那一个 Value（没有就照缩进补一行），别的内容、缩进、换行（LF / CRLF 照原文件）、BOM 原样，先写临时文件再换上去。
 - 协议、结构常量用 `const`。新元件先分好 `#region Machine` / `#region EC` 再写逻辑。
 
@@ -808,7 +808,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   有人在用的角色不能删 `account.role_in_use` [角色名, 账号数]；访客角色不给账号 `account.role_not_assignable`）。
 
 ### 启动顺序（`ServiceExtensions` + 宿主 `Program`，只做框架的事，2026-10-18 起不点名任何元件）
-**注册**（`AddXyzServices`，容器建好之前）：`MachineXml.Load` → `ElementLoader.Load`（装整棵树）→ `ElementLoader.Register`（元件按接口进容器、树本身也进）→
+**注册**（`AddXyzServices`，容器建好之前）：`MachineLoader.Load` → `ElementLoader.Load`（装整棵树）→ `ElementLoader.Register`（元件按接口进容器、树本身也进）→
 GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开机，元件构造、`OnSettingLoaded` 里不取别的元件（容器还没有）。
 **开机**（宿主 `builder.Build()` 之后、开始监听之前调 `app.Services.StartElements()`）：先 `IocHelper.ServiceProvider = 容器` →
 查必配的节点（`System` 整机、`Mapper` 映射元件、`Log` 日志，没配开机就抛）→ EC 合并 → GEM 编号表合并 →
