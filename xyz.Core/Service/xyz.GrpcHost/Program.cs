@@ -105,9 +105,9 @@ public static class Program
         // 退出时不干等长连接：客户端的事件流不会自己断，按默认 30 秒超时要等半分钟才退得掉。
         builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(3));
 
+        // 后端收的单条消息上限用 gRPC 默认 4 MB（请求都是几个参数的 JSON）；客户端收的上限在 GrpcClientFactory（16 MB）
         builder.Services.AddCodeFirstGrpc(options =>
         {
-            options.MaxReceiveMessageSize = MaxMessageSizeMb() * 1024 * 1024;  //单挑消息的大小走的是rpc元件里面配置的
             options.Interceptors.Add<ActionFilter>(); //增加过滤器 记操作日志（谁点了什么）
         });
 
@@ -160,15 +160,6 @@ public static class Program
     }
 
     #region 启动用到的小方法
-
-    /// <summary>
-    /// 单条消息最大多少 MB：没配 Rpc 节点按默认 26 MB
-    /// </summary>
-    private static int MaxMessageSizeMb()
-    {
-        var rpc = IocHelper.GetService<IRpc>();
-        return rpc?.MaxMessageSizeMb ?? RpcElement.DefaultMaxMessageSizeMb;
-    }
 
     /// <summary>
     /// 监听地址：localhost 监听本机的两个回环（IPv4、IPv6）；别的按明确地址监听（远程调试，IPv6 加方括号）

@@ -38,13 +38,8 @@ public class DataChartService : BaseService, IDataChartService
             return NotInstalled(ErrorCodes.DataChartNotInstalled);
         }
 
-        var result = new DataChartSignalsDto
-        {
-            Signals = _chart.Signals.Select(signal => _mapper.Map<DataChartSignalDto>(signal)).ToList(),
-            MaxSignals = Math.Max(1, _chart.QueryMaxSignals),
-            SampleIntervalMs = _chart.SampleIntervalMs,
-            ScreenshotDirectory = _chart.ScreenshotDirectory,
-        };
+        // 跟数据曲线元件开机推的是同一份（映射元件按同一条规则转）
+        var result = _mapper.Map<DataChartSignalsDto>(_chart);
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result)));
     }
 

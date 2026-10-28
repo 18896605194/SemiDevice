@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\xyz.Tools\xyz.Tools.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="NLog" Version="6.2.0" />
   </ItemGroup>
 

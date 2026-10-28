@@ -1,4 +1,5 @@
 ﻿using SqlSugar;
+using xyz.Client.Common.Events;
 using xyz.Elements;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
@@ -39,7 +40,7 @@ string dbPath = Path.Combine(Path.GetTempPath(), $"account-smoke-{Guid.NewGuid()
 XyzDb.Register(DbName, $"DataSource={dbPath}", DbType.Sqlite);
 
 int changed = 0;
-using var subscription = RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, _ => changed++);
+using var subscription = RemoteEventSubscriber.Register<AccountChangedDto>(AccountChangedDto.EventToken, _ => changed++);
 
 try
 {
@@ -321,6 +322,16 @@ try
     Check(!session.IsSuccess && session.ErrorMessage == ErrorCodes.AccountUserNotFound && session.Args.SequenceEqual(["op01"]), "删了的取会话：account.user_not_found");
     removed = account.DeleteUser(op01);
     Check(!removed.IsSuccess && removed.ErrorMessage == ErrorCodes.AccountUserNotFound, "再删一次：account.user_not_found");
+
+    // 12b. 开机推送：推一条账号变了；它是留存消息，后订阅的（界面晚打开、重连）马上补发这一条，收到就去拉
+    changed = 0;
+    account.PublishOnStartup();
+    Check(changed == 1, "开机推送：推一条账号变了");
+    int replayed = 0;
+    using (RemoteEventSubscriber.Register<AccountChangedDto>(AccountChangedDto.EventToken, _ => replayed++))
+    {
+        Check(replayed == 1, "账号变了留在黑板上：后订阅的马上补发一条");
+    }
 
     // 13. 三个服务：转给账号元件，数据转 DTO、错误码原样回
     var accountService = new AccountService();

@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Reflection;
 using xyz.Common;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Enums;
@@ -587,7 +588,7 @@ public class EcElement : ElementBase, IEc
     private void OnValueChanged(string path, EcValueConfig item)
     {
         ValueChanged?.Invoke(path, item);
-        RemoteEventBus.Send(CreateDto(path, item), EcItemDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(CreateDto(path, item), EcItemDto.EventToken, retain: false);
     }
 
     /// <summary>

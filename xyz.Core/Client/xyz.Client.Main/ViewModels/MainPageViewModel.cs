@@ -286,10 +286,10 @@ public class MainPageViewModel : BaseViewModel
     {
         // 系统状态、设备总状态、各 LoadPort 状态都是留存消息：订上就补发当前值，重连后重放，不用另外拉。
         _systemSubscription?.Dispose();
-        _systemSubscription = RemoteEventBus.Register<SystemStateDto>(SystemStateDto.EventToken, OnSystemChanged);
+        _systemSubscription = RemoteEventSubscriber.Register<SystemStateDto>(SystemStateDto.EventToken, OnSystemChanged);
 
         _statusSubscription?.Dispose();
-        _statusSubscription = RemoteEventBus.Register<EquipmentStatusDto>(EquipmentStatusDto.EventToken, OnStatusChanged);
+        _statusSubscription = RemoteEventSubscriber.Register<EquipmentStatusDto>(EquipmentStatusDto.EventToken, OnStatusChanged);
 
         foreach (var subscription in _loadPortSubscriptions)
         {
@@ -299,40 +299,42 @@ public class MainPageViewModel : BaseViewModel
         _loadPortSubscriptions.Clear();
         foreach (var port in LoadPorts)
         {
-            _loadPortSubscriptions.Add(RemoteEventBus.Register<LoadPortDto>(port.Name, port.Update));
+            _loadPortSubscriptions.Add(RemoteEventSubscriber.Register<LoadPortDto>(port.Name, port.Update));
         }
 
-        // Sequence 列表：连上后端时拉，流程配方库变了（新建、改名、删除）再拉
+        // Sequence 列表：流程配方库开机推一条变更（留存）、变了（新建、改名、删除）再推，订上就补发、重连时后端重放，收到就拉
         _sequenceSubscription?.Dispose();
-        _sequenceSubscription = RemoteEventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, changed => _ = LoadSequences());
+        _sequenceSubscription = RemoteEventSubscriber.Register<SequenceChangedDto>(SequenceListDto.EventToken, changed => _ = LoadSequences());
 
         // Job 全貌：每个页签认自己 LoadPort 上的 CJ
         _jobSubscription?.Dispose();
-        _jobSubscription = RemoteEventBus.Register<JobListDto>(JobListDto.EventToken, OnJobsChanged);
+        _jobSubscription = RemoteEventSubscriber.Register<JobListDto>(JobListDto.EventToken, OnJobsChanged);
 
         ClientAlarms.Changed -= OnAlarmsChanged;
         ClientAlarms.Changed += OnAlarmsChanged;
         OnAlarmsChanged();
 
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
+        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        OnConnectionChanged(RemoteEventConnection.IsConnected);
     }
 
+    /// <summary>
+    /// 连接状态只管显示：断开时清掉不可信的状态、按钮点不了；连上以后要的数据都靠后端重放的推送，这里不拉
+    /// </summary>
     private void OnConnectionChanged(bool connected)
     {
         IsConnected = connected;
-        if (!connected)
+        if (connected)
         {
-            // 断开后不知道设备现在是什么状态、有哪些 Job，等重连后后端重放
-            _system = null;
-            _status = null;
-            OnJobsChanged(null);
-            RefreshSystem();
             return;
         }
 
-        _ = LoadSequences();
+        // 断开后不知道设备现在是什么状态、有哪些 Job，等重连后后端重放
+        _system = null;
+        _status = null;
+        OnJobsChanged(null);
+        RefreshSystem();
     }
 
     private void OnSystemChanged(SystemStateDto system)

@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
+using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
@@ -23,7 +24,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     #region Column
 
     /// <summary>
-    /// 模块实例名，与 RemoteEventBus token / gRPC 参数一致，如 "Robot1"。
+    /// 模块实例名，与 推送 token / gRPC 参数一致，如 "Robot1"。
     /// </summary>
     public string ModuleName { get; }
 
@@ -189,7 +190,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         }
 
         _stateSubscription?.Dispose();
-        _stateSubscription = RemoteEventBus.Register<RobotDto>(ModuleName, OnStateReceived);
+        _stateSubscription = RemoteEventSubscriber.Register<RobotDto>(ModuleName, OnStateReceived);
     }
 
     public void Dispose()

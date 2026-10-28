@@ -5,13 +5,14 @@
 ## 1. 工程和依赖方向
 
 ```
-Shared\xyz.Tools      EventBus、RemoteEventBus、JsonHelper、XmlHelper、IocHelper、ExcelHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
-                      子目录只归类、命名空间都是 xyz.Tools：Events\（进程内 EventBus、跨进程 RemoteEventBus、信封 EventMessage、订阅凭据 Subscription）、
+Shared\xyz.Tools      EventBus、跨进程事件的信封和黑板、JsonHelper、XmlHelper、IocHelper、ExcelHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
+                      子目录只归类、命名空间都是 xyz.Tools：Events\（进程内 EventBus、跨进程的信封 EventMessage 和黑板 RetainedBoard、订阅凭据 Subscription）、
                       Excel\（ExcelHelper 和它的列、表）、Helpers\（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件
 Shared\xyz.Shared     契约：Services\I*Service、Dtos\、Errors\ErrorCodes、Rpc\（→ Tools）
 Service\xyz.Common    日志：LogHelper（后端记日志一律走它）、ILogSource（两层名字）、LogQueue、LogFileReader、NLog.config；
                       帮助类在 Helpers\（只归类，命名空间还是 xyz.Common）：DateTimeHelper（本机时间 ↔ UTC 毫秒）、ValueHelper（数据类型、值的换算）；
                       日志在 Log\（命名空间 xyz.Common.Log）
+                      跨进程事件的发送方在 Events\（RemoteEventPublisher，命名空间 xyz.Common.Events；→ Tools）
 Service\xyz.Configs   machine.xml（读 machine.xml）、配置模型、Paths.json（→ Common、Tools）；machine.xml 本身归机型（如 xyz.35021.Module\Config\machine.xml）
 Service\xyz.Database  SqlSugar：XyzDb、实体、分表
 Service\xyz.Drivers   纯协议/通讯（不引用 Elements）
@@ -25,7 +26,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 ```
 
 - 元件层引用 xyz.Shared：错误码、EAP 接口用到的 DTO、元件自己推给界面的 DTO（2026-10-05 起；原来不引用）。**推送是元件自己的事**
-  （2026-10-18 起）：元件在自己的扫描或钩子里 `RemoteEventBus.Send`，转 DTO 走映射元件，启动代码里不搭桥（见 §5「事件推送」）。
+  （2026-10-18 起）：元件在自己的扫描或钩子里 `RemoteEventPublisher.Send`，转 DTO 走映射元件，启动代码里不搭桥（见 §5「事件推送」）。
   元件层的内部成员只对 xyz.Modules 开放（`InternalsVisibleTo`）：模块基类要控制
   ModuleRoutine"什么时候算真正做完"（`DeferCompletion` / `NotifyCompletion`）；所以 xyz.Modules 里重写 `protected internal` 的成员
   （`OnSettingLoaded`）要写 `protected internal override`，机型工程照旧 `protected override`。
@@ -53,7 +54,8 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   气缸 / 阀的 `Open()` / `Close()` 是开合动作，不是生命周期。
 - 开机后面几个阶段（2026-10-18 起，元件自己的事都挂在这儿，启动代码不点名）：`Bind()`（元件初始化都做完、开始扫描之前，整棵树按 machine.xml 先后
   先父后子挨个调；按接口找别的元件、认装起来的模块、订阅、开机恢复，如晶圆账恢复、配方库认腔体、EAP 接各标准）→ 开始扫描 →
-  `OnStarted()`（都在扫了以后，如 EAP 开链路）→ 宿主退出时先停扫描（`StopScan`：等手上这一拍扫完，最多等 2 秒）、再 `OnStopping()`
+  `OnStarted()`（都在扫了以后，如 EAP 开链路）→ `PublishOnStartup()`（开机推送，2026-10-28：界面一连上（含重连）就要拿到的推一次、留存——
+  配方库、流程配方库、账号、晶圆账推一条"变了"，日志设置、AI 状态、实时曲线和数据曲线的信号表推内容；一个出错记日志、不耽误后面的）→ 宿主退出时先停扫描（`StopScan`：等手上这一拍扫完，最多等 2 秒）、再 `OnStopping()`
   （倒着来，一个出错记日志、不耽误后面的；EAP 断链路、数据曲线落库、断 PLC、晶圆账最后存一次——这时扫描已经停了，不会跟扫描撞）。
   都是 `ElementBase` 的空虚方法，要用就重写。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[Machine] 灌完值后调，配置不对就抛异常（开机直接报出来）。
@@ -331,7 +333,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   轴手动页参数默认值 EC：`MoveSpeed`、`JogSpeed`（点动 / 步进速度）、`JogStep`（步距）。
   轴的"目标已在到位容差里就不发"只用于绝对定位（MoveTo）；相对移动（MoveBy，步进）照发——步距默认 1 跟到位容差默认 1 一样大，
   以前会被当成已经到位、根本不走（2026-10-04 联调时发现）。联锁还没做。
-- 状态推送：`PublishState()` 里 `RemoteEventBus.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
+- 状态推送：`PublishState()` 里 `RemoteEventPublisher.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
   能放片的模块在推送里带上晶圆账（`LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name)`，腔体是 `Slots`），并在 HasStateChanged 里比较——
   账一变下一拍就推给所有界面，不另发通知；界面画片以账为准（见 decisions.md）。
 - 流程配方库 `Recipe\SequenceElement`（machine.xml `Sequence` 节点，参数：`Capacity` 99 个编号、`Folder` `Recipe\Sequence`、`NameMaxLength` 32）：
@@ -497,7 +499,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），成功执行后当场发布；创建校验或状态命令被拒不发布。检查、加锁、执行、发布、异常处理直接写在各入口里，
   不再使用 Execute / WithProcessJob 委托包装；PJ 创建逻辑直接在 CreateProcessJobAsync 内。本地建 Job（`JobService.CreateAsync`）也是一个个建 PJ（给了 LoadPort 按它找，没给按载具号找）
   再建 CJ，中途被拒撤掉已建的 PJ。PJ / CJ 创建检查 Queue 结果，失败撤销本次登记及任务或关联；CJ 失败保留先前独立创建的 PJ。扫描一拍：① 调度引擎收做完的、记回任务表 → ② 核对片位 → ③ JobManager 分别检查 PJ、CJ 推进条件，提交状态动作（先 PJ 后 CJ，转到不再转），再按 PJ 状态给行定许可 →
-  ④ 调度派任务（Manual 不派）→ ⑤ 直接发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍发布；全貌（JSON）跟上次交去写的不一样才交给存库线程合并写入（2026-10-22），上一批没写进库期间每拍都交。
+  ④ 调度派任务（Manual 不派）→ ⑤ 发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍把全貌转一次 JSON：跟上次推的不一样才推（2026-10-28），跟上次交去写的不一样才交给存库线程合并写入（2026-10-22），上一批没写进库期间每拍都交。
   不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
   EAP 按载具号找：`IJobManager.FindControlJobByCarrier` 在 Job 锁内调用 `CjManager.FindByCarrier`，从 CJ 字典读取并返回 DTO 副本；`FindProcessJobsByCarrier` 在锁内读取当前 PJ，包括保留在 CJ 下的已结束 PJ。Snapshot 查询在锁内生成 DTO，不缓存 `_snapshot`。PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
   machine.xml：`IsEnable`、`ProcessJobAutoStart`、`ControlJobAutoStart`、`IsPersistent`、`Database`、`HistoryQueryMaxCount`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
@@ -694,7 +696,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 2. **请求不建类**（2026-10-26 用户定）：一律 `RpcRequest`，参数按名字装在 `Parameters`（JSON 对象）里。契约注释一句短话说清是什么，不写参数
    （2026-10-26 用户改，原来写"参数：名字（类型）"）；要传什么看服务里的 `TryGet` / `Get`。
    参数名用 `Shared\xyz.Shared\Rpc\RpcParams.cs` 里的常量（值就是名字本身），客户端装、服务端取都用它，名字只写这一份；新参数名先加进去，已有的同义名字直接用（`Module`、`Index`、`Start` / `End`……）。
-   返回数据放 `Shared\xyz.Shared\Dtos`（普通类，走 JSON），不加 `[ProtoContract]`——全仓只有 `RpcRequest`、`RpcResponse`（和事件流的 `EventMessage`、`EventSubscription`）带它。
+   返回数据放 `Shared\xyz.Shared\Dtos`（普通类，走 JSON），不加 `[ProtoContract]`——全仓只有 `RpcRequest`、`RpcResponse`（和事件流的信封 `EventMessage`）带它。
 3. 实现 `Service\xyz.Service\<领域>\XxxService.cs`：`public class XxxService : BaseService, IXxxService`。取参数：必带的 `request.TryGet<int>(RpcParams.Index, out var index)`、`request.TryGet<string>(RpcParams.Module, out var module)`
    （一律写 `TryGet<类型>(名字, out var 变量)`：字符串、列表写成 `out string x` 会报可能为 null；几个写进一个 if，取不到回 `InvalidRequest()` → `rpc.request_invalid`，
    async 方法里 `return await InvalidRequest();`；名字不分大小写，没带、是 null、类型对不上都算取不到），可不带的 `request.Get(RpcParams.Keyword, string.Empty)`
@@ -720,20 +722,27 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   查库、读文件放 `Task.Run` 里 try/catch 转错误码。
 - 找模块：`FindModule<IXxx>(name)`（按接口，`ILoadPort` / `IRobot` / `IChamber`），找不到 `ModuleNotFound(name)`。
 - 一次回不完的大数据（数据曲线导出）走服务端流：契约 `IAsyncEnumerable<RpcResponse> ExportAsync(RpcRequest, CallContext)`，一段一条 `RpcResponse.Ok(JSON)`，
-  每条远小于 gRPC 单条上限（26 MB，见 decisions.md）；出错推一条 `Fail` 就结束。迭代器的 try 里不能 yield，读下一段放一个返回"段 / 原因"的方法里接住
+  每条远小于客户端收的单条上限（16 MB，见 decisions.md「gRPC 单条消息上限」）；出错推一条 `Fail` 就结束。迭代器的 try 里不能 yield，读下一段放一个返回"段 / 原因"的方法里接住
   （`DataChartService.Next`），读库放 `Task.Run`；客户端取消时 `context.CancellationToken` 停。
 
 ### 事件推送
-- 两条总线（2026-10-27 用户定，互不相通、不转发）：推给界面用跨进程的 `RemoteEventBus`；后端元件之间要通知用进程内的 `EventBus`
+- 两条总线（2026-10-27 用户定，互不相通、不转发）：推给界面用跨进程的 `RemoteEventPublisher`（后端发）/ `RemoteEventSubscriber`（客户端收）；后端元件之间要通知用进程内的 `EventBus`
   （同步、在发送方线程上调、传原对象、没有黑板），它发的不出进程。想知道别的元件现在的状态按接口问它，不靠黑板。
-- 线：后端 `xyz.Service\Events\EventService`（客户端连上先发开流标记，再重放黑板，之后转发每条新发的）、客户端 `RemoteConnection`（client.md §4）；
+- 线：后端 `xyz.Service\Events\EventService`（客户端连上先发开流标记，再重放黑板，之后转发每条新发的）、客户端 `RemoteEventConnection`（client.md §4）；
   黑板两头各一块：后端给刚连上的客户端重放，客户端给后订阅的页面补发。客户端不往后端发事件，命令走 gRPC。信封 `EventMessage` 只在这条线上用，业务代码不碰。
-- `RemoteEventBus.Send(dto, token, retain)`：
-  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"SystemState"、"WaferLedger"）；
+- 发、收两半（2026-10-28 用户定）：后端 `xyz.Common\Events\RemoteEventPublisher`（`Send`、给 EventService 的 `SubscribeSent` / `GetRetained`），
+  客户端 `xyz.Client.Common\Events\RemoteEventSubscriber`（`Register`、给 RemoteEventConnection 的 `Deliver`）；对面工程引用不到，客户端写不出 Send、后端写不出 Register。
+  两边共用的只有 xyz.Tools 里的信封 `EventMessage` 和黑板规则 `RetainedBoard`（不带锁，用的地方在自己的锁里调）。
+- `RemoteEventPublisher.Send(dto, token, retain)`：
+  - 全局事件 DTO 带 `public const string EventToken`（"Account"、"AiStatus"、"Alarm"、"DataChartSignals"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"LogSettings"、"ProcessRecipe"、"RealChart"、
+    "RealChartLayout"、"Sequence"、"SystemState"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的设备状态推送 `ChamberDeviceDataDto`）也用模块名，类型不同互不覆盖；
     不是模块的部件跟着它上面的模块推（供液槽的 `TankDto` 装在机型 IPA 模块的 `IpaDto` 里一起推，token 是模块名，留存，变了才推）；
-  - "发生了一件事"类用 `retain: false`（不写黑板，同一格的旧状态擦掉）。
-- **推送是元件自己的事**（2026-10-18 起，启动代码里不搭桥、没有 `*Publisher`）：值一变的在变的地方发（EC 元件 `EcItemDto`、报警元件 `AlarmDto`、
+  - 界面收到就去拉数据的"变了"（配方库、流程配方库的变更 DTO、`AccountChangedDto`、`WaferLedgerChangedDto`）**留存**，元件开机再在 `PublishOnStartup` 推一条：
+    界面晚打开、客户端比后端先起、后端重启、断线重连，都会先收到这一条、收到就拉，页面不用管连接（2026-10-28 用户定，原来不留存、页面挂 `ConnectionChanged` 连上重拉）；
+    开机后就不变的（日志设置、AI 状态、两张曲线的信号表）开机直接推内容，跟服务回的是同一份（映射元件或元件自己的方法出，不各抄一份）。
+  - 真正一次性的事（单条报警 `AlarmDto`、单个 EC 值 `EcItemDto`、一条日志 `LogDto`、实时曲线一帧）用 `retain: false`（不写黑板，同一格的旧状态擦掉）。
+- **推送是元件自己的事**（2026-10-18 起，启动代码里不搭桥、没有各功能自己的 `*Publisher` 桥）：值一变的在变的地方发（EC 元件 `EcItemDto`、报警元件 `AlarmDto`、
   晶圆账 `WaferLedgerChangedDto`、两个配方库的变更 DTO、日志元件每条日志 `LogDto`，切晶圆尺寸时工艺配方库推一条编号 0 的）；每拍比、变了才推的在自己的 `OnScan` 里发
   （模块状态、整机的设备总状态、IPA）；按周期推的也在自己的 `OnScan` 里看时间（IO 整包按 EC `PublishIntervalMs`，实时曲线把数据曲线采到的行一帧一帧推）——
   所以要推的根元件在 machine.xml 配 `IsRun=true`。推失败吞住，同一个错只记一次日志。C# 事件（`AlarmChanged`、`ValueChanged`、`Wafer*`）留给后端里别的元件订（E30 订报警和 EC 变化，晶圆账自己接给 E90）。
@@ -791,7 +800,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   **放 machine.xml 不放 EC**（用户 2026-10-22 定的：账号安全的规矩不让 EC 页改），配错 `OnSettingLoaded` 开机就报。不扫描、不起线程，调用都在 RPC 线程上、一把锁。
   元件初始化建表、第一次开机预置角色（管理员、访客，还有工程师、操作员各项的默认档位在 `Defaults`）和内置账号 admin / admin；建表、预置没成后面一律回 `account.failed`。
   会话 `SessionDto`：登录名、显示名、角色、各项档位（管理员不带，全部能操作）、闲置注销分钟数；`GetSession(空)` 就是访客的。
-  建、改、删账号和角色，存权限都推 `AccountChangedDto`（token "Account"，不留存），登录着的客户端重新取会话、两个设置页重拉。
+  建、改、删账号和角色，存权限都推 `AccountChangedDto`（token "Account"，留存，开机 `PublishOnStartup` 也推一条），登录着的客户端重新取会话、两个设置页重拉。
 - **权限项编码**在 `xyz.Shared\Permissions\PermissionCodes`（= 菜单 Code，客户端菜单和预置角色共用）；后端只存、只发，**不按权限挡任何服务**（用户定的）。
 - **服务**（`xyz.Service\UserManger\`）：`IAccountService`（`LoginAsync`、`GetSessionAsync`、`LogoutAsync`（只记日志）、`ChangePasswordAsync`）、
   `IUserService`（列、建、改显示名和角色、重置密码、停用 / 启用、删）、`IRoleService`（列、建、改名和说明、删、取 / 存一个角色的档位）；没配 `Account` 回 `account.not_installed`。
@@ -807,10 +816,11 @@ GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开�
 登记槽位，轴登记收发块；子元件基类递归，不动硬件）→ **Bind** `BindAll`（整棵树按 machine.xml 先后、先父后子：晶圆账开机恢复、整机 / 搬运管理 / Job 认模块、
 两个配方库认站点和腔体、EAP 接各标准（不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）、数据曲线定信号表、实时曲线接上数据曲线）→
 **开始扫描** `StartScanning`（machine.xml 里配了 `IsRun=true` 的根各起一条扫描线程——整机、PLC、IO、Safety、Computer、DataChart、RealChart、各模块、Dispatch；
-挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）。
+挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）→
+**开机推送** `PublishAll`（整棵树按 machine.xml 先后挨个 `PublishOnStartup`，推的都留在黑板上，客户端连上就重放）。
 开完机宿主才从容器里的 `Rpc` 元件取地址端口（`app.Urls`，默认 localhost:5000，只走 HTTP/2）、映射 gRPC 服务、开始监听；
 退出时 `ServiceExtensions.StopElements()`（`StopAll`：先停各根元件的扫描、等手上这一拍扫完，再倒着 `OnStopping`；之后宿主才释放容器）。
-新元件要连接、登记的写在自己的 `InitElement`；要认别的元件、订阅、开机恢复的写在 `Bind`；要等都扫起来的写在 `OnStarted`；退出收尾写在 `OnStopping`；
+新元件要连接、登记的写在自己的 `InitElement`；要认别的元件、订阅、开机恢复的写在 `Bind`；要等都扫起来的写在 `OnStarted`；界面一连上就要拿到的写在 `PublishOnStartup`；退出收尾写在 `OnStopping`；
 要自己扫描、自己推的根元件在 machine.xml 里配 `IsRun=true`——都不用改启动代码。根元件之间有先后的配 machine.xml 的 `InitOrder`（读点表的排在 IO 之后，用 PLC 的排在 PLC 之后）。
 
 ## 6. 错误码（`Shared\xyz.Shared\Errors\ErrorCodes.cs`）

@@ -85,12 +85,13 @@ public static class ServiceExtensions
 
         #endregion
 
-        #region 开机各阶段：准备 → 绑定 → 开始扫描 → 都起来以后
+        #region 开机各阶段：准备 → 绑定 → 开始扫描 → 都起来以后 → 开机推送
 
         ElementLoader.InitAll(roots);
         ElementLoader.BindAll(roots);
         ElementLoader.StartScanning(roots);
         ElementLoader.StartedAll(roots);
+        ElementLoader.PublishAll(roots);
 
         #endregion
 

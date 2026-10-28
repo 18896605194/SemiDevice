@@ -1,5 +1,8 @@
 ﻿# 三维硬件组件
 
+机械手可直接在页面使用 `<controls:Robot3D />`，直伸 / 蛙式共用原二维动作逻辑，绑定入口与 `Robot` 一致。
+不需要外部相机、灯光或服务；调用示例、属性和生命周期见 [Robot3D](Robot3D.md)。
+
 `ArmVisual3D`、`LiftVisual3D`、`FluidPipeVisual3D`、`BowlVisual3D` 和 `HomeCupVisual3D` 是平台的摆臂、升降气缸、管子、Bowl 和 Home 排液杯组件，共用页面的 `Viewport3D`。
 多个硬件共用相机、灯光和三维空间；`ChamberScene` 把它们连同底座、旋转盘、腔门装成腔体手动页的三维图（见下文）。
 `LoadPortVisual3D`（LoadPort 本体）和 `CarrierVisual3D`（上面的花篮，片用 `DiskVisual3D`）是两个公共组件，`LoadPortScene` 把它们组合成 LoadPort 手动页的三维图（见文末）。

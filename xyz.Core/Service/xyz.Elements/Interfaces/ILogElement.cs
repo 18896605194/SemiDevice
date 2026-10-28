@@ -41,4 +41,9 @@ public interface ILogElement
     /// 最近一段后端日志（最旧的在前），客户端连上时补拉
     /// </summary>
     IReadOnlyList<LogDto> Recent();
+
+    /// <summary>
+    /// 给界面的日志显示设置（开机推的、服务回的都是这一份）
+    /// </summary>
+    LogSettingsDto Settings();
 }

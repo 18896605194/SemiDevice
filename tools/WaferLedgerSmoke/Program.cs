@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using xyz.Client.Common.Events;
 using xyz.Elements;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
@@ -142,14 +143,17 @@ Check(ledger.SetProcessState("Robot1", 1, WaferProcessState.InProcess)
       && ledger.Get("Robot1", 1)!.ProcessState == WaferProcessState.InProcess, "改工艺状态");
 Check(ledger.Find("W-123")?.Module == "Robot1" && ledger.Find("没有这片") is null, "按片号找片");
 
-// 5. 事件：建/移/改/删各发一次，移片带原位置；每次也推一条轻通知给界面（WaferLedgerChangedDto，带变了的站点，不留存），界面自己再拉。
+// 5. 事件：建/移/改/删各发一次，移片带原位置；每次也推一条轻通知给界面（WaferLedgerChangedDto，带变了的站点，留存），界面自己再拉。
 var events = new List<string>();
 ledger.WaferCreated += w => events.Add($"created:{w.Module}.{w.Slot}");
 ledger.WaferMoved += (w, module, slot) => events.Add($"moved:{module}.{slot}->{w.Module}.{w.Slot}");
 ledger.WaferUpdated += w => events.Add($"updated:{w.WaferId}");
 ledger.WaferDeleted += w => events.Add($"deleted:{w.Module}.{w.Slot}");
 var ledgerPushes = new List<string>();
-var ledgerPushSubscription = RemoteEventBus.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, dto => ledgerPushes.Add(dto.Module));
+var ledgerPushSubscription = RemoteEventSubscriber.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, dto => ledgerPushes.Add(dto.Module));
+// 轻通知是留存消息：订上先补发黑板上的上一条（前面改工艺状态那条），从这里开始数
+Check(ledgerPushes.SequenceEqual(new[] { "Robot1" }), "账变了的通知留在黑板上：后订阅的马上补发上一条，实际 " + string.Join(",", ledgerPushes));
+ledgerPushes.Clear();
 ledger.Create("LoadPort1", 9);
 ledger.Move("LoadPort1", 9, "Robot1", 2);
 ledger.SetLotId("Robot1", 2, "LOT-B");

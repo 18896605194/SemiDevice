@@ -8,7 +8,7 @@
 /// </summary>
 public class ChamberDeviceDataDto
 {
-    /// <summary>模块实例名，与 RemoteEventBus token 一致，如 "Chamber1"。</summary>
+    /// <summary>模块实例名，与 推送 token 一致，如 "Chamber1"。</summary>
     public string Module { get; set; } = string.Empty;
 
     /// <summary>腔门；machine.xml 里没配为 null。</summary>

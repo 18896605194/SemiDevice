@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using Mapster;
+using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
@@ -113,7 +114,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         _stateSubscription?.Dispose();
 
         //订阅后台loadport数据
-        _stateSubscription = RemoteEventBus.Register<LoadPortDto>(ModuleName, OnStateReceived);
+        _stateSubscription = RemoteEventSubscriber.Register<LoadPortDto>(ModuleName, OnStateReceived);
     }
 
 

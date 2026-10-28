@@ -775,7 +775,7 @@
   跟主界面下面要做的 Job 页（看在跑的、发命令）是两回事。一页四块：上面 CJ（按建的时刻查、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前）| PJ（选中 CJ 下面的，按 `ControlJobRowId` 取），
   下面晶圆（选中 PJ 的每一片）| 任务（选中那一片的任务明细，就是 PJ 行里存的 JSON）。结果列界面按库里的转换号认：CJ #10 完成、#11 停止、#12 中止（标着重启的叫重启中止）、EndedBy #2 取消，
   PJ #7 / #16 / #17 / #18；片按任务认（有一格出错算出错、全完成算完成、PJ 结束了还没走完算没做完）。一次最多返回多少个 CJ 是 Job 节点的 machine.xml `HistoryQueryMaxCount`（默认 1000，
-  超出界面提示截断）——不限的话查一大段时间回包会超过 gRPC 单条消息上限（2026-10-25 起 26 MB，见「gRPC 单条消息上限」）。没做的：每一步的时刻（任务明细里没有时间，要的话得给 `JobWaferDto` 加片的内部标识再去连片子流水）、
+  超出界面提示截断）——不限的话查一大段时间回包会超过 gRPC 单条消息上限（客户端收的，10-28 起 16 MB，见「gRPC 单条消息上限」）。没做的：每一步的时刻（任务明细里没有时间，要的话得给 `JobWaferDto` 加片的内部标识再去连片子流水）、
   不归任何 CJ 的 PJ（没进 CJ 就取消的）不列。
 - **重启以后**（2026-10-05 用户定的，行业通常也这么收场）：Job 不接着跑；库里上次没做完的记成中止（标着重启）；机内的片人到现场确认片位后收回，
   再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。全部回片 2026-10-06 删了（用户："整体回片先不做"），2026-10-15 跟整机一起做回来、2026-10-23 重做（见「全部回片」：主界面手动点、整机 Idle 且没有 Job 在跑时才能做，路线照晶圆账倒着走）。
@@ -798,6 +798,8 @@
 - **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
   **2026-10-22 用户："写入数据库没有必要每一次都写"**（扫描改成 10ms 以后一秒交 100 次写库）：发布时把全貌转成 JSON 跟上次交去写的比，一样就不交写库
   （还是不加 dirty 标记）；推送照旧每拍发。上一批没写进库期间每次发布都交，写好了再只在变了时交。
+  **2026-10-28 用户："推送不做比较，每次都 Send……这个应该和写库保持一致"**（实测一秒推 93 条 JobListDto，每条都 Post 到客户端界面线程）：推送也拿全貌 JSON 跟上次推的比，
+  一样就不推，还是不加 dirty 标记；JSON 只转一次，写库、推送各比各的上一次（没开存库、库写不进去只影响写库那边）；推成了才记下，推失败下一拍再推。
 - **CJ 按载具号查询（2026-10-07 用户明确）**：从 CjManager 管理的真实 CJ 对象查，不能查发布快照；JobManager 加锁调用 FindByCarrier 并返回 DTO 副本。
 - **CJ 参考结构统一（2026-10-07 用户明确）**：按桌面参考工程 ControlJobManager / ControlJobStateMachine / BaseStateMachine 统一，替代之前的逐命令查字典设计。`Dictionary<string, CjEntity>` 保存私有实体（CJ + 独立状态机），外部只拿 ControlJobs；Add 只注册、Queue 入队、Get 按 ID 查询、Remove 检查 ID 和对象引用，旧对象不能操作同 ID 新对象。不保留订单计数，不依赖 PJ；外部命令及 PJ 协调在 JobManager。
 - **CJ 状态表和基类（2026-10-07 用户确认参考）**：CjStateMachine 不持有 Job，继承 BaseStateMachine<TState,TAction>，类内 BuildTransitions 建立字典，key=(state,action)，value=StateTransition<TState>。基类提供 CurrentState、OnStateChanged、StateChange，并执行 OnEntry / PreCheck / ProcessState / Execute / TargetState / OnExit / ErrorHandler；管理器用对象参数提交 Queue / Select / Activate / Pause / Resume / Complete / Abort / FinishAbort / Rollback 等动作，订阅通知同步 CJ 状态和时间。不向 JobManager 暴露状态机，不提供自动 Advance。
@@ -1516,6 +1518,9 @@
 - **后端在 `AddCodeFirstGrpc` 的选项回调里从 Rpc 元件取**：回调第一次执行是映射服务的时候，那时已经开完机、容器里取得到；没配 Rpc 节点按 26。
 - **数据曲线本来就碰不到**：每条曲线最多 `QueryMaxPoints`（4000）点、一次最多 `QueryMaxSignals`（20）条，回包约 1 MB，跟查多长时间无关；放大、拖动按看到的那段重查。
   26 MB 是给以后调大条数、点数留的余量。要拿一大段原始数据走导出，不走画图这条查询。
+- **10-28 改成两头各管各的**（用户问"为什么会有两个，还要前端设置一遍，后端设置一遍"，听了"上限只管自己收的"以后："后端往前端的…就是16，前端往后端的，你就搞成4"）：
+  后端收的（请求）不再配——Rpc 节点的 `MaxMessageSizeMb`、`IRpc` 上的这一项、宿主 `AddCodeFirstGrpc` 里的设置都删了，用 gRPC 默认 4 MB（请求都是几个参数的 JSON，最大的配方保存 / 导入也是 KB 级）；
+  客户端收的（回包、推送）16 MB，写在 `GrpcClientFactory`，exe 旁 `client.json` 的 `MaxMessageSizeMb` 照样能改。现场 machine.xml 里还留着 `MaxMessageSizeMb` 的，开机会记一条不认识的参数，删掉那行即可。
 
 ## 数据曲线导出 Excel、公共进度弹框（2026-10-25，用户一条条定的，样稿在桌面"进度条控件样稿"）
 
@@ -1608,7 +1613,7 @@
 - **请求类全删**：46 个 `XxxRequest` / `XxxQuery`（`SequenceSaveRequest`、`LoginRequest`、`ChamberAxisMoveRequest`、`AlarmHistoryQuery`……）删了，参数名就是原来的属性名；
   收 `string module` 的 25 个方法（LoadPort / 机械手 / 腔体）也改成收 `RpcRequest`（参数 `Module`）。参数里本身是一组数据的类型（`SequenceStepDto`、`ProcessRecipeStepDto`、
   `JobSlotDto`、`RolePermissionItem`）留着，回包里也在用。
-- **只剩这几个带 `[ProtoContract]`**：`RpcRequest`、`RpcResponse`，加事件流的 `EventMessage`、`EventSubscription`（事件流这次没动）；别的 DTO 都是普通类、走 JSON。
+- **只剩这几个带 `[ProtoContract]`**：`RpcRequest`、`RpcResponse`，加事件流的 `EventMessage`、`EventSubscription`（事件流这次没动；`EventSubscription` 10-28 删了，见「跨进程事件拆成发、收两半」）；别的 DTO 都是普通类、走 JSON。
 - **契约注释不写参数**（2026-10-26 用户改，原来每个方法注释写"参数：名字（类型）"、可选的标"可不带"）：用户改 IAccountService 时特意删的，
   随后其余契约一起删了；注释一句短话说清是什么，要传什么看服务里的 `TryGet` / `Get`。
 - **取不到回 `rpc.request_invalid`**（`ErrorCodes.RequestInvalid`，语言包"请求参数不对：客户端和后端的版本可能对不上"）：`BaseService.InvalidRequest()`，不是它派生的服务各有一个同名私有方法，
@@ -1686,11 +1691,12 @@
 - **为什么**：原来一条 EventBus 两用：后端 `Send` 先派发本进程订阅者、再自动交给 EventService 推给所有客户端；客户端收到的经 `Deliver` 灌进同一条总线（不往外抄，防回声）；黑板既给进程内补发、又给连上的客户端重放。
   查下来进程内一处没人用（后端 20 处只发、客户端 29 处只收），合在一起只剩代价：推什么出去不是显式定的、每次发都转 JSON、同一个 Register 回调在哪个线程、拿到原对象还是副本要看消息从哪来。
 - **现在**：`EventBus` 只管进程内（同步、在发送方线程上调、传原对象、没有黑板、订阅者抛异常进死信不耽误别人）；`RemoteEventBus` 只管跨进程（后端 `Send`、客户端 `Register`，写法跟 EventBus 一样）。
-  两个类互不调用，后端一件事既要本进程知道、又要推给界面就各调一次。都在 `xyz.Tools\Events`（RemoteEventBus 两头都用：后端发、客户端收）。
+  两个类互不调用，后端一件事既要本进程知道、又要推给界面就各调一次。都在 `xyz.Tools\Events`（RemoteEventBus 两头都用：后端发、客户端收）。10-28 拆成后端 `RemoteEventPublisher`、客户端 `RemoteEventSubscriber` 两半，见「跨进程事件拆成发、收两半」。
 - **黑板**（用户："进程内不需要黑板吧，跨进程还是需要的吧"）：进程内想知道对方现在的状态按接口问它；跨进程两头各一块，后端给刚连上的客户端重放，客户端给后订阅的页面补发。
   `retain: false` 不写、还擦掉同一格，后端 `Send` 和客户端 `Deliver` 一样（原来客户端收到通知类不擦）。
-- **线**：后端 `EventService` 只跟 RemoteEventBus 打交道（`SubscribeSent` 拿新发的、`GetRetained` 取黑板）；客户端原来的 `RemoteEventBus`（流泵）改名 `RemoteConnection`，收到的经 `RemoteEventBus.Deliver` 送进来。
+- **线**：后端 `EventService` 只跟 RemoteEventBus 打交道（`SubscribeSent` 拿新发的、`GetRetained` 取黑板）；客户端原来的 `RemoteEventBus`（流泵）改名 `RemoteConnection`（10-28 再改叫 `RemoteEventConnection`），收到的经 `RemoteEventBus.Deliver` 送进来。
   名字是用户问"RemoteEventBus 和 RemoteBus 有啥区别"以后定的：总线叫 RemoteEventBus（跟 EventBus 成对），客户端的线叫 RemoteConnection。
+  10-28 用户嫌 RemoteConnection 看着像管所有远程连接（其实只管事件这一条线，命令不走它），改叫 `RemoteEventConnection`（用户："RemoteEventConnection 改成这个"），跟 RemoteEventBus 成对：一个是收消息的线，一个是分发。
 - **删掉往回发**：`SendToServer`、契约 `IEventService.PublishAsync` 正式代码没人用，命令走 gRPC。
 - **信封留着、藏起来**（用户问能不能不要 EventMessage、写成 CommunityToolkit 信使那样）：业务代码本来就只写 Send / Register；gRPC 推送流要一个固定类型，DTO 不带 ProtoContract（10-26 的规矩），
   所以 `EventMessage` 留着；打包、拆包的 `EventEnvelope` 删了，并成 RemoteEventBus 的私有方法。订阅凭据单独成文件 `Subscription`（原来是 EventBus 里的嵌套类）。
@@ -1698,6 +1704,19 @@
   自己起后端子进程测跨进程和断线重连；LogPipelineSmoke 的信封往返改成走 RemoteEventBus。
   IoIndexSmoke 原来拿两次推送收到的对象比 `ReferenceEquals` 验"骨架只建一次"，收到的变成副本以后改成看 IO 元件里存着的那份骨架（反射读 `_snapshot`）。
 - **没改的**：刚连上时同一条状态可能到两次（EventService 先订上、再取黑板，中间正好发了一条），状态类无害。
+
+## 跨进程事件拆成发、收两半（2026-10-28，用户："RemoteEventBus 这个里面应该是有客户端用的和服务端用的能不能就是分开搞两个类"；名字："RemoteEventPublisher …RemoteEventSubscriber 就叫这两个"）
+- **为什么**：一个进程只用到一半（后端只调 Send / SubscribeSent / GetRetained，客户端只调 Register / Deliver），黑板两头本来就各是一块；合在 xyz.Tools 里两边都看得见对方那半，
+  客户端写 `Send` 照样能编译、发不出去，还写进客户端自己的黑板，后订阅的页面会把它当当前状态补发；后端写 `Register` 也能编译，回调永远不来。
+- **现在**：后端 `xyz.Common\Events\RemoteEventPublisher`（命名空间 xyz.Common.Events：Send、给 EventService 的 SubscribeSent / GetRetained、打包），
+  客户端 `xyz.Client.Common\Events\RemoteEventSubscriber`（Register、给 RemoteEventConnection 的 Deliver、拆包），各自一块黑板、一个死信事件；
+  两边共用的只剩 xyz.Tools 里的信封 `EventMessage` 和黑板规则 `RetainedBoard`（不带锁，用的地方在自己的锁里调）。方法名、行为都没变；xyz.Common 为此引用 xyz.Tools。
+- **冒烟**：同进程收推送的冒烟（Account、Cds、Chamber、IoIndex、OperationWait、ProcessRecipe、Sequence、WaferLedger）加引用 xyz.Client.Common，写在原来的引用前面——
+  两边工程都往输出目录拷 `Log\NLog.config`，要留后端那份（EventBusSmoke、LogPipelineSmoke 原来就是这个顺序）；回环改成 `RemoteEventPublisher.SubscribeSent(RemoteEventSubscriber.Deliver)`。
+- **订阅请求删了**（同日，用户："用不到就不留"）：`IEventService.SubscribeAsync(CallContext context = default)` 不带请求参数，`EventSubscription`（里面只有一个从没用过的预留 `Filters`）删了。
+  gRPC 服务端流开头照样先发一条消息，只是变成 protobuf-net.Grpc 自带的空消息；以后真要按需推送（第③条全量广播），再按到时候的形态加（多半要重拨或改双向流，一次性的请求不够用）。
+- **打包不单拆方法**（同日，用户贴出 `Pack` 说"这个方法不需要单独的一个方法"）：它只在 `Send` 里调一次，信封直接在 `Send` 的"打包"区域里 new。
+- **没做的**：两边的死信正式代码都没人订（客户端页面回调抛异常、拆包失败现在悄悄吞掉），接不接 ClientLog 用户还没定。
 - **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告），不在 sln 里的 16 个工程单独编 0 错误；35 个冒烟全过（EventBusSmoke 34 项；一起跑时 WPF 画面冒烟、Hsms
   按时间点的检查偶尔没赶上，单独重跑都过）；机型 35021 重新部署；真宿主 + LogPipelineSmoke 客户端模式：连上，界面的 LogViewModel 收到后端推的日志。
   （头一遍汇总时 IoIndexSmoke 只看了最后打出的 PASS 行、没看退出码，漏了上面那条失败，第二遍才发现、修好。）
@@ -1729,7 +1748,7 @@
   OpcUaSmoke 偶发挂在"PLC 的值变了，读回来跟着变"（连跑 3 次过 2 次），跟槽无关、没改：冒烟改完值马上 Tick，离上次读不到 `ReadIntervalMs`（冒烟设 10 ms）这一拍不读，缓存还是旧值。
 
 ## xyz.Tools 分子目录、只归类（2026-10-27，用户："xyz.Tools 这个下面是不是最好分一下类用文件夹"、"这几种Helper 也好一个文件夹整合起来"）
-- `Events\`（EventBus、RemoteEventBus、EventMessage、Subscription）、`Excel\`（ExcelHelper 和它的列、表、读取器）、`Helpers\`（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件。
+- `Events\`（EventBus、EventMessage、RetainedBoard、Subscription；RemoteEventBus 10-28 拆走了，见「跨进程事件拆成发、收两半」）、`Excel\`（ExcelHelper 和它的列、表、读取器）、`Helpers\`（IocHelper、JsonHelper、XmlHelper）；根目录只放工程文件。
   一开始单个文件的 Helper 留在根目录，用户要求也收进一个文件夹。
 - 命名空间都还是 `xyz.Tools`（跟元件 `Elements\<类别>`、模块下的 `Enums\` 一样只归类），调用的地方不用改；写进了 SKILL.md 硬规矩第 5 条的例外。
 - 后端 `xyz.Common` 照做（用户："这种后台的也整一下用一个Helpers文件夹"）：`DateTimeHelper`、`ValueHelper` 收进 `Helpers\`，命名空间还是 `xyz.Common`，调用的地方不用改；
@@ -1759,7 +1778,7 @@
 
 ## 通用回显 RpcService 删了（2026-10-27，用户贴了 `RpcService` 问"这个是干啥的，目前还有用吗"，听了没人调用以后："直接删除吧"）
 - **起因**：`IRpcService`（xyz.Shared）+ 宿主里的 `RpcService` 是 9-05 建项目时带的 gRPC 样板，`InvokeAsync` 把 `Parameters` 原样回去，当初想所有功能都从这一个口子进。
-  后来每个功能各有契约、开机按契约自动认（见「推送和开机归元件自己」里的「gRPC 服务自动认」），唯一调它的 `RpcClient` 10-26 已删；客户端连没连上看事件流（`RemoteConnection`），也不靠它。
+  后来每个功能各有契约、开机按契约自动认（见「推送和开机归元件自己」里的「gRPC 服务自动认」），唯一调它的 `RpcClient` 10-26 已删；客户端连没连上看事件流（`RemoteEventConnection`），也不靠它。
   可自动认照样把它注册、映射上，等于后端开着一个没人用、发什么回什么的口子，DataCenterSmoke 还得为它开个例外。
 - **做法**：两个文件删掉；DataCenterSmoke 第 6 节（gRPC 服务按契约自动认）去掉排除它的那一行和提示里的半句，现在 xyz.Shared 里的契约一个不落都要认出一个实现。
 - **验证**：整编 0 错误；sln 里 19 个冒烟全过，共 4,333 项（DataCenterSmoke 124 项）。
@@ -1804,43 +1823,26 @@
 - **验证**：整编 0 错误（10 个警告都是原来就有的）；试改的副本里 IoIndexSmoke、ElementScanSmoke 单独编过；用户说这次不跑冒烟，宿主也没起。
   部署后宿主的 machine.xml 是新 Type（177 处，旧名 0 处），`Modules\35021` 只剩 `xyz.Elements.dll`。
 
-## LoadPort 的可选能力照机械手的做法：自己扫片、夹紧、松开（2026-10-28，用户："你按照机械手那边修改一下吧"）
-- **为什么**：评 LoadPort 的机型扩展时查出来的。原来自己扫片、夹紧、松开这三件在基类上是 `abstract`、`IWaferMap` 也挂在基类上，
-  等于"每个 LoadPort 都会扫片、都有夹爪"：开盒式料盒台、靠机械手扫的口只能写三个空方法交差；更糟的是 `Map()` 对外永远"支持"
-  （调用方 `is IWaferMap` 恒真），Load 里的扫片那一段也照样加，机型写空了就拿到空槽图 → 按"槽数对不上"判失败、报 Mapping 异常，
-  报警里还让人去核对槽数配置，查不到正地方，而且每次 Load 都这样，这个口等于用不了。
-- **照机械手的形状改**（分段取放 `ITransferRobotStep`、扫片 `IWaferMap` 都是这个形状）：能力接口不在基类上声明，`Map` / `MapResults` 的实现留在基类，
-  自带扫片传感器的机型类自己在类上声明 `IWaferMap`（35021 的 LP300 自带扫片传感器和夹爪，声明接口、照填夹紧松开那几条）；
-  `AddMapSteps` / `AddClampSteps` / `AddUnclampSteps` 从 `abstract` 改成 `virtual`、默认一条步骤都不加；
-  动作入口建完动作查 `StepCount == 0` 就当场回不支持（`loadport.map_unsupported` / `loadport.clamp_unsupported` / `loadport.unclamp_unsupported`，中英文语言包各一条）。
-  开关门、回零、复位、中止还是 `abstract`：每个口都得有。
-- **Load / 自动跑货 Unload 对账里的扫片按能力决定加不加**：有机械手替这个口扫就排机械手；没有就看这个口自己会不会扫（`this is IWaferMap`）；
-  都不会这一段就不加——不会扫的口 Load 只开门，不再拿空槽图去落账（这种口的槽图靠手动建片或别处来）。
-  声明了会扫、却一条扫片指令都没加的，"用槽图"那一步当场回 `loadport.map_unsupported`，不走成"槽数对不上"。
-- **开机查**：machine.xml 开了 `AutoRunMapOnUnload`（Unload 关门前扫图对账）、却既没有机械手替它扫、这个口自己又不会扫，`Bind` 抛
-  （跟机械手"开了 MapEnabled 但类没声明 IWaferMap"同一类的配错）。
-- 单独扫一遍的动作里原来那个"清掉旧槽图"步骤去掉了，改成建动作时就清（跟机械手一样，建动作就在挂动作前那一刻），这样 `StepCount` 数的就是机型给的扫片步骤。
-- **还没动的**：`OnRoutineCompleted` 里按 `_action` 分叉的收尾（机型加自己的动作会按上一个动作收尾，误发 E87、误报报警）另说，用户问过枚举要不要改——不用改枚举，
-  要动的是 `_action` / `_actionFrom` 和那个 switch，等出具体改法再定。
-- **验证**：整编 0 错误；OperationWaitSmoke 1413 项（新增 8 项：不自己扫片的口 Load 只开门不落空槽图不报 Mapping 异常、单独扫 / 夹紧 / 松开当场回不支持、
-  `AutoRunMapOnUnload` 没人能扫时 `Bind` 抛）；其余冒烟全跑一遍都过（JobSmoke 798、ChamberSmoke 270、WaferLedgerSmoke 210……）。
-
-## 动作收尾只认平台自己建的那个动作，不记"上一个动作是什么"（2026-10-28，用户："你直接修改呗"）
-- **为什么**：接着上面那条查出来的第二个洞。`BaseLoadPortModule` 用一个 `LoadPortAction _action` 字段记"现在做的是哪个动作"，只有平台那个
-  `Begin(LoadPortAction, ModuleRoutine)` 重载才写它；机型要加自己的动作（N2 吹扫、Dock / Undock、开关盖分开）只能定义自己的枚举、走基类的泛型 `Begin`，
-  `_action` 一个字不改，动作做完 `OnRoutineCompleted` 里 `switch (_action)` 就按**上一个**动作收尾：吹扫成功会按 Unload 收尾（调 `EndAccess`，把这盒片标成"取放中断"、再给 EAP 发一次 `UnloadCompleted`），
-  吹扫超时会报"LoadPort Load 超时"。`LoadPortAction` 第一项就是 `Load`，所以开机后第一个跑机型自己的动作也会落进 Load 那一支。
-- **按机械手、腔体的写法改**（它们早就不记动作了：机械手看 `State` + `ReferenceEquals(routine, _jogRoutine)`，腔体看 `ReferenceEquals(routine, _processRoutine)`）：
-  `_action` / `_actionFrom` 换成 `_platformRoutine`（平台自己建的那个动作对象）+ `_platformAction`（它是哪一个）+ `_platformFrom`（它出发时的状态），
-  都在 `Begin(LoadPortAction, ...)` 里一起记、都只在 `RoutineGate` 里读写；`OnRoutineCompleted` 里 `ReferenceEquals(routine, _platformRoutine)` 判是不是平台的动作，判完就把它清掉。
-- **收尾分两段，分界线是"成功后的那串只有平台认得"**：报警、失败收场（作废在途指令 + 载具记中断 + E87 `PortError`）**谁建的动作都做**
-  ——机型的动作失败了端口照样落 Error、照样不能取放；成功后的 `switch`（Load → `LoadCompleted` + `StartAccess`、Unload → `EndAccess` + `UnloadCompleted`、Reset / Abort → `SetStateByDoor`）**只有平台自己建的动作走**。
-- **报警签名跟机械手、腔体、对准器统一**：`RaiseActionFailedAlarm(LoadPortAction action, ModuleRoutine routine)` → `RaiseActionFailedAlarm(ModuleRoutine routine)`；
-  超时报警的对号在里面按 `_platformRoutine` / `_platformAction` 挑，机型自己的动作超时报 `ControlledStopAlarm`（要报自己那条就重写这个方法）。
-- **对准器一起改**（同一个洞，轻一些：只会把片错记成"对好了"），一样的三件套写法，不留两种写法。
-- **枚举不动**（用户问过"这个枚举要不要修改"）：`LoadPortAction` 只担两件事，一是查状态表的键（`CheckState` / `Begin` 泛型，键本来就是字符串，机型拿自己的枚举 + `AddTransition` 加行就能用），
-  二是原来那个"记上一个动作"的字段——第二件没了，枚举就不用动。`ModuleRoutine` 也没加钩子：否过的做法是给它加"成功钩子"再派生 LoadRoutine / UnloadRoutine 一堆子类，
-  收尾要动载具、E87、报警，搬进动作类得让每个动作类拿着模块引用，反而散，还多一套写法。
-- **机型以后加一个动作就三步**：自己的动作枚举 → `AddTransition` 往状态表加行 → 要自己的收尾就重写 `OnRoutineCompleted`（先调 base）。
-- **验证**：整编 0 错误；OperationWaitSmoke 1426 项（这一条新增 13 项：Load 一遍之后跑机型自己的动作，做成了不按上一个动作发 `LoadCompleted` / `AccessStarted`、不动载具取放状态、照自己加的状态表行回 Loaded；
-  超时失败落 Error、报动作失败而不是"Load 超时"、照样上报 `PortError` 并把载具记中断）；其余冒烟全跑一遍都过。
+## 开机推送归元件、页面不管连接（2026-10-28，用户问"RemoteEventConnection.ConnectionChanged -= / += / OnConnectionChanged(IsConnected) 为什么每一个 viewmodel 里面都有这个"、"很简单，不能不要吗"、"或者不要通过这种方式要"；看了集中写一个 StartupPush 的方案后："这样设计不好，在组件里面就是开一个不好吗？就是开机推送的话由自己组件实现，然后统一遍历调用一下……以后新增加的可以就是很自然的扩展"、"那你直接就修改呗"）
+- **起因**：页面要的数据一半是推的（状态类留存，重连时后端重放，页面不用管），一半是页面自己用 RPC 拉的（账号、配方、晶圆账、日志设置、AI 状态、曲线信号表）。
+  后端改了只推一条不留存的"变了"，断线时、客户端比后端先起时（App 最多等后端 60 秒，等不到照样初始化页面）、后端重启时都会漏，所以 15 个页面加 3 个客户端缓存各挂 `ConnectionChanged`、连上重拉，写法还有四种。
+- **现在**：`ElementBase.PublishOnStartup()`（空虚方法）+ `ElementLoader.PublishAll`（开机第五步，`StartedAll` 之后整棵树按 machine.xml 先后挨个调，一个出错记日志、不耽误后面的）；
+  启动代码只调 `PublishAll`、不点名元件，项目上新加的元件要推就重写它（跟 10-18「推送和开机归元件自己」一个思路，没另写集中推送的类）。
+  界面收到就去拉的"变了"改成留存、开机再推一条：工艺配方库、流程配方库（`*ChangedDto`）、账号（`AccountChangedDto`）、晶圆账（`WaferLedgerChangedDto`，站点空着）。
+  开机后就不变的直接推内容：日志设置（`LogSettingsDto`，`ILogElement.Settings()` 出，服务也用它）、AI 状态（配了 AI 才有这个元件、才推）、实时曲线信号表（`RealChartLayoutDto`，
+  实时曲线元件转发数据曲线的最多几条、截图目录，`IRealChart` 加了这两项）、数据曲线信号表（`DataChartSignalsDto`，映射规则把 `QueryMaxSignals` 转成至少 1 的 `MaxSignals`）——
+  后三个走映射元件，跟服务回的是同一份。新 token："LogSettings"、"AiStatus"、"RealChartLayout"、"DataChartSignals"。
+- **客户端**：账号页、角色页、腔体手动页、实时报警页、顶栏日志、实时日志页、日志历史页、两张曲线页不再订 `ConnectionChanged`：订"变了"收到就拉，或者直接订内容（订上就补发、重连时后端重放）。
+  主页"连上再拉流程配方"那一行删了（重放的"变了"会触发）。腔体手动页配方框默认能手输：没装配方库就没人推，收到推送、拉到列表才改成只能选。
+  两张曲线页的"刷新"按钮、实时曲线帧对不上会话号时照旧走 RPC 拉，拉来的和推来的走同一个换上的方法；数据曲线收到推送只在还没有信号表时换上（跟原来"没拉到才重拉"一样）。
+- **没改的**：要显示连没连上的照旧订 `ConnectionChanged`——顶栏灯、模块状态栏、主页（断开清状态）、工艺配方 / 流程配方 / 晶圆账页（按钮能不能点看连没连上；它们连上时的重拉跟重放的"变了"重了，
+  有"一串通知只拉一次"的定时器挡着）；客户端公共缓存 `ClientAlarms`、`ClientEc`（报警、EC 是逐条推的，连上要拉全表）、`ClientAccount`（连上先问登录开关、再刷会话，有先后，没并进"账号变了"）。
+  `GetSettings` / `GetStatus` / `GetLayout` / `GetSignals` 四个 RPC 留着（刷新按钮、冒烟在用）。
+- **已知**：元件没配就没人推——AI 当没配（对）；两张曲线页空着，不再显示"没装"那行字（点刷新才显示）；后端换了配置去掉某个功能，客户端黑板上还留着旧的那份，要重开客户端。
+- **冒烟加的检查**：ElementScanSmoke（`PublishAll` 按 machine.xml 先后先父后子、一个抛异常开机照走）；AccountSmoke（开机推一条账号变了、后订阅马上补发）；
+  ProcessRecipe / Sequence / WaferLedger（后订阅先补发上一条，原来数推送条数的地方从订上以后开始数）；AiSmoke（AI 状态留在黑板上、跟服务回的一样）；
+  DataCenterSmoke（日志设置、实时曲线、数据曲线开机推的跟服务回的一样，最多几条、截图目录、信号顺序都对）。
+- **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告）；35 个冒烟 34 个过，改到的 9 个单独重跑退出码都是 0（Account 109、Ai 43、DataCenter 127、ProcessRecipe 181、
+  Sequence 86、WaferLedger 211、EventBus 34、LogPipeline 20、ElementScan）；HsmsSmoke 挂在「断开后应自动重连」，没改过的 HEAD 检出到临时目录也连挂 3 次，跟这次无关、没修。
+  真宿主 + LogPipelineSmoke 客户端模式：客户端先起、宿主 6 秒后才起，客户端自己连上，顶栏日志拿到宿主开始监听之前写的日志（11 条，只能靠收到日志设置后补拉）；宿主先起也一样；
+  宿主日志没有"开机推送出错"。客户端界面没真开（界面样子没改）。

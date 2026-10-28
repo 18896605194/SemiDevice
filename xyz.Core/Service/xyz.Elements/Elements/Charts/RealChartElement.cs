@@ -1,4 +1,5 @@
 ﻿using xyz.Common;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Interfaces;
@@ -31,6 +32,11 @@ public class RealChartElement : ElementBase, IRealChart
     private readonly Queue<DataRecord> _pending = new();
 
     private IDataChart? _source;
+
+    /// <summary>
+    /// 映射元件（开机 Bind 时取）：信号表转成给界面的样子
+    /// </summary>
+    private IMapper? _mapper;
 
     private IDisposable? _subscription;
 
@@ -74,10 +80,43 @@ public class RealChartElement : ElementBase, IRealChart
     }
 
     /// <summary>
-    /// 开机（开始扫描之前）：接到数据曲线的采样上
+    /// 最多同时画几条曲线，跟数据曲线同一个设置（没接上数据曲线时按数据曲线的默认值 20）
+    /// </summary>
+    public int MaxSignals
+    {
+        get
+        {
+            if (_source is null)
+            {
+                return 20;
+            }
+
+            return Math.Max(1, _source.QueryMaxSignals);
+        }
+    }
+
+    /// <summary>
+    /// 截图存到哪个文件夹，跟数据曲线同一个设置
+    /// </summary>
+    public string ScreenshotDirectory
+    {
+        get
+        {
+            if (_source is null)
+            {
+                return string.Empty;
+            }
+
+            return _source.ScreenshotDirectory;
+        }
+    }
+
+    /// <summary>
+    /// 开机（开始扫描之前）：取映射元件，接到数据曲线的采样上
     /// </summary>
     public override void Bind()
     {
+        _mapper = IocHelper.GetService<IMapper>();
         var source = IocHelper.GetService<IDataChart>();
         if (source is null)
         {
@@ -86,6 +125,19 @@ public class RealChartElement : ElementBase, IRealChart
         }
 
         Attach(source);
+    }
+
+    /// <summary>
+    /// 开机推一次信号表（留存）：界面连上（含重连）就照它长勾选树、对帧
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        if (_mapper is null)
+        {
+            return;
+        }
+
+        RemoteEventPublisher.Send(_mapper.Map<RealChartLayoutDto>(this), RealChartLayoutDto.EventToken);
     }
 
     /// <summary>
@@ -168,7 +220,7 @@ public class RealChartElement : ElementBase, IRealChart
     {
         try
         {
-            RemoteEventBus.Send(ToFrame(record), RealChartFrameDto.EventToken, retain: false);
+            RemoteEventPublisher.Send(ToFrame(record), RealChartFrameDto.EventToken, retain: false);
             _lastPushFault = null;
         }
         catch (Exception exception)

@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using xyz.Client.Common.Events;
 using xyz.Elements;
 using xyz.Elements.Elements;
 using xyz.Elements.Interfaces;
@@ -121,9 +122,9 @@ try
     int testThread = Environment.CurrentManagedThreadId;
     // 订阅收到的是拆包出来的副本（跟真客户端一样），骨架是不是同一个只能看元件里存着的那一份
     var snapshotField = typeof(IoElement).GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance)!;
-    using (RemoteEventBus.Register<IoDto>(IoDto.EventToken, dto =>
+    using (RemoteEventSubscriber.Register<IoDto>(IoDto.EventToken, dto =>
            {
-               // 前面几节起的 IO 元件还在各自的扫描线程上推，只认这里扫的这一个（RemoteEventBus 在发的那个线程上回调）
+               // 前面几节起的 IO 元件还在各自的扫描线程上推，只认这里扫的这一个（回环在发的那个线程上回调）
                if (Environment.CurrentManagedThreadId == testThread)
                {
                    pushedSnapshots.Add(dto);

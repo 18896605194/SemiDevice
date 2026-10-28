@@ -1,6 +1,5 @@
 ﻿using ProtoBuf.Grpc;
 using System.ServiceModel;
-using xyz.Shared.Dtos;
 using xyz.Tools;
 
 namespace xyz.Shared.Services;
@@ -12,5 +11,5 @@ namespace xyz.Shared.Services;
 public interface IEventService
 {
     [OperationContract]
-    IAsyncEnumerable<EventMessage> SubscribeAsync(EventSubscription request, CallContext context = default);
+    IAsyncEnumerable<EventMessage> SubscribeAsync(CallContext context = default);
 }

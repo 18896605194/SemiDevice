@@ -2,7 +2,7 @@
 
 /// <summary>
 /// 流程配方列表（配方 → 流程配方页左边）：编号 1~Capacity，只带用了的编号的名称。
-/// 内容一变（新建、改名、删除、保存）后端就推一条 <see cref="SequenceChangedDto"/>（token = EventToken，不留存），界面收到后自己重拉。
+/// 内容一变（新建、改名、删除、保存）后端就推一条 <see cref="SequenceChangedDto"/>（token = EventToken，留存，开机也推一条），界面收到后自己重拉。
 /// </summary>
 public class SequenceListDto
 {

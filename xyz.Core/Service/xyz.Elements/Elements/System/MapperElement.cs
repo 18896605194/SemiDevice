@@ -97,6 +97,10 @@ public class MapperElement : ElementBase, IMapper
         // 工艺配方的字段 → 给界面：下拉选项按站点 Type 分开的那一套照抄；上限要看当前晶圆尺寸、配方头的选项要看腔体配了哪些 Type，由服务转完再补
         config.NewConfig<RecipeField, ProcessRecipeFieldDto>()
             .Map(dto => dto.OptionsByType, field => field.OptionsByType.ToDictionary(pair => pair.Key, pair => pair.Value.ToList()));
+
+        // 数据曲线 → 能选哪些信号：最多几条在 machine.xml 叫 QueryMaxSignals，至少 1 条（开机推的、服务回的都按这条转）
+        config.NewConfig<DataChartElement, DataChartSignalsDto>()
+            .Map(dto => dto.MaxSignals, chart => Math.Max(1, chart.QueryMaxSignals));
     }
 
     /// <summary>

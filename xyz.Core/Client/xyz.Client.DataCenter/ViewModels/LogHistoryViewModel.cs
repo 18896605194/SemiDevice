@@ -9,7 +9,6 @@ using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
-using xyz.Tools;
 
 namespace xyz.Client.DataCenter.ViewModels;
 
@@ -111,6 +110,8 @@ public class LogHistoryViewModel : BaseViewModel
 
     private readonly ILogService _service;
 
+    private IDisposable? _settingsSubscription;
+
     #endregion
 
     public LogHistoryViewModel()
@@ -124,58 +125,31 @@ public class LogHistoryViewModel : BaseViewModel
 
     public override void Init()
     {
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        if (RemoteConnection.IsConnected)
-        {
-            OnConnectionChanged(true);
-        }
+        // 日志设置是留存消息（后端开机推一次）：订上就补发、重连时后端重放
+        _settingsSubscription?.Dispose();
+        _settingsSubscription = RemoteEventSubscriber.Register<LogSettingsDto>(LogSettingsDto.EventToken, OnSettingsReceived);
     }
 
     /// <summary>
-    /// 连上后端时取模块下拉的选项（换了 machine.xml 重开后端，选项跟着变）
+    /// 收到日志设置时换模块下拉的选项（换了 machine.xml 重开后端，选项跟着变）
     /// </summary>
-    private async void OnConnectionChanged(bool connected)
+    private void OnSettingsReceived(LogSettingsDto settings)
     {
-        if (!connected)
+        string selected = SelectedModule;
+        Modules.Clear();
+        Modules.Add(LevelOptions.All);
+        foreach (string module in settings.Modules)
         {
-            return;
+            Modules.Add(module);
         }
 
-        try
+        if (Modules.Contains(selected))
         {
-            var response = await _service.GetSettingsAsync(new RpcRequest());
-            if (!response.Success)
-            {
-                return;
-            }
-
-            var settings = JsonHelper.Deserialize<LogSettingsDto>(response.Data);
-            if (settings is null)
-            {
-                return;
-            }
-
-            string selected = SelectedModule;
-            Modules.Clear();
-            Modules.Add(LevelOptions.All);
-            foreach (string module in settings.Modules)
-            {
-                Modules.Add(module);
-            }
-
-            if (Modules.Contains(selected))
-            {
-                SelectedModule = selected;
-            }
-            else
-            {
-                SelectedModule = LevelOptions.All;
-            }
+            SelectedModule = selected;
         }
-        catch
+        else
         {
-            // 后端不可用：断线重连时还会再取。
+            SelectedModule = LevelOptions.All;
         }
     }
 

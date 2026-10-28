@@ -32,10 +32,12 @@ public class AiAnswerDto
 }
 
 /// <summary>
-/// 这台机的 AI 配了没有、用的哪个模型
+/// 这台机的 AI 用的哪个模型：配了 AI 后端开机推一次（token = EventToken，留存），没配不推
 /// </summary>
 public class AiStatusDto
 {
+    public const string EventToken = "AiStatus";
+
     /// <summary>
     /// 模型名
     /// </summary>

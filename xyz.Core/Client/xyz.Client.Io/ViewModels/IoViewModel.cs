@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.Input;
+using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
@@ -110,7 +111,7 @@ public class IoViewModel : BaseViewModel, IDisposable
     public override void Init()
     {
         _subscription?.Dispose();
-        _subscription = RemoteEventBus.Register<IoDto>(IoDto.EventToken, OnSnapshotReceived);
+        _subscription = RemoteEventSubscriber.Register<IoDto>(IoDto.EventToken, OnSnapshotReceived);
     }
 
     public void Dispose()

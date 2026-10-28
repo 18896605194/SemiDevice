@@ -1,4 +1,5 @@
-﻿using xyz.Common.Log;
+﻿using xyz.Client.Common.Events;
+using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
@@ -309,7 +310,7 @@ try
     // 3. 新建：空编号上建，名称去掉首尾空白；配方头填默认值（Type 取腔体的第一种 A、超时时间 600），先给一步（各字段的默认值），
     //    版本 1，记创建人；写成 001.xml，字段都写上（空的也写）。名称、编号不对的回错误码，不建、不发事件。
     var changed = new List<int>();
-    using var changedSubscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => changed.Add(dto.Index));
+    using var changedSubscription = RemoteEventSubscriber.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => changed.Add(dto.Index));
     var created = library.Create(1, "  SC1_60S ", "Tester");
     Check(created.IsSuccess && Data(created) is not null && Data(created)!.Name == "SC1_60S" && Data(created)!.Revision == 1
           && Data(created)!.CreatedBy == "Tester" && Data(created)!.ModifiedBy == "Tester", "新建：版本 1，记创建人");
@@ -445,7 +446,10 @@ try
 
         // 配方库开机 Bind 时接上晶圆尺寸：切了尺寸推一条编号 0 的变更（上限跟着尺寸变，配方页要重拉字段表）
         var sizePushes = new List<int>();
-        using var sizePushSubscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => sizePushes.Add(dto.Index));
+        using var sizePushSubscription = RemoteEventSubscriber.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => sizePushes.Add(dto.Index));
+        // 变更是留存消息：订上先补发黑板上的上一条（前面保存那条），从这里开始数
+        Check(sizePushes.SequenceEqual(new[] { 1 }), "变更留在黑板上：后订阅的马上补发上一条（前面保存编号 1 那条）");
+        sizePushes.Clear();
         var sizeLibrary = (RecipeElement)SmokeIoc.Load([LibraryNode(SecondsNode())]).Single();
         SmokeIoc.Use<IRecipeElement>(library);
         // 配方库开机 Bind 时取晶圆尺寸元件：装了晶圆尺寸以后重新 Bind

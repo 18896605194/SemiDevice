@@ -1,7 +1,7 @@
 ﻿namespace xyz.Tools;
 
 /// <summary>
-/// 进程内事件总线：只在本进程里传，跨进程用 RemoteEventBus
+/// 进程内事件总线：只在本进程里传，跨进程用 RemoteEventPublisher / RemoteEventSubscriber
 /// </summary>
 public static class EventBus
 {

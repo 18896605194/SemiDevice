@@ -9,8 +9,8 @@ MaterialDesignThemes 5（暗色）、CommunityToolkit.Mvvm 8、protobuf-net.Grpc
 xyz.Client（壳，WinExe）
   → 功能模块 xyz.Client.Main / Alarm / DataCenter / Io / Manual / Recipe / Setting
     → Common\xyz.Client.Presentation（控件、样式、语言包、公共显示模型）
-      → Common\xyz.Client.Common（RPC、远程事件、日志、EC/报警缓存、会话）、Common\xyz.Client.DataModels（BaseViewModel）
-        → xyz.Core\Shared\xyz.Shared（契约）、xyz.Tools（RemoteEventBus、EventBus、IocHelper、JsonHelper）
+      → Common\xyz.Client.Common（RPC、远程事件（RemoteEventConnection 收线、RemoteEventSubscriber 订阅）、日志、EC/报警缓存、会话）、Common\xyz.Client.DataModels（BaseViewModel）
+        → xyz.Core\Shared\xyz.Shared（契约）、xyz.Tools（EventBus、IocHelper、JsonHelper）
 Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[ClientModule]、ClientModuleLoader、IClientMenuProvider、ClientMenu、
   ClientViewKeys = 页面里能按机型换掉的一块的注册键）
 ```
@@ -23,13 +23,13 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 ## 2. 启动顺序（`xyz.Client\App.xaml.cs`）
 
 1. 挂全局异常（Dispatcher / AppDomain / TaskScheduler），一律 `ClientLog.Error("Client", ...)`；显示加载窗口。
-2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`、单条消息上限 26 MB，exe 旁 `client.json` 的 `GrpcAddress`、`MaxMessageSizeMb` 可改，跟后端 machine.xml 的 Rpc 节点一致）。
+2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`；客户端收的单条消息上限 16 MB，管后端发来的回包和推送；exe 旁 `client.json` 的 `GrpcAddress`、`MaxMessageSizeMb` 可改。后端收的不配，用 gRPC 默认 4 MB）。
    通道外面包一层私有的 `UserHeader`（gRPC 客户端拦截器）：每次调用都在请求头 `xyz-user-bin` 带上 `ClientSession.UserName`（UTF-8），后端记操作日志、
    账单调整和配方的操作人都从这儿取——请求 DTO 上不再带 `Operator`，页面里也不用填（2026-10-26）。
 3. 问后端系统设置 `ISystemService.GetSettingsAsync`（3 s 超时，每 1 s 重试，最多等 30 s）→ `L10n.Apply(语言)`；
    返回的模块名、腔体名用来生成 IO / 腔体菜单，LoadPort、机械手名单用来生成主界面的 LoadPort 页签和默认调度图。
    后端一直不在就用 zh-CN、这些按模块生成的东西整次为空（主界面显示提示）；换语言要重启客户端。
-4. `RemoteConnection.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`、`ClientAccount.InitializeAsync(设置)`
+4. `RemoteEventConnection.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`、`ClientAccount.InitializeAsync(设置)`
    （`SystemSettingsDto.IsLoginEnabled` 定要不要登录，要登录的先取访客的会话；后端不在当要登录、什么都只看，连上再定）。
 5. 建 DI：`AddXyzClientServices(settings)`（壳 VM、平台菜单、各功能模块注册）→ `ClientModuleLoader.Load(services)`
    （扫 exe 目录和 `Modules\**\*.dll` 里带 `[ClientModule]` 的 `IClientModule`，按 Key 排序调 `Register`；机型后注册，
@@ -158,9 +158,12 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - 结果提示走顶栏日志栏：`ClientLog.Info/Warn/Error(模块名, 句子)`。不弹 MessageBox。
 
 ### 事件
-- `RemoteEventBus.Register<TDto>(TDto.EventToken 或模块名, handler)`：后端推的消息由 `RemoteConnection` 转到 **UI 线程**再派发，handler 里直接改绑定属性；
+- `RemoteEventSubscriber.Register<TDto>(TDto.EventToken 或模块名, handler)`：后端推的消息由 `RemoteEventConnection` 转到 **UI 线程**再派发，handler 里直接改绑定属性；
   返回的 `IDisposable` 存在字段里，Init 重复调时先 Dispose。黑板上有的（后端发的状态类）订上就会补发最后一条。
-- 连接状态：`RemoteConnection.ConnectionChanged -= On; += On;` 再 `On(RemoteConnection.IsConnected)`；连上时重拉全量（断线期间漏了推送）。
+- **页面不管连接**（2026-10-28 用户定）：要的数据都订推送——后端开机推、留存，订上就补发，客户端比后端先起、后端重启、断线重连都会重放；
+  要去拉的列表（账号、角色、配方、流程配方、晶圆账）订它的"变了"，收到就拉；日志设置、AI 状态、两张曲线的信号表直接订内容。
+  只有要**显示**连没连上的才订 `RemoteEventConnection.ConnectionChanged`（`-= On; += On;` 再 `On(RemoteEventConnection.IsConnected)`）：顶栏灯、模块状态栏"未连接"、
+  主页断开时清状态、配方 / 流程配方 / 晶圆账页断开时按钮点不了；客户端的公共缓存 `ClientAlarms`、`ClientEc`、`ClientAccount` 连上时重拉，页面从它们拿。
 - 页面之间的进程内通知用 `EventBus`（不出进程、没有黑板、在发送方线程上回调），跟后端推送是两条总线，互不相通（2026-10-27）。
 - 高频推送、查询请求用 Rx：`Throttle` / `Sample` + `Select(Observable.FromAsync(...))` + `Switch()` + `ObserveOn(SynchronizationContext)`（DataChart、RealChart）。
 - 后端推的是"变了"通知、界面自己重拉时，要攒一下再拉（DispatcherTimer 节流，见 WaferLedgerViewModel.RequestReload）。

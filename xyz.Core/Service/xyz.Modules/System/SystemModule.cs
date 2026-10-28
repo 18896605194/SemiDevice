@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Attributes;
@@ -415,7 +416,7 @@ public class SystemModule : BaseStateElement, ISystemModule
         }
 
         _lastPublished = dto;
-        RemoteEventBus.Send(dto, SystemStateDto.EventToken);
+        RemoteEventPublisher.Send(dto, SystemStateDto.EventToken);
     }
 
     private ModuleStatusListDto? _lastModuleStatus;
@@ -443,7 +444,7 @@ public class SystemModule : BaseStateElement, ISystemModule
         }
 
         _lastModuleStatus = list;
-        RemoteEventBus.Send(list, ModuleStatusListDto.EventToken);
+        RemoteEventPublisher.Send(list, ModuleStatusListDto.EventToken);
     }
 
     /// <summary>
@@ -517,7 +518,7 @@ public class SystemModule : BaseStateElement, ISystemModule
                 Drive(light, dto.HasAlarm, dto.HasWarning, dto.IsRunning);
             }
 
-            RemoteEventBus.Send(dto, EquipmentStatusDto.EventToken);
+            RemoteEventPublisher.Send(dto, EquipmentStatusDto.EventToken);
             _lastStatusFault = null;
         }
         catch (Exception exception)

@@ -51,7 +51,7 @@ public class AlarmRealtimeViewModel : BaseViewModel
     private bool _isAiInstalled;
 
     /// <summary>
-    /// 后端配了 AI 没有：配了才显示 AI 工具栏
+    /// 后端配了 AI 没有（收到 AI 状态的推送就是配了）：配了才显示 AI 工具栏
     /// </summary>
     public bool IsAiInstalled
     {
@@ -80,6 +80,8 @@ public class AlarmRealtimeViewModel : BaseViewModel
 
     private readonly IAiService _aiService;
 
+    private IDisposable? _aiSubscription;
+
     #endregion
 
     public AlarmRealtimeViewModel()
@@ -94,9 +96,9 @@ public class AlarmRealtimeViewModel : BaseViewModel
         ClientAlarms.Changed += Refresh;
         Refresh();
 
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
+        // AI 状态是留存消息：后端配了 AI 开机推一条，订上就补发、重连时后端重放；没配就收不到，工具栏不显示
+        _aiSubscription?.Dispose();
+        _aiSubscription = RemoteEventSubscriber.Register<AiStatusDto>(AiStatusDto.EventToken, _ => IsAiInstalled = true);
     }
 
     /// <summary>
@@ -118,31 +120,6 @@ public class AlarmRealtimeViewModel : BaseViewModel
         }
 
         SelectedAlarm = keep;
-    }
-
-    /// <summary>
-    /// 连上后端时问一次配没配 AI（后端重启时 machine.xml 可能改了）
-    /// </summary>
-    private void OnConnectionChanged(bool connected)
-    {
-        if (connected)
-        {
-            _ = LoadAiStatus();
-        }
-    }
-
-    private async Task LoadAiStatus()
-    {
-        try
-        {
-            var response = await _aiService.GetStatusAsync(new RpcRequest());
-            IsAiInstalled = response.Success;
-        }
-        catch (Exception)
-        {
-            // 后端是没有这个服务的旧版本，或者刚好又断了：当没配，不报
-            IsAiInstalled = false;
-        }
     }
 
     private bool CanExplain()

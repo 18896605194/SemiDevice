@@ -366,6 +366,13 @@ public abstract class ElementBase : ILogSource
     }
 
     /// <summary>
+    /// 开机推送：都起来以后调一次，界面一连上（含重连）就要拿到的在这里推（留存）
+    /// </summary>
+    public virtual void PublishOnStartup()
+    {
+    }
+
+    /// <summary>
     /// 宿主退出时调（按开机的倒序）：断链路、落库、存盘这类收尾
     /// </summary>
     public virtual void OnStopping()

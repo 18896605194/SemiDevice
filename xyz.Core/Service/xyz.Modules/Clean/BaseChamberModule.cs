@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
@@ -454,7 +455,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         if (dto.HasStateChanged(_lastPublishedState))
         {
             _lastPublishedState = dto;
-            RemoteEventBus.Send(dto, Name);
+            RemoteEventPublisher.Send(dto, Name);
         }
 
         PublishDeviceData();
@@ -533,7 +534,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         }
 
         _lastPublishedDeviceData = data;
-        RemoteEventBus.Send(data, Name);
+        RemoteEventPublisher.Send(data, Name);
     }
 
     /// <summary>

@@ -278,7 +278,7 @@ public class DataChartViewModel : BaseViewModel
 
     private IDisposable? _pipeline;
 
-    private IDisposable? _reconnect;
+    private IDisposable? _signalsSubscription;
 
     #endregion
 
@@ -296,7 +296,7 @@ public class DataChartViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 搭查询管道、拉信号表；后端晚起（没拉到信号表）时，等事件流连上再拉一次。
+    /// 搭查询管道、订信号表（留存：后端开机推一次，订上就补发、重连时后端重放）。
     /// </summary>
     public override void Init()
     {
@@ -321,14 +321,21 @@ public class DataChartViewModel : BaseViewModel
         _pipeline?.Dispose();
         _pipeline = results.Subscribe(Apply);
 
-        _reconnect?.Dispose();
-        _reconnect = Observable
-            .FromEvent<bool>(handler => RemoteConnection.ConnectionChanged += handler,
-                handler => RemoteConnection.ConnectionChanged -= handler)
-            .Where(connected => connected && Signals.Count == 0)
-            .Subscribe(connected => _ = LoadSignalsAsync());
+        _signalsSubscription?.Dispose();
+        _signalsSubscription = RemoteEventSubscriber.Register<DataChartSignalsDto>(DataChartSignalsDto.EventToken, OnSignalsReceived);
+    }
 
-        _ = LoadSignalsAsync();
+    /// <summary>
+    /// 收到推来的信号表：还没有信号表才换上（跟原来一样，已经有了就不重长勾选树，要换新的点刷新）
+    /// </summary>
+    private void OnSignalsReceived(DataChartSignalsDto result)
+    {
+        if (Signals.Count > 0)
+        {
+            return;
+        }
+
+        ApplySignals(result);
     }
 
     private void DoQuery()
@@ -430,7 +437,7 @@ public class DataChartViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 拉信号表、重长勾选树；已经勾着的照样勾着。
+    /// 点刷新时向后端拉信号表，拉到了换上
     /// </summary>
     private async Task LoadSignalsAsync()
     {
@@ -443,28 +450,35 @@ public class DataChartViewModel : BaseViewModel
                 return;
             }
 
-            var result = response.DeserializeData<DataChartSignalsDto>();
-            MaxSignals = Math.Max(1, result.MaxSignals);
-            ScreenshotDirectory = result.ScreenshotDirectory;
-            Signals.Clear();
-            foreach (var root in SignalTree.Build(result.Signals, OnToggle))
-            {
-                Signals.Add(root);
-            }
-
-            foreach (var leaf in SignalTree.AllLeaves(Signals))
-            {
-                leaf.SetChecked(_seriesByName.ContainsKey(leaf.Path));
-            }
-
-            SignalTree.RefreshGroups(Signals);
-            SignalTree.Filter(Signals, SearchText);
+            ApplySignals(response.DeserializeData<DataChartSignalsDto>());
         }
         catch (Exception exception)
         {
             Summary = L10n.Get("chart.load_failed", exception.Message);
             ClientLog.Warn("DataCenter", $"数据曲线信号表没拿到：{exception.Message}");
         }
+    }
+
+    /// <summary>
+    /// 换上信号表（推来的、拉来的都走这里）、重长勾选树；已经勾着的照样勾着。
+    /// </summary>
+    private void ApplySignals(DataChartSignalsDto result)
+    {
+        MaxSignals = Math.Max(1, result.MaxSignals);
+        ScreenshotDirectory = result.ScreenshotDirectory;
+        Signals.Clear();
+        foreach (var root in SignalTree.Build(result.Signals, OnToggle))
+        {
+            Signals.Add(root);
+        }
+
+        foreach (var leaf in SignalTree.AllLeaves(Signals))
+        {
+            leaf.SetChecked(_seriesByName.ContainsKey(leaf.Path));
+        }
+
+        SignalTree.RefreshGroups(Signals);
+        SignalTree.Filter(Signals, SearchText);
     }
 
     /// <summary>

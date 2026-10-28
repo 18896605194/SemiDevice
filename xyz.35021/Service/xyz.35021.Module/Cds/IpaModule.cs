@@ -1,4 +1,5 @@
-﻿using xyz.Elements.Attributes;
+﻿using xyz.Common.Events;
+using xyz.Elements.Attributes;
 using xyz.Elements.Interfaces;
 using xyz.Modules;
 using xyz.Tools;
@@ -41,6 +42,6 @@ public class IpaModule : BaseCdsModule
         }
 
         _lastPublished = dto;
-        RemoteEventBus.Send(dto, Name);
+        RemoteEventPublisher.Send(dto, Name);
     }
 }

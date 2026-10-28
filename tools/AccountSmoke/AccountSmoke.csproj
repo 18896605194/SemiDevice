@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- 服务层：登录、用户、角色三个服务和系统设置；元件层（账号元件）、库跟着引进来 -->
+    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Common\xyz.Client.Common.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
   </ItemGroup>
   <ItemGroup>

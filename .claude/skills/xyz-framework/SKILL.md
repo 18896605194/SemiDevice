@@ -17,16 +17,16 @@ description: xyz 半导体设备框架的架构分层和编码规范——后端
 ## 一、架构
 
 ```
-xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、RemoteEventBus、JsonHelper、IocHelper、ExcelHelper，前后端共用的帮助类都放这里）
+xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、跨进程事件的信封 EventMessage 和黑板 RetainedBoard、JsonHelper、IocHelper、ExcelHelper，前后端共用的帮助类都放这里）
 xyz.Core\Service  后端：xyz.Elements（元件）→ xyz.Modules（模块）→ xyz.Service（gRPC 服务、装配、事件桥）→ xyz.GrpcHost（宿主）
-                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（跟主机、厂里系统通讯的底层：SECS/HSMS、GEM 各标准协议、EDA 引擎；单独的 git 仓库（GitHub 18896605194/Secs），框架只引 Libs\xyz.Secs.dll）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志 Log\；后端自己用的帮助类在 Helpers\：时间换算 DateTimeHelper、值换算 ValueHelper）
+                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（跟主机、厂里系统通讯的底层：SECS/HSMS、GEM 各标准协议、EDA 引擎；单独的 git 仓库（GitHub 18896605194/Secs），框架只引 Libs\xyz.Secs.dll）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志 Log\；跨进程事件的发送方 Events\RemoteEventPublisher；后端自己用的帮助类在 Helpers\：时间换算 DateTimeHelper、值换算 ValueHelper）
 xyz.Core\Client   客户端：xyz.Client（壳）→ 功能模块 Main/Alarm/DataCenter/Io/Manual/Recipe/Setting → Common\xyz.Client.Presentation（控件/样式/语言包）
-                  → Common\xyz.Client.Common（RPC/事件/日志）、Common\xyz.Client.DataModels（BaseViewModel）；Common\xyz.Client.Modules（机型模块接口）
+                  → Common\xyz.Client.Common（RPC/事件：RemoteEventConnection、RemoteEventSubscriber/日志）、Common\xyz.Client.DataModels（BaseViewModel）；Common\xyz.Client.Modules（机型模块接口）
 xyz.35021         机型层：继承平台 Base*Module 写具体设备（品牌协议、指令在 Drivers\<品牌>）、机型客户端页面、machine.xml 和 IO 点表；编译后部署到宿主和客户端的 Modules\35021（machine.xml、点表进宿主 Config），运行时扫描加载
 tools             冒烟测试（控制台程序，不是单元测试工程）、部署和编码脚本
 ```
 
-- 客户端和后端之间只有两条路：gRPC（protobuf-net code-first，契约在 xyz.Shared）和远程事件流（后端 `RemoteEventBus.Send` → 客户端 `RemoteEventBus.Register`）。
+- 客户端和后端之间只有两条路：gRPC（protobuf-net code-first，契约在 xyz.Shared）和远程事件流（后端 `RemoteEventPublisher.Send` → 客户端 `RemoteEventSubscriber.Register`；发、收两半分在后端 xyz.Common、客户端 xyz.Client.Common，对面引用不到，2026-10-28 用户定）。
   进程内的通知用 `EventBus`，不出进程；两条总线互不相通、不转发（2026-10-27 用户定）。
   gRPC 请求一律 `RpcRequest`、回包一律 `RpcResponse`，不建请求类（2026-10-26 用户定）：参数按名字装在 `RpcRequest.Parameters`（JSON 对象）里，
   名字只写一份：`xyz.Shared.Rpc.RpcParams` 里的常量，客户端装、服务端取都用它，不在两头各写字符串（新参数名先加进去）。
@@ -34,7 +34,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
   `request.Get(RpcParams.Keyword, "")`；契约注释一句短话，不写参数（2026-10-26 用户改）。
   服务都继承 `BaseService`，回包用它的 `Fail` / `NotInstalled` / `Reply` / `ReplyData` / `InvalidRequest`，不在服务里各写私有的（见 backend.md §5「返回」）。
 - 设备树：machine.xml 一个节点 = 一个元件实例（`Type` 写类型全名），模块是带状态和动作的元件；后端启动时装配整棵树，按开机几个阶段走：
-  元件初始化（`InitElement`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted`，退出先停扫描（等手上这一拍扫完）、再倒着 `OnStopping`。元件自己的开机准备、收尾、推送
+  元件初始化（`InitElement`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted` → 开机推送 `PublishOnStartup`（界面一连上就要拿到的，留存），退出先停扫描（等手上这一拍扫完）、再倒着 `OnStopping`。元件自己的开机准备、收尾、推送
   都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体元件，加元件不用改它们。
 - 设备动作 = `ModuleRoutine`（按顺序走的一串有名字的步骤，平台建动作、机型往里加步骤），在模块扫描线程里一步步推进；RPC 线程只发起和等待。
 - **xyz.Modules 只放模块**（2026-10-27 用户定）：模块本体（`Base*Module`、整机 `SystemModule`）、模块自己的接口（`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`……）、动作步骤、状态表、状态码；
@@ -45,7 +45,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
 2. xyz.Elements 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（模块动作 `ModuleRoutine` 挪到了元件层）、设备侧给 EAP 的接口
    （`Interfaces` 下的 ILoadPortAccess、IJobManager 和回调口）用到的 DTO，和元件自己推给界面的 DTO——**推送是元件自己的事**（2026-10-18 起）：
-   元件在自己的扫描或钩子里 `RemoteEventBus.Send`，转 DTO 走映射元件（`IMapper`，平台规则写在 xyz.Elements 的 `MapperElement.AddRules`，项目继承它重写 `AddRules` 加自己的），不在启动代码里搭桥。
+   元件在自己的扫描或钩子里 `RemoteEventPublisher.Send`，转 DTO 走映射元件（`IMapper`，平台规则写在 xyz.Elements 的 `MapperElement.AddRules`，项目继承它重写 `AddRules` 加自己的），不在启动代码里搭桥。
    元件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Elements。

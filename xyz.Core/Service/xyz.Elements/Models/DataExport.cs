@@ -1,8 +1,7 @@
 ﻿namespace xyz.Elements.Models;
 
 /// <summary>
-/// 导出的一段原始数据：这段时间里库里的每一行（UTC 毫秒），每条曲线在这些时刻的值（没读到为 null）。
-/// Values[i] 是 Names[i] 那条，跟 Times 一一对应。
+/// 时间，点位名，点位value
 /// </summary>
 public sealed class DataExport
 {

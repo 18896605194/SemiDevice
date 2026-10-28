@@ -2,6 +2,7 @@
 using System.Data.Common;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using xyz.Client.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Attributes;
@@ -448,13 +449,13 @@ try
     // 4. 推送：有变化才推；跟 ChamberDto 同 token、类型不同，各自留存互不覆盖
     int pushes = 0;
     ChamberDeviceDataDto? pushed = null;
-    using var partsSubscription = RemoteEventBus.Register<ChamberDeviceDataDto>("Chamber9", item =>
+    using var partsSubscription = RemoteEventSubscriber.Register<ChamberDeviceDataDto>("Chamber9", item =>
     {
         pushes++;
         pushed = item;
     });
     ChamberDto? state = null;
-    using var stateSubscription = RemoteEventBus.Register<ChamberDto>("Chamber9", item => state = item);
+    using var stateSubscription = RemoteEventSubscriber.Register<ChamberDto>("Chamber9", item => state = item);
     Check(pushes == 1 && pushed is not null && pushed.Module == "Chamber9", "设备推送留存：订上就补发最后一条");
     Check(state is not null && state.Name == "Chamber9", "模块状态也还在：两种 DTO 同 token 不互相覆盖");
     Tick(3);

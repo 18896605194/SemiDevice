@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Security.Cryptography;
 using SqlSugar;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Interfaces;
@@ -1247,11 +1248,19 @@ public class AccountElement : ElementBase, IAccount
     }
 
     /// <summary>
-    /// 账号、角色、权限变了：推给客户端，登录着的重新取自己的会话
+    /// 开机推一条账号变更（留存）：界面连上（含重连）就去取会话、拉账号和角色
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        NotifyChanged();
+    }
+
+    /// <summary>
+    /// 账号、角色、权限变了：推给客户端（留存），登录着的重新取自己的会话
     /// </summary>
     private static void NotifyChanged()
     {
-        RemoteEventBus.Send(new AccountChangedDto(), AccountChangedDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new AccountChangedDto(), AccountChangedDto.EventToken);
     }
 
     private HandleResult NotReady()

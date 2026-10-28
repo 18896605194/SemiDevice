@@ -3,7 +3,7 @@
 namespace xyz.Tools;
 
 /// <summary>
-/// 跨进程事件信封：RemoteEventBus 打包、拆包用，业务代码不碰
+/// 跨进程事件信封：RemoteEventPublisher 打包、RemoteEventSubscriber 拆包用，业务代码不碰
 /// </summary>
 [ProtoContract]
 public class EventMessage

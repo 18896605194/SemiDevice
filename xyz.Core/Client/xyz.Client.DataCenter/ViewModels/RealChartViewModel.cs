@@ -258,7 +258,7 @@ public class RealChartViewModel : BaseViewModel
 
     private IDisposable? _stats;
 
-    private IDisposable? _reconnect;
+    private IDisposable? _layoutSubscription;
 
     #endregion
 
@@ -272,7 +272,7 @@ public class RealChartViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 接帧流（事件总线已经把帧投到界面线程）、搭统计取样、拉信号表；事件流重连（后端可能重启过）时重拉信号表。
+    /// 接帧流（事件总线已经把帧投到界面线程）、搭统计取样、订信号表（留存：后端开机推一次，重连时后端重放，后端重启过也跟着换）。
     /// </summary>
     public override void Init()
     {
@@ -280,7 +280,7 @@ public class RealChartViewModel : BaseViewModel
 
         _frames?.Dispose();
         _frames = Observable
-            .Create<RealChartFrameDto>(observer => RemoteEventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, observer.OnNext))
+            .Create<RealChartFrameDto>(observer => RemoteEventSubscriber.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, observer.OnNext))
             .Subscribe(OnFrame);
 
         IObservable<Unit> stats = _statsRequests.Sample(TimeSpan.FromMilliseconds(250));
@@ -292,14 +292,8 @@ public class RealChartViewModel : BaseViewModel
         _stats?.Dispose();
         _stats = stats.Subscribe(_ => UpdateStats());
 
-        _reconnect?.Dispose();
-        _reconnect = Observable
-            .FromEvent<bool>(handler => RemoteConnection.ConnectionChanged += handler,
-                handler => RemoteConnection.ConnectionChanged -= handler)
-            .Where(connected => connected)
-            .Subscribe(connected => _ = LoadLayoutAsync());
-
-        _ = LoadLayoutAsync();
+        _layoutSubscription?.Dispose();
+        _layoutSubscription = RemoteEventSubscriber.Register<RealChartLayoutDto>(RealChartLayoutDto.EventToken, layout => _ = ApplyLayoutAsync(layout));
     }
 
     private void DoToggleFollow()
@@ -325,7 +319,7 @@ public class RealChartViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 拉信号表（每帧值的顺序）、重长勾选树；还在的信号照样勾着，并把它们最近一段重新补上（后端重启过的话之前的数据接不上）。
+    /// 点刷新、帧对不上会话号时向后端拉信号表，拉到了换上
     /// </summary>
     private async Task LoadLayoutAsync()
     {
@@ -344,43 +338,7 @@ public class RealChartViewModel : BaseViewModel
                 return;
             }
 
-            var layout = response.DeserializeData<RealChartLayoutDto>();
-            _session = layout.Session;
-            _keepSeconds = Math.Max(60, layout.WindowSeconds);
-            MaxSignals = Math.Max(1, layout.MaxSignals);
-            ScreenshotDirectory = layout.ScreenshotDirectory;
-            _indexByName = layout.Signals
-                .Select((signal, index) => (signal.Name, Index: index))
-                .ToDictionary(item => item.Name, item => item.Index, StringComparer.OrdinalIgnoreCase);
-
-            WindowOptions = WindowChoices.Where(minutes => minutes * 60 <= _keepSeconds).DefaultIfEmpty(1).ToList();
-            if (!WindowOptions.Contains(SelectedWindow))
-            {
-                SelectedWindow = WindowOptions.Last();
-            }
-
-            // 信号表里没有了的曲线拿掉。
-            foreach (var gone in Series.Where(series => !_indexByName.ContainsKey(series.Name)).ToList())
-            {
-                Series.Remove(gone);
-                _seriesByName.Remove(gone.Name);
-            }
-
-            Signals.Clear();
-            foreach (var root in SignalTree.Build(layout.Signals, OnToggle))
-            {
-                Signals.Add(root);
-            }
-
-            foreach (var leaf in SignalTree.AllLeaves(Signals))
-            {
-                leaf.SetChecked(_seriesByName.ContainsKey(leaf.Path));
-            }
-
-            SignalTree.RefreshGroups(Signals);
-            SignalTree.Filter(Signals, SearchText);
-
-            await FillRecentAsync(Series.Select(series => series.Name).ToList());
+            await ApplyLayoutAsync(response.DeserializeData<RealChartLayoutDto>());
         }
         catch (Exception exception)
         {
@@ -391,6 +349,49 @@ public class RealChartViewModel : BaseViewModel
         {
             _loadingLayout = false;
         }
+    }
+
+    /// <summary>
+    /// 换上信号表（每帧值的顺序，推来的、拉来的都走这里）、重长勾选树；还在的信号照样勾着，并把它们最近一段重新补上（后端重启过的话之前的数据接不上）。
+    /// </summary>
+    private async Task ApplyLayoutAsync(RealChartLayoutDto layout)
+    {
+        _session = layout.Session;
+        _keepSeconds = Math.Max(60, layout.WindowSeconds);
+        MaxSignals = Math.Max(1, layout.MaxSignals);
+        ScreenshotDirectory = layout.ScreenshotDirectory;
+        _indexByName = layout.Signals
+            .Select((signal, index) => (signal.Name, Index: index))
+            .ToDictionary(item => item.Name, item => item.Index, StringComparer.OrdinalIgnoreCase);
+
+        WindowOptions = WindowChoices.Where(minutes => minutes * 60 <= _keepSeconds).DefaultIfEmpty(1).ToList();
+        if (!WindowOptions.Contains(SelectedWindow))
+        {
+            SelectedWindow = WindowOptions.Last();
+        }
+
+        // 信号表里没有了的曲线拿掉。
+        foreach (var gone in Series.Where(series => !_indexByName.ContainsKey(series.Name)).ToList())
+        {
+            Series.Remove(gone);
+            _seriesByName.Remove(gone.Name);
+        }
+
+        Signals.Clear();
+        foreach (var root in SignalTree.Build(layout.Signals, OnToggle))
+        {
+            Signals.Add(root);
+        }
+
+        foreach (var leaf in SignalTree.AllLeaves(Signals))
+        {
+            leaf.SetChecked(_seriesByName.ContainsKey(leaf.Path));
+        }
+
+        SignalTree.RefreshGroups(Signals);
+        SignalTree.Filter(Signals, SearchText);
+
+        await FillRecentAsync(Series.Select(series => series.Name).ToList());
     }
 
     /// <summary>

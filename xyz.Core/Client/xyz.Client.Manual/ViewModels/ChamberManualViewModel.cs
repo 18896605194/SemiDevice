@@ -28,7 +28,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     #region Column
 
     /// <summary>
-    /// 模块实例名，与 RemoteEventBus token / gRPC 参数一致，如 "Chamber1"。
+    /// 模块实例名，与 推送 token / gRPC 参数一致，如 "Chamber1"。
     /// </summary>
     public string ModuleName { get; }
 
@@ -80,10 +80,11 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     /// </summary>
     public ObservableCollection<ProcessRecipeOptionModel> ProcessRecipes { get; } = [];
 
-    private bool _canTypeRecipe;
+    private bool _canTypeRecipe = true;
 
     /// <summary>
     /// 配方框能不能手输：后端没装工艺配方库时才让手输（后端那边也不查）；装了就只能从库里选。
+    /// 没装库就没人推配方变更，所以一开始让手输，收到推送、拉到列表才改成只能选。
     /// </summary>
     public bool CanTypeRecipe
     {
@@ -219,22 +220,19 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
 
         _stateSubscription?.Dispose();
-        _stateSubscription = RemoteEventBus.Register<ChamberDto>(ModuleName, OnStateReceived);
+        _stateSubscription = RemoteEventSubscriber.Register<ChamberDto>(ModuleName, OnStateReceived);
 
         // 设备推送是留存消息：订上就补发最后一条，不用另外拉。
         _deviceDataSubscription?.Dispose();
-        _deviceDataSubscription = RemoteEventBus.Register<ChamberDeviceDataDto>(ModuleName, OnDeviceDataReceived);
+        _deviceDataSubscription = RemoteEventSubscriber.Register<ChamberDeviceDataDto>(ModuleName, OnDeviceDataReceived);
 
         // 轴参数的默认值取 EC：EC 拉到（或改了）时把还空着的补上
         ClientEc.Changed -= OnEcChanged;
         ClientEc.Changed += OnEcChanged;
 
-        // 工艺配方列表：连上后端时拉，工艺配方库变了（新建、改名、删除）再拉
+        // 工艺配方列表：配方库开机推一条变更（留存）、变了（新建、改名、删除）再推，订上就补发、重连时后端重放，收到就拉
         _recipeSubscription?.Dispose();
-        _recipeSubscription = RemoteEventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, changed => _ = LoadRecipes());
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
+        _recipeSubscription = RemoteEventSubscriber.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, changed => _ = LoadRecipes());
     }
 
     public void Dispose()
@@ -246,15 +244,6 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         _recipeSubscription?.Dispose();
         _recipeSubscription = null;
         ClientEc.Changed -= OnEcChanged;
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-    }
-
-    private void OnConnectionChanged(bool connected)
-    {
-        if (connected)
-        {
-            _ = LoadRecipes();
-        }
     }
 
     private void OnEcChanged()

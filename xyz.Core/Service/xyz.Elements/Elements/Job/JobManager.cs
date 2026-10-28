@@ -1,6 +1,7 @@
 ﻿using SqlSugar;
 using System.Globalization;
 using System.Threading.Channels;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Attributes;
@@ -2272,7 +2273,12 @@ public class JobManager : ElementBase, IJobManager
     }
 
     /// <summary>
-    /// 发布当前快照：推给界面；跟上次交去写库的比变了才交写库
+    /// 上次推给界面的全貌（JSON）；只在 Job 的锁里读写
+    /// </summary>
+    private string? _publishedSnapshot;
+
+    /// <summary>
+    /// 发布当前快照：跟上次交去写库的比变了才交写库，跟上次推给界面的比变了才推
     /// </summary>
     private void Publish()
     {
@@ -2285,7 +2291,10 @@ public class JobManager : ElementBase, IJobManager
             ControlJobs = controlJobs.Select(job => JobDtos.Of(job, ControlJobAutoStart)).ToList(),
             ProcessJobs = processJobs.Select(job => JobDtos.Of(job, ProcessJobAutoStart)).ToList(),
         };
-        if (HasChangedSinceStored(snapshot))
+
+        // 全貌只转一次 JSON，写库、推送各拿它跟自己的上一次比
+        string json = JsonHelper.Serialize(snapshot);
+        if (HasChangedSinceStored(json))
         {
             for (int index = 0; index < controlJobs.Count; index++)
             {
@@ -2298,9 +2307,16 @@ public class JobManager : ElementBase, IJobManager
             }
         }
 
+        // 推送跟写库一样，没变就不推：扫描每拍（10 ms）都发布，没变也推就是一秒近百条，客户端界面线程跟着白忙
+        if (string.Equals(json, _publishedSnapshot, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         try
         {
-            RemoteEventBus.Send(snapshot, JobListDto.EventToken);
+            RemoteEventPublisher.Send(snapshot, JobListDto.EventToken);
+            _publishedSnapshot = json; // 推成了才记下，推失败下一拍再推
         }
         catch (Exception exception)
         {
@@ -2339,16 +2355,15 @@ public class JobManager : ElementBase, IJobManager
     private string? _storedSnapshot;
 
     /// <summary>
-    /// 这份全貌跟上次交去写库的比变了没有（没开存库算没变）；上一批没写进库就一直算变了，每次都交，写好了再按变没变交
+    /// 这份全貌（JSON）跟上次交去写库的比变了没有（没开存库算没变）；上一批没写进库就一直算变了，每次都交，写好了再按变没变交
     /// </summary>
-    private bool HasChangedSinceStored(JobListDto snapshot)
+    private bool HasChangedSinceStored(string json)
     {
         if (!_storeStarted)
         {
             return false;
         }
 
-        string json = JsonHelper.Serialize(snapshot);
         if (!_storeFailing && string.Equals(json, _storedSnapshot, StringComparison.Ordinal))
         {
             return false;

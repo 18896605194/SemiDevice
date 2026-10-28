@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Attributes;
@@ -308,8 +309,16 @@ public class RecipeElement : ElementBase, IRecipeElement
         var size = _waferSize;
         if (size is not null)
         {
-            size.Changed += _ => RemoteEventBus.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken, retain: false);
+            size.Changed += _ => RemoteEventPublisher.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken);
         }
+    }
+
+    /// <summary>
+    /// 开机推一条工艺配方变更（留存）：界面连上（含重连）就去拉列表
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        RemoteEventPublisher.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken);
     }
 
     /// <summary>
@@ -597,7 +606,7 @@ public class RecipeElement : ElementBase, IRecipeElement
 
         var saved = result.Result as RecipeData;
         LogHelper.Info(this, saved is null ? message : $"{message}，版本 {saved.Revision}");
-        RemoteEventBus.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken);
 
         var callback = E30Callback;
         if (callback is null)

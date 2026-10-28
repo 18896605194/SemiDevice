@@ -119,20 +119,9 @@ public class UserViewModel : BaseViewModel
 
     public override void Init()
     {
+        // 账号变了是留存消息（后端开机也推一条）：订上就补发、重连时后端重放，收到就拉
         _accountSubscription?.Dispose();
-        _accountSubscription = RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadAsync());
-
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
-    }
-
-    private void OnConnectionChanged(bool connected)
-    {
-        if (connected)
-        {
-            _ = LoadAsync();
-        }
+        _accountSubscription = RemoteEventSubscriber.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadAsync());
     }
 
     private bool CanChangeSelected()

@@ -1,5 +1,6 @@
 ﻿using System.Threading.Channels;
 using SqlSugar;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Enums;
@@ -75,9 +76,17 @@ public class LedgerManagerElement : ElementBase, ILedgerManager
         Restore();
     }
 
+    /// <summary>
+    /// 开机推一条账变了（留存，站点空着）：界面连上（含重连）就去拉账
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        NotifyLedger(string.Empty);
+    }
+
     private static void NotifyLedger(string module)
     {
-        RemoteEventBus.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken);
     }
 
     #region EAP 口子（E90 片跟踪）

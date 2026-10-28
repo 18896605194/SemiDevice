@@ -8,9 +8,7 @@ using xyz.Tools;
 namespace xyz.Client.Common.Alarms;
 
 /// <summary>
-/// 客户端的当前报警：连上后端时拉一次全量，之后按事件流（AlarmDto）逐条增删。
-/// 顶栏报警栏、实时报警页等共用这一份，不各自订阅、各自拉。
-/// 全部在 UI 线程上动（事件流回调和连接状态本来就投递到 UI 线程），Changed 也在 UI 线程触发。
+/// 客户端的当前报警：连上后端时拉一次全量，之后按事件流（AlarmDto）逐条增删
 /// </summary>
 public static class ClientAlarms
 {
@@ -32,7 +30,7 @@ public static class ClientAlarms
     public static event Action? Changed;
 
     /// <summary>
-    /// App 启动时（RemoteConnection.Initialize 之后）调一次。
+    /// App 启动时（RemoteEventConnection.Initialize 之后）调一次。
     /// </summary>
     public static void Initialize()
     {
@@ -41,9 +39,9 @@ public static class ClientAlarms
             return;
         }
 
-        _subscription = RemoteEventBus.Register<AlarmDto>(AlarmDto.EventToken, OnAlarmChanged);
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        if (RemoteConnection.IsConnected)
+        _subscription = RemoteEventSubscriber.Register<AlarmDto>(AlarmDto.EventToken, OnAlarmChanged);
+        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
+        if (RemoteEventConnection.IsConnected)
         {
             OnConnectionChanged(true);
         }

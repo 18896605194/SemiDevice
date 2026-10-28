@@ -23,6 +23,16 @@ public interface IRealChart
     int WindowSeconds { get; }
 
     /// <summary>
+    /// 最多同时画几条曲线（跟数据曲线同一个设置）
+    /// </summary>
+    int MaxSignals { get; }
+
+    /// <summary>
+    /// 截图存到哪个文件夹（跟数据曲线同一个设置）
+    /// </summary>
+    string ScreenshotDirectory { get; }
+
+    /// <summary>
     /// 在采的信号
     /// </summary>
     IReadOnlyList<DataSignal> Signals { get; }

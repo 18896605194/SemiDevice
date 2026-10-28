@@ -11,22 +11,13 @@ using xyz.Tools;
 namespace xyz.Client.Common.Rpc;
 
 /// <summary>
-/// 通用 gRPC 客户端工厂。
-/// Channel 由程序启动时初始化一次，后续所有服务代理共用。
-/// 地址优先级：显式传参 &gt; client.json 的 GrpcAddress（跟客户端 exe 同目录，可选）&gt; 默认 localhost:5000。
-/// 端口必须在连上后端之前就知道——后端的端口配在 machine.xml 的 Rpc 节点里，客户端没法走 gRPC 去问
-/// （鸡生蛋），所以客户端这边的覆盖走本地文件，和后端 machine.xml 保持一致即可。
-/// 单条消息上限（MaxMessageSizeMb）同理：默认 26 MB，client.json 可改，和后端 Rpc 节点保持一致。
-/// 每次调用都经 <see cref="UserHeader"/> 带上当前操作人，后端记操作日志、账单调整和配方的操作人都从这里取。
+///  客户端工厂
 /// </summary>
 public static class GrpcClientFactory
 {
     private const string DefaultAddress = "http://localhost:5000";
 
-    /// <summary>
-    /// 单条消息上限：gRPC 默认 4 MB，放到 26 MB 给大查询留余量
-    /// </summary>
-    private const int DefaultMaxMessageSizeMb = 26;
+    private const int DefaultMaxMessageSizeMb = 16;
 
 
     /// <summary>
@@ -34,13 +25,10 @@ public static class GrpcClientFactory
     /// </summary>
     private static CallInvoker? _invoker;
 
-    /// <summary>
-    /// 在程序启动时调用一次，创建全局唯一的 GrpcChannel。
-    /// </summary>
     public static void Initialize(string? address = null)
     {
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
-        var config = ReadClientConfig();
+        var config = ReadClientConfig();  //读出服务端的基础配置就是地址
         address ??= config.GrpcAddress ?? DefaultAddress;
         int maxMessageSizeMb = DefaultMaxMessageSizeMb;
         if (config.MaxMessageSizeMb > 0)
@@ -48,11 +36,12 @@ public static class GrpcClientFactory
             maxMessageSizeMb = config.MaxMessageSizeMb;
         }
 
+        //创建通道，记录地址 
         var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
             MaxReceiveMessageSize = maxMessageSizeMb * 1024 * 1024,
         });
-        _invoker = channel.Intercept(new UserHeader());
+        _invoker = channel.Intercept(new UserHeader());  //创建通道增加外壳
         ClientLog.Info("Client", $"gRPC 通道：{address}，单条消息上限 {maxMessageSizeMb} MB");
     }
 
@@ -62,7 +51,7 @@ public static class GrpcClientFactory
     }
 
     /// <summary>
-    /// 读 exe 旁的 client.json（可缺），例如 { "GrpcAddress": "http://localhost:5050", "MaxMessageSizeMb": 26 }。
+    /// 读 exe 旁的 client.json（可缺），例如 { "GrpcAddress": "http://localhost:5050", "MaxMessageSizeMb": 16 }。
     /// 文件不存在、格式不对、字段缺失都按默认值处理，不让配置问题挡启动。
     /// </summary>
     private static ClientConfig ReadClientConfig()
@@ -96,8 +85,7 @@ public static class GrpcClientFactory
 
     private static CallInvoker GetInvoker()
     {
-        return _invoker
-            ?? throw new InvalidOperationException("请先在程序启动时调用 GrpcClientFactory.Initialize()");
+        return _invoker?? throw new InvalidOperationException("请先在程序启动时调用 GrpcClientFactory.Initialize()");
     }
 
     /// <summary>

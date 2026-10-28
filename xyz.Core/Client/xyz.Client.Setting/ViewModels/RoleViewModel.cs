@@ -173,20 +173,9 @@ public class RoleViewModel : BaseViewModel
     {
         BuildRows();
 
+        // 账号变了是留存消息（后端开机也推一条）：订上就补发、重连时后端重放，收到就拉
         _accountSubscription?.Dispose();
-        _accountSubscription = RemoteEventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadRolesAsync(null));
-
-        RemoteConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteConnection.ConnectionChanged += OnConnectionChanged;
-        OnConnectionChanged(RemoteConnection.IsConnected);
-    }
-
-    private void OnConnectionChanged(bool connected)
-    {
-        if (connected)
-        {
-            _ = LoadRolesAsync(null);
-        }
+        _accountSubscription = RemoteEventSubscriber.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = LoadRolesAsync(null));
     }
 
     #region 权限表
