@@ -56,7 +56,7 @@ public class RolePermissionsDto
 }
 
 /// <summary>
-/// 账号、角色、权限变了的通知：登录着的客户端重新取自己的会话，用户、角色页重拉
+/// 账号、角色、权限变了的通知（留存，开机也推一条）：登录着的客户端重新取自己的会话，用户、角色页重拉
 /// </summary>
 public class AccountChangedDto
 {

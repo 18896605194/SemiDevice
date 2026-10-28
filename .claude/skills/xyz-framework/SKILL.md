@@ -34,7 +34,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
   `request.Get(RpcParams.Keyword, "")`；契约注释一句短话，不写参数（2026-10-26 用户改）。
   服务都继承 `BaseService`，回包用它的 `Fail` / `NotInstalled` / `Reply` / `ReplyData` / `InvalidRequest`，不在服务里各写私有的（见 backend.md §5「返回」）。
 - 设备树：machine.xml 一个节点 = 一个元件实例（`Type` 写类型全名），模块是带状态和动作的元件；后端启动时装配整棵树，按开机几个阶段走：
-  元件初始化（`InitElement`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted`，退出先停扫描（等手上这一拍扫完）、再倒着 `OnStopping`。元件自己的开机准备、收尾、推送
+  元件初始化（`InitElement`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted` → 开机推送 `PublishOnStartup`（界面一连上就要拿到的，留存），退出先停扫描（等手上这一拍扫完）、再倒着 `OnStopping`。元件自己的开机准备、收尾、推送
   都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体元件，加元件不用改它们。
 - 设备动作 = `ModuleRoutine`（按顺序走的一串有名字的步骤，平台建动作、机型往里加步骤），在模块扫描线程里一步步推进；RPC 线程只发起和等待。
 - **xyz.Modules 只放模块**（2026-10-27 用户定）：模块本体（`Base*Module`、整机 `SystemModule`）、模块自己的接口（`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`……）、动作步骤、状态表、状态码；

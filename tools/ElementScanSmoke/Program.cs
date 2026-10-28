@@ -94,7 +94,7 @@ Thread.Sleep(100);
 Check(selfStop.Count == 1, "after stopping itself the root scans no more");
 
 // 开机各阶段（元件自己的开机准备、收尾都挂在这几个钩子上）：元件初始化按 InitOrder、再按 machine.xml 先后，子元件跟着父元件；
-// Bind、OnStarted 按 machine.xml 先后（先父后子）；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
+// Bind、OnStarted、开机推送 PublishOnStartup 按 machine.xml 先后（先父后子），推送一个出错不耽误后面的；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
 // 进容器（宿主开机装配那一步，ElementLoader.Register）：每个元件按它实现的 xyz 接口登记，取一类全部按 machine.xml 先后、停用的连同下面跳过，
 // 同一接口登记了好几个、取一个的拿最后登记的，没人实现的取不到（null）；装好的树本身也登记（宿主开机、收尾按它走）。
 const string lifecycleXml = """
@@ -122,10 +122,13 @@ Check(IocHelper.GetService<ILifecycleProbe>()?.Name == "Faulty" && IocHelper.Get
 ElementLoader.InitAll(lifecycleRoots);
 ElementLoader.BindAll(lifecycleRoots);
 ElementLoader.StartedAll(lifecycleRoots);
+ElementLoader.PublishAll(lifecycleRoots);
 ElementLoader.StopAll(lifecycleRoots);
 Check(LifecycleProbe.Calls("Init") == "Early,Late,LateChild,Faulty", "InitAll goes by InitOrder, then machine.xml order; children follow their parent");
 Check(LifecycleProbe.Calls("Bind") == "Late,LateChild,Early,Faulty" && LifecycleProbe.Calls("Started") == "Late,LateChild,Early,Faulty",
     "Bind and OnStarted run in machine.xml order, parent before child");
+Check(LifecycleProbe.Calls("Publish") == "Late,LateChild,Early,Faulty",
+    "PublishAll runs PublishOnStartup in machine.xml order, parent before child, and an element that throws does not stop startup");
 Check(LifecycleProbe.Calls("Stopping") == "Faulty,Early,LateChild,Late", "StopAll runs in reverse and keeps going after an element throws");
 
 // machine.xml 里写错的参数名（元件上没有这个 [Machine] 属性）：照常装上，那一项还是默认值，记一条错误日志（开机读配置的事记在 Host 下），写清哪个节点、哪个名字
@@ -147,7 +150,7 @@ Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error && 
         && item.Message.Contains("TypoGroup.Typo") && item.Message.Contains("IsRunn")), 3000),
     "a misspelled machine.xml name is logged as an error naming the node path and the name");
 
-Console.WriteLine("PASS: configured root scans, case-insensitive machine.xml, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; on exit scans stop first (waiting for the scan in progress, none during or after OnStopping, a root stopping itself from its own scan does not hang); lifecycle stages (init by InitOrder, bind and started in machine.xml order, stopping in reverse past a failure), elements into the container by interface; a misspelled machine.xml name logged as an error and left at its default");
+Console.WriteLine("PASS: configured root scans, case-insensitive machine.xml, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; on exit scans stop first (waiting for the scan in progress, none during or after OnStopping, a root stopping itself from its own scan does not hang); lifecycle stages (init by InitOrder, bind, started and publish-on-startup in machine.xml order, stopping in reverse past a failure), elements into the container by interface; a misspelled machine.xml name logged as an error and left at its default");
 
 static void Check(bool condition, string message)
 {
@@ -256,6 +259,11 @@ public class LifecycleProbe : ElementBase, ILifecycleProbe
         Log.Enqueue(("Started", Name));
     }
 
+    public override void PublishOnStartup()
+    {
+        Log.Enqueue(("Publish", Name));
+    }
+
     public override void OnStopping()
     {
         Log.Enqueue(("Stopping", Name));
@@ -271,10 +279,16 @@ public sealed class DisabledLifecycleProbe : LifecycleProbe
     }
 }
 
-// 收尾出错：后面的照样收
+// 开机推送、收尾出错：开机照样往下走，后面的照样收
 [Element]
 public sealed class FaultyLifecycleProbe : LifecycleProbe
 {
+    public override void PublishOnStartup()
+    {
+        base.PublishOnStartup();
+        throw new InvalidOperationException("probe publish failure");
+    }
+
     public override void OnStopping()
     {
         base.OnStopping();

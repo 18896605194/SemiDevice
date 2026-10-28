@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using xyz.Common;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Enums;
@@ -114,6 +115,7 @@ public class AiElement : ElementBase, IAi
     private IAlarm? _alarms;
     private ILogElement? _logs;
     private IDataChart? _chart;
+    private IMapper? _mapper;
 
     /// <summary>
     /// 地址、模型名配错开机就报
@@ -152,6 +154,20 @@ public class AiElement : ElementBase, IAi
         _alarms = IocHelper.GetService<IAlarm>();
         _logs = IocHelper.GetService<ILogElement>();
         _chart = IocHelper.GetService<IDataChart>();
+        _mapper = IocHelper.GetService<IMapper>();
+    }
+
+    /// <summary>
+    /// 开机推一次 AI 状态（留存）：界面收到就显示 AI 工具栏；没配 AI 就没有这个元件、不推
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        if (_mapper is null)
+        {
+            return;
+        }
+
+        RemoteEventPublisher.Send(_mapper.Map<AiStatusDto>(this), AiStatusDto.EventToken);
     }
 
     public override void OnStopping()

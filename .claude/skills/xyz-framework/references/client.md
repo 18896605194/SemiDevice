@@ -160,7 +160,10 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 ### 事件
 - `RemoteEventSubscriber.Register<TDto>(TDto.EventToken 或模块名, handler)`：后端推的消息由 `RemoteEventConnection` 转到 **UI 线程**再派发，handler 里直接改绑定属性；
   返回的 `IDisposable` 存在字段里，Init 重复调时先 Dispose。黑板上有的（后端发的状态类）订上就会补发最后一条。
-- 连接状态：`RemoteEventConnection.ConnectionChanged -= On; += On;` 再 `On(RemoteEventConnection.IsConnected)`；连上时重拉全量（断线期间漏了推送）。
+- **页面不管连接**（2026-10-28 用户定）：要的数据都订推送——后端开机推、留存，订上就补发，客户端比后端先起、后端重启、断线重连都会重放；
+  要去拉的列表（账号、角色、配方、流程配方、晶圆账）订它的"变了"，收到就拉；日志设置、AI 状态、两张曲线的信号表直接订内容。
+  只有要**显示**连没连上的才订 `RemoteEventConnection.ConnectionChanged`（`-= On; += On;` 再 `On(RemoteEventConnection.IsConnected)`）：顶栏灯、模块状态栏"未连接"、
+  主页断开时清状态、配方 / 流程配方 / 晶圆账页断开时按钮点不了；客户端的公共缓存 `ClientAlarms`、`ClientEc`、`ClientAccount` 连上时重拉，页面从它们拿。
 - 页面之间的进程内通知用 `EventBus`（不出进程、没有黑板、在发送方线程上回调），跟后端推送是两条总线，互不相通（2026-10-27）。
 - 高频推送、查询请求用 Rx：`Throttle` / `Sample` + `Select(Observable.FromAsync(...))` + `Switch()` + `ObserveOn(SynchronizationContext)`（DataChart、RealChart）。
 - 后端推的是"变了"通知、界面自己重拉时，要攒一下再拉（DispatcherTimer 节流，见 WaferLedgerViewModel.RequestReload）。

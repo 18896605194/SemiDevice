@@ -48,11 +48,12 @@ public class LogViewModel : BaseViewModel, IDisposable
     private static LogViewModel? _active;
 
     private IDisposable? _subscription;
+    private IDisposable? _settingsSubscription;
     private CancellationTokenSource? _consumeCts;
     private Task? _consumer;
 
     /// <summary>
-    /// 界面最多保留的日志条数，超出丢最旧的；连上后端时按 machine.xml 的 Log 节点（LogBarDisplayMaxCount）更新。
+    /// 界面最多保留的日志条数，超出丢最旧的；收到后端推的日志设置时按 machine.xml 的 Log 节点（LogBarDisplayMaxCount）更新。
     /// </summary>
     private int _maxLogs = LogSettingsDto.DefaultLogBarDisplayMaxCount;
 
@@ -81,29 +82,22 @@ public class LogViewModel : BaseViewModel, IDisposable
         _consumeCts = new CancellationTokenSource();
         _consumer = ConsumeAsync(_consumeCts.Token);
 
-        // 历史补发：连上后端时拉一次（晚连上也能看到之前的报错）
-        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
-        if (RemoteEventConnection.IsConnected)
-        {
-            OnConnectionChanged(true);
-        }
+        // 日志设置是留存消息（后端开机推一次）：订上就补发、重连时后端重放；收到就照它定显示条数、补拉最近一段（晚连上也能看到之前的报错）
+        _settingsSubscription?.Dispose();
+        _settingsSubscription = RemoteEventSubscriber.Register<LogSettingsDto>(LogSettingsDto.EventToken, OnSettingsReceived);
     }
 
-    private async void OnConnectionChanged(bool connected)
+    /// <summary>
+    /// 收到日志设置（开机推的，重连时后端重放）：照它定显示条数，再补拉后端缓冲的最近一段
+    /// </summary>
+    private async void OnSettingsReceived(LogSettingsDto settings)
     {
-        if (!connected)
-        {
-            return;
-        }
-
-        var service = GrpcClientFactory.Create<ILogService>();
-        await LoadSettingsAsync(service);
+        ApplySettings(settings);
 
         try
         {
             // 后端缓冲里有多少补多少（缓冲条数在 machine.xml 的 Log 节点配）
-            var response = await service.GetRecentAsync(new RpcRequest());
+            var response = await GrpcClientFactory.Create<ILogService>().GetRecentAsync(new RpcRequest());
             if (!response.Success)
             {
                 return;
@@ -123,37 +117,23 @@ public class LogViewModel : BaseViewModel, IDisposable
         }
         catch
         {
-            // 后端不可用：断线重连时还会再拉
+            // 后端不可用：重连时后端重放日志设置，还会再拉
         }
     }
 
     /// <summary>
-    /// 取后端的日志设置（machine.xml 的 Log 节点）：客户端日志文件也照后端的天数留；显示条数配小了就马上把多出来的旧日志丢掉；取不到保持现值。
+    /// 照后端的日志设置（machine.xml 的 Log 节点）：客户端日志文件也照后端的天数留；显示条数配小了就马上把多出来的旧日志丢掉
     /// </summary>
-    private async Task LoadSettingsAsync(ILogService service)
+    private void ApplySettings(LogSettingsDto settings)
     {
-        try
+        ClientLog.SetKeepDays(settings.KeepDays);
+        if (settings.LogBarDisplayMaxCount <= 0)
         {
-            var response = await service.GetSettingsAsync(new RpcRequest());
-            var settings = response.Success ? JsonHelper.Deserialize<LogSettingsDto>(response.Data) : null;
-            if (settings is null)
-            {
-                return;
-            }
-
-            ClientLog.SetKeepDays(settings.KeepDays);
-            if (settings.LogBarDisplayMaxCount <= 0)
-            {
-                return;
-            }
-
-            _maxLogs = settings.LogBarDisplayMaxCount;
-            TrimOldest();
+            return;
         }
-        catch
-        {
-            // 后端不可用：断线重连时还会再拉
-        }
+
+        _maxLogs = settings.LogBarDisplayMaxCount;
+        TrimOldest();
     }
 
     private async Task ConsumeAsync(CancellationToken token)
@@ -210,7 +190,8 @@ public class LogViewModel : BaseViewModel, IDisposable
     {
         Interlocked.CompareExchange(ref _active, null, this);
 
-        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
+        _settingsSubscription?.Dispose();
+        _settingsSubscription = null;
 
         _consumeCts?.Cancel();
         _consumeCts?.Dispose();

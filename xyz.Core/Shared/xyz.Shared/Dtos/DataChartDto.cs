@@ -33,11 +33,13 @@ public class DataChartSignalDto
 }
 
 /// <summary>
-/// 数据曲线能选哪些信号（RpcResponse.Data 的 JSON）：就是正在记的那些——machine.xml 里配置了的（元件上的 SV + 元件绑的 IO），
-/// 顺序跟 machine.xml 一样；库里记的也正是这些。
+/// 数据曲线能选哪些信号：后端开机推一次（token = EventToken，留存），点刷新也能拉（RpcResponse.Data 的 JSON）。
+/// 就是正在记的那些——machine.xml 里配置了的（元件上的 SV + 元件绑的 IO），顺序跟 machine.xml 一样；库里记的也正是这些。
 /// </summary>
 public class DataChartSignalsDto
 {
+    public const string EventToken = "DataChartSignals";
+
     public List<DataChartSignalDto> Signals { get; set; } = [];
 
     /// <summary>

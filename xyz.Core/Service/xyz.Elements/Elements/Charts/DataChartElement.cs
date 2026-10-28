@@ -4,6 +4,7 @@ using System.Reactive.Subjects;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using xyz.Common;
+using xyz.Common.Events;
 using xyz.Common.Log;
 using xyz.Elements.Attributes;
 using xyz.Elements.Collectors;
@@ -11,6 +12,7 @@ using xyz.Elements.Enums;
 using xyz.Elements.Interfaces;
 using xyz.Elements.Models;
 using xyz.Database.DbProvider;
+using xyz.Shared.Dtos;
 using xyz.Tools;
 
 namespace xyz.Elements.Elements;
@@ -109,6 +111,11 @@ public class DataChartElement : ElementBase, IDataChart
     private string? _lastFault;
 
     /// <summary>
+    /// 映射元件（开机 Bind 时取）：信号表转成给界面的样子
+    /// </summary>
+    private IMapper? _mapper;
+
+    /// <summary>
     /// 开机（开始扫描之前）：照整棵元件树定信号表、开写库管道
     /// </summary>
     public override void Bind()
@@ -117,10 +124,24 @@ public class DataChartElement : ElementBase, IDataChart
     }
 
     /// <summary>
-    /// 装配完、开始扫描之前调一次：照元件树定信号表、开写库管道
+    /// 开机推一次信号表（留存）：界面连上（含重连）就照它长勾选树
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        if (_mapper is null)
+        {
+            return;
+        }
+
+        RemoteEventPublisher.Send(_mapper.Map<DataChartSignalsDto>(this), DataChartSignalsDto.EventToken);
+    }
+
+    /// <summary>
+    /// 装配完、开始扫描之前调一次：取映射元件，照元件树定信号表、开写库管道
     /// </summary>
     public void Bind(IReadOnlyList<ElementBase> roots)
     {
+        _mapper = IocHelper.GetService<IMapper>();
         if (_bound)
         {
             return;

@@ -17,14 +17,11 @@ public class RealChartService : BaseService, IRealChartService
 {
     private readonly IRealChart? _realChart;
 
-    private readonly IDataChart? _dataChart;
-
     private readonly IMapper _mapper;
 
     public RealChartService()
     {
         _realChart = IocHelper.GetService<IRealChart>();
-        _dataChart = IocHelper.GetService<IDataChart>();
         _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
@@ -35,15 +32,8 @@ public class RealChartService : BaseService, IRealChartService
             return NotInstalled(ErrorCodes.RealChartNotInstalled);
         }
 
-        var layout = new RealChartLayoutDto
-        {
-            Session = _realChart.Session,
-            SampleIntervalMs = _realChart.SampleIntervalMs,
-            WindowSeconds = _realChart.WindowSeconds,
-            MaxSignals = Math.Max(1, _dataChart?.QueryMaxSignals ?? 20),
-            ScreenshotDirectory = _dataChart?.ScreenshotDirectory ?? string.Empty,
-            Signals = _realChart.Signals.Select(signal => _mapper.Map<DataChartSignalDto>(signal)).ToList(),
-        };
+        // 跟实时曲线元件开机推的是同一份
+        var layout = _mapper.Map<RealChartLayoutDto>(_realChart);
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(layout)));
     }
 

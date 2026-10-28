@@ -1,0 +1,12 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <sys:String x:Key="preview.title">Robot controls · shared motion and wafer data in 2D / 3D</sys:String>
+    <sys:String x:Key="preview.original">Existing Robot · original 2D control</sys:String>
+    <sys:String x:Key="preview.three_d">Same Robot · 3D view (drag to orbit / wheel to zoom)</sys:String>
+    <sys:String x:Key="preview.existing">Existing framework controls · ChamberScene / LoadPortScene</sys:String>
+    <sys:String x:Key="preview.frog">Frog leg</sys:String>
+    <sys:String x:Key="preview.linear">Linear</sys:String>
+    <sys:String x:Key="preview.arm1">Extend Arm1</sys:String>
+    <sys:String x:Key="preview.arm2">Extend Arm2</sys:String>
+    <sys:String x:Key="preview.retract">Retract all</sys:String>
+    <sys:String x:Key="preview.wafer">Arm1 wafer / empty</sys:String>
+</ResourceDictionary>

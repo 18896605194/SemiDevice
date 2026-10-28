@@ -27,8 +27,9 @@ waits the given number of seconds, then prints:
 
 - `connected`: event stream state;
 - `viewModel.Logs`: how many log lines the UI view model ended up with — this includes
-  backend history pulled on connect via `ILogService.GetRecentAsync`, so a client that
-  starts *after* the backend still sees earlier errors;
+  backend history pulled via `ILogService.GetRecentAsync` as soon as the retained `LogSettingsDto`
+  arrives (the backend pushes it at startup and replays it on every connect), so a client that
+  starts *after* the backend — or before it — still sees earlier errors;
 - `GetRecent.Success` / `Data`: a direct history-query probe against the backend;
 - `sample`: the newest line the UI would show.
 

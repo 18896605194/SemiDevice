@@ -1,10 +1,12 @@
 ﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 日志显示设置（后端 machine.xml 的 Log 节点），客户端连上后端时拉一次；没拉到之前用这里的默认值。
+/// 日志显示设置（后端 machine.xml 的 Log 节点）：后端开机推一次（token = EventToken，留存）；没收到之前用这里的默认值。
 /// </summary>
 public class LogSettingsDto
 {
+    public const string EventToken = "LogSettings";
+
     /// <summary>
     /// 实时日志页最多显示条数的默认值。
     /// </summary>

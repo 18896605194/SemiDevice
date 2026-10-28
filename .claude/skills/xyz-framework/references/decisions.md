@@ -1821,3 +1821,27 @@
   存库的表名、列名没变（实体里只改了注释），protobuf 契约按编号走、改属性名不影响。
 - **验证**：整编 0 错误（10 个警告都是原来就有的）；试改的副本里 IoIndexSmoke、ElementScanSmoke 单独编过；用户说这次不跑冒烟，宿主也没起。
   部署后宿主的 machine.xml 是新 Type（177 处，旧名 0 处），`Modules\35021` 只剩 `xyz.Elements.dll`。
+
+## 开机推送归元件、页面不管连接（2026-10-28，用户问"RemoteEventConnection.ConnectionChanged -= / += / OnConnectionChanged(IsConnected) 为什么每一个 viewmodel 里面都有这个"、"很简单，不能不要吗"、"或者不要通过这种方式要"；看了集中写一个 StartupPush 的方案后："这样设计不好，在组件里面就是开一个不好吗？就是开机推送的话由自己组件实现，然后统一遍历调用一下……以后新增加的可以就是很自然的扩展"、"那你直接就修改呗"）
+- **起因**：页面要的数据一半是推的（状态类留存，重连时后端重放，页面不用管），一半是页面自己用 RPC 拉的（账号、配方、晶圆账、日志设置、AI 状态、曲线信号表）。
+  后端改了只推一条不留存的"变了"，断线时、客户端比后端先起时（App 最多等后端 60 秒，等不到照样初始化页面）、后端重启时都会漏，所以 15 个页面加 3 个客户端缓存各挂 `ConnectionChanged`、连上重拉，写法还有四种。
+- **现在**：`ElementBase.PublishOnStartup()`（空虚方法）+ `ElementLoader.PublishAll`（开机第五步，`StartedAll` 之后整棵树按 machine.xml 先后挨个调，一个出错记日志、不耽误后面的）；
+  启动代码只调 `PublishAll`、不点名元件，项目上新加的元件要推就重写它（跟 10-18「推送和开机归元件自己」一个思路，没另写集中推送的类）。
+  界面收到就去拉的"变了"改成留存、开机再推一条：工艺配方库、流程配方库（`*ChangedDto`）、账号（`AccountChangedDto`）、晶圆账（`WaferLedgerChangedDto`，站点空着）。
+  开机后就不变的直接推内容：日志设置（`LogSettingsDto`，`ILogElement.Settings()` 出，服务也用它）、AI 状态（配了 AI 才有这个元件、才推）、实时曲线信号表（`RealChartLayoutDto`，
+  实时曲线元件转发数据曲线的最多几条、截图目录，`IRealChart` 加了这两项）、数据曲线信号表（`DataChartSignalsDto`，映射规则把 `QueryMaxSignals` 转成至少 1 的 `MaxSignals`）——
+  后三个走映射元件，跟服务回的是同一份。新 token："LogSettings"、"AiStatus"、"RealChartLayout"、"DataChartSignals"。
+- **客户端**：账号页、角色页、腔体手动页、实时报警页、顶栏日志、实时日志页、日志历史页、两张曲线页不再订 `ConnectionChanged`：订"变了"收到就拉，或者直接订内容（订上就补发、重连时后端重放）。
+  主页"连上再拉流程配方"那一行删了（重放的"变了"会触发）。腔体手动页配方框默认能手输：没装配方库就没人推，收到推送、拉到列表才改成只能选。
+  两张曲线页的"刷新"按钮、实时曲线帧对不上会话号时照旧走 RPC 拉，拉来的和推来的走同一个换上的方法；数据曲线收到推送只在还没有信号表时换上（跟原来"没拉到才重拉"一样）。
+- **没改的**：要显示连没连上的照旧订 `ConnectionChanged`——顶栏灯、模块状态栏、主页（断开清状态）、工艺配方 / 流程配方 / 晶圆账页（按钮能不能点看连没连上；它们连上时的重拉跟重放的"变了"重了，
+  有"一串通知只拉一次"的定时器挡着）；客户端公共缓存 `ClientAlarms`、`ClientEc`（报警、EC 是逐条推的，连上要拉全表）、`ClientAccount`（连上先问登录开关、再刷会话，有先后，没并进"账号变了"）。
+  `GetSettings` / `GetStatus` / `GetLayout` / `GetSignals` 四个 RPC 留着（刷新按钮、冒烟在用）。
+- **已知**：元件没配就没人推——AI 当没配（对）；两张曲线页空着，不再显示"没装"那行字（点刷新才显示）；后端换了配置去掉某个功能，客户端黑板上还留着旧的那份，要重开客户端。
+- **冒烟加的检查**：ElementScanSmoke（`PublishAll` 按 machine.xml 先后先父后子、一个抛异常开机照走）；AccountSmoke（开机推一条账号变了、后订阅马上补发）；
+  ProcessRecipe / Sequence / WaferLedger（后订阅先补发上一条，原来数推送条数的地方从订上以后开始数）；AiSmoke（AI 状态留在黑板上、跟服务回的一样）；
+  DataCenterSmoke（日志设置、实时曲线、数据曲线开机推的跟服务回的一样，最多几条、截图目录、信号顺序都对）。
+- **验证**：整个 sln Debug 0 错误（还是原来那 10 条警告）；35 个冒烟 34 个过，改到的 9 个单独重跑退出码都是 0（Account 109、Ai 43、DataCenter 127、ProcessRecipe 181、
+  Sequence 86、WaferLedger 211、EventBus 34、LogPipeline 20、ElementScan）；HsmsSmoke 挂在「断开后应自动重连」，没改过的 HEAD 检出到临时目录也连挂 3 次，跟这次无关、没修。
+  真宿主 + LogPipelineSmoke 客户端模式：客户端先起、宿主 6 秒后才起，客户端自己连上，顶栏日志拿到宿主开始监听之前写的日志（11 条，只能靠收到日志设置后补拉）；宿主先起也一样；
+  宿主日志没有"开机推送出错"。客户端界面没真开（界面样子没改）。

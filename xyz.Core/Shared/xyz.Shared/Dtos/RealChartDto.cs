@@ -1,10 +1,12 @@
 ﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 实时曲线的信号表（RpcResponse.Data 的 JSON）：每帧的值按 Signals 的顺序排。
+/// 实时曲线的信号表：后端开机推一次（token = EventToken，留存），点刷新也能拉（RpcResponse.Data 的 JSON）；每帧的值按 Signals 的顺序排。
 /// </summary>
 public class RealChartLayoutDto
 {
+    public const string EventToken = "RealChartLayout";
+
     /// <summary>
     /// 这一轮采样的标识：帧上带的对不上，说明后端重启过，信号表要重新拉。
     /// </summary>

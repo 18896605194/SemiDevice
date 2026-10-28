@@ -64,6 +64,24 @@ public static class ElementLoader
     }
 
     /// <summary>
+    /// 开机第五步：都起来以后，整棵树按 machine.xml 先后挨个 PublishOnStartup；一个出错不耽误后面的
+    /// </summary>
+    public static void PublishAll(IEnumerable<ElementBase> roots)
+    {
+        foreach (var element in Walk(roots))
+        {
+            try
+            {
+                element.PublishOnStartup();
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Error(element, $"开机推送出错：{exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// 宿主退出：先停根元件的扫描（等手上这一拍扫完），再整棵树倒着挨个 OnStopping（后起来的先收）；一个出错不耽误后面的
     /// </summary>
     public static void StopAll(IEnumerable<ElementBase> roots)

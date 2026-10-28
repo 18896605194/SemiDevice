@@ -2,7 +2,7 @@
 
 /// <summary>
 /// 工艺配方列表（配方 → 工艺配方页左边，也是流程配方页、腔体手动页选工艺配方的弹窗里列的）：编号 1~Capacity，只带用了的编号。
-/// 内容一变（新建、改名、删除、保存）后端就推一条 <see cref="ProcessRecipeChangedDto"/>（token = EventToken，不留存），界面收到后自己重拉。
+/// 内容一变（新建、改名、删除、保存）后端就推一条 <see cref="ProcessRecipeChangedDto"/>（token = EventToken，留存，开机也推一条），界面收到后自己重拉。
 /// </summary>
 public class ProcessRecipeListDto
 {

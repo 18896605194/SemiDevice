@@ -1,0 +1,49 @@
+<Window x:Class="RobotControlPreview.Preview"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation"
+    Title="{DynamicResource preview.title}" Width="1160" Height="880" MinWidth="960" MinHeight="720"
+    Background="{DynamicResource DarkSurfaceBackground}" Foreground="{DynamicResource DarkPrimaryText}">
+    <Grid x:Name="Root" Margin="16" Background="{DynamicResource DarkSurfaceBackground}" TextElement.Foreground="{DynamicResource DarkPrimaryText}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="240" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="{DynamicResource preview.title}" FontSize="{DynamicResource Size18}" Margin="0,0,0,12" />
+        <Border Grid.Row="1" Style="{DynamicResource ToolbarBorderStyle}">
+            <WrapPanel>
+                <Button x:Name="Structure" Content="{DynamicResource preview.frog}" Click="OnStructure" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="{DynamicResource robot.direction.north}" Tag="0" Click="OnDirection" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="{DynamicResource robot.direction.south}" Tag="180" Click="OnDirection" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="{DynamicResource robot.direction.east}" Tag="90" Click="OnDirection" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="{DynamicResource preview.arm1}" Tag="1" Click="OnArm" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="{DynamicResource preview.arm2}" Tag="2" Click="OnArm" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="{DynamicResource preview.retract}" Click="OnRetract" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="{DynamicResource preview.wafer}" Click="OnWafer" Style="{DynamicResource ToolbarButtonStyle}" />
+            </WrapPanel>
+        </Border>
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition /></Grid.RowDefinitions>
+                <TextBlock Text="{DynamicResource preview.original}" FontSize="{DynamicResource Size14}" />
+                <controls:Robot x:Name="Flat" Grid.Row="1" Margin="8" />
+            </Grid>
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition /></Grid.RowDefinitions>
+                <TextBlock Text="{DynamicResource preview.three_d}" FontSize="{DynamicResource Size14}" />
+                <controls:Robot x:Name="Solid" Grid.Row="1" Use3D="True" Margin="8" />
+            </Grid>
+        </Grid>
+        <TextBlock Grid.Row="3" Text="{DynamicResource preview.existing}" Margin="0,12,0,8" FontSize="{DynamicResource Size14}" />
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions>
+            <threeD:ChamberScene x:Name="Chamber" Margin="0,0,12,0" />
+            <threeD:LoadPortScene x:Name="LoadPort" Grid.Column="1" />
+        </Grid>
+    </Grid>
+</Window>

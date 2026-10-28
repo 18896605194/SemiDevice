@@ -351,6 +351,14 @@ try
     var logSettings = JsonHelper.Deserialize<LogSettingsDto>(settingsReply.Data)!;
     Check(settingsReply.Success && logSettings.KeepDays == 30 && logSettings.Modules.SequenceEqual(moduleLog.Modules),
         "日志设置带给客户端：保留天数、模块下拉的选项");
+    // 开机推送：日志元件推一份日志设置（留存），界面后打开也马上补发；跟服务回的是同一份
+    moduleLog.PublishOnStartup();
+    LogSettingsDto? pushedSettings = null;
+    using (RemoteEventSubscriber.Register<LogSettingsDto>(LogSettingsDto.EventToken, dto => pushedSettings = dto))
+    {
+        Check(pushedSettings is not null && JsonHelper.Serialize(pushedSettings) == settingsReply.Data,
+            "开机推送：日志设置留在黑板上，后订阅的马上补发，跟服务回的一样");
+    }
     SmokeIoc.Use<ILogElement>(logElement);
     SmokeIoc.Use<IReadOnlyList<ElementBase>>(null);
 
@@ -707,6 +715,30 @@ try
         Check(frames.Count >= 3 && frames.All(frame => frame.Session == realChart.Session && frame.Values.Count == realSource.Signals.Count)
               && realChart.Recent().Count >= frames.Count,
             $"实时曲线在自己的扫描里推：{frames.Count} 帧，每帧带这一轮的标识、值跟信号表一样多，最近一段内存里都留着");
+    }
+
+    // 开机推送：实时曲线、数据曲线各推一份信号表（留存），界面后打开也马上补发；跟服务回的是同一份（映射元件按同一条规则转）
+    realChart.Bind(); // 开机 Bind：取映射元件，接回同一个数据曲线
+    realChart.PublishOnStartup();
+    realSource.PublishOnStartup();
+    RealChartLayoutDto? pushedLayout = null;
+    DataChartSignalsDto? pushedSignals = null;
+    using (RemoteEventSubscriber.Register<RealChartLayoutDto>(RealChartLayoutDto.EventToken, dto => pushedLayout = dto))
+    using (RemoteEventSubscriber.Register<DataChartSignalsDto>(DataChartSignalsDto.EventToken, dto => pushedSignals = dto))
+    {
+        var layoutReply = await new RealChartService().GetLayoutAsync(new RpcRequest());
+        var signalsReply = await new DataChartService().GetSignalsAsync(new RpcRequest());
+        var signalNames = realSource.Signals.Select(signal => signal.Name).ToList();
+        Check(pushedLayout is not null && layoutReply.Success && JsonHelper.Serialize(pushedLayout) == layoutReply.Data
+              && pushedLayout.Session == realChart.Session && pushedLayout.WindowSeconds == 60 && pushedLayout.SampleIntervalMs == 200
+              && pushedLayout.MaxSignals == realSource.QueryMaxSignals && pushedLayout.ScreenshotDirectory == realSource.ScreenshotDirectory
+              && pushedLayout.Signals.Select(signal => signal.Name).SequenceEqual(signalNames),
+            "开机推送：实时曲线的信号表留在黑板上，跟服务回的一样（会话号、留多久、采样周期、最多几条、截图目录跟数据曲线、信号顺序）");
+        Check(pushedSignals is not null && signalsReply.Success && JsonHelper.Serialize(pushedSignals) == signalsReply.Data
+              && pushedSignals.MaxSignals == realSource.QueryMaxSignals && pushedSignals.SampleIntervalMs == 200
+              && pushedSignals.ScreenshotDirectory == realSource.ScreenshotDirectory
+              && pushedSignals.Signals.Select(signal => signal.Name).SequenceEqual(signalNames),
+            "开机推送：数据曲线的信号表留在黑板上，跟服务回的一样（最多几条、采样周期、截图目录、信号顺序）");
     }
 
     // IO 绑定的信号名：元件路径 + 配置项名去掉 Index；DI 元件只有一个点，就是元件路径（Door__Opened，不再带 __Di）

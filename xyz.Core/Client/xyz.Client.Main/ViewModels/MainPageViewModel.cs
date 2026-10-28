@@ -302,7 +302,7 @@ public class MainPageViewModel : BaseViewModel
             _loadPortSubscriptions.Add(RemoteEventSubscriber.Register<LoadPortDto>(port.Name, port.Update));
         }
 
-        // Sequence 列表：连上后端时拉，流程配方库变了（新建、改名、删除）再拉
+        // Sequence 列表：流程配方库开机推一条变更（留存）、变了（新建、改名、删除）再推，订上就补发、重连时后端重放，收到就拉
         _sequenceSubscription?.Dispose();
         _sequenceSubscription = RemoteEventSubscriber.Register<SequenceChangedDto>(SequenceListDto.EventToken, changed => _ = LoadSequences());
 
@@ -319,20 +319,22 @@ public class MainPageViewModel : BaseViewModel
         OnConnectionChanged(RemoteEventConnection.IsConnected);
     }
 
+    /// <summary>
+    /// 连接状态只管显示：断开时清掉不可信的状态、按钮点不了；连上以后要的数据都靠后端重放的推送，这里不拉
+    /// </summary>
     private void OnConnectionChanged(bool connected)
     {
         IsConnected = connected;
-        if (!connected)
+        if (connected)
         {
-            // 断开后不知道设备现在是什么状态、有哪些 Job，等重连后后端重放
-            _system = null;
-            _status = null;
-            OnJobsChanged(null);
-            RefreshSystem();
             return;
         }
 
-        _ = LoadSequences();
+        // 断开后不知道设备现在是什么状态、有哪些 Job，等重连后后端重放
+        _system = null;
+        _status = null;
+        OnJobsChanged(null);
+        RefreshSystem();
     }
 
     private void OnSystemChanged(SystemStateDto system)

@@ -130,6 +130,9 @@ try
         var afterRebind = new List<int>();
         using (RemoteEventSubscriber.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => afterRebind.Add(dto.Index)))
         {
+            // 变更是留存消息：订上先补发黑板上的上一条（切回 12 寸那条），从这里开始数
+            Check(afterRebind.SequenceEqual([0]), "变更留在黑板上：后订阅的马上补发上一条（切回 12 寸那条）");
+            afterRebind.Clear();
             sizeProbe.SetSize(8);
         }
 
@@ -140,6 +143,7 @@ try
     //    版本 1，记创建人；写成 001.xml。名称、编号不对的回错误码，不建、不发事件。
     var changed = new List<int>();
     using var changedSubscription = RemoteEventSubscriber.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => changed.Add(dto.Index));
+    changed.Clear(); // 订上补发的上一条（留存）不算，从这里开始数
     var created = library.Create(1, "  SC1_CLEAN ", "Tester");
     Check(created.IsSuccess && Data(created) is not null && Data(created)!.Name == "SC1_CLEAN" && Data(created)!.Revision == 1
           && Data(created)!.CreatedBy == "Tester" && Data(created)!.ModifiedBy == "Tester", "新建：版本 1，记创建人");

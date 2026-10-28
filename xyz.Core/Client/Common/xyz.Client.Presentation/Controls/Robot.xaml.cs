@@ -138,6 +138,7 @@ public partial class Robot : UserControl
         InitializeComponent();
         IsVisibleChanged += OnIsVisibleChanged;
         SyncArms();
+        UpdateRenderMode();
     }
 
     /// <summary>
@@ -146,6 +147,29 @@ public partial class Robot : UserControl
     public ObservableCollection<ArmVisual> ArmVisuals { get; } = new();
 
     #region 依赖属性
+
+    /// <summary>使用框架三维外观；二维和三维共用本控件的运动轨道、ArmVisual 与晶圆数据。</summary>
+    public bool Use3D
+    {
+        get => (bool)GetValue(Use3DProperty);
+        set => SetValue(Use3DProperty, value);
+    }
+
+    public static readonly DependencyProperty Use3DProperty = DependencyProperty.Register(
+        nameof(Use3D), typeof(bool), typeof(Robot),
+        new PropertyMetadata(false, (sender, _) => ((Robot)sender).UpdateRenderMode()));
+
+    private void UpdateRenderMode()
+    {
+        if (FlatView is null || ThreeDView is null)
+        {
+            return;
+        }
+
+        FlatView.Visibility = Use3D ? Visibility.Collapsed : Visibility.Visible;
+        ThreeDView.Visibility = Use3D ? Visibility.Visible : Visibility.Collapsed;
+        PushFrame();
+    }
 
     public RobotArmType ArmType
     {
@@ -621,6 +645,12 @@ public partial class Robot : UserControl
                 layers[index],
                 dimmed ? DimmedOpacity : 1,
                 frogLeg);
+        }
+
+        if (Use3D)
+        {
+            ThreeDView.SetPose(ArmType, _rotation.Value, _travel.Value, ArmVisuals,
+                (Geometry)Resources[frogLeg ? "FrogLegForkGeometry" : "LinearForkGeometry"]);
         }
     }
 

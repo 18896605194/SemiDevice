@@ -114,8 +114,10 @@ public class LogRealtimeViewModel : BaseViewModel
 
     private IDisposable? _subscription;
 
+    private IDisposable? _settingsSubscription;
+
     /// <summary>
-    /// 页面最多保留的日志条数，超出丢最旧的；连上后端时按 machine.xml 的 Log 节点（RealtimeDisplayMaxCount）更新。
+    /// 页面最多保留的日志条数，超出丢最旧的；收到后端推的日志设置时按 machine.xml 的 Log 节点（RealtimeDisplayMaxCount）更新。
     /// </summary>
     private int _maxLogs = LogSettingsDto.DefaultRealtimeDisplayMaxCount;
 
@@ -138,25 +140,17 @@ public class LogRealtimeViewModel : BaseViewModel
         _subscription?.Dispose();
         _subscription = RemoteEventSubscriber.Register<LogDto>(LogDto.EventToken, dto => Receive(LogModel.From(dto)));
 
-        RemoteEventConnection.ConnectionChanged -= OnConnectionChanged;
-        RemoteEventConnection.ConnectionChanged += OnConnectionChanged;
-        if (RemoteEventConnection.IsConnected)
-        {
-            OnConnectionChanged(true);
-        }
+        // 日志设置是留存消息（后端开机推一次）：订上就补发、重连时后端重放
+        _settingsSubscription?.Dispose();
+        _settingsSubscription = RemoteEventSubscriber.Register<LogSettingsDto>(LogSettingsDto.EventToken, OnSettingsReceived);
     }
 
     /// <summary>
-    /// 连上后端时补拉最近一段（晚连上也能看到之前的日志）；已经在表里的不重复加。
+    /// 收到日志设置（开机推的，重连时后端重放）：照它定显示条数，再补拉最近一段（晚连上也能看到之前的日志）；已经在表里的不重复加。
     /// </summary>
-    private async void OnConnectionChanged(bool connected)
+    private async void OnSettingsReceived(LogSettingsDto settings)
     {
-        if (!connected)
-        {
-            return;
-        }
-
-        await LoadSettingsAsync();
+        ApplySettings(settings);
 
         try
         {
@@ -179,31 +173,22 @@ public class LogRealtimeViewModel : BaseViewModel
         }
         catch
         {
-            // 后端不可用：断线重连时还会再拉。
+            // 后端不可用：重连时后端重放日志设置，还会再拉。
         }
     }
 
     /// <summary>
-    /// 取后端配的显示条数（machine.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
+    /// 照后端配的显示条数（machine.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉。
     /// </summary>
-    private async Task LoadSettingsAsync()
+    private void ApplySettings(LogSettingsDto settings)
     {
-        try
+        if (settings.RealtimeDisplayMaxCount <= 0)
         {
-            var response = await _service.GetSettingsAsync(new RpcRequest());
-            var settings = response.Success ? JsonHelper.Deserialize<LogSettingsDto>(response.Data) : null;
-            if (settings is null || settings.RealtimeDisplayMaxCount <= 0)
-            {
-                return;
-            }
+            return;
+        }
 
-            _maxLogs = settings.RealtimeDisplayMaxCount;
-            TrimOldest();
-        }
-        catch
-        {
-            // 后端不可用：断线重连时还会再拉。
-        }
+        _maxLogs = settings.RealtimeDisplayMaxCount;
+        TrimOldest();
     }
 
     private void Receive(LogModel model)

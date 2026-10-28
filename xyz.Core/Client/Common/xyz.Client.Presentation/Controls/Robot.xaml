@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:xyz.Client.Presentation.Controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD"
     d:DesignHeight="400"
     d:DesignWidth="400"
     mc:Ignorable="d">
@@ -185,6 +186,7 @@
     <!--  背景透明、不裁剪：手臂伸出与平移可以画到控件范围之外  -->
     <Grid>
         <Viewbox
+            x:Name="FlatView"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Stretch="Uniform">
@@ -635,5 +637,6 @@
                 </Canvas>
             </Grid>
         </Viewbox>
+        <threeD:RobotScene x:Name="ThreeDView" Visibility="Collapsed" />
     </Grid>
 </UserControl>

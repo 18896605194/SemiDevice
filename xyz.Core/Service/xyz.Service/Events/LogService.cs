@@ -128,25 +128,11 @@ public class LogService : BaseService, ILogService
     }
 
     /// <summary>
-    /// 设置查询的基础条件，显示多少条，最多实时日志保留多少条
+    /// 日志显示设置（日志元件开机也推了同一份）；没配 Log 节点给默认值
     /// </summary>
-    /// <param name="request"></param>
-    /// <param name="context"></param>
-    /// <returns></returns>
     public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
     {
-        var settings = new LogSettingsDto
-        {
-            RealtimeDisplayMaxCount = PositiveOr(_log?.RealtimeDisplayMaxCount, LogSettingsDto.DefaultRealtimeDisplayMaxCount),
-            LogBarDisplayMaxCount = PositiveOr(_log?.LogBarDisplayMaxCount, LogSettingsDto.DefaultLogBarDisplayMaxCount),
-        };
-
-        if (_log is not null)
-        {
-            settings.KeepDays = _log.KeepDays;
-            settings.Modules = [.. _log.Modules];
-        }
-
+        var settings = _log?.Settings() ?? new LogSettingsDto();
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));
     }
 
@@ -161,10 +147,5 @@ public class LogService : BaseService, ILogService
         }
 
         return item.Level.Name;
-    }
-
-    private static int PositiveOr(int? value, int fallback)
-    {
-        return value > 0 ? value.Value : fallback;
     }
 }

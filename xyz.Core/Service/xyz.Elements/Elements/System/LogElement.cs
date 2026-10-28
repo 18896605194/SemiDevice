@@ -51,6 +51,14 @@ public class LogElement : ElementBase, ILogElement
     }
 
     /// <summary>
+    /// 开机推一次日志显示设置（留存）：界面连上（含重连）就照它定显示条数、补拉最近一段
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        RemoteEventPublisher.Send(Settings(), LogSettingsDto.EventToken);
+    }
+
+    /// <summary>
     /// 第一层：元件树最顶上那层（停用的不算，它们不跑、不写日志），按 machine.xml 先后；再加不是元件的两个固定名字
     /// </summary>
     private static List<string> ModulesOf(IReadOnlyList<ElementBase> roots)
@@ -78,6 +86,25 @@ public class LogElement : ElementBase, ILogElement
         {
             return _recent.ToArray();
         }
+    }
+
+    /// <summary>
+    /// 给界面的日志显示设置：两个显示条数配成 0 或负的按默认值
+    /// </summary>
+    public LogSettingsDto Settings()
+    {
+        return new LogSettingsDto
+        {
+            RealtimeDisplayMaxCount = PositiveOr(RealtimeDisplayMaxCount, LogSettingsDto.DefaultRealtimeDisplayMaxCount),
+            LogBarDisplayMaxCount = PositiveOr(LogBarDisplayMaxCount, LogSettingsDto.DefaultLogBarDisplayMaxCount),
+            KeepDays = KeepDays,
+            Modules = [.. Modules],
+        };
+    }
+
+    private static int PositiveOr(int value, int fallback)
+    {
+        return value > 0 ? value : fallback;
     }
 
     /// <summary>

@@ -447,6 +447,9 @@ try
         // 配方库开机 Bind 时接上晶圆尺寸：切了尺寸推一条编号 0 的变更（上限跟着尺寸变，配方页要重拉字段表）
         var sizePushes = new List<int>();
         using var sizePushSubscription = RemoteEventSubscriber.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => sizePushes.Add(dto.Index));
+        // 变更是留存消息：订上先补发黑板上的上一条（前面保存那条），从这里开始数
+        Check(sizePushes.SequenceEqual(new[] { 1 }), "变更留在黑板上：后订阅的马上补发上一条（前面保存编号 1 那条）");
+        sizePushes.Clear();
         var sizeLibrary = (RecipeElement)SmokeIoc.Load([LibraryNode(SecondsNode())]).Single();
         SmokeIoc.Use<IRecipeElement>(library);
         // 配方库开机 Bind 时取晶圆尺寸元件：装了晶圆尺寸以后重新 Bind

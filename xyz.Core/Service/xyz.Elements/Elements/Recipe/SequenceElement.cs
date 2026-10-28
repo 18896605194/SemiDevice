@@ -180,12 +180,20 @@ public class SequenceElement : ElementBase, ISequenceElement
     }
 
     /// <summary>
+    /// 开机推一条流程配方变更（留存）：界面连上（含重连）就去拉列表
+    /// </summary>
+    public override void PublishOnStartup()
+    {
+        RemoteEventPublisher.Send(new SequenceChangedDto(), SequenceListDto.EventToken);
+    }
+
+    /// <summary>
     /// 切了晶圆尺寸：按新尺寸的示教点表重新生成分组，发一条编号 0 的变更让流程配方页重拉
     /// </summary>
     private void OnWaferSizeChanged(int size)
     {
         BuildGroups();
-        RemoteEventPublisher.Send(new SequenceChangedDto(), SequenceListDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new SequenceChangedDto(), SequenceListDto.EventToken);
     }
 
     /// <summary>
@@ -367,7 +375,7 @@ public class SequenceElement : ElementBase, ISequenceElement
 
         var saved = result.Result as SequenceData;
         LogHelper.Info(this, saved is null ? message : $"{message}，版本 {saved.Revision}");
-        RemoteEventPublisher.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
+        RemoteEventPublisher.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken);
 
         var callback = E30Callback;
         if (callback is null)

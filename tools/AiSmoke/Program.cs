@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using xyz.Common.Events;
 using xyz.Elements;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
@@ -21,7 +22,7 @@ using xyz.Tools;
 // AI 冒烟：AI 元件（machine.xml 的 Ai 节点）配错开机就报（地址、模型名、同时几个）；按 IAi 进容器；
 // 解释报警：报警不在当前报警里回 ai.alarm_not_found、不问模型；交给模型的材料（报警的说明和处理办法、来源下面的信号前后怎么变的和现在的值、
 // 最近的告警和错误日志），EC 限条数，回答的语言跟界面，回答带它看了哪些数据；模型回空的、出错、超时（含排队）的错误码；同时只让 machine.xml MaxConcurrent 个在模型上算；
-// 服务（没配回 ai.not_installed、状态带模型名、回答转成 AiAnswerDto）；
+// 服务（没配回 ai.not_installed、状态带模型名、回答转成 AiAnswerDto）；开机推送 AI 状态（留在黑板上，跟服务回的一样）；
 // 真走一遍微软 Microsoft.Extensions.AI 的 OpenAI 格式适配：本机起一个假的模型服务（HttpListener），看请求的路径、模型名、消息，回答原样回来；服务停了当场报错不重试。
 // 假的模型（IChatClient）、假的日志和数据曲线，不连真模型。
 
@@ -230,6 +231,11 @@ try
     var service = new AiService();
     var response = await service.GetStatusAsync(new RpcRequest());
     Check(response.Success && response.DeserializeData<AiStatusDto>().Model == "qwen-test", "服务：配了 AI，状态带模型名");
+    // 开机推送：AI 元件推一份 AI 状态，留在黑板上（界面连上、重连都先拿到），跟服务回的是同一份
+    ai.PublishOnStartup();
+    var retainedAi = RemoteEventPublisher.GetRetained()
+        .LastOrDefault(message => message.TypeName == typeof(AiStatusDto).FullName && message.Token == AiStatusDto.EventToken);
+    Check(retainedAi is not null && retainedAi.Payload == response.Data, "开机推送：AI 状态留在黑板上，跟服务回的一样（带模型名）");
     response = await service.ExplainAlarmAsync(RpcRequest.Of((RpcParams.Source, Source), (RpcParams.Code, Code)));
     var dto = response.Success ? response.DeserializeData<AiAnswerDto>() : null;
     Check(dto is not null && dto.Text == "可能是开到位传感器坏了。" && dto.Model == "qwen-test" && dto.Signals.Count == 4 && dto.LogCount == 3,
@@ -453,6 +459,11 @@ public sealed class FakeLogs : ILogElement
     public IReadOnlyList<LogDto> Recent()
     {
         return Items.ToArray();
+    }
+
+    public LogSettingsDto Settings()
+    {
+        return new LogSettingsDto();
     }
 }
 

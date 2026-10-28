@@ -54,7 +54,8 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   气缸 / 阀的 `Open()` / `Close()` 是开合动作，不是生命周期。
 - 开机后面几个阶段（2026-10-18 起，元件自己的事都挂在这儿，启动代码不点名）：`Bind()`（元件初始化都做完、开始扫描之前，整棵树按 machine.xml 先后
   先父后子挨个调；按接口找别的元件、认装起来的模块、订阅、开机恢复，如晶圆账恢复、配方库认腔体、EAP 接各标准）→ 开始扫描 →
-  `OnStarted()`（都在扫了以后，如 EAP 开链路）→ 宿主退出时先停扫描（`StopScan`：等手上这一拍扫完，最多等 2 秒）、再 `OnStopping()`
+  `OnStarted()`（都在扫了以后，如 EAP 开链路）→ `PublishOnStartup()`（开机推送，2026-10-28：界面一连上（含重连）就要拿到的推一次、留存——
+  配方库、流程配方库、账号、晶圆账推一条"变了"，日志设置、AI 状态、实时曲线和数据曲线的信号表推内容；一个出错记日志、不耽误后面的）→ 宿主退出时先停扫描（`StopScan`：等手上这一拍扫完，最多等 2 秒）、再 `OnStopping()`
   （倒着来，一个出错记日志、不耽误后面的；EAP 断链路、数据曲线落库、断 PLC、晶圆账最后存一次——这时扫描已经停了，不会跟扫描撞）。
   都是 `ElementBase` 的空虚方法，要用就重写。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[Machine] 灌完值后调，配置不对就抛异常（开机直接报出来）。
@@ -727,10 +728,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   客户端 `xyz.Client.Common\Events\RemoteEventSubscriber`（`Register`、给 RemoteEventConnection 的 `Deliver`）；对面工程引用不到，客户端写不出 Send、后端写不出 Register。
   两边共用的只有 xyz.Tools 里的信封 `EventMessage` 和黑板规则 `RetainedBoard`（不带锁，用的地方在自己的锁里调）。
 - `RemoteEventPublisher.Send(dto, token, retain)`：
-  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"SystemState"、"WaferLedger"）；
+  - 全局事件 DTO 带 `public const string EventToken`（"Account"、"AiStatus"、"Alarm"、"DataChartSignals"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"LogSettings"、"ProcessRecipe"、"RealChart"、
+    "RealChartLayout"、"Sequence"、"SystemState"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的设备状态推送 `ChamberDeviceDataDto`）也用模块名，类型不同互不覆盖；
     不是模块的部件跟着它上面的模块推（供液槽的 `TankDto` 装在机型 IPA 模块的 `IpaDto` 里一起推，token 是模块名，留存，变了才推）；
-  - "发生了一件事"类用 `retain: false`（不写黑板，同一格的旧状态擦掉）。
+  - 界面收到就去拉数据的"变了"（配方库、流程配方库的变更 DTO、`AccountChangedDto`、`WaferLedgerChangedDto`）**留存**，元件开机再在 `PublishOnStartup` 推一条：
+    界面晚打开、客户端比后端先起、后端重启、断线重连，都会先收到这一条、收到就拉，页面不用管连接（2026-10-28 用户定，原来不留存、页面挂 `ConnectionChanged` 连上重拉）；
+    开机后就不变的（日志设置、AI 状态、两张曲线的信号表）开机直接推内容，跟服务回的是同一份（映射元件或元件自己的方法出，不各抄一份）。
+  - 真正一次性的事（单条报警 `AlarmDto`、单个 EC 值 `EcItemDto`、一条日志 `LogDto`、实时曲线一帧）用 `retain: false`（不写黑板，同一格的旧状态擦掉）。
 - **推送是元件自己的事**（2026-10-18 起，启动代码里不搭桥、没有各功能自己的 `*Publisher` 桥）：值一变的在变的地方发（EC 元件 `EcItemDto`、报警元件 `AlarmDto`、
   晶圆账 `WaferLedgerChangedDto`、两个配方库的变更 DTO、日志元件每条日志 `LogDto`，切晶圆尺寸时工艺配方库推一条编号 0 的）；每拍比、变了才推的在自己的 `OnScan` 里发
   （模块状态、整机的设备总状态、IPA）；按周期推的也在自己的 `OnScan` 里看时间（IO 整包按 EC `PublishIntervalMs`，实时曲线把数据曲线采到的行一帧一帧推）——
@@ -789,7 +794,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   **放 machine.xml 不放 EC**（用户 2026-10-22 定的：账号安全的规矩不让 EC 页改），配错 `OnSettingLoaded` 开机就报。不扫描、不起线程，调用都在 RPC 线程上、一把锁。
   元件初始化建表、第一次开机预置角色（管理员、访客，还有工程师、操作员各项的默认档位在 `Defaults`）和内置账号 admin / admin；建表、预置没成后面一律回 `account.failed`。
   会话 `SessionDto`：登录名、显示名、角色、各项档位（管理员不带，全部能操作）、闲置注销分钟数；`GetSession(空)` 就是访客的。
-  建、改、删账号和角色，存权限都推 `AccountChangedDto`（token "Account"，不留存），登录着的客户端重新取会话、两个设置页重拉。
+  建、改、删账号和角色，存权限都推 `AccountChangedDto`（token "Account"，留存，开机 `PublishOnStartup` 也推一条），登录着的客户端重新取会话、两个设置页重拉。
 - **权限项编码**在 `xyz.Shared\Permissions\PermissionCodes`（= 菜单 Code，客户端菜单和预置角色共用）；后端只存、只发，**不按权限挡任何服务**（用户定的）。
 - **服务**（`xyz.Service\UserManger\`）：`IAccountService`（`LoginAsync`、`GetSessionAsync`、`LogoutAsync`（只记日志）、`ChangePasswordAsync`）、
   `IUserService`（列、建、改显示名和角色、重置密码、停用 / 启用、删）、`IRoleService`（列、建、改名和说明、删、取 / 存一个角色的档位）；没配 `Account` 回 `account.not_installed`。
@@ -805,10 +810,11 @@ GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开�
 登记槽位，轴登记收发块；子元件基类递归，不动硬件）→ **Bind** `BindAll`（整棵树按 machine.xml 先后、先父后子：晶圆账开机恢复、整机 / 搬运管理 / Job 认模块、
 两个配方库认站点和腔体、EAP 接各标准（不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）、数据曲线定信号表、实时曲线接上数据曲线）→
 **开始扫描** `StartScanning`（machine.xml 里配了 `IsRun=true` 的根各起一条扫描线程——整机、PLC、IO、Safety、Computer、DataChart、RealChart、各模块、Dispatch；
-挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）。
+挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）→
+**开机推送** `PublishAll`（整棵树按 machine.xml 先后挨个 `PublishOnStartup`，推的都留在黑板上，客户端连上就重放）。
 开完机宿主才从容器里的 `Rpc` 元件取地址端口（`app.Urls`，默认 localhost:5000，只走 HTTP/2）、映射 gRPC 服务、开始监听；
 退出时 `ServiceExtensions.StopElements()`（`StopAll`：先停各根元件的扫描、等手上这一拍扫完，再倒着 `OnStopping`；之后宿主才释放容器）。
-新元件要连接、登记的写在自己的 `InitElement`；要认别的元件、订阅、开机恢复的写在 `Bind`；要等都扫起来的写在 `OnStarted`；退出收尾写在 `OnStopping`；
+新元件要连接、登记的写在自己的 `InitElement`；要认别的元件、订阅、开机恢复的写在 `Bind`；要等都扫起来的写在 `OnStarted`；界面一连上就要拿到的写在 `PublishOnStartup`；退出收尾写在 `OnStopping`；
 要自己扫描、自己推的根元件在 machine.xml 里配 `IsRun=true`——都不用改启动代码。根元件之间有先后的配 machine.xml 的 `InitOrder`（读点表的排在 IO 之后，用 PLC 的排在 PLC 之后）。
 
 ## 6. 错误码（`Shared\xyz.Shared\Errors\ErrorCodes.cs`）

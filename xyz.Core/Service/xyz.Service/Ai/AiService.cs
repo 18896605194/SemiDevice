@@ -40,7 +40,8 @@ public class AiService : BaseService, IAiService
             return NotInstalled(ErrorCodes.AiNotInstalled);
         }
 
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(new AiStatusDto { Model = _ai.Model })));
+        // 跟 AI 元件开机推的是同一份
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_mapper.Map<AiStatusDto>(_ai))));
     }
 
     /// <summary>
