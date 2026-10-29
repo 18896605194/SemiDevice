@@ -76,6 +76,7 @@ internal static class Program
                 page.LoadDocument(ChamberLayoutDocument.ReadMachine(File.ReadAllText(args[1]))[0]);
             var window = new Window { Title = L10n.Get("chambereditor.title"), Content = page, Width = 1460, Height = 960,
                 MinWidth = 800, MinHeight = 520, WindowState = WindowState.Maximized,
+                UseLayoutRounding = true, SnapsToDevicePixels = true,
                 Background = (Brush)app.Resources["DarkWindowBackground"], WindowStartupLocation = WindowStartupLocation.CenterScreen };
             window.Closing += (_, e) => { if (!page.ConfirmClose()) e.Cancel = true; };
             app.Run(window);

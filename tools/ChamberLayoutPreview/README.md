@@ -8,6 +8,8 @@ dotnet run --project tools/ChamberLayoutPreview/ChamberLayoutPreview.csproj
 
 “导入设备配置”离线读取当前框架的 machine.xml 并选择腔体，生成默认布局；“打开布局 / 保存布局”读写独立 XML，不覆盖 machine.xml。
 
+尺寸和位置显示“逻辑单位”，倍率显示“倍”，角度显示“°”；原有数值不换算成毫米或像素。界面使用 1980×1080 逻辑画布随窗口缩放，三维场景单独保持比例。布局中的 `Units="Logical"` 与屏幕分辨率无关。
+
 左侧“组件库”选择摆臂总成、Lift、接液杯、喷嘴、卡盘、Bowl、腔门或底盘，再点击“添加组件”。组件自动编号，新增操作支持撤销、重做及保存。需要关联实际设备时，在安装页填写相对腔体的元件路径；添加布局组件不会自动创建硬件元件或复制 PLC 地址。
 
 ```powershell
@@ -16,3 +18,5 @@ tools/ChamberLayoutPreview/bin/Debug/net10.0-windows/ChamberLayoutPreview.exe --
 ```
 
 自检覆盖安装几何、撤销、取消、文件往返、手动臂长、独立尺寸、旧布局兼容与非法输入。输出 `editor-checks.txt`、测试 XML 和 WPF 原生截图。`--render <输出目录>` 仅生成截图。程序异常写入执行文件旁的 `chamber-editor-error.log`。
+
+屏幕自检另外输出 `screen-checks.txt` 与多分辨率截图，覆盖 800×520、1280×720、1920×1080、1280×1024、2560×1080，包含嵌入 Fill 宿主及 1.25/1.5 倍父级缩放。检查设备像素中的横纵投影比例、拖动坐标往返和逻辑布局数据不变；不修改 Windows 显示设置。

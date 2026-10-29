@@ -66,9 +66,11 @@ internal static class ScreenChecks
                 scene.SetViewPreset(ChamberViewPreset.Top);
                 Program.Pump(60);
                 var center = new Point3D(0, 0.4, 0);
-                var origin = scene.ProjectToRoot(center);
-                double xLength = (scene.ProjectToRoot(center + new Vector3D(1, 0, 0)) - origin).Length;
-                double zLength = (scene.ProjectToRoot(center + new Vector3D(0, 0, 1)) - origin).Length;
+                var device = PresentationSource.FromVisual(scene).CompositionTarget.TransformToDevice;
+                Point DevicePoint(Point3D world) => device.Transform(scene.ProjectToRoot(world));
+                var origin = DevicePoint(center);
+                double xLength = (DevicePoint(center + new Vector3D(1, 0, 0)) - origin).Length;
+                double zLength = (DevicePoint(center + new Vector3D(0, 0, 1)) - origin).Length;
                 string label = $"{item.Width}x{item.Height} / {(item.Embedded ? "宿主 Fill" : "独立窗口")} / {item.Zoom:0.##}x";
                 Check(xLength > 0 && Math.Abs(xLength / zLength - 1) < 1e-6, label + "：三维圆盘横纵比例一致");
                 var point = center + new Vector3D(0.2, 0, 0.1);
