@@ -31,7 +31,6 @@
     <sys:String x:Key="system.return_module_not_ready">回片要用的 {0} 现在不能用（停用、没初始化、报警或在忙），不能全部回片</sys:String>
 
     <!-- 晶圆尺寸（主界面切 8 / 12 寸） -->
-    <sys:String x:Key="system.wafer_size_not_installed">machine.xml 的 System 节点下没配 WaferSize，切不了晶圆尺寸</sys:String>
     <sys:String x:Key="system.wafer_size_invalid">晶圆尺寸只能是 8 或 12，给的是 {0}</sys:String>
     <sys:String x:Key="system.wafer_size_initialized">{0} 已经初始化过（不是未初始化），要在整机没初始化时切晶圆尺寸</sys:String>
     <sys:String x:Key="system.wafer_size_has_wafer">{0} 里还有片，机台里（LoadPort 以外）都没片才能切晶圆尺寸</sys:String>

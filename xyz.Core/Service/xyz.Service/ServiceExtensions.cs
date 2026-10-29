@@ -67,6 +67,7 @@ public static class ServiceExtensions
         Require<ILogElement>("Log", "日志（转给界面的实时日志、最近日志）");
         Require<IAlarm>("Alarm", "报警");
         Require<IIo>("Io", "IO 点表");
+        Require<IWaferSize>("WaferSize", "晶圆尺寸，配方坐标、示教点表按它取");
 
         #endregion
 

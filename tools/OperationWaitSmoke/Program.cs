@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using System.Runtime.CompilerServices;
 using xyz.Client.Common.Events;
 using xyz.Common.Log;
@@ -2552,11 +2553,10 @@ port.E87Callback = null;
     SmokeIoc.Use<IJobManager>(previousJobs);
     SmokeIoc.Use<ILedgerManager>(previousSystemLedger);
 
-    // 晶圆尺寸：整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外）没片才让切；尺寸不对、没配晶圆尺寸各回各的码。
+    // 晶圆尺寸：整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外）没片才让切；尺寸不对回 wafer_size_invalid。
     // 这里没有 machine.xml，过了这几道检查就是写回失败（不换尺寸）；写成功、写回的样子在 ProcessRecipeSmoke 里用真 machine.xml 查。
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
     var previousSizeLedger = IocHelper.GetService<ILedgerManager>();
-    SmokeIoc.Use<IWaferSize>(null);
     SmokeIoc.Use<ILedgerManager>(null);
     machine.Bind(sysModules);
     var sizePort = new ProbePort("SizeLP");
@@ -2573,10 +2573,29 @@ port.E87Callback = null;
         return SendSize(RpcRequest.Of((RpcParams.Size, size)));
     }
 
-    var noSize = SwitchSize(8);
-    Check(!noSize.Success && noSize.Code == ErrorCodes.WaferSizeNotInstalled && noSize.Args.Count == 0
-          && machine.CreateEquipmentStatus().WaferSize == 12,
-        "没配晶圆尺寸：切不了，设备总状态按 12 寸");
+    Check(machine.CreateEquipmentStatus().WaferSize == 12, "设备总状态按晶圆尺寸元件报（冒烟里默认的 12 寸）");
+
+    // 晶圆尺寸是必配元件（2026-10-29 用户定）：宿主开机查必配时就报，后面合并 EC、编号表都还没走
+    var startup = new ServiceCollection();
+    startup.AddSingleton<IReadOnlyList<ElementBase>>(new List<ElementBase>());
+    startup.AddSingleton<ISystemModule>(machine);
+    startup.AddSingleton<IMapper>(new MapperElement());
+    startup.AddSingleton<ILogElement>(new LogElement());
+    startup.AddSingleton<IAlarm>(new AlarmElement());
+    startup.AddSingleton<IIo>(new IoElement());
+    var smokeProvider = IocHelper.ServiceProvider;
+    string? startupError = null;
+    try
+    {
+        startup.BuildServiceProvider().StartElements();
+    }
+    catch (InvalidOperationException exception)
+    {
+        startupError = exception.Message;
+    }
+
+    IocHelper.ServiceProvider = smokeProvider;
+    Check(startupError is not null && startupError.Contains("WaferSize") && startupError.Contains("必配"), "没配晶圆尺寸：开机查必配时就报");
     var waferSize = new WaferSizeElement();
     SmokeIoc.Use<IWaferSize>(waferSize);
     machine.Bind(sysModules);

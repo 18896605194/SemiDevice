@@ -20,14 +20,14 @@ public class EquipmentService : BaseService, IEquipmentService
 {
     private readonly ISystemModule? _system;
 
-    private readonly IWaferSize? _waferSize;
+    private readonly IWaferSize _waferSize;
 
     private readonly ILedgerManager? _wafers;
 
     public EquipmentService()
     {
         _system = IocHelper.GetService<ISystemModule>();
-        _waferSize = IocHelper.GetService<IWaferSize>();
+        _waferSize = IocHelper.GetRequiredService<IWaferSize>();
         _wafers = IocHelper.GetService<ILedgerManager>();
     }
 
@@ -97,11 +97,6 @@ public class EquipmentService : BaseService, IEquipmentService
         if (!WaferSizeElement.IsSupported(size))
         {
             return Fail(ErrorCodes.WaferSizeInvalid, size.ToString(CultureInfo.InvariantCulture));
-        }
-
-        if (_waferSize is null)
-        {
-            return NotInstalled(ErrorCodes.WaferSizeNotInstalled);
         }
 
         if (_waferSize.Size == size)

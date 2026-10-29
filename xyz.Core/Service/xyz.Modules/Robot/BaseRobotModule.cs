@@ -231,14 +231,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     private IReadOnlyDictionary<string, ITeachPoint> _teachPoints8 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 整机晶圆尺寸：元件初始化时取一次，示教点表按它选；没配按 12 寸
+    /// 整机晶圆尺寸（必配）：元件初始化时取一次，示教点表按它选
     /// </summary>
-    private IWaferSize? _waferSize;
+    private IWaferSize _waferSize = null!;
 
     /// <summary>
     /// 现在用的示教点表：整机现在几寸就是哪张
     /// </summary>
-    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeElement.SizeOf(_waferSize));
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(_waferSize.Size);
     private volatile ITeachPoint? _currentTeachPoint;
 
     /// <summary>
@@ -399,7 +399,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         // 示教点里配的手指必须存在：配了这台机械手没有的手，开机就报出来，别等取放时才拒；两种尺寸的表都查
         CheckTeachPointArms(WaferSizeElement.Inch12);
         CheckTeachPointArms(WaferSizeElement.Inch8);
-        _waferSize = IocHelper.GetService<IWaferSize>();
+        _waferSize = IocHelper.GetRequiredService<IWaferSize>();
 
         #endregion
 

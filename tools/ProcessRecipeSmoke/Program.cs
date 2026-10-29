@@ -415,10 +415,9 @@ try
     // 4b. 晶圆尺寸：位置、到的上限在 machine.xml 里按尺寸分开写（Max.8 = 100、Max.12 = 150），整机切到哪个尺寸用哪个，没配晶圆尺寸元件按 12 寸；
     //     切尺寸写回 machine.xml（输出目录里链接过来的那份），只改 Size 那一个值、别的一个字节不动，切回来跟原来一模一样。
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
-    SmokeIoc.Use<IWaferSize>(null);
     Check(F("Position").MaxFor(8) == 100 && F("Position").MaxFor(12) == 150 && F("ScanTo").MaxFor(8) == 100 && F("ScanTo").MaxFor(12) == 150
-          && F("Seconds").MaxFor(8) == 3600 && F("Position").MaxFor(WaferSizeElement.SizeOf(null)) == 150,
-        "位置、到按尺寸分开写上限：8 寸 100、12 寸 150；没分开写的两种尺寸一样；没配晶圆尺寸按 12 寸");
+          && F("Seconds").MaxFor(8) == 3600,
+        "位置、到按尺寸分开写上限：8 寸 100、12 寸 150；没分开写的两种尺寸一样");
     string machineFile = Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml");
     byte[] machineBefore = File.ReadAllBytes(machineFile);
     try

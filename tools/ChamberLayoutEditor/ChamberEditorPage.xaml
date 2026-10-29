@@ -33,18 +33,15 @@
      <StackPanel DockPanel.Dock="Top" Margin="14">
       <TextBlock Text="{DynamicResource chambereditor.components}" FontWeight="SemiBold" FontSize="{DynamicResource Size16}"/>
       <TextBlock Text="{DynamicResource chambereditor.components_tip}" Foreground="{DynamicResource DarkSecondaryText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+      <TextBlock Text="{DynamicResource chambereditor.component_library}" Margin="0,14,0,6"/>
+      <ComboBox ItemsSource="{Binding ComponentTypes}" SelectedItem="{Binding SelectedComponentType}" DisplayMemberPath="Title" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Button Content="{DynamicResource chambereditor.add_component}" Command="{Binding AddComponentCommand}" Style="{DynamicResource ToolbarButtonStyle}" Margin="0,8,0,0"
+       ToolTip="{DynamicResource chambereditor.add_component_tip}"/>
       <ComboBox x:Name="ChamberPicker" DisplayMemberPath="ComponentRoot" SelectionChanged="OnChamberChanged" Margin="0,10,0,0" Visibility="Collapsed"/>
      </StackPanel>
-     <Expander Header="{DynamicResource chambereditor.base_size}" DockPanel.Dock="Bottom" Margin="12" IsExpanded="True">
-      <StackPanel IsEnabled="{Binding IsEditing}" Margin="0,8,0,0">
-       <TextBlock Text="{DynamicResource chambereditor.base_length}"/><controls:InputTextBox DataType="Decimal" Minimum="1" Maximum="20" Value="{Binding Document.BaseLength}" Margin="0,4,0,8"/>
-       <TextBlock Text="{DynamicResource chambereditor.base_width}"/><controls:InputTextBox DataType="Decimal" Minimum="1" Maximum="20" Value="{Binding Document.BaseWidth}" Margin="0,4,0,8"/>
-       <TextBlock Text="{DynamicResource chambereditor.base_thickness}"/><controls:InputTextBox DataType="Decimal" Minimum="0.01" Maximum="3" Value="{Binding Document.BaseThickness}" Margin="0,4,0,0"/>
-      </StackPanel>
-     </Expander>
      <ListBox ItemsSource="{Binding Parts}" SelectedItem="{Binding Selected}" Background="Transparent" BorderThickness="0" Margin="6">
       <ListBox.ItemTemplate><DataTemplate>
-       <StackPanel Margin="6,9"><TextBlock Text="{Binding Id}" FontWeight="SemiBold"/><TextBlock Text="{Binding KindTitle}" Foreground="{DynamicResource DarkSecondaryText}" Margin="0,5,0,0" FontSize="{DynamicResource Size12}"/></StackPanel>
+       <StackPanel Margin="6,9"><TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/><TextBlock Text="{Binding KindTitle}" Foreground="{DynamicResource DarkSecondaryText}" Margin="0,5,0,0" FontSize="{DynamicResource Size12}"/></StackPanel>
       </DataTemplate></ListBox.ItemTemplate>
      </ListBox>
     </DockPanel>
@@ -76,20 +73,26 @@
      <TabItem Header="{DynamicResource chambereditor.placement_tab}">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
        <StackPanel IsEnabled="{Binding IsEditing}" Margin="8,16,8,8">
-        <TextBlock Text="{Binding Selected.Component}" Foreground="{DynamicResource DarkSecondaryText}" Margin="0,0,0,18"/>
+        <TextBlock Text="{Binding Selected.Caption}" Foreground="{DynamicResource DarkSecondaryText}" Margin="0,0,0,18"/>
+        <StackPanel Visibility="{Binding Selected.HasDeviceBinding, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}">
+         <TextBlock Text="{DynamicResource chambereditor.component_binding}"/>
+         <controls:InputTextBox DataType="Text" Value="{Binding Selected.Component}" Margin="0,6,0,12"/>
+        </StackPanel>
         <TextBlock Text="{DynamicResource chambereditor.x}"/><controls:InputTextBox DataType="Decimal" Minimum="-9" Maximum="9" Value="{Binding Selected.X}" Margin="0,6,0,12"/>
         <TextBlock Text="{DynamicResource chambereditor.y}"/><controls:InputTextBox DataType="Decimal" Minimum="-3" Maximum="3" Value="{Binding Selected.Y}" Margin="0,6,0,12"/>
         <TextBlock Text="{DynamicResource chambereditor.z}"/><controls:InputTextBox DataType="Decimal" Minimum="-9" Maximum="9" Value="{Binding Selected.Z}" Margin="0,6,0,12"/>
         <TextBlock Text="{DynamicResource chambereditor.yaw}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Value="{Binding Selected.Yaw}" Margin="0,6,0,12"/>
         <Button Content="{DynamicResource chambereditor.rotate}" Command="{Binding RotateCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,0,16"/>
-        <TextBlock Text="{DynamicResource chambereditor.home_angle}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Value="{Binding Selected.HomeAngle}" IsEnabled="{Binding Selected.IsArm}" Margin="0,6,0,16"/>
+        <StackPanel Visibility="{Binding Selected.IsArm, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}">
+         <TextBlock Text="{DynamicResource chambereditor.home_angle}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Value="{Binding Selected.HomeAngle}" Margin="0,6,0,16"/>
+        </StackPanel>
        </StackPanel>
       </ScrollViewer>
      </TabItem>
      <TabItem Header="{DynamicResource chambereditor.dimensions_tab}">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
        <StackPanel IsEnabled="{Binding IsEditing}" Margin="8,16,8,8">
-        <TextBlock Text="{Binding Selected.Component}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+        <TextBlock Text="{Binding Selected.Caption}" FontWeight="SemiBold" Margin="0,0,0,8"/>
         <TextBlock Text="{DynamicResource chambereditor.size_units}" Foreground="{DynamicResource DarkSecondaryText}" TextWrapping="Wrap" Margin="0,0,0,14"/>
         <CheckBox Content="{DynamicResource chambereditor.auto_length}" IsChecked="{Binding Selected.AutoLength}" Margin="0,0,0,16"
          Visibility="{Binding Selected.IsArm, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}"/>

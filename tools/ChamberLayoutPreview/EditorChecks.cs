@@ -110,7 +110,10 @@ internal static class EditorChecks
         Check(model.PrepareSave() == resized, "重做恢复底座尺寸和全部配置");
 
         var legacy = XDocument.Parse(initial);
-        legacy.Root!.Attribute("BaseThickness")!.Remove();
+        legacy.Root!.SetAttributeValue("Version", "1");
+        legacy.Root.SetAttributeValue("BaseLength", 5.8);
+        legacy.Root.SetAttributeValue("BaseWidth", 4.6);
+        legacy.Root.Elements("Base").Remove();
         foreach (var partElement in legacy.Root.Elements()) { partElement.Attribute("AutoLength")!.Remove(); partElement.Elements("Size").Remove(); }
         var imported = ChamberLayoutDocument.Parse(legacy.ToString());
         Check(Near(imported.BaseThickness, 0.12) && imported.Parts.Where(p => p.IsArm).All(p => p.AutoLength), "旧版无尺寸布局仍能加载默认外形");
@@ -148,6 +151,78 @@ internal static class EditorChecks
         model.IsPreview = false;
         scene.DefaultView();
         Check(model.PrepareSave() == beforeViewChange && !model.IsDirty, "切换六种视角不修改布局、尺寸或保存状态");
+
+        var basePart = model.Document!.BasePart;
+        Check(model.Parts.Contains(basePart) && basePart.IsBase && basePart.Dimensions.Count == 3, "底盘作为独立控件列入组件列表并提供三项尺寸");
+        scene.SetViewPreset(ChamberViewPreset.Top);
+        var picked = scene.Pick(scene.Project(new Point3D(-2.6, -0.01, 0)));
+        Check(ReferenceEquals(picked, basePart), "点击底盘实体能命中底盘组件");
+        model.Selected = picked;
+        Check(model.Selected?.IsBase == true, "底盘可以独立选中并使用统一属性面板");
+        var origins = model.Parts.Where(p => !p.IsBase).ToDictionary(p => p.Id, p => scene.ProbeOrigin(p.Id));
+        model.BeginDrag(); basePart.X = 0.6; basePart.Y = -0.1; basePart.Z = 0.4; model.EndDrag();
+        basePart.Yaw = 20;
+        Set(basePart, "Length", 7); Set(basePart, "Width", 5.2); Set(basePart, "Thickness", 0.2);
+        Program.Pump(100);
+        Check((scene.ProbeOrigin(basePart.Id) - new Point3D(0.6, -0.1, 0.4)).Length < 1e-6, "底盘的位置实际应用到三维控件");
+        Check(origins.All(pair => (scene.ProbeOrigin(pair.Key) - pair.Value).Length < 1e-6), "移动旋转和缩放底盘不会带动其他组件");
+        var baseLayout = ChamberLayoutDocument.Parse(model.PrepareSave());
+        Check(baseLayout.BasePart.Yaw == 20 && Near(baseLayout.BasePart.X, 0.6) && Near(baseLayout.BaseLength, 7)
+            && Near(baseLayout.BaseThickness, 0.2), "底盘独立位置、旋转和尺寸完整保存重载");
+        Check(imported.Parts.Count(p => p.IsBase) == 1 && Near(imported.BaseLength, 5.8), "Version=1 布局自动迁移为独立底盘组件");
+        var duplicatedBase = XDocument.Parse(initial);
+        duplicatedBase.Root!.Add(new XElement(duplicatedBase.Root.Element("Base")!));
+        rejected = false;
+        try { ChamberLayoutDocument.Parse(duplicatedBase.ToString()); } catch (InvalidDataException) { rejected = true; }
+        Check(rejected, "重复组件 ID 被拒绝");
+        model.Load(ChamberLayoutDocument.Parse(initial));
+        model.Selected = model.Document!.BasePart;
+        scene.DefaultView();
+
+        var originalOrigins = model.Parts.ToDictionary(p => p.Id, p => scene.ProbeOrigin(p.Id));
+        model.SelectedComponentType = model.ComponentTypes.Single(t => t.Kind == "ArmAssembly");
+        model.AddComponentCommand.Execute(null); Program.Pump(150);
+        Check(model.Parts.Count(p => p.IsArm) == 3 && model.Selected!.Id == "Arm3" && model.IsDirty, "组件库添加第三套摆臂并自动编号和选中");
+        Check(originalOrigins.All(pair => (scene.ProbeOrigin(pair.Key) - pair.Value).Length < 1e-6), "添加组件保留所有原组件的安装位置");
+        string withArm = model.PrepareSave();
+        model.UndoCommand.Execute(null);
+        Check(model.PrepareSave() == initial && !model.IsDirty, "一次撤销移除新增组件并恢复原布局");
+        model.RedoCommand.Execute(null); Program.Pump(150);
+        Check(model.PrepareSave() == withArm, "重做完整恢复新增组件");
+        model.IsPreview = true; model.Reach = 1; Program.Pump(350);
+        Check(scene.Probe("Arm3").CenterError < 1e-6, "新增加的第三套摆臂参与三维动作预览");
+        int countBeforePreviewAdd = model.Parts.Count;
+        Check(!model.AddComponentCommand.CanExecute(null), "模拟动作期间禁用新增组件");
+        model.AddComponentCommand.Execute(null);
+        Check(model.Parts.Count == countBeforePreviewAdd, "禁用状态下执行新增也不改变布局");
+        model.IsPreview = false;
+
+        foreach (var definition in model.ComponentTypes.Where(t => t.Kind != "ArmAssembly"))
+        {
+            model.SelectedComponentType = definition;
+            model.AddComponentCommand.Execute(null); Program.Pump(100);
+            var added = model.Selected!;
+            Check(added.Kind == definition.Kind && scene.ProbeDimensions(added.Id).Count > 0,
+                $"组件库可新增并渲染 {definition.Kind}，提供独立尺寸");
+        }
+        Check(model.Parts.Select(p => p.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == model.Parts.Count,
+            "不同类型和重复类型的组件自动分配唯一 ID");
+        var extraCup = model.Parts.Single(p => p.Kind == "HomeCup");
+        Set(extraCup, "Radius", 0.46); Program.Pump(100);
+        Check(Near(scene.ProbeDimensions(extraCup.Id)["Radius"], 0.46) && Near(scene.ProbeDimensions("Arm1")["CupRadius"], 0.224),
+            "单独新增的接液杯尺寸不影响摆臂内的接液杯");
+        var extraNozzle = model.Parts.Single(p => p.Kind == "Nozzle");
+        extraNozzle.Component = "Arm3.Nozzle_DIW";
+        Check(model.Error.Length == 0 && ChamberLayoutDocument.Parse(model.PrepareSave()).Parts.Single(p => p.Id == extraNozzle.Id).Component == "Arm3.Nozzle_DIW",
+            "新增组件的关联元件路径可编辑和保存");
+        var allComponents = model.PrepareSave();
+        Check(ChamberLayoutDocument.Parse(allComponents).ToXml() == allComponents, "八种组件、多个底盘和多个卡盘能够完整保存重载");
+        File.WriteAllText(Path.Combine(output, "components-layout.xml"), allComponents);
+        model.Load(ChamberLayoutDocument.Parse(initial));
+        model.SelectedComponentType = model.ComponentTypes[0];
+        model.Selected = model.Parts.First(p => p.IsArm);
+        model.Lift = false; model.Spray = false; model.Spin = false; model.Reach = 0;
+        Program.Pump(350);
         File.WriteAllLines(Path.Combine(output, "editor-checks.txt"), checks);
     }
 }

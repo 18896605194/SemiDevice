@@ -47,9 +47,6 @@ public static class ErrorCodes
 
     #region 晶圆尺寸（主界面切 8 / 12 寸）
 
-    /// <summary>machine.xml 的 System 节点下没配 WaferSize（晶圆尺寸元件），切不了晶圆尺寸。Args: []</summary>
-    public const string WaferSizeNotInstalled = "system.wafer_size_not_installed";
-
     /// <summary>晶圆尺寸只能是 8 或 12。Args: [给的值]</summary>
     public const string WaferSizeInvalid = "system.wafer_size_invalid";
 

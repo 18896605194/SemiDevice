@@ -101,6 +101,8 @@ public sealed class ChamberLayoutScene : Grid
     internal (double CenterError, double HomeError, double TipHeight) Probe(string id) => _parts[id].Probe();
     internal IReadOnlyDictionary<string, double> ProbeDimensions(string id) => _parts[id].ProbeDimensions();
     internal (double Length, double Width, double Thickness) ProbeBase() => (_base!.Length, _base.Width, _base.Thickness);
+    internal Point3D ProbeOrigin(string id) => _parts[id].Root.Transform.Transform(new Point3D());
+    internal ChamberPlacement? Pick(Point point) => Hit(point);
 
     private void Rebuild()
     {
@@ -108,20 +110,18 @@ public sealed class ChamberLayoutScene : Grid
         _parts.Clear();
         _owners.Clear();
         _world.Children.Clear();
+        _base = null;
         if (_model?.Document is not { } document) return;
         var lights = new Model3DGroup();
         lights.Children.Add(new AmbientLight(Token("DarkHardwareAmbientLightColor", Colors.Gray)));
         lights.Children.Add(new DirectionalLight(Token("DarkHardwareKeyLightColor", Colors.White), new Vector3D(-1, -3, -2)));
         _world.Children.Add(new ModelVisual3D { Content = lights });
-        _base = new ChamberBaseVisual3D { Length = document.BaseLength, Width = document.BaseWidth, Thickness = document.BaseThickness };
-        Theme(_base);
-        _world.Children.Add(_base);
-        foreach (var part in document.Parts)
+        foreach (var part in document.Parts.OrderBy(p => p.IsBase ? 0 : 1))
         {
             var visual = new PartVisual(this, part);
             _parts.Add(part.Id, visual);
             _owners.Add(visual.Root, part);
-            _base.Attachments.Add(visual.Root);
+            _world.Children.Add(visual.Root);
         }
         UpdateCamera();
         Apply();
@@ -137,12 +137,6 @@ public sealed class ChamberLayoutScene : Grid
     public void Apply()
     {
         if (_model?.Document is not { } document) return;
-        if (_base is not null)
-        {
-            _base.Length = Math.Clamp(document.BaseLength, 1, 20);
-            _base.Width = Math.Clamp(document.BaseWidth, 1, 20);
-            _base.Thickness = Math.Clamp(document.BaseThickness, 0.01, 3);
-        }
         var disk = document.Parts.First(p => p.Kind == "Disk");
         foreach (var part in _parts.Values) part.Apply(_model, disk);
         DrawMarkers();
@@ -210,12 +204,14 @@ public sealed class ChamberLayoutScene : Grid
         if (_model is null) return;
         foreach (var part in _model.Parts.OrderBy(p => ReferenceEquals(p, _model.Selected)))
         {
-            var position = Project(new Point3D(part.X, part.Y, part.Z));
+            var anchor = part.IsBase ? _parts[part.Id].Root.Transform.Transform(new Point3D(-part.Size("Length") / 2, 0, part.Size("Width") / 2))
+                : new Point3D(part.X, part.Y, part.Z);
+            var position = Project(anchor);
             bool selected = ReferenceEquals(part, _model.Selected);
             var marker = new Border { Background = ResourceBrush(selected ? "DarkAccentPressed" : "DarkControlBackground"),
                 BorderBrush = ResourceBrush(selected ? "DarkAccent" : "DarkBorderBrush"), BorderThickness = new Thickness(selected ? 2 : 1),
                 CornerRadius = new CornerRadius(5), Padding = new Thickness(8, 4, 8, 4),
-                Child = new TextBlock { Text = part.Id, Foreground = ResourceBrush("DarkPrimaryText") } };
+                Child = new TextBlock { Text = part.DisplayName, Foreground = ResourceBrush("DarkPrimaryText") } };
             ((TextBlock)marker.Child).SetResourceReference(TextBlock.FontSizeProperty, "Size14");
             marker.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             var bounds = new Rect(position.X + 12, position.Y + 10, marker.DesiredSize.Width, marker.DesiredSize.Height);
@@ -307,6 +303,26 @@ public sealed class ChamberLayoutScene : Grid
         visual.HighlightColor = Token("DarkHardwareHighlightColor", Colors.DodgerBlue);
     }
 
+    private double BaseSurfaceHeight(Point3D point)
+    {
+        double landing = 0;
+        bool found = false;
+        foreach (var part in _model?.Parts.Where(p => p.IsBase) ?? [])
+        {
+            if (part.Y > point.Y || _parts[part.Id].Root.Transform.Inverse is not { } inverse) continue;
+            var local = inverse.Transform(new Point3D(point.X, part.Y, point.Z));
+            if (Math.Abs(local.X) <= part.Size("Length") / 2 && Math.Abs(local.Z) <= part.Size("Width") / 2)
+            {
+                if (!found || part.Y > landing) landing = part.Y;
+                found = true;
+            }
+        }
+        return landing;
+    }
+
+    // 组件分别挂在同一坐标系，底盘的位置和旋转不传递给其他组件；硬件根节点负责通知后代动画的挂载生命周期。
+    private sealed class PlacementRoot : HardwareVisual3D { }
+
     private sealed class PartVisual : IDisposable
     {
         private const double Scale = 0.7;
@@ -321,18 +337,24 @@ public sealed class ChamberLayoutScene : Grid
         private readonly DiskVisual3D? _disk;
         private readonly BowlVisual3D? _bowl;
         private readonly DoorVisual3D? _door;
+        private readonly ChamberBaseVisual3D? _plate;
+        private readonly FluidPipeVisual3D? _nozzle;
         private ChamberPlacement? _target;
         private bool _applying;
-        public ModelVisual3D Root { get; } = new();
+        public ModelVisual3D Root { get; } = new PlacementRoot();
 
         public PartVisual(ChamberLayoutScene scene, ChamberPlacement part)
         {
             _scene = scene; _part = part;
             switch (part.Kind)
             {
+                case "Base": _plate = Add(new ChamberBaseVisual3D()); scene._base ??= _plate; break;
                 case "Disk": _disk = Add(new DiskVisual3D { IsDiskVisible = true, Radius = 1.32, SpindleHeight = 0.32 }); break;
                 case "Bowl": _bowl = Add(new BowlVisual3D { Radius = 1.59 }); break;
                 case "Door": _door = Add(new DoorVisual3D { Width = 2.2, Height = 0.58 }); break;
+                case "Lift": _lift = Add(new LiftVisual3D()); break;
+                case "HomeCup": _cup = Add(new HomeCupVisual3D()); break;
+                case "Nozzle": _nozzle = Add(new FluidPipeVisual3D()); break;
                 case "ArmAssembly":
                     if (part.HasLift) _lift = Add(new LiftVisual3D());
                     _arm = Add(new ArmVisual3D());
@@ -358,14 +380,22 @@ public sealed class ChamberLayoutScene : Grid
             bool preview = model.IsPreview;
             bool animate = preview && _scene.IsVisible;
             double scale = _part.IsArm ? Scale : 1;
+            double scaleX = _part.Kind == "Lift" ? _part.Size("WidthScale") : scale;
+            double scaleY = _part.Kind is "Lift" or "Bowl" ? _part.Size("HeightScale")
+                : _part.Kind == "Nozzle" ? _part.Size("DiameterScale") : scale;
+            double scaleZ = _door is not null ? _part.Size("DepthScale")
+                : _part.Kind == "Lift" ? _part.Size("WidthScale")
+                : _part.Kind == "Nozzle" ? _part.Size("DiameterScale") : scale;
             var transform = new Transform3DGroup();
-            transform.Children.Add(new ScaleTransform3D(scale,
-                _bowl is not null ? _part.Size("HeightScale") : scale,
-                _door is not null ? _part.Size("DepthScale") : scale));
+            transform.Children.Add(new ScaleTransform3D(scaleX, scaleY, scaleZ));
             transform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 1, 0), _part.Yaw)));
             transform.Children.Add(new TranslateTransform3D(_part.X, _part.Y, _part.Z));
             Root.Transform = transform;
             foreach (var hardware in _hardware) hardware.IsSelected = ReferenceEquals(model.Selected, _part);
+            if (_plate is not null)
+            {
+                _plate.Length = _part.Size("Length"); _plate.Width = _part.Size("Width"); _plate.Thickness = _part.Size("Thickness");
+            }
             if (_disk is not null)
             {
                 _disk.Radius = _part.Size("Radius"); _disk.Thickness = _part.Size("Thickness");
@@ -373,6 +403,17 @@ public sealed class ChamberLayoutScene : Grid
             }
             if (_bowl is not null) { _bowl.Radius = _part.Size("Radius"); _bowl.IsRaised = preview && model.Lift; }
             if (_door is not null) { _door.Width = _part.Size("Width"); _door.Height = _part.Size("Height"); _door.IsOpen = preview && model.Lift; }
+            if (_part.Kind == "Lift" && _lift is not null) _lift.IsRaised = preview && model.Lift;
+            if (_part.Kind == "HomeCup" && _cup is not null)
+            {
+                _cup.Radius = _part.Size("Radius"); _cup.Height = _part.Size("Height");
+                _cup.IsDraining = preview && model.Spray;
+            }
+            if (_nozzle is not null)
+            {
+                _nozzle.Length = _part.Size("Length"); _nozzle.StreamLength = _part.Size("StreamLength");
+                _nozzle.IsFlowing = preview && model.Spray; _nozzle.IsAnimationEnabled = animate;
+            }
             if (_arm is not null && _cup is not null)
             {
                 double dx = target.X - _part.X, dz = target.Z - _part.Z;
@@ -437,8 +478,8 @@ public sealed class ChamberLayoutScene : Grid
         public (double CenterError, double HomeError, double TipHeight) Probe()
         {
             double angle = _arm!.Angle * Math.PI / 180;
-            var tip = _arm.TransformToAncestor(_scene._base!).Transform(new Point3D(_arm.Length * Math.Cos(angle), 0, -_arm.Length * Math.Sin(angle)));
-            var cup = _cup!.TransformToAncestor(_scene._base!).Transform(new Point3D());
+            var tip = _arm.TransformToAncestor(_scene._world).Transform(new Point3D(_arm.Length * Math.Cos(angle), 0, -_arm.Length * Math.Sin(angle)));
+            var cup = _cup!.TransformToAncestor(_scene._world).Transform(new Point3D());
             return (Math.Sqrt(Math.Pow(tip.X - _target!.X, 2) + Math.Pow(tip.Z - _target.Z, 2)),
                 Math.Sqrt(Math.Pow(tip.X - cup.X, 2) + Math.Pow(tip.Z - cup.Z, 2)), tip.Y);
         }
@@ -446,10 +487,11 @@ public sealed class ChamberLayoutScene : Grid
         {
             double Measure(ModelVisual3D visual, double x, double y, double z)
             {
-                var transform = visual.TransformToAncestor(_scene._base!);
+                var transform = visual.TransformToAncestor(_scene._world);
                 return (transform.Transform(new Point3D(x, y, z)) - transform.Transform(new Point3D())).Length;
             }
             var result = new Dictionary<string, double>();
+            if (_plate is not null) { result["Length"] = _plate.Length; result["Width"] = _plate.Width; result["Thickness"] = _plate.Thickness; }
             if (_arm is not null && _cup is not null)
             {
                 result["ArmLength"] = Measure(_arm, _arm.Length, 0, 0);
@@ -465,6 +507,9 @@ public sealed class ChamberLayoutScene : Grid
             if (_disk is not null) { result["Radius"] = Measure(_disk, _disk.Radius, 0, 0); result["Thickness"] = Measure(_disk, 0, _disk.Thickness, 0); }
             if (_bowl is not null) result["Radius"] = Measure(_bowl, _bowl.Radius, 0, 0);
             if (_door is not null) { result["Width"] = Measure(_door, _door.Width, 0, 0); result["Height"] = Measure(_door, 0, _door.Height, 0); }
+            if (_part.Kind == "Lift" && _lift is not null) { result["WidthScale"] = Measure(_lift, 1, 0, 0); result["HeightScale"] = Measure(_lift, 0, 1, 0); }
+            if (_part.Kind == "HomeCup" && _cup is not null) { result["Radius"] = Measure(_cup, _cup.Radius, 0, 0); result["Height"] = Measure(_cup, 0, _cup.Height, 0); }
+            if (_nozzle is not null) { result["Length"] = Measure(_nozzle, _nozzle.Length, 0, 0); result["DiameterScale"] = Measure(_nozzle, 0, 1, 0); }
             return result;
         }
         private void UpdateStreams()
@@ -475,14 +520,14 @@ public sealed class ChamberLayoutScene : Grid
             bool draining = false;
             foreach (var pipe in _pipes)
             {
-                var transform = pipe.TransformToAncestor(_scene._base);
+                var transform = pipe.TransformToAncestor(_scene._world);
                 var nozzle = transform.Transform(new Point3D(pipe.Length, -FluidPipeVisual3D.OutletDrop, 0));
                 var below = transform.Transform(new Point3D(pipe.Length, -FluidPipeVisual3D.OutletDrop - 1, 0));
-                double landing = 0;
+                double landing = _scene.BaseSurfaceHeight(nozzle);
                 bool hitsCup = false;
                 if (Math.Abs(_arm.Angle - _part.HomeAngle) < 1 && _cup is not null)
                 {
-                    var cupCenter = _cup.TransformToAncestor(_scene._base).Transform(new Point3D(0, _cup.Height * (0.41 / 0.655), 0));
+                    var cupCenter = _cup.TransformToAncestor(_scene._world).Transform(new Point3D(0, _cup.Height * (0.41 / 0.655), 0));
                     hitsCup = Math.Pow(nozzle.X - cupCenter.X, 2) + Math.Pow(nozzle.Z - cupCenter.Z, 2) < Math.Pow(_cup.Radius * Scale, 2);
                     if (hitsCup) { landing = cupCenter.Y; draining |= pipe.IsFlowing && nozzle.Y >= landing; }
                 }
@@ -497,6 +542,7 @@ public sealed class ChamberLayoutScene : Grid
         {
             foreach (var (descriptor, source, handler) in _listeners) descriptor.RemoveValueChanged(source, handler);
             foreach (var pipe in _pipes) pipe.IsAnimationEnabled = false;
+            if (_nozzle is not null) _nozzle.IsAnimationEnabled = false;
             if (_disk is not null) _disk.RotationSpeed = 0;
             _arm?.BeginAnimation(ArmVisual3D.AngleProperty, null);
         }

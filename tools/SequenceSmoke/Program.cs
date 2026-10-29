@@ -613,7 +613,7 @@ sealed class ProbeRobot : BaseModule, ITransferRobot
         _teachPoints8 = SmokeTeachPoints.Numbered(stations);
     }
 
-    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeElement.SizeOf(IocHelper.GetService<IWaferSize>()));
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(IocHelper.GetRequiredService<IWaferSize>().Size);
 
     public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size)
     {

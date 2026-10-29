@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using xyz.Elements;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Tools;
 
@@ -18,12 +20,18 @@ static class SmokeIoc
     private static readonly List<(Type Type, object? Instance)> _uses = [];
 
     /// <summary>
-    /// 冒烟开头：空容器（没有树、没有单独登记的）
+    /// 晶圆尺寸是必配元件（宿主开机查过，一定取得到）：树上没有、也没单独登记的，补这个 12 寸的；Reset 时换一个新的
+    /// </summary>
+    private static WaferSizeElement _defaultWaferSize = new();
+
+    /// <summary>
+    /// 冒烟开头：空容器（没有树、没有单独登记的，只有默认的晶圆尺寸）
     /// </summary>
     public static void Reset()
     {
         _tree = [];
         _uses.Clear();
+        _defaultWaferSize = new WaferSizeElement();
         Rebuild();
     }
 
@@ -88,6 +96,11 @@ static class SmokeIoc
             {
                 services.AddSingleton(type, instance);
             }
+        }
+
+        if (!services.Any(service => service.ServiceType == typeof(IWaferSize)))
+        {
+            services.AddSingleton<IWaferSize>(_defaultWaferSize);
         }
 
         IocHelper.ServiceProvider = services.BuildServiceProvider();

@@ -435,7 +435,7 @@ try
     var waferSize = new WaferSizeElement { Size = WaferSizeElement.Inch8 };
     SmokeIoc.Use<IWaferSize>(waferSize);
     arm.Bind();
-    Check(IocHelper.GetService<IWaferSize>() == waferSize && WaferSizeElement.SizeOf(waferSize) == 8, "配了晶圆尺寸元件就按它的尺寸");
+    Check(IocHelper.GetService<IWaferSize>() == waferSize, "摆臂按登记的那个晶圆尺寸元件换算");
     arm.Edge8 = 125;
     Check(Near(arm.Edge, 125) && Near(arm.ToAxisPosition(0), 125) && Near(arm.ToAxisPosition(100), 200) && Near(arm.ToAxisPosition(50), 162.5),
         "8 寸：配方 0 → Edge8，100（8 寸中心）→ Center，中间线性");

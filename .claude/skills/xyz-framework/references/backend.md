@@ -330,7 +330,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   气缸 `TwoStateElement.Position` 三态（命令发到哪侧看哪侧到没到位，没到 = Unknown；两个线圈都没通时只看到位反馈）。
   摆臂 `SwingArmElement.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
   示教位：边缘 `Edge8` / `Edge12` = 配方 0（第一个边缘）、`Center` = 配方里的晶圆中心（8 寸 100、12 寸 150）的实际轴位置，默认 50 / 0 / 150，
-  按整机尺寸（摆臂取一次存的 `IWaferSize`，`WaferSizeElement.SizeOf(...)`）取那一套（`Edge` 是当前尺寸的边缘）；旋转电机在不在转用轴的 `IsBusy`（PLC 报忙，`ISpinMotor` 不另加）。
+  按整机尺寸（摆臂 Bind 时取一次存的 `IWaferSize`，必配，直接 `_waferSize.Size`）取那一套（`Edge` 是当前尺寸的边缘）；旋转电机在不在转用轴的 `IsBusy`（PLC 报忙，`ISpinMotor` 不另加）。
   轴手动页参数默认值 EC：`MoveSpeed`、`JogSpeed`（点动 / 步进速度）、`JogStep`（步距）。
   轴的"目标已在到位容差里就不发"只用于绝对定位（MoveTo）；相对移动（MoveBy，步进）照发——步距默认 1 跟到位容差默认 1 一样大，
   以前会被当成已经到位、根本不走（2026-10-04 联调时发现）。联锁还没做。
@@ -812,7 +812,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 **注册**（`AddXyzServices`，容器建好之前）：`MachineLoader.Load` → `ElementLoader.Load`（装整棵树）→ `ElementLoader.Register`（元件按接口进容器、树本身也进）→
 GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开机，元件构造、`OnSettingLoaded` 里不取别的元件（容器还没有）。
 **开机**（宿主 `builder.Build()` 之后、开始监听之前调 `app.Services.StartElements()`）：先 `IocHelper.ServiceProvider = 容器` →
-查必配的节点（`System` 整机、`Mapper` 映射元件、`Log` 日志，没配开机就抛）→ EC 合并 → GEM 编号表合并 →
+查必配的节点（`System` 整机、`Mapper` 映射元件、`Log` 日志、`Alarm` 报警、`Io` 点表、`WaferSize` 晶圆尺寸，没配开机就抛）→ EC 合并 → GEM 编号表合并 →
 **元件初始化** `ElementLoader.InitAll`（根元件按 InitOrder、再按 machine.xml 先后：PLC 100 先连、IO 200 读点表，再各模块连驱动、
 登记槽位，轴登记收发块；子元件基类递归，不动硬件）→ **Bind** `BindAll`（整棵树按 machine.xml 先后、先父后子：晶圆账开机恢复、整机 / 搬运管理 / Job 认模块、
 两个配方库认站点和腔体、EAP 接各标准（不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）、数据曲线定信号表、实时曲线接上数据曲线）→

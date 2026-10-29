@@ -47,12 +47,24 @@ internal static class Program
                 page.ViewModel.SelectedInspectorTab = 1;
                 Pump(100); Capture(page, Path.Combine(output, "chamber-dimensions.png"));
                 var scene = (ChamberLayoutScene)page.FindName("Scene");
+                var selected = page.ViewModel.Selected;
+                page.ViewModel.Selected = page.ViewModel.Document!.BasePart;
+                Pump(100); Capture(page, Path.Combine(output, "chamber-base.png"));
+                page.ViewModel.Selected = selected;
                 scene.SetViewPreset(ChamberViewPreset.Top);
                 Pump(100); Capture(page, Path.Combine(output, "chamber-top.png"));
                 scene.SetViewPreset(ChamberViewPreset.Perspective);
                 page.ViewModel.IsPreview = true; page.ViewModel.Reach = 1; page.ViewModel.Lift = true; page.ViewModel.Spray = true;
                 Pump(500); Capture(page, Path.Combine(output, "chamber-preview.png"));
                 page.ViewModel.IsPreview = false;
+                page.ViewModel.SelectedComponentType = page.ViewModel.ComponentTypes.First(t => t.Kind == "ArmAssembly");
+                page.ViewModel.AddComponentCommand.Execute(null);
+                scene.DefaultView();
+                Pump(350); Capture(page, Path.Combine(output, "chamber-added-arm.png"));
+                page.ViewModel.SelectedComponentType = page.ViewModel.ComponentTypes.First(t => t.Kind == "HomeCup");
+                page.ViewModel.AddComponentCommand.Execute(null);
+                page.ViewModel.SelectedInspectorTab = 1;
+                Pump(150); Capture(page, Path.Combine(output, "chamber-added-component.png"));
                 app.Shutdown();
                 return 0;
             }

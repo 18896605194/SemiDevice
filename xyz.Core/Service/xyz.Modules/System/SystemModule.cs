@@ -65,7 +65,9 @@ public class SystemModule : BaseStateElement, ISystemModule
     private IJobManager? _jobs;
     private ILedgerManager? _ledger;
     private IAlarm? _alarms;
-    private IWaferSize? _waferSize;
+
+    // 晶圆尺寸是必配的，一定取得到
+    private IWaferSize _waferSize = null!;
 
     /// <summary>
     /// 开机：认整机要管的模块（全部初始化、整机停止、全部回片）
@@ -85,7 +87,7 @@ public class SystemModule : BaseStateElement, ISystemModule
         _jobs = IocHelper.GetService<IJobManager>();
         _ledger = IocHelper.GetService<ILedgerManager>();
         _alarms = IocHelper.GetService<IAlarm>();
-        _waferSize = IocHelper.GetService<IWaferSize>();
+        _waferSize = IocHelper.GetRequiredService<IWaferSize>();
         _modules = modules.ToList();
         LogHelper.Info(this, $"整机管 {_modules.Count} 个模块：{string.Join(", ", _modules.Select(module => module.Name))}");
     }
@@ -548,7 +550,7 @@ public class SystemModule : BaseStateElement, ISystemModule
             HasAlarm = alarms.Any(alarm => alarm.Level != AlarmLevel.Warn),
             HasWarning = alarms.Any(alarm => alarm.Level == AlarmLevel.Warn),
             IsRunning = CurrentRoutine is not null || _modules.Any(module => module.CurrentRoutine is not null),
-            WaferSize = WaferSizeElement.SizeOf(_waferSize),
+            WaferSize = _waferSize.Size,
         };
     }
 

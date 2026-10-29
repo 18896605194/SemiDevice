@@ -32,8 +32,8 @@
  <sys:String x:Key="chambereditor.spray">喷嘴出液</sys:String>
  <sys:String x:Key="chambereditor.spin">卡盘旋转</sys:String>
  <sys:String x:Key="chambereditor.no_chamber">文件中没有当前框架支持的腔体。</sys:String>
- <sys:String x:Key="chambereditor.invalid_format">布局格式不正确，需要 Version=1 的 ChamberLayout。</sys:String>
- <sys:String x:Key="chambereditor.invalid_layout">布局需要一个卡盘，底座尺寸应为 1～20，组件数量应为 1～40。</sys:String>
+ <sys:String x:Key="chambereditor.invalid_format">布局格式不正确，需要 Version=1 或 2 的 ChamberLayout。</sys:String>
+ <sys:String x:Key="chambereditor.invalid_layout">布局至少需要一个底盘和一个卡盘，组件总数应为 2～41。</sys:String>
  <sys:String x:Key="chambereditor.invalid_part">组件 {0} 的类型、引用、坐标或角度不合法。</sys:String>
  <sys:String x:Key="chambereditor.arm_too_close">摆臂 {0} 的回转中心距离盘心过近，请调整安装位置。</sys:String>
  <sys:String x:Key="chambereditor.discard">有未保存的布局修改，是否放弃这些修改？</sys:String>
@@ -58,7 +58,7 @@
  <sys:String x:Key="chambereditor.dimension.LiftWidthScale">升降组件宽度倍率</sys:String>
  <sys:String x:Key="chambereditor.dimension.LiftHeightScale">升降组件高度倍率</sys:String>
  <sys:String x:Key="chambereditor.dimension.Radius">半径</sys:String>
- <sys:String x:Key="chambereditor.dimension.Thickness">盘面厚度</sys:String>
+ <sys:String x:Key="chambereditor.dimension.Thickness">厚度</sys:String>
  <sys:String x:Key="chambereditor.dimension.SpindleHeight">主轴高度</sys:String>
  <sys:String x:Key="chambereditor.dimension.HeightScale">高度倍率</sys:String>
  <sys:String x:Key="chambereditor.dimension.Width">宽度</sys:String>
@@ -73,4 +73,16 @@
  <sys:String x:Key="chambereditor.view.Back">后视</sys:String>
  <sys:String x:Key="chambereditor.view.Left">左视</sys:String>
  <sys:String x:Key="chambereditor.view.Right">右视</sys:String>
+ <sys:String x:Key="chambereditor.base">底盘</sys:String>
+ <sys:String x:Key="chambereditor.kind.Base">安装底板</sys:String>
+ <sys:String x:Key="chambereditor.dimension.Length">长度</sys:String>
+ <sys:String x:Key="chambereditor.component_library">组件库</sys:String>
+ <sys:String x:Key="chambereditor.add_component">添加组件</sys:String>
+ <sys:String x:Key="chambereditor.add_component_tip">新增三维布局组件；实际设备元件在设备配置中定义。</sys:String>
+ <sys:String x:Key="chambereditor.component_binding">关联元件路径（相对腔体）</sys:String>
+ <sys:String x:Key="chambereditor.kind.Lift">升降组件</sys:String>
+ <sys:String x:Key="chambereditor.kind.HomeCup">接液杯</sys:String>
+ <sys:String x:Key="chambereditor.kind.Nozzle">喷嘴</sys:String>
+ <sys:String x:Key="chambereditor.dimension.WidthScale">宽度倍率</sys:String>
+ <sys:String x:Key="chambereditor.dimension.StreamLength">外部液柱长度</sys:String>
 </ResourceDictionary>

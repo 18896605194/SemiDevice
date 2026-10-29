@@ -39,7 +39,7 @@ public class SwingArmElement : AxisElement, ISwingArm
     /// <summary>
     /// 现在用的边缘示教位：按主界面切的晶圆尺寸取 <see cref="Edge8"/> 或 <see cref="Edge12"/>。
     /// </summary>
-    public double Edge => EdgeOf(WaferSizeElement.SizeOf(_waferSize));
+    public double Edge => EdgeOf(_waferSize.Size);
 
     #endregion
 
@@ -72,13 +72,13 @@ public class SwingArmElement : AxisElement, ISwingArm
     }
 
     /// <summary>
-    /// 晶圆尺寸元件（开机 Bind 时取）：配方坐标按它换算；没配是 null，按 12 寸
+    /// 晶圆尺寸元件（必配，开机 Bind 时取）：配方坐标按它现在的尺寸换算
     /// </summary>
-    private IWaferSize? _waferSize;
+    private IWaferSize _waferSize = null!;
 
     public override void Bind()
     {
-        _waferSize = IocHelper.GetService<IWaferSize>();
+        _waferSize = IocHelper.GetRequiredService<IWaferSize>();
     }
 
     public INozzle? FindNozzle(string chemical)
@@ -98,10 +98,13 @@ public class SwingArmElement : AxisElement, ISwingArm
     /// <returns></returns>
     public double ToAxisPosition(double waferPosition, INozzle? nozzle = null)
     {
-        int size = WaferSizeElement.SizeOf(_waferSize);
+        int size = _waferSize.Size;
         double edge = EdgeOf(size);
         double offset = nozzle is null ? 0 : nozzle.Offset;
-        return edge + (Center - edge) * waferPosition / WaferSizeElement.RadiusOf(size) + offset;
+
+        // 晶圆半径 mm，也就是配方晶圆坐标里中心的位置（边缘 = 0）：8 寸 100、12 寸 150
+        double radius = size == WaferSizeElement.Inch8 ? 100 : 150;
+        return edge + (Center - edge) * waferPosition / radius + offset;
     }
 
     private double EdgeOf(int waferSize)

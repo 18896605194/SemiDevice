@@ -554,6 +554,13 @@ public class EcElement : ElementBase, IEc
         return _declared is null || _declared.Contains(Key(path, name));
     }
 
+    /// <summary>
+    /// 判定就是有没有变化
+    /// </summary>
+    /// <param name="assign"></param>
+    /// <param name="oldValue"></param>
+    /// <param name="newValue"></param>
+    /// <returns></returns>
     private static bool SetIfChanged(Action<string?> assign, string? oldValue, string? newValue)
     {
         if (string.Equals(oldValue, newValue, StringComparison.Ordinal))

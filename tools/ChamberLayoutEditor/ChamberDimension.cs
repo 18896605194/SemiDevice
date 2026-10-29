@@ -31,6 +31,9 @@ public sealed class ChamberDimension(string key, double initial, double minimum,
             case "Disk": Add("Radius", 1.32); Add("Thickness", 0.045, 0.005, 2); Add("SpindleHeight", 0.32); break;
             case "Bowl": Add("Radius", 1.59); Add("HeightScale", 1, 0.1, 4); break;
             case "Door": Add("Width", 2.2); Add("Height", 0.58); Add("DepthScale", 1, 0.1, 4); break;
+            case "Lift": Add("WidthScale", 1, 0.1, 4); Add("HeightScale", 1, 0.1, 4); break;
+            case "HomeCup": Add("Radius", 0.32); Add("Height", 0.655); break;
+            case "Nozzle": Add("Length", 1.4, 0.05, 15); Add("DiameterScale", 1, 0.1, 4); Add("StreamLength", 0.6, 0, 10); break;
             case "ArmAssembly":
                 Add("ArmLength", 2.31625, 0.05, 15);
                 Add("ArmWidth", 0.161); Add("ArmThickness", 0.0595, 0.005, 2); Add("PivotRadius", 0.1995);

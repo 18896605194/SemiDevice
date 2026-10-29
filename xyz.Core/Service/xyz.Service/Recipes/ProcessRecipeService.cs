@@ -19,7 +19,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
 
     private readonly IE30RecipeElement? _e30Recipe;
 
-    private readonly IWaferSize? _waferSize;
+    private readonly IWaferSize _waferSize;
 
     private readonly IMapper _mapper;
 
@@ -27,7 +27,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     {
         _library = IocHelper.GetService<IRecipeElement>();
         _e30Recipe = IocHelper.GetService<IE30RecipeElement>();
-        _waferSize = IocHelper.GetService<IWaferSize>();
+        _waferSize = IocHelper.GetRequiredService<IWaferSize>();
         _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射元件（Mapper）");
     }
 
@@ -202,7 +202,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     private ProcessRecipeFieldDto ToFieldDto(RecipeField field)
     {
         var dto = _mapper.Map<ProcessRecipeFieldDto>(field);
-        dto.Max = field.MaxFor(WaferSizeElement.SizeOf(_waferSize));
+        dto.Max = field.MaxFor(_waferSize.Size);
         return dto;
     }
 

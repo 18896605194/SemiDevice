@@ -21,9 +21,6 @@ public class WaferSizeElement : ElementBase, IWaferSize
 
     private readonly object _gate = new();
 
-    /// <summary>
-    /// 切换成功以后发（锁外），参数是新尺寸：配方页的字段上限跟着变，要通知界面重拉。
-    /// </summary>
     public event Action<int>? Changed;
 
     #region Machine
@@ -33,17 +30,13 @@ public class WaferSizeElement : ElementBase, IWaferSize
 
     #endregion
 
-    /// <summary>
-    /// 现在做几寸片：用的地方把自己取到的晶圆尺寸元件传进来；没配晶圆尺寸元件（null）按 12 寸。
-    /// </summary>
-    public static int SizeOf(IWaferSize? element)
+    protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
-        if (element is null)
+        base.OnSettingLoaded(setting);
+        if (!IsSupported(Size))
         {
-            return Inch12;
+            throw new InvalidOperationException($"{FullPath}：Size 只能是 {Inch8} 或 {Inch12}，现在是 {Size}");
         }
-
-        return element.Size;
     }
 
     /// <summary>
@@ -55,27 +48,7 @@ public class WaferSizeElement : ElementBase, IWaferSize
     }
 
     /// <summary>
-    /// 晶圆半径 mm，也就是配方晶圆坐标里中心的位置（边缘 = 0）：8 寸 100、12 寸 150。
-    /// </summary>
-    public static double RadiusOf(int size)
-    {
-        return size == Inch8 ? 100 : 150;
-    }
-
-    /// <summary>
-    /// 尺寸只能是 8 或 12，写错了开机就报出来。
-    /// </summary>
-    protected internal override void OnSettingLoaded(ModuleConfig setting)
-    {
-        base.OnSettingLoaded(setting);
-        if (!IsSupported(Size))
-        {
-            throw new InvalidOperationException($"{FullPath}：Size 只能是 {Inch8} 或 {Inch12}，现在是 {Size}");
-        }
-    }
-
-    /// <summary>
-    /// 切尺寸：先写回 machine.xml，写成了才换上、发 <see cref="Changed"/>（重启后还是这个尺寸）。跟现在一样直接成功。
+    /// 切尺寸：先写回 machine.xml，写成了才换上、发 <see cref="Changed"/>（重启后还是这个尺寸）。跟现在的尺寸一样就直接成功。
     /// 能不能切（整机没初始化、机台里没片）由调用方先查，这里只管尺寸对不对、存不存得下。
     /// </summary>
     public HandleResult SetSize(int size)

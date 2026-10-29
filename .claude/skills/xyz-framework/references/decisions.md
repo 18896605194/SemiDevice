@@ -309,6 +309,11 @@
   用户定：是 LoadPort 的可选功能（"有的 loadport 就没有这个功能"）。做法：machine.xml 里 LoadPort 下配一个尺寸检测子元件（下面按尺寸挂 DI 信号节点），配了才有、没配不查；
   子元件实现 `ICarrierSize`（`Sensors` 每种尺寸亮没亮、`Size` 认出的尺寸），LoadPort 开机找它存字段，Load 前和建 Job 时比整机尺寸。
   这次只做 DI 一种实现，协议报尺寸的 LoadPort 以后让品牌实现同一接口。还等用户答：35021 传感器接哪、几个；冲突报警人工复位还是自动清；LoadPort 页要不要尺寸灯；漏配要不要开机日志提示。
+- **晶圆尺寸元件必配**（2026-10-29，用户问 `SizeOf` 这些"有必要写成静态的吗"，我说 SizeOf 只为没配时按 12 寸兜底；用户："把晶圆尺寸列为必配元件，就是必备的"）：
+  宿主开机查必配时加了 `WaferSize`（没配开机就抛），`WaferSizeElement.SizeOf` 删了；用的地方（摆臂、工艺配方库、机械手示教点表、整机设备总状态、配方服务、整机服务）
+  用 `GetRequiredService<IWaferSize>()` 取、字段不可空，直接 `_waferSize.Size`；"没配晶圆尺寸"的错误码 `system.wafer_size_not_installed` 连同语言包删了。
+  `RadiusOf` 只有摆臂一处用，并进了摆臂（照"只调一次的小方法内联"）；`IsSupported` 留着静态（解析 machine.xml 的配方字段表时还没容器、拿不到元件）。
+  冒烟：`SmokeIoc` 没登记晶圆尺寸时默认给一个 12 寸的，跟宿主"一定有"一致；OperationWaitSmoke 查"没配晶圆尺寸开机就报"。
 
 ## 腔体收进平台（2026-10-10，用户定的方向："未来其他项目的时候直接修改 machine.xml 文件就行，代码基本不要修改啥"）
 - 跟 LoadPort（2026-10-06）一样：**回零、复位、中止、按工艺配方做工艺平台给默认实现**，照 machine.xml 里挂的部件发轴和 IO；35021 的 `ChamberModule` 留空类给机型扩展，
@@ -1205,7 +1210,7 @@
   模块动作（全部回片、整机停止）要用的搬运管理、晶圆账、Job 由整机经构造传进去。元件基类的报警、EC、报事件三个公共方法照旧每次现取（开机每个阶段、所有元件都用，
   开机准备时就在读 EC）；只在开机某一步用一次的（数据曲线定信号表、HSMS 开链路时比端口、轴登记收发块）就地取。
 - **跟着变的**：配方字段的上限原来每次查"整机现在几寸"（静态的 `WaferSizeElement.CurrentSize`），改成用的地方把自己取到的尺寸传进去
-  （`RecipeField.CheckFormat(值, 选项, 尺寸)`、`MaxFor(尺寸)`，`WaferSizeElement.SizeOf(元件)`：没配按 12 寸），`RecipeField.Max` 删了；
+  （`RecipeField.CheckFormat(值, 选项, 尺寸)`、`MaxFor(尺寸)`，当时用 `WaferSizeElement.SizeOf(元件)`、没配按 12 寸；2026-10-29 晶圆尺寸改成必配、SizeOf 删了，见「晶圆尺寸 8 / 12 寸」），`RecipeField.Max` 删了；
   晶圆账快照 `WaferLedgerSnapshot.SlotsOf` 由模块把自己的晶圆账传进去。
 - **冒烟**：`tools\SmokeShared\SmokeIoc.cs`（各冒烟工程链接进去，加 `Microsoft.Extensions.DependencyInjection` 包）：`Reset` 空容器、`Load` 装树进容器、`Tree` 换树、
   `Use<T>(x)` 单独登记（null 是撤掉），改一次重建一次。原来 new 出来就自己登记的，现在要用的显式 `Use`；装新树会换掉前一棵树（原来静态登记的单例会一直留着），

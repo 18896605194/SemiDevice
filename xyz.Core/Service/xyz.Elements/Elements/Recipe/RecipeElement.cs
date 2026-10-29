@@ -82,7 +82,9 @@ public class RecipeElement : ElementBase, IRecipeElement
     // 下面几个单例开机绑站点时取；没装是 null
     private ISystemAccess? _system;
     private IEapNotifierElement? _notifier;
-    private IWaferSize? _waferSize;
+
+    // 晶圆尺寸是必配的，一定取得到
+    private IWaferSize _waferSize = null!;
 
     #region Machine
 
@@ -306,11 +308,7 @@ public class RecipeElement : ElementBase, IRecipeElement
     public override void Bind()
     {
         Bind(IocHelper.GetServices<IModule>());
-        var size = _waferSize;
-        if (size is not null)
-        {
-            size.Changed += _ => RemoteEventPublisher.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken);
-        }
+        _waferSize.Changed += _ => RemoteEventPublisher.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken);
     }
 
     /// <summary>
@@ -330,7 +328,7 @@ public class RecipeElement : ElementBase, IRecipeElement
     {
         _system = IocHelper.GetService<ISystemAccess>();
         _notifier = IocHelper.GetService<IEapNotifierElement>();
-        _waferSize = IocHelper.GetService<IWaferSize>();
+        _waferSize = IocHelper.GetRequiredService<IWaferSize>();
         var stations = modules.OfType<IProcessStation>().ToList();
         var types = new List<string>();
         foreach (var station in stations)
@@ -993,7 +991,7 @@ public class RecipeElement : ElementBase, IRecipeElement
     /// </summary>
     private HandleResult? CheckContent(RecipeData content, string? language)
     {
-        int waferSize = WaferSizeElement.SizeOf(_waferSize);
+        int waferSize = _waferSize.Size;
         return CheckHead(content, language, waferSize)
             ?? CheckSteps(content.Steps, _fields, content.Type.Trim(), content.TimeoutSeconds, language, waferSize);
     }

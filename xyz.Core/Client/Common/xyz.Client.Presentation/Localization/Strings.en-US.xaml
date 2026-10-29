@@ -30,7 +30,6 @@
     <sys:String x:Key="system.return_module_not_ready">{0}, needed for Return All, is not usable now (disabled, not initialized, in alarm or busy); Return All cannot start</sys:String>
 
     <!-- Wafer size (switch 8 / 12 inch on the main page) -->
-    <sys:String x:Key="system.wafer_size_not_installed">WaferSize is not configured under the System node in machine.xml; the wafer size cannot be switched</sys:String>
     <sys:String x:Key="system.wafer_size_invalid">Wafer size must be 8 or 12; got {0}</sys:String>
     <sys:String x:Key="system.wafer_size_initialized">{0} has been initialized; switch the wafer size while the equipment is not initialized</sys:String>
     <sys:String x:Key="system.wafer_size_has_wafer">There is still a wafer in {0}; the equipment (outside the load ports) must be empty to switch the wafer size</sys:String>

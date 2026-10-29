@@ -9,9 +9,7 @@ namespace xyz.Elements.Interfaces;
 [Ioc]
 public interface IWaferSize
 {
-    /// <summary>
-    /// 现在做几寸片
-    /// </summary>
+
     int Size { get; }
 
     /// <summary>
@@ -20,7 +18,7 @@ public interface IWaferSize
     HandleResult SetSize(int size);
 
     /// <summary>
-    /// 切了尺寸（带新尺寸）
+    /// 切换尺寸的事件
     /// </summary>
     event Action<int>? Changed;
 }

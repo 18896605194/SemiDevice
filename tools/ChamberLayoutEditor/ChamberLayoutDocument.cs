@@ -12,13 +12,15 @@ public sealed class ChamberPlacement : ObservableObject
 {
     public string Id { get; init; } = "";
     public string Kind { get; init; } = "";
-    public string Component { get; init; } = "";
+    private string _component = "";
+    public string Component { get => _component; set { if (SetProperty(ref _component, value)) OnPropertyChanged(nameof(Caption)); } }
     public bool HasLift { get; init; } = true;
     public int Nozzles { get; init; } = 2;
     public bool IsArm => Kind == "ArmAssembly";
     public bool IsBase => Kind == "Base";
-    public string DisplayName => IsBase ? L10n.Get("chambereditor.base") : Id;
-    public string Caption => IsBase ? DisplayName : Component;
+    public bool HasDeviceBinding => Kind is not ("Base" or "HomeCup");
+    public string DisplayName => IsBase ? L10n.Get("chambereditor.base") + (Id == "Base" ? "" : " " + Id) : Id;
+    public string Caption => HasDeviceBinding ? Component : DisplayName;
     public string KindTitle => L10n.Get("chambereditor.kind." + Kind);
     private ObservableCollection<ChamberDimension>? _dimensions;
     public ObservableCollection<ChamberDimension> Dimensions
@@ -60,7 +62,7 @@ public sealed class ChamberLayoutDocument : ObservableObject
 {
     public string ComponentRoot { get; init; } = "Chamber.Chamber1";
     public List<ChamberPlacement> Parts { get; } = [];
-    public ChamberPlacement BasePart => Parts.Single(p => p.IsBase);
+    public ChamberPlacement BasePart => Parts.First(p => p.IsBase);
     // 保留调用入口，实际尺寸统一存放在底盘组件中。
     public double BaseLength { get => BasePart.Size("Length"); set => BasePart.Dimensions.Single(d => d.Key == "Length").Value = value; }
     public double BaseWidth { get => BasePart.Size("Width"); set => BasePart.Dimensions.Single(d => d.Key == "Width").Value = value; }
@@ -161,15 +163,15 @@ public sealed class ChamberLayoutDocument : ObservableObject
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(ComponentRoot) || Parts.Count is < 2 or > 41
-            || Parts.Count(p => p.Kind == "Disk") != 1 || Parts.Count(p => p.IsBase) != 1)
+            || !Parts.Any(p => p.Kind == "Disk") || !Parts.Any(p => p.IsBase))
             throw new InvalidDataException(L10n.Get("chambereditor.invalid_layout"));
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var components = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var disk = Parts.Single(p => p.Kind == "Disk");
+        var disk = Parts.First(p => p.Kind == "Disk");
         foreach (var part in Parts)
         {
-            if (part.Kind is not ("Base" or "Disk" or "Bowl" or "Door" or "ArmAssembly") || string.IsNullOrWhiteSpace(part.Id)
-                || (!part.IsBase && (string.IsNullOrWhiteSpace(part.Component) || !components.Add(part.Component))) || !ids.Add(part.Id)
+            if (!ChamberComponentCatalog.Contains(part.Kind) || string.IsNullOrWhiteSpace(part.Id)
+                || (part.HasDeviceBinding && (string.IsNullOrWhiteSpace(part.Component) || !components.Add(part.Component))) || !ids.Add(part.Id)
                 || part.Nozzles is < 0 or > 8 || new[] { part.X, part.Y, part.Z }.Any(v => !double.IsFinite(v) || Math.Abs(v) > 10)
                 || new[] { part.Yaw, part.HomeAngle }.Any(v => !double.IsFinite(v) || Math.Abs(v) > 360))
                 throw new InvalidDataException(L10n.Get("chambereditor.invalid_part", part.Id));
