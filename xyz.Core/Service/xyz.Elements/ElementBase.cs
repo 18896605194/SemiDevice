@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using xyz.Common.Log;
@@ -142,26 +143,29 @@ public abstract class ElementBase : ILogSource
     }
 
     /// <summary>
-    /// 按类型在子元件树（含各级后代，不含自己）中查找第一个匹配项；找不到返回 null。
-    /// T 可以是具体元件类（含其派生类）或接口（如 IE84，匹配任意实现类）。
+    /// 报过"配了好几个"的：哪个元件找哪一类
+    /// </summary>
+    private static readonly ConcurrentDictionary<(ElementBase Owner, Type Type), bool> ReportedDuplicates = new();
+
+    /// <summary>
+    /// 按类型在子元件树（含各级后代，不含自己）里找唯一的那一个：没有返回 null；配了好几个用排在最前的，记一条错误日志
     /// </summary>
     public T? FindChild<T>() where T : class
     {
-        foreach (var child in _children)
+        var found = FindChildren<T>();
+        if (found.Count == 0)
         {
-            if (child is T matched)
-            {
-                return matched;
-            }
-
-            var found = child.FindChild<T>();
-            if (found is not null)
-            {
-                return found;
-            }
+            return null;
         }
 
-        return null;
+        // 只该有一个（载具、读头、E84 这类），对上好几个是 machine.xml 配多了；有的每拍都找（LoadPort 的 E84），同一处只报一次，免得刷满日志
+        if (found.Count > 1 && ReportedDuplicates.TryAdd((this, typeof(T)), true))
+        {
+            string paths = string.Join("、", found.OfType<ElementBase>().Select(element => element.FullPath));
+            LogHelper.Error(this, $"下面配了 {found.Count} 个 {typeof(T).Name}，只该有一个，用排在最前的：{paths}");
+        }
+
+        return found[0];
     }
 
     /// <summary>

@@ -36,7 +36,8 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 ## 2. 元件（`xyz.Elements\ElementBase.cs`）
 
 - 属性：`Name`、`FullPath`（"Chamber.Chamber1.Door"：machine.xml 的分组节点不生成元件，但名字进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
-  查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
+  查找 `FindChild(name)`、`FindChild<T>(name)`（按名字，拿第一个）、`FindChild<T>()`（按类型找唯一的那一个：配了好几个用排在最前的，同一个元件找同一类只记一次错误日志）、
+  `FindChildren<T>()`（全拿，按 machine.xml 先后）；都找所有层（子、孙……），不含自己。
 - 扫描：根元件（模块、PLC、IO（等 PLC 连上下发开机 DO）、Safety、Computer、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(10)`（`ElementBase.ScanIntervalMs`，2026-10-22 用户从 50 改成 20、又改成 10）。
   `protected virtual void OnScan()` 会递归子元件，重写时先调 `base.OnScan()`。子元件之间要互不耽误的父元件重写 `OnScan`、逐个调 `ScanChild(子元件)`：
   每个子元件的异常、慢扫描记在它自己名下，一个抛异常不会让这一拍排在后面的漏扫（基类的直接递归会）。现在只有 `DispatchElement` 这么用。

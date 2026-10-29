@@ -153,7 +153,46 @@ Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error && 
         && item.Message.Contains("TypoGroup.Typo") && item.Message.Contains("IsRunn")), 3000),
     "a misspelled machine.xml name is logged as an error naming the node path and the name");
 
-Console.WriteLine("PASS: configured root scans, case-insensitive machine.xml, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; on exit scans stop first (waiting for the scan in progress, none during or after OnStopping, a root stopping itself from its own scan does not hang); lifecycle stages (init by InitOrder, bind, started and publish-on-startup in machine.xml order, stopping in reverse past a failure), elements into the container by interface; a misspelled machine.xml name logged as an error and left at its default");
+// 在子元件树里找（2026-10-29 用户定）：FindChildren<T>() 各级全拿、按 machine.xml 先后；FindChild<T>() 只该对上一个，没有是 null，
+// 对上好几个是配多了：用排在最前的、记一条错误日志写清每一个的路径，同一个元件找同一类只报一次（LoadPort 每拍都找 E84）
+const string findXml = """
+    <ArrayOfSetting>
+      <Setting Name="FindRoot" Type="ScanProbe">
+        <Setting Name="First" Type="FindProbe" />
+        <Setting Name="Middle" Type="ScanProbe">
+          <Setting Name="Nested" Type="FindProbe" />
+        </Setting>
+      </Setting>
+      <Setting Name="SingleRoot" Type="ScanProbe">
+        <Setting Name="Middle" Type="ScanProbe">
+          <Setting Name="Only" Type="FindProbe" />
+        </Setting>
+      </Setting>
+    </ArrayOfSetting>
+    """;
+using var findReader = new StringReader(findXml);
+var findRoots = ElementLoader.Load(((MachineSettings)serializer.Deserialize(findReader)!).Modules);
+var findRoot = findRoots.Single(root => root.Name == "FindRoot");
+var singleRoot = findRoots.Single(root => root.Name == "SingleRoot");
+Check(string.Join(",", findRoot.FindChildren<IFindProbe>().Select(probe => probe.Name)) == "First,Nested",
+    "FindChildren<T>() returns every match at any depth in machine.xml order");
+Check(singleRoot.FindChild<IFindProbe>()?.Name == "Only" && singleRoot.FindChild<INotInstalledProbe>() is null,
+    "FindChild<T>() finds the one match at any depth; no match is null");
+Check(findRoot.FindChild<IFindProbe>()?.Name == "First", "FindChild<T>() with more than one match uses the first in machine.xml order");
+for (int i = 0; i < 5; i++)
+{
+    findRoot.FindChild<IFindProbe>();
+}
+
+Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error
+        && item.Message.Contains("FindRoot.First") && item.Message.Contains("FindRoot.Middle.Nested")), 3000),
+    "FindChild<T>() with more than one match logs an error naming every match");
+Thread.Sleep(200);
+Check(logs.Count(item => item.Level == LogLevel.Error && item.Message.Contains("FindRoot.First")) == 1,
+    "the same element looking for the same type reports it only once");
+Check(!logs.Any(item => item.Level == LogLevel.Error && item.Message.Contains("SingleRoot.Middle.Only")), "a single match logs nothing");
+
+Console.WriteLine("PASS: configured root scans, case-insensitive machine.xml, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; on exit scans stop first (waiting for the scan in progress, none during or after OnStopping, a root stopping itself from its own scan does not hang); lifecycle stages (init by InitOrder, bind, started and publish-on-startup in machine.xml order, stopping in reverse past a failure), elements into the container by interface; a misspelled machine.xml name logged as an error and left at its default; FindChildren<T>() returns all matches in order, FindChild<T>() expects one (none is null, several use the first and log one error per element and type)");
 
 static void Check(bool condition, string message)
 {
@@ -299,6 +338,12 @@ public sealed class FaultyLifecycleProbe : LifecycleProbe
     }
 }
 
+// 在子元件树里找的探针
+[Element]
+public sealed class FindProbe : ElementBase, IFindProbe
+{
+}
+
 // 探针的接口打上 [Ioc]：装配器只按打了标记的接口登记
 namespace xyz.Smoke
 {
@@ -317,5 +362,11 @@ namespace xyz.Smoke
     // 没打标记：元件实现了也不进容器
     public interface IUnmarkedProbe
     {
+    }
+
+    // 在子元件树里找的探针：不进容器，只用 FindChild / FindChildren 找
+    public interface IFindProbe
+    {
+        string Name { get; }
     }
 }
