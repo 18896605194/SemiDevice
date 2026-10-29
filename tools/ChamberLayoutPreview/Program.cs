@@ -39,10 +39,14 @@ internal static class Program
                 string output = Path.GetFullPath(args[1]); Directory.CreateDirectory(output);
                 const int width = 1460, height = 960;
                 using var host = new HwndSource(new HwndSourceParameters("Chamber layout preview")
-                { WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080, PositionX = -32000, PositionY = -32000, Width = width, Height = height });
+                { WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080, PositionX = -32000, PositionY = -32000, Width = 4096, Height = 2304 });
                 page.Width = width; page.Height = height; host.RootVisual = page;
                 page.Measure(new Size(width, height)); page.Arrange(new Rect(0, 0, width, height)); page.UpdateLayout(); Pump(400);
-                if (args[0] == "--self-test") EditorChecks.Run(page, output);
+                if (args[0] == "--self-test")
+                {
+                    EditorChecks.Run(page, output);
+                    ScreenChecks.Run(page, host, output);
+                }
                 Capture(page, Path.Combine(output, "chamber-editor.png"));
                 page.ViewModel.SelectedInspectorTab = 1;
                 Pump(100); Capture(page, Path.Combine(output, "chamber-dimensions.png"));
@@ -71,7 +75,8 @@ internal static class Program
             if (args.Length == 2 && args[0] == "--machine")
                 page.LoadDocument(ChamberLayoutDocument.ReadMachine(File.ReadAllText(args[1]))[0]);
             var window = new Window { Title = L10n.Get("chambereditor.title"), Content = page, Width = 1460, Height = 960,
-                MinWidth = 1100, MinHeight = 760, Background = (Brush)app.Resources["DarkWindowBackground"], WindowStartupLocation = WindowStartupLocation.CenterScreen };
+                MinWidth = 800, MinHeight = 520, WindowState = WindowState.Maximized,
+                Background = (Brush)app.Resources["DarkWindowBackground"], WindowStartupLocation = WindowStartupLocation.CenterScreen };
             window.Closing += (_, e) => { if (!page.ConfirmClose()) e.Cancel = true; };
             app.Run(window);
             return 0;
@@ -90,7 +95,7 @@ internal static class Program
         timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
         timer.Start(); Dispatcher.PushFrame(frame);
     }
-    private static void Capture(FrameworkElement element, string path)
+    internal static void Capture(FrameworkElement element, string path)
     {
         element.UpdateLayout();
         var bitmap = new RenderTargetBitmap((int)element.ActualWidth, (int)element.ActualHeight, 96, 96, PixelFormats.Pbgra32);

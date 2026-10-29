@@ -343,7 +343,7 @@ public interface IAlarm
 <section class="topic" id="b1-6">
 <h3>1.6 开机前：查必配、合 EC、编号表</h3>
 <p>容器建好以后（<a class="ref" data-f="xyz.Core/Service/xyz.GrpcHost/Program.cs">Program.cs</a>），先做三件框架的事，再进开机五步。</p>
-<figure class="code" data-file="xyz.Core/Service/xyz.Service/ServiceExtensions.cs"><figcaption>接上容器 → 查 5 个必配 → 合并 EC → 编 GEM 编号表</figcaption><script type="text/plain">
+<figure class="code" data-file="xyz.Core/Service/xyz.Service/ServiceExtensions.cs"><figcaption>接上容器 → 查 6 个必配 → 合并 EC → 编 GEM 编号表</figcaption><script type="text/plain">
     public static void StartElements(this IServiceProvider provider)
     {
 @@
@@ -354,6 +354,7 @@ public interface IAlarm
         Require<ILogElement>("Log", "日志（转给界面的实时日志、最近日志）");
         Require<IAlarm>("Alarm", "报警");
         Require<IIo>("Io", "IO 点表");
+        Require<IWaferSize>("WaferSize", "晶圆尺寸，配方坐标、示教点表按它取");
 @@
         // 元件开机准备就要读 EC，所以排在开机阶段前面
         var ec = IocHelper.GetService<IEc>();
@@ -371,7 +372,7 @@ public interface IAlarm
 <table>
 <tr><th>做什么</th><th>说明</th></tr>
 <tr><td>接上容器</td><td>后面每个元件都靠 IocHelper 取别的元件</td></tr>
-<tr><td>查 System、Mapper、Log、Alarm、Io 五个节点</td><td>平台离不开它们，没配就抛异常（<a class="ref" data-f="xyz.Core/Service/xyz.Service/ServiceExtensions.cs">ServiceExtensions.cs</a>），开机失败</td></tr>
+<tr><td>查 System、Mapper、Log、Alarm、Io、WaferSize 六个节点</td><td>平台离不开它们，没配就抛异常（<a class="ref" data-f="xyz.Core/Service/xyz.Service/ServiceExtensions.cs">ServiceExtensions.cs</a>），开机失败</td></tr>
 <tr><td>合并 EC</td><td>照元件树把 ec.xml 补全。元件开机准备时就要读 EC，所以排在五步前面；没配 EC 节点只记一条警告，EC 全按代码默认值走</td></tr>
 <tr><td>编 GEM 编号表</td><td>SV、DV、EC、报警、事件五张表，跟 machine.xml 放同一个目录；E30、EDA、数据曲线用</td></tr>
 </table>

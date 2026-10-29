@@ -15,6 +15,8 @@ public enum ChamberViewPreset { Perspective, Top, Front, Back, Left, Right }
 /// <summary>编辑、预览共用原生三维组件；编辑安装位置和模拟反馈完全分开。</summary>
 public sealed class ChamberLayoutScene : Grid
 {
+    private readonly Grid _stage = new() { RenderTransformOrigin = new Point(0.5, 0.5) };
+    private readonly ScaleTransform _aspectCompensation = new();
     private readonly Viewport3D _viewport = new();
     private readonly Canvas _overlay = new() { IsHitTestVisible = false };
     private readonly OrthographicCamera _camera = new();
@@ -40,8 +42,10 @@ public sealed class ChamberLayoutScene : Grid
         ClipToBounds = true;
         _viewport.Camera = _camera;
         _viewport.Children.Add(_world);
-        Children.Add(_viewport);
-        Children.Add(_overlay);
+        _stage.RenderTransform = _aspectCompensation;
+        _stage.Children.Add(_viewport);
+        _stage.Children.Add(_overlay);
+        Children.Add(_stage);
         PreviewMouseLeftButtonDown += OnPointerDown;
         PreviewMouseLeftButtonUp += OnPointerUp;
         PreviewMouseRightButtonDown += OnOrbitDown;
@@ -49,8 +53,10 @@ public sealed class ChamberLayoutScene : Grid
         PreviewMouseMove += OnPointerMove;
         PreviewMouseWheel += (_, e) => { FinishGesture(); _width = Math.Clamp(_width - e.Delta / 120d * 0.5, 5, 48); UpdateCamera(); e.Handled = true; };
         LostMouseCapture += (_, _) => { if (_drag is not null) { _drag = null; _model?.CancelDrag(); Apply(); } _orbit = null; };
-        SizeChanged += (_, _) => UpdateCamera();
-        IsVisibleChanged += (_, _) => Apply();
+        SizeChanged += (_, _) => { UpdateCamera(); UpdateAspectCompensation(); };
+        Loaded += (_, _) => UpdateAspectCompensation();
+        LayoutUpdated += (_, _) => UpdateAspectCompensation();
+        IsVisibleChanged += (_, _) => { UpdateAspectCompensation(); Apply(); };
     }
 
     public void Bind(ChamberEditorViewModel model)
@@ -103,6 +109,39 @@ public sealed class ChamberLayoutScene : Grid
     internal (double Length, double Width, double Thickness) ProbeBase() => (_base!.Length, _base.Width, _base.Thickness);
     internal Point3D ProbeOrigin(string id) => _parts[id].Root.Transform.Transform(new Point3D());
     internal ChamberPlacement? Pick(Point point) => Hit(point);
+    internal (double X, double Y) AspectCompensation => (_aspectCompensation.ScaleX, _aspectCompensation.ScaleY);
+
+    // 宿主可能使用非等比 Viewbox.Fill。只缩放三维场景与标记，不改变逻辑尺寸、配置和宿主布局。
+    private void UpdateAspectCompensation()
+    {
+        if (!IsVisible || ActualWidth <= 0 || ActualHeight <= 0
+            || PresentationSource.FromVisual(this) is not { RootVisual: Visual root, CompositionTarget: { } target }) return;
+        var transform = TransformToAncestor(root);
+        var origin = target.TransformToDevice.Transform(transform.Transform(new Point()));
+        var x = target.TransformToDevice.Transform(transform.Transform(new Point(1, 0))) - origin;
+        var y = target.TransformToDevice.Transform(transform.Transform(new Point(0, 1))) - origin;
+        double sx = x.Length, sy = y.Length;
+        if (!double.IsFinite(sx) || !double.IsFinite(sy) || sx < 1e-8 || sy < 1e-8) return;
+        double scale = Math.Min(sx, sy);
+        double fx = scale / sx, fy = scale / sy;
+        if (Math.Abs(fx - _aspectCompensation.ScaleX) < 1e-7 && Math.Abs(fy - _aspectCompensation.ScaleY) < 1e-7) return;
+        FinishGesture();
+        _aspectCompensation.ScaleX = fx;
+        _aspectCompensation.ScaleY = fy;
+    }
+
+    internal Point ProjectToRoot(Point3D world)
+    {
+        var root = (Visual)PresentationSource.FromVisual(this).RootVisual;
+        return _viewport.TransformToAncestor(root).Transform(Project(world));
+    }
+
+    internal Point3D UnprojectFromRoot(Point point, Point3D anchor)
+    {
+        var root = (Visual)PresentationSource.FromVisual(this).RootVisual;
+        var inverse = _viewport.TransformToAncestor(root).Inverse!;
+        return Unproject(inverse.Transform(point), anchor);
+    }
 
     private void Rebuild()
     {
@@ -240,7 +279,7 @@ public sealed class ChamberLayoutScene : Grid
     private void OnPointerDown(object sender, MouseButtonEventArgs e)
     {
         if (_model is null) return;
-        var point = e.GetPosition(this);
+        var point = e.GetPosition(_viewport);
         var part = Hit(point);
         if (part is null) return;
         _model.Selected = part;
@@ -256,7 +295,7 @@ public sealed class ChamberLayoutScene : Grid
     }
     private void OnPointerMove(object sender, MouseEventArgs e)
     {
-        var point = e.GetPosition(this);
+        var point = e.GetPosition(_viewport);
         if (_drag is { } start && _model?.Selected is { } part)
         {
             var current = OnPlane(point, new Point3D(_startX, _startY, _startZ), _dragNormal);
@@ -292,7 +331,7 @@ public sealed class ChamberLayoutScene : Grid
         FinishGesture();
         _viewPreset = ChamberViewPreset.Perspective;
         ViewPresetChanged?.Invoke(_viewPreset);
-        _orbit = e.GetPosition(this); CaptureMouse(); e.Handled = true;
+        _orbit = e.GetPosition(_viewport); CaptureMouse(); e.Handled = true;
     }
 
     private Color Token(string key, Color fallback) => TryFindResource(key) is Color color ? color : fallback;

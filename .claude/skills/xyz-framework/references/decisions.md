@@ -310,8 +310,9 @@
   子元件实现 `ICarrierSize`（`Sensors` 每种尺寸亮没亮、`Size` 认出的尺寸），LoadPort 开机找它存字段，Load 前和建 Job 时比整机尺寸。
   这次只做 DI 一种实现，协议报尺寸的 LoadPort 以后让品牌实现同一接口。还等用户答：35021 传感器接哪、几个；冲突报警人工复位还是自动清；LoadPort 页要不要尺寸灯；漏配要不要开机日志提示。
 - **晶圆尺寸元件必配**（2026-10-29，用户问 `SizeOf` 这些"有必要写成静态的吗"，我说 SizeOf 只为没配时按 12 寸兜底；用户："把晶圆尺寸列为必配元件，就是必备的"）：
-  宿主开机查必配时加了 `WaferSize`（没配开机就抛），`WaferSizeElement.SizeOf` 删了；用的地方（摆臂、工艺配方库、机械手示教点表、整机设备总状态、配方服务、整机服务）
-  用 `GetRequiredService<IWaferSize>()` 取、字段不可空，直接 `_waferSize.Size`；"没配晶圆尺寸"的错误码 `system.wafer_size_not_installed` 连同语言包删了。
+  宿主开机查必配时加了 `WaferSize`（没配开机就抛），`WaferSizeElement.SizeOf` 删了，不再有"没配按 12 寸"。元件（摆臂、工艺配方库、机械手、整机）照旧在 Bind
+  （机械手在元件初始化）里 `GetRequiredService<IWaferSize>()` 取一次存字段，用的地方走私有属性 `WaferSize`：字段还空着就当场取（冒烟里很多元件不走 Bind 就用，
+  宿主里开机早取好了）；配方服务、整机服务构造时取，字段不可空。"没配晶圆尺寸"的错误码 `system.wafer_size_not_installed` 连同语言包删了。
   `RadiusOf` 只有摆臂一处用，并进了摆臂（照"只调一次的小方法内联"）；`IsSupported` 留着静态（解析 machine.xml 的配方字段表时还没容器、拿不到元件）。
   冒烟：`SmokeIoc` 没登记晶圆尺寸时默认给一个 12 寸的，跟宿主"一定有"一致；OperationWaitSmoke 查"没配晶圆尺寸开机就报"。
 

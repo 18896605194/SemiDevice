@@ -134,6 +134,8 @@ public sealed class ChamberLayoutDocument : ObservableObject
         string? version = (string?)root?.Attribute("Version");
         if (root?.Name != "ChamberLayout" || version is not ("1" or "2"))
             throw new InvalidDataException(L10n.Get("chambereditor.invalid_format"));
+        if (root.Attribute("Units") is { } units && units.Value != "Logical")
+            throw new InvalidDataException(L10n.Get("chambereditor.invalid_units"));
         var result = new ChamberLayoutDocument { ComponentRoot = Required(root, "ComponentRoot") };
         if (version == "1") result.Parts.Add(CreateBase(Number(root, "BaseLength"), Number(root, "BaseWidth"),
             (double?)root.Attribute("BaseThickness") ?? 0.12));
@@ -182,7 +184,7 @@ public sealed class ChamberLayoutDocument : ObservableObject
     }
 
     public string ToXml() => new XDocument(new XElement("ChamberLayout", new XAttribute("Version", "2"),
-        new XAttribute("ComponentRoot", ComponentRoot),
+        new XAttribute("Units", "Logical"), new XAttribute("ComponentRoot", ComponentRoot),
         Parts.Select(p => new XElement(p.Kind, new XAttribute("Id", p.Id), new XAttribute("Component", p.Component),
             new XAttribute("X", p.X), new XAttribute("Y", p.Y), new XAttribute("Z", p.Z), new XAttribute("Yaw", p.Yaw),
             new XAttribute("HomeAngle", p.HomeAngle), new XAttribute("HasLift", p.HasLift), new XAttribute("Nozzles", p.Nozzles),

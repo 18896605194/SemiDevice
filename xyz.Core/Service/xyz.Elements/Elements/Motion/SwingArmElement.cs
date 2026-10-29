@@ -39,7 +39,7 @@ public class SwingArmElement : AxisElement, ISwingArm
     /// <summary>
     /// 现在用的边缘示教位：按主界面切的晶圆尺寸取 <see cref="Edge8"/> 或 <see cref="Edge12"/>。
     /// </summary>
-    public double Edge => EdgeOf(_waferSize.Size);
+    public double Edge => EdgeOf(WaferSize.Size);
 
     #endregion
 
@@ -74,7 +74,12 @@ public class SwingArmElement : AxisElement, ISwingArm
     /// <summary>
     /// 晶圆尺寸元件（必配，开机 Bind 时取）：配方坐标按它现在的尺寸换算
     /// </summary>
-    private IWaferSize _waferSize = null!;
+    private IWaferSize? _waferSize;
+
+    /// <summary>
+    /// 用的地方都走这里：没走 Bind 就用的（冒烟里直接装出来的元件）用到时再取一次
+    /// </summary>
+    private IWaferSize WaferSize => _waferSize ??= IocHelper.GetRequiredService<IWaferSize>();
 
     public override void Bind()
     {
@@ -98,7 +103,7 @@ public class SwingArmElement : AxisElement, ISwingArm
     /// <returns></returns>
     public double ToAxisPosition(double waferPosition, INozzle? nozzle = null)
     {
-        int size = _waferSize.Size;
+        int size = WaferSize.Size;
         double edge = EdgeOf(size);
         double offset = nozzle is null ? 0 : nozzle.Offset;
 

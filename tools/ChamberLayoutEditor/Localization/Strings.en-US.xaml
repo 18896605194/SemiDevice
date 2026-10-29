@@ -18,9 +18,9 @@
  <sys:String x:Key="chambereditor.default_view">Default view</sys:String>
  <sys:String x:Key="chambereditor.gesture_tip">Left-drag components, right-drag to orbit, wheel to zoom. Switch between 3D, top, front and side views.</sys:String>
  <sys:String x:Key="chambereditor.placement">Placement properties</sys:String>
- <sys:String x:Key="chambereditor.x">X · Left / right</sys:String>
- <sys:String x:Key="chambereditor.y">Y · Mount height</sys:String>
- <sys:String x:Key="chambereditor.z">Z · Front / back</sys:String>
+ <sys:String x:Key="chambereditor.x">X · Left / right (logical units)</sys:String>
+ <sys:String x:Key="chambereditor.y">Y · Mount height (logical units)</sys:String>
+ <sys:String x:Key="chambereditor.z">Z · Front / back (logical units)</sys:String>
  <sys:String x:Key="chambereditor.yaw">Mount rotation (°)</sys:String>
  <sys:String x:Key="chambereditor.rotate">Rotate 90°</sys:String>
  <sys:String x:Key="chambereditor.home_angle">Local home angle (°)</sys:String>
@@ -45,7 +45,7 @@
  <sys:String x:Key="chambereditor.placement_tab">Placement</sys:String>
  <sys:String x:Key="chambereditor.dimensions_tab">Dimensions</sys:String>
  <sys:String x:Key="chambereditor.auto_length">Compute arm length from placement</sys:String>
- <sys:String x:Key="chambereditor.size_units">Dimensions use scene units; scale factors affect only the corresponding component.</sys:String>
+ <sys:String x:Key="chambereditor.size_units">Positions and dimensions use logical units and scale with the window. Angles use °; scale factors use ×.</sys:String>
  <sys:String x:Key="chambereditor.invalid_size">Component {0} has invalid or unknown dimensions.</sys:String>
  <sys:String x:Key="chambereditor.manual_length_warning">{0}: Manual length differs from the disk distance; center preview preserves the specified length.</sys:String>
  <sys:String x:Key="chambereditor.nozzle_dimension">{0} · {1}</sys:String>
@@ -85,4 +85,7 @@
  <sys:String x:Key="chambereditor.kind.Nozzle">Nozzle</sys:String>
  <sys:String x:Key="chambereditor.dimension.WidthScale">Width scale</sys:String>
  <sys:String x:Key="chambereditor.dimension.StreamLength">External stream length</sys:String>
+ <sys:String x:Key="chambereditor.unit.logical">logical units</sys:String>
+ <sys:String x:Key="chambereditor.unit.scale">×</sys:String>
+ <sys:String x:Key="chambereditor.invalid_units">The layout supports logical units only. Check the Units attribute.</sys:String>
 </ResourceDictionary>

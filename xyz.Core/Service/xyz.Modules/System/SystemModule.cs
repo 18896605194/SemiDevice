@@ -67,7 +67,12 @@ public class SystemModule : BaseStateElement, ISystemModule
     private IAlarm? _alarms;
 
     // 晶圆尺寸是必配的，一定取得到
-    private IWaferSize _waferSize = null!;
+    private IWaferSize? _waferSize;
+
+    /// <summary>
+    /// 用的地方都走这里：没走 Bind 就用的（冒烟里直接 new 的）用到时再取一次
+    /// </summary>
+    private IWaferSize WaferSize => _waferSize ??= IocHelper.GetRequiredService<IWaferSize>();
 
     /// <summary>
     /// 开机：认整机要管的模块（全部初始化、整机停止、全部回片）
@@ -550,7 +555,7 @@ public class SystemModule : BaseStateElement, ISystemModule
             HasAlarm = alarms.Any(alarm => alarm.Level != AlarmLevel.Warn),
             HasWarning = alarms.Any(alarm => alarm.Level == AlarmLevel.Warn),
             IsRunning = CurrentRoutine is not null || _modules.Any(module => module.CurrentRoutine is not null),
-            WaferSize = _waferSize.Size,
+            WaferSize = WaferSize.Size,
         };
     }
 

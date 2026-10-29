@@ -330,7 +330,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   气缸 `TwoStateElement.Position` 三态（命令发到哪侧看哪侧到没到位，没到 = Unknown；两个线圈都没通时只看到位反馈）。
   摆臂 `SwingArmElement.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
   示教位：边缘 `Edge8` / `Edge12` = 配方 0（第一个边缘）、`Center` = 配方里的晶圆中心（8 寸 100、12 寸 150）的实际轴位置，默认 50 / 0 / 150，
-  按整机尺寸（摆臂 Bind 时取一次存的 `IWaferSize`，必配，直接 `_waferSize.Size`）取那一套（`Edge` 是当前尺寸的边缘）；旋转电机在不在转用轴的 `IsBusy`（PLC 报忙，`ISpinMotor` 不另加）。
+  按整机尺寸（摆臂 Bind 时取一次存的 `IWaferSize`，必配，用时走私有属性 `WaferSize`）取那一套（`Edge` 是当前尺寸的边缘）；旋转电机在不在转用轴的 `IsBusy`（PLC 报忙，`ISpinMotor` 不另加）。
   轴手动页参数默认值 EC：`MoveSpeed`、`JogSpeed`（点动 / 步进速度）、`JogStep`（步距）。
   轴的"目标已在到位容差里就不发"只用于绝对定位（MoveTo）；相对移动（MoveBy，步进）照发——步距默认 1 跟到位容差默认 1 一样大，
   以前会被当成已经到位、根本不走（2026-10-04 联调时发现）。联锁还没做。

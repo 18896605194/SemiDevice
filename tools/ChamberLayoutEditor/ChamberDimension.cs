@@ -11,6 +11,7 @@ public sealed class ChamberDimension(string key, double initial, double minimum,
     public string Key { get; } = key;
     public double Minimum { get; } = minimum;
     public double Maximum { get; } = maximum;
+    public string Unit => L10n.Get(Key.EndsWith("Scale", StringComparison.Ordinal) ? "chambereditor.unit.scale" : "chambereditor.unit.logical");
     public string Title => Key.StartsWith("Nozzle", StringComparison.Ordinal)
         ? L10n.Get("chambereditor.nozzle_dimension", Key.Split('.')[0], L10n.Get("chambereditor.dimension." + Key.Split('.')[1]))
         : L10n.Get("chambereditor.dimension." + Key);

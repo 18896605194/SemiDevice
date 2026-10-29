@@ -3,7 +3,9 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="clr-namespace:ChamberLayoutEditor"
  xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
- Background="{DynamicResource DarkWindowBackground}" Foreground="{DynamicResource DarkPrimaryText}">
+ Background="{DynamicResource DarkWindowBackground}" Foreground="{DynamicResource DarkPrimaryText}" FontSize="{DynamicResource Size16}">
+ <Viewbox x:Name="EditorScaleHost" Stretch="Fill" StretchDirection="Both" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+ <Grid x:Name="DesignCanvas" Width="1980" Height="1080">
  <Grid Margin="16">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <DockPanel Margin="0,0,0,14">
@@ -78,13 +80,13 @@
          <TextBlock Text="{DynamicResource chambereditor.component_binding}"/>
          <controls:InputTextBox DataType="Text" Value="{Binding Selected.Component}" Margin="0,6,0,12"/>
         </StackPanel>
-        <TextBlock Text="{DynamicResource chambereditor.x}"/><controls:InputTextBox DataType="Decimal" Minimum="-9" Maximum="9" Value="{Binding Selected.X}" Margin="0,6,0,12"/>
-        <TextBlock Text="{DynamicResource chambereditor.y}"/><controls:InputTextBox DataType="Decimal" Minimum="-3" Maximum="3" Value="{Binding Selected.Y}" Margin="0,6,0,12"/>
-        <TextBlock Text="{DynamicResource chambereditor.z}"/><controls:InputTextBox DataType="Decimal" Minimum="-9" Maximum="9" Value="{Binding Selected.Z}" Margin="0,6,0,12"/>
-        <TextBlock Text="{DynamicResource chambereditor.yaw}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Value="{Binding Selected.Yaw}" Margin="0,6,0,12"/>
+        <TextBlock Text="{DynamicResource chambereditor.x}"/><controls:InputTextBox DataType="Decimal" Minimum="-9" Maximum="9" Unit="{DynamicResource chambereditor.unit.logical}" Value="{Binding Selected.X}" Margin="0,6,0,12"/>
+        <TextBlock Text="{DynamicResource chambereditor.y}"/><controls:InputTextBox DataType="Decimal" Minimum="-3" Maximum="3" Unit="{DynamicResource chambereditor.unit.logical}" Value="{Binding Selected.Y}" Margin="0,6,0,12"/>
+        <TextBlock Text="{DynamicResource chambereditor.z}"/><controls:InputTextBox DataType="Decimal" Minimum="-9" Maximum="9" Unit="{DynamicResource chambereditor.unit.logical}" Value="{Binding Selected.Z}" Margin="0,6,0,12"/>
+        <TextBlock Text="{DynamicResource chambereditor.yaw}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Unit="°" Value="{Binding Selected.Yaw}" Margin="0,6,0,12"/>
         <Button Content="{DynamicResource chambereditor.rotate}" Command="{Binding RotateCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,0,16"/>
         <StackPanel Visibility="{Binding Selected.IsArm, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}">
-         <TextBlock Text="{DynamicResource chambereditor.home_angle}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Value="{Binding Selected.HomeAngle}" Margin="0,6,0,16"/>
+         <TextBlock Text="{DynamicResource chambereditor.home_angle}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Unit="°" Value="{Binding Selected.HomeAngle}" Margin="0,6,0,16"/>
         </StackPanel>
        </StackPanel>
       </ScrollViewer>
@@ -98,8 +100,11 @@
          Visibility="{Binding Selected.IsArm, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}"/>
         <ItemsControl ItemsSource="{Binding Selected.Dimensions}">
          <ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="0,0,0,12">
-          <TextBlock Text="{Binding Title}"/>
-          <controls:InputTextBox DataType="Decimal" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding Value}" IsEnabled="{Binding IsEditable}" Margin="0,6,0,0"/>
+          <DockPanel>
+           <TextBlock Text="{Binding Unit}" DockPanel.Dock="Right" Foreground="{DynamicResource DarkSecondaryText}" FontSize="{DynamicResource Size12}" VerticalAlignment="Center"/>
+           <TextBlock Text="{Binding Title}"/>
+          </DockPanel>
+          <controls:InputTextBox DataType="Decimal" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Unit="{Binding Unit}" Value="{Binding Value}" IsEnabled="{Binding IsEditable}" Margin="0,6,0,0"/>
          </StackPanel></DataTemplate></ItemsControl.ItemTemplate>
         </ItemsControl>
        </StackPanel>
@@ -120,7 +125,9 @@
   </Grid>
   <DockPanel Grid.Row="3" Margin="0,12,0,0">
    <StackPanel><TextBlock Text="{Binding Error}" Foreground="{DynamicResource DarkAlarmStatus}" TextWrapping="Wrap"/><TextBlock Text="{Binding Warning}" Foreground="{DynamicResource DarkSecondaryText}" TextWrapping="Wrap"/></StackPanel>
-   <TextBlock x:Name="FileStatus" HorizontalAlignment="Right" Foreground="{DynamicResource DarkSecondaryText}"/>
+   <TextBlock x:Name="FileStatus" HorizontalAlignment="Right" Foreground="{DynamicResource DarkSecondaryText}" MaxWidth="860" TextTrimming="CharacterEllipsis"/>
   </DockPanel>
  </Grid>
+ </Grid>
+ </Viewbox>
 </UserControl>

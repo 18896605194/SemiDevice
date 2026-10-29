@@ -233,12 +233,17 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 整机晶圆尺寸（必配）：元件初始化时取一次，示教点表按它选
     /// </summary>
-    private IWaferSize _waferSize = null!;
+    private IWaferSize? _waferSize;
+
+    /// <summary>
+    /// 用的地方都走这里：没走元件初始化就用的（冒烟里直接 new 的）用到时再取一次
+    /// </summary>
+    private IWaferSize WaferSize => _waferSize ??= IocHelper.GetRequiredService<IWaferSize>();
 
     /// <summary>
     /// 现在用的示教点表：整机现在几寸就是哪张
     /// </summary>
-    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(_waferSize.Size);
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSize.Size);
     private volatile ITeachPoint? _currentTeachPoint;
 
     /// <summary>

@@ -84,7 +84,12 @@ public class RecipeElement : ElementBase, IRecipeElement
     private IEapNotifierElement? _notifier;
 
     // 晶圆尺寸是必配的，一定取得到
-    private IWaferSize _waferSize = null!;
+    private IWaferSize? _waferSize;
+
+    /// <summary>
+    /// 用的地方都走这里：没走 Bind 就用的（冒烟里直接 new 的）用到时再取一次
+    /// </summary>
+    private IWaferSize WaferSize => _waferSize ??= IocHelper.GetRequiredService<IWaferSize>();
 
     #region Machine
 
@@ -308,7 +313,7 @@ public class RecipeElement : ElementBase, IRecipeElement
     public override void Bind()
     {
         Bind(IocHelper.GetServices<IModule>());
-        _waferSize.Changed += _ => RemoteEventPublisher.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken);
+        WaferSize.Changed += _ => RemoteEventPublisher.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken);
     }
 
     /// <summary>
@@ -991,7 +996,7 @@ public class RecipeElement : ElementBase, IRecipeElement
     /// </summary>
     private HandleResult? CheckContent(RecipeData content, string? language)
     {
-        int waferSize = _waferSize.Size;
+        int waferSize = WaferSize.Size;
         return CheckHead(content, language, waferSize)
             ?? CheckSteps(content.Steps, _fields, content.Type.Trim(), content.TimeoutSeconds, language, waferSize);
     }

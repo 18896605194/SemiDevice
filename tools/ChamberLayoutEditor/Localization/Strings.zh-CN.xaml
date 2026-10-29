@@ -18,9 +18,9 @@
  <sys:String x:Key="chambereditor.default_view">默认视角</sys:String>
  <sys:String x:Key="chambereditor.gesture_tip">左键拖动组件，右键旋转视角，滚轮缩放。可切换三维、俯视、正视和侧视。</sys:String>
  <sys:String x:Key="chambereditor.placement">安装参数</sys:String>
- <sys:String x:Key="chambereditor.x">X · 左右位置</sys:String>
- <sys:String x:Key="chambereditor.y">Y · 安装高度</sys:String>
- <sys:String x:Key="chambereditor.z">Z · 前后位置</sys:String>
+ <sys:String x:Key="chambereditor.x">X · 左右位置（逻辑单位）</sys:String>
+ <sys:String x:Key="chambereditor.y">Y · 安装高度（逻辑单位）</sys:String>
+ <sys:String x:Key="chambereditor.z">Z · 前后位置（逻辑单位）</sys:String>
  <sys:String x:Key="chambereditor.yaw">安装朝向（°）</sys:String>
  <sys:String x:Key="chambereditor.rotate">旋转 90°</sys:String>
  <sys:String x:Key="chambereditor.home_angle">Home 局部角度（°）</sys:String>
@@ -45,7 +45,7 @@
  <sys:String x:Key="chambereditor.placement_tab">安装</sys:String>
  <sys:String x:Key="chambereditor.dimensions_tab">尺寸</sys:String>
  <sys:String x:Key="chambereditor.auto_length">根据安装位置自动计算臂长</sys:String>
- <sys:String x:Key="chambereditor.size_units">尺寸使用三维示意单位；倍率仅调整对应组件。</sys:String>
+ <sys:String x:Key="chambereditor.size_units">位置和尺寸使用逻辑单位，随窗口缩放显示；角度为 °，倍率为倍。</sys:String>
  <sys:String x:Key="chambereditor.invalid_size">组件 {0} 的尺寸无效或包含未知尺寸项。</sys:String>
  <sys:String x:Key="chambereditor.manual_length_warning">{0}：手动臂长与盘心距离不同，中心预览将保留实际臂长。</sys:String>
  <sys:String x:Key="chambereditor.nozzle_dimension">{0} · {1}</sys:String>
@@ -85,4 +85,7 @@
  <sys:String x:Key="chambereditor.kind.Nozzle">喷嘴</sys:String>
  <sys:String x:Key="chambereditor.dimension.WidthScale">宽度倍率</sys:String>
  <sys:String x:Key="chambereditor.dimension.StreamLength">外部液柱长度</sys:String>
+ <sys:String x:Key="chambereditor.unit.logical">逻辑单位</sys:String>
+ <sys:String x:Key="chambereditor.unit.scale">倍</sys:String>
+ <sys:String x:Key="chambereditor.invalid_units">布局只支持逻辑单位，请检查 Units 配置。</sys:String>
 </ResourceDictionary>
