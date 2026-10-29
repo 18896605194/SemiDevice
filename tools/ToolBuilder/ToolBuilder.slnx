@@ -1,0 +1,6 @@
+﻿<Solution>
+  <Project Path="ToolBuilder.Core/ToolBuilder.Core.csproj" />
+  <Project Path="ToolBuilder.ChamberLayout/ToolBuilder.ChamberLayout.csproj" />
+  <Project Path="ToolBuilder.Smoke/ToolBuilder.Smoke.csproj" />
+  <Project Path="ToolBuilder/ToolBuilder.csproj" />
+</Solution>

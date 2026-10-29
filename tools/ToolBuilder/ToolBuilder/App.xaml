@@ -1,0 +1,138 @@
+﻿<Application x:Class="ToolBuilder.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary xmlns:editor="clr-namespace:CdsLayoutPreview;assembly=CdsLayoutEditor">
+        <editor:BooleanTextConverter x:Key="BooleanText" />
+        <SolidColorBrush x:Key="Accent" Color="#2463EB"/>
+        <BooleanToVisibilityConverter x:Key="BoolVisibility"/>
+        <local:PageSelectionConverter xmlns:local="clr-namespace:ToolBuilder" x:Key="PageSelection"/>
+        <Style TargetType="Window">
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#23324A"/>
+            <Setter Property="Background" Value="#F4F6FA"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#D5DDE9"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="32"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="BorderBrush" Value="#CDD6E4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="GridCellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+        </Style>
+        <Style x:Key="GridEditorText" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="#23324A"/>
+        </Style>
+        <Style x:Key="GridEditorCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#23324A"/>
+            <EventSetter Event="Loaded" Handler="GridComboLoaded"/>
+        </Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="CanUserReorderColumns" Value="False"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#EDF0F5"/>
+            <Setter Property="BorderBrush" Value="#E0E6EF"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="RowHeaderWidth" Value="0"/>
+            <Setter Property="RowHeight" Value="48"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="SelectionUnit" Value="FullRow"/>
+            <Setter Property="Background" Value="White"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#F3F6FB"/>
+            <Setter Property="Foreground" Value="#66748B"/>
+            <Setter Property="Padding" Value="10,10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="7,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#EAF1FF"/><Setter Property="Foreground" Value="#23324A"/></Trigger></Style.Triggers>
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#EAF1FF"/><Setter Property="Foreground" Value="#23324A"/></Trigger></Style.Triggers>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Padding" Value="15,9"/>
+        </Style>
+        <Style x:Key="NonEmptyTextStyle" TargetType="TextBlock">
+            <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="RecipeDefaultEditor">
+            <Grid IsEnabled="{Binding CanDefault}">
+                <TextBox Text="{Binding Default, UpdateSourceTrigger=PropertyChanged}">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox" BasedOn="{StaticResource GridEditorText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsBoolean}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+                <ComboBox ItemsSource="{x:Static editor:BooleanTextConverter.Choices}" SelectedItem="{Binding BooleanDefault, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="False" ToolTip="选择 true 或 false；右键可清除默认值">
+                    <ComboBox.Style>
+                        <Style TargetType="ComboBox" BasedOn="{StaticResource GridEditorCombo}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsBoolean}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ComboBox.Style>
+                    <ComboBox.ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                            <MenuItem Header="清除默认值" Command="{Binding ClearDefaultCommand}" />
+                        </ContextMenu>
+                    </ComboBox.ContextMenu>
+                </ComboBox>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="RecipeRequiredEditor">
+            <ComboBox ItemsSource="{x:Static editor:BooleanTextConverter.Choices}" SelectedItem="{Binding Required, Converter={StaticResource BooleanText}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      IsEnabled="{Binding IsEditable}" IsEditable="False" Style="{StaticResource GridEditorCombo}" />
+        </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
