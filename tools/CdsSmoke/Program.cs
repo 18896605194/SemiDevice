@@ -6,8 +6,10 @@ using xyz.Elements.Enums;
 using xyz.Elements.Interfaces;
 using xyz.Configs.Models;
 using xyz.Modules;
+using xyz.Service;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 using xyz.Tools;
 using xyz._35021.Module.Cds;
 using xyz._35021.Module.Mapper;
@@ -19,6 +21,7 @@ using xyz._35021.Shared.Dtos;
 // 模式（Mode：默认 Supply，工艺过程中经 ITank 对调，不在 machine.xml 配，也是 SV，不盖住基类的 Role）；
 // 推送（槽跟着 IPA 模块推 IpaDto：液位、状态、各信号有变化才推，没配的信号是 null）；
 // 能不能供液（ISupplyAccess：IPA 在自己扫描里算，在生产、初始化过、在空闲、有槽就绪或正在供液才算；IPA 开机就是生产，切维护就不能供液）；
+// 供液服务（SupplyService：按模块名切生产 / 维护；没有这个模块、不是模块回 module.not_found，没带模块名回 rpc.request_invalid）；
 // AI 液位计：液位信号换成读同一个 AI 的 AI 液位信号（触发值、容错、防抖在 EC），只有 AI、AI + 溢流 DI 混着用两种都照样补液、排液、供液。
 // 全用假 PLC（摆 DI、AI，记 DO）和内存 EC，不连设备、不读写配置文件。
 
@@ -521,6 +524,21 @@ try
     ipa.Tick();
     Check(mode.Mode == ModuleMode.Production && ipa.IsReady, "切回生产：又能供液");
 
+    // 供液服务（SupplyService，界面切生产 / 维护走它）：按模块名找到供液模块，只改 Mode
+    var supplyService = new SupplyService();
+    var reply = await supplyService.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, ipa.Name)));
+    ipa.Tick();
+    Check(reply.Success && mode.Mode == ModuleMode.Maintenance && !ipa.IsReady, "服务切维护：Mode 变维护，不能供液");
+    reply = await supplyService.SetProductionAsync(RpcRequest.Of((RpcParams.Module, ipa.Name)));
+    ipa.Tick();
+    Check(reply.Success && mode.Mode == ModuleMode.Production && ipa.IsReady, "服务切生产：又能供液");
+    reply = await supplyService.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, "Supply404")));
+    Check(!reply.Success && reply.Code == ErrorCodes.ModuleNotFound && mode.Mode == ModuleMode.Production, "没有这个模块：module.not_found，模式不动");
+    reply = await supplyService.SetMaintenanceAsync(RpcRequest.Of((RpcParams.Module, pushed.Name)));
+    Check(!reply.Success && reply.Code == ErrorCodes.ModuleNotFound, "槽不是模块：module.not_found");
+    reply = await supplyService.SetProductionAsync(RpcRequest.Of());
+    Check(!reply.Success && reply.Code == ErrorCodes.RequestInvalid, "没带模块名：rpc.request_invalid");
+
     // 14. AI 液位计：LL～Overfill 都挂 AI 液位信号、读同一个 AI（0 号），触发值 5 / 6 / 18 / 20 / 22 L；
     // 补液阀 DO 10、排液阀 DO 11、供液阀 DO 12
     var levelDefaults = new AiLevelElement();
@@ -704,6 +722,8 @@ Console.WriteLine($"PASS: {checks} cds checks (tank: level DI signals found by n
     + "and the push of level / state / each signal only on change, with unconfigured signals as null; "
     + "supply readiness for other modules (ISupplyAccess, worked out on the IPA scan: production mode, initialized, idle and one tank ready or supplying; "
     + "the IPA starts in production and maintenance takes the readiness away); "
+    + "the supply service switching production / maintenance by module name (an unknown name or a tank is module.not_found, "
+    + "no module name is rpc.request_invalid); "
     + "AI level signals reading one level meter against EC trigger values with a tolerance and debounce, "
     + "an AI-only tank and an AI + overflow DI tank running fill / drain / supply unchanged)");
 

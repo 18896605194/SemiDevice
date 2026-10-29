@@ -403,7 +403,8 @@
 - **能力接口直接实现、不做接口继承**（用户："不要用这种接口继承，就用需要的直接接口多实现""需要什么能力就实现什么接口"；名字用户定的 `IMode`）：
   `IMode`（`Mode`、`SetProduction`、`SetMaintenance`）不继承 `IModule`；`BaseTransferStationModule`、`BaseRobotModule` 各自直接实现（虚方法，只改 Mode、开机维护）；
   供液 `BaseCdsModule` 2026-10-29 起也直接实现（报警 Light 要把报警所属模块切维护，供液也得能切；用户："是的用接口，你直接实现一个imode这个接口就好了"，不挪进 BaseModule）：
-  没有手动页，开机就是生产，维护时不能供液（`IsReady` 为假，腔体起不了新工艺，正在做的照常）；整机不实现。调度、服务、整机推模块表都按 `is IMode` 判；推给顶栏的 `ModuleStatusDto.Mode` 可空，没有模式的是 null，小框不画边框。
+  没有手动页，开机就是生产，维护时不能供液（`IsReady` 为假，腔体起不了新工艺，正在做的照常）；界面切换走 `SupplyService`（`ISupplyService` 的 `SetProductionAsync` / `SetMaintenanceAsync`，
+  用户 10-29 让先做服务，供液页面还没做）；整机不实现。调度、服务、整机推模块表都按 `is IMode` 判；推给顶栏的 `ModuleStatusDto.Mode` 可空，没有模式的是 null，小框不画边框。
   冒烟里也别为了加一个接口去派生中间类（用户否了 `class SystemProbeStation(string name) : SystemProbeModule(name), IProductionMode` 这种写法），直接实现在要用的类上。
 - **押着、用户要自己设计的**：手动互锁（整机 Auto / 初始化 / 回片 / 停止中手动页能操作什么）；安全信号哪些停机进整机 Error、哪些只挡开工。
 

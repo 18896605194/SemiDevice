@@ -41,7 +41,7 @@ public sealed class ChamberLayoutScene : Grid
         PreviewMouseRightButtonDown += OnOrbitDown;
         PreviewMouseRightButtonUp += (_, e) => { _orbit = null; ReleaseMouseCapture(); e.Handled = true; };
         PreviewMouseMove += OnPointerMove;
-        PreviewMouseWheel += (_, e) => { _width = Math.Clamp(_width - e.Delta / 120d * 0.5, 5, 24); UpdateCamera(); e.Handled = true; };
+        PreviewMouseWheel += (_, e) => { _width = Math.Clamp(_width - e.Delta / 120d * 0.5, 5, 48); UpdateCamera(); e.Handled = true; };
         LostMouseCapture += (_, _) => { if (_drag is not null) { _drag = null; _model?.CancelDrag(); Apply(); } _orbit = null; };
         SizeChanged += (_, _) => UpdateCamera();
         IsVisibleChanged += (_, _) => Apply();
@@ -63,9 +63,16 @@ public sealed class ChamberLayoutScene : Grid
         if (_drag is null) return;
         _drag = null; _model?.EndDrag(); ReleaseMouseCapture(); Apply();
     }
-    public void DefaultView() { _yaw = -18; _pitch = 34; _width = 10.8; UpdateCamera(); }
+    public void DefaultView()
+    {
+        _yaw = -18; _pitch = 34;
+        _width = Math.Max(10.8, Math.Max(_model?.Document?.BaseLength ?? 0, _model?.Document?.BaseWidth ?? 0) * 1.3);
+        UpdateCamera();
+    }
 
     internal (double CenterError, double HomeError, double TipHeight) Probe(string id) => _parts[id].Probe();
+    internal IReadOnlyDictionary<string, double> ProbeDimensions(string id) => _parts[id].ProbeDimensions();
+    internal (double Length, double Width, double Thickness) ProbeBase() => (_base!.Length, _base.Width, _base.Thickness);
 
     private void Rebuild()
     {
@@ -78,7 +85,7 @@ public sealed class ChamberLayoutScene : Grid
         lights.Children.Add(new AmbientLight(Token("DarkHardwareAmbientLightColor", Colors.Gray)));
         lights.Children.Add(new DirectionalLight(Token("DarkHardwareKeyLightColor", Colors.White), new Vector3D(-1, -3, -2)));
         _world.Children.Add(new ModelVisual3D { Content = lights });
-        _base = new ChamberBaseVisual3D { Length = document.BaseLength, Width = document.BaseWidth, Thickness = 0.12 };
+        _base = new ChamberBaseVisual3D { Length = document.BaseLength, Width = document.BaseWidth, Thickness = document.BaseThickness };
         Theme(_base);
         _world.Children.Add(_base);
         foreach (var part in document.Parts)
@@ -102,6 +109,12 @@ public sealed class ChamberLayoutScene : Grid
     public void Apply()
     {
         if (_model?.Document is not { } document) return;
+        if (_base is not null)
+        {
+            _base.Length = Math.Clamp(document.BaseLength, 1, 20);
+            _base.Width = Math.Clamp(document.BaseWidth, 1, 20);
+            _base.Thickness = Math.Clamp(document.BaseThickness, 0.01, 3);
+        }
         var disk = document.Parts.First(p => p.Kind == "Disk");
         foreach (var part in _parts.Values) part.Apply(_model, disk);
         DrawMarkers();
@@ -303,25 +316,39 @@ public sealed class ChamberLayoutScene : Grid
             bool animate = preview && _scene.IsVisible;
             double scale = _part.IsArm ? Scale : 1;
             var transform = new Transform3DGroup();
-            transform.Children.Add(new ScaleTransform3D(scale, scale, scale));
+            transform.Children.Add(new ScaleTransform3D(scale,
+                _bowl is not null ? _part.Size("HeightScale") : scale,
+                _door is not null ? _part.Size("DepthScale") : scale));
             transform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 1, 0), _part.Yaw)));
             transform.Children.Add(new TranslateTransform3D(_part.X, _part.Y, _part.Z));
             Root.Transform = transform;
             foreach (var hardware in _hardware) hardware.IsSelected = ReferenceEquals(model.Selected, _part);
-            if (_disk is not null) _disk.RotationSpeed = animate && model.Spin ? 100 : 0;
-            if (_bowl is not null) _bowl.IsRaised = preview && model.Lift;
-            if (_door is not null) _door.IsOpen = preview && model.Lift;
+            if (_disk is not null)
+            {
+                _disk.Radius = _part.Size("Radius"); _disk.Thickness = _part.Size("Thickness");
+                _disk.SpindleHeight = _part.Size("SpindleHeight"); _disk.RotationSpeed = animate && model.Spin ? 100 : 0;
+            }
+            if (_bowl is not null) { _bowl.Radius = _part.Size("Radius"); _bowl.IsRaised = preview && model.Lift; }
+            if (_door is not null) { _door.Width = _part.Size("Width"); _door.Height = _part.Size("Height"); _door.IsOpen = preview && model.Lift; }
             if (_arm is not null && _cup is not null)
             {
                 double dx = target.X - _part.X, dz = target.Z - _part.Z;
-                double distance = Math.Max(0.8, Math.Sqrt(dx * dx + dz * dz));
-                if (!model.IsDragging || _arm.Length < 0.1) _arm.Length = distance / Scale;
+                double distance = Math.Max(0.05, Math.Sqrt(dx * dx + dz * dz));
+                double length = _part.AutoLength ? distance : _part.Size("ArmLength");
+                if (!_part.AutoLength || !model.IsDragging || _arm.Length < 0.1) _arm.Length = length / Scale;
+                _arm.Width = _part.Size("ArmWidth") / Scale;
+                _arm.Thickness = _part.Size("ArmThickness") / Scale;
+                _arm.PivotRadius = _part.Size("PivotRadius") / Scale;
+                _cup.Radius = _part.Size("CupRadius") / Scale;
+                _cup.Height = _part.Size("CupHeight") / Scale;
                 double yaw = _part.Yaw * Math.PI / 180;
                 double localX = Math.Cos(yaw) * dx - Math.Sin(yaw) * dz;
                 double localZ = Math.Sin(yaw) * dx + Math.Cos(yaw) * dz;
                 double center = Math.Atan2(-localZ, localX) * 180 / Math.PI;
                 double sweep = ((center - _part.HomeAngle) % 360 + 540) % 360 - 180;
-                double edgeSweep = 2 * Math.Asin(Math.Clamp(1.32 / (2 * distance), 0, 1)) * 180 / Math.PI;
+                double radius = target.Size("Radius");
+                double cosine = (distance * distance + length * length - radius * radius) / (2 * distance * length);
+                double edgeSweep = cosine is >= -1 and <= 1 ? Math.Acos(cosine) * 180 / Math.PI : 0;
                 double edge = _part.HomeAngle + sweep - Math.Sign(sweep) * Math.Min(Math.Abs(sweep), edgeSweep);
                 double reach = preview ? model.Reach : 0;
                 double angle = reach <= 0.5 ? _part.HomeAngle + (edge - _part.HomeAngle) * reach * 2 : edge + (_part.HomeAngle + sweep - edge) * (reach - 0.5) * 2;
@@ -333,10 +360,24 @@ public sealed class ChamberLayoutScene : Grid
                     if (animate && !model.IsDragging) _arm.BeginAnimation(ArmVisual3D.AngleProperty,
                         new DoubleAnimation(from, angle, TimeSpan.FromMilliseconds(200)) { FillBehavior = FillBehavior.Stop });
                 }
-                if (_lift is not null) _lift.IsRaised = preview && model.Lift;
+                if (_lift is not null)
+                {
+                    _lift.Transform = new ScaleTransform3D(_part.Size("LiftWidthScale"), _part.Size("LiftHeightScale"), _part.Size("LiftWidthScale"));
+                    _lift.IsRaised = preview && model.Lift;
+                }
                 double home = _part.HomeAngle * Math.PI / 180;
                 _cup.Transform = new TranslateTransform3D(_arm.Length * Math.Cos(home), 0, -_arm.Length * Math.Sin(home));
-                foreach (var pipe in _pipes) { pipe.Length = _arm.Length; pipe.IsFlowing = preview && model.Spray; pipe.IsAnimationEnabled = animate; }
+                for (int i = 0; i < _pipes.Count; i++)
+                {
+                    var pipe = _pipes[i];
+                    double diameter = _part.Size($"Nozzle{i + 1}.DiameterScale");
+                    var pipeTransform = new Transform3DGroup();
+                    pipeTransform.Children.Add(new ScaleTransform3D(1, diameter, diameter));
+                    pipeTransform.Children.Add(new TranslateTransform3D(0, 0.1, (i - (_pipes.Count - 1) / 2d) * 0.15));
+                    pipe.Transform = pipeTransform;
+                    pipe.Length = _arm.Length * _part.Size($"Nozzle{i + 1}.LengthScale");
+                    pipe.IsFlowing = preview && model.Spray; pipe.IsAnimationEnabled = animate;
+                }
                 _cup.IsDraining = preview && model.Spray && reach < 0.001;
             }
             _applying = false;
@@ -358,23 +399,56 @@ public sealed class ChamberLayoutScene : Grid
             return (Math.Sqrt(Math.Pow(tip.X - _target!.X, 2) + Math.Pow(tip.Z - _target.Z, 2)),
                 Math.Sqrt(Math.Pow(tip.X - cup.X, 2) + Math.Pow(tip.Z - cup.Z, 2)), tip.Y);
         }
+        public IReadOnlyDictionary<string, double> ProbeDimensions()
+        {
+            double Measure(ModelVisual3D visual, double x, double y, double z)
+            {
+                var transform = visual.TransformToAncestor(_scene._base!);
+                return (transform.Transform(new Point3D(x, y, z)) - transform.Transform(new Point3D())).Length;
+            }
+            var result = new Dictionary<string, double>();
+            if (_arm is not null && _cup is not null)
+            {
+                result["ArmLength"] = Measure(_arm, _arm.Length, 0, 0);
+                result["ArmWidth"] = Measure(_arm, 0, 0, _arm.Width);
+                result["CupRadius"] = Measure(_cup, _cup.Radius, 0, 0);
+                result["CupHeight"] = Measure(_cup, 0, _cup.Height, 0);
+                for (int i = 0; i < _pipes.Count; i++)
+                {
+                    result[$"Nozzle{i + 1}.Length"] = Measure(_pipes[i], _pipes[i].Length, 0, 0);
+                    result[$"Nozzle{i + 1}.DiameterScale"] = Measure(_pipes[i], 0, 1, 0) / Scale;
+                }
+            }
+            if (_disk is not null) { result["Radius"] = Measure(_disk, _disk.Radius, 0, 0); result["Thickness"] = Measure(_disk, 0, _disk.Thickness, 0); }
+            if (_bowl is not null) result["Radius"] = Measure(_bowl, _bowl.Radius, 0, 0);
+            if (_door is not null) { result["Width"] = Measure(_door, _door.Width, 0, 0); result["Height"] = Measure(_door, 0, _door.Height, 0); }
+            return result;
+        }
         private void UpdateStreams()
         {
             if (_applying || _arm is null || _target is null || _scene._base is null) return;
-            _arm.Transform = new TranslateTransform3D(0, 0.1275 + (_lift?.MountHeight ?? 0.85), 0);
+            _arm.Transform = new TranslateTransform3D(0, _part.Size("ArmThickness") / Scale * 1.5
+                + (_lift is not null ? _lift.MountHeight * _part.Size("LiftHeightScale") : 0.85), 0);
+            bool draining = false;
             foreach (var pipe in _pipes)
             {
                 var transform = pipe.TransformToAncestor(_scene._base);
                 var nozzle = transform.Transform(new Point3D(pipe.Length, -FluidPipeVisual3D.OutletDrop, 0));
                 var below = transform.Transform(new Point3D(pipe.Length, -FluidPipeVisual3D.OutletDrop - 1, 0));
                 double landing = 0;
+                bool hitsCup = false;
                 if (Math.Abs(_arm.Angle - _part.HomeAngle) < 1 && _cup is not null)
-                    landing = _cup.TransformToAncestor(_scene._base).Transform(new Point3D(0, 0.41, 0)).Y;
-                else if (Math.Pow(nozzle.X - _target.X, 2) + Math.Pow(nozzle.Z - _target.Z, 2) < 1.32 * 1.32)
-                    landing = _target.Y + 0.046;
+                {
+                    var cupCenter = _cup.TransformToAncestor(_scene._base).Transform(new Point3D(0, _cup.Height * (0.41 / 0.655), 0));
+                    hitsCup = Math.Pow(nozzle.X - cupCenter.X, 2) + Math.Pow(nozzle.Z - cupCenter.Z, 2) < Math.Pow(_cup.Radius * Scale, 2);
+                    if (hitsCup) { landing = cupCenter.Y; draining |= pipe.IsFlowing && nozzle.Y >= landing; }
+                }
+                if (!hitsCup && Math.Pow(nozzle.X - _target.X, 2) + Math.Pow(nozzle.Z - _target.Z, 2) < Math.Pow(_target.Size("Radius"), 2))
+                    landing = _target.Y + _target.Size("Thickness") + 0.001;
                 double length = Math.Max(0, (nozzle.Y - landing) / Math.Max(0.001, nozzle.Y - below.Y));
                 if (Math.Abs(pipe.StreamLength - length) > 0.0001) pipe.StreamLength = length;
             }
+            if (_cup is not null) _cup.IsDraining = draining;
         }
         public void Dispose()
         {

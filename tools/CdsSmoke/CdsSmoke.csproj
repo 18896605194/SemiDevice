@@ -10,6 +10,8 @@
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Elements\xyz.Elements.csproj" />
     <!-- 槽的推送跟着机型的 IPA 模块走（IpaModule、IpaDto 在机型层） -->
     <ProjectReference Include="..\..\xyz.35021\Service\xyz.35021.Module\xyz.35021.Module.csproj" />
+    <!-- 供液服务（切生产 / 维护）直接 new 出来调，不起网络 -->
+    <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- 冒烟共用的容器：元件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->

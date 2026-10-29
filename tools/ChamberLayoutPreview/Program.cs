@@ -44,6 +44,8 @@ internal static class Program
                 page.Measure(new Size(width, height)); page.Arrange(new Rect(0, 0, width, height)); page.UpdateLayout(); Pump(400);
                 if (args[0] == "--self-test") EditorChecks.Run(page, output);
                 Capture(page, Path.Combine(output, "chamber-editor.png"));
+                page.ViewModel.SelectedInspectorTab = 1;
+                Pump(100); Capture(page, Path.Combine(output, "chamber-dimensions.png"));
                 page.ViewModel.IsPreview = true; page.ViewModel.Reach = 1; page.ViewModel.Lift = true; page.ViewModel.Spray = true;
                 Pump(500); Capture(page, Path.Combine(output, "chamber-preview.png"));
                 page.ViewModel.IsPreview = false;

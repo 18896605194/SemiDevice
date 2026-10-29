@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Xml;
 using System.Xml.Linq;
@@ -16,6 +17,28 @@ public sealed class ChamberPlacement : ObservableObject
     public int Nozzles { get; init; } = 2;
     public bool IsArm => Kind == "ArmAssembly";
     public string KindTitle => L10n.Get("chambereditor.kind." + Kind);
+    private ObservableCollection<ChamberDimension>? _dimensions;
+    public ObservableCollection<ChamberDimension> Dimensions
+    {
+        get
+        {
+            if (_dimensions is not null) return _dimensions;
+            _dimensions = ChamberDimension.Create(Kind, HasLift, Nozzles);
+            if (_dimensions.FirstOrDefault(d => d.Key == "ArmLength") is { } length) length.IsEditable = !AutoLength;
+            return _dimensions;
+        }
+    }
+    private bool _autoLength = true;
+    public bool AutoLength
+    {
+        get => _autoLength;
+        set
+        {
+            if (!SetProperty(ref _autoLength, value)) return;
+            if (Dimensions.FirstOrDefault(d => d.Key == "ArmLength") is { } length) length.IsEditable = !value;
+        }
+    }
+    public double Size(string key) => Dimensions.Single(d => d.Key == key).SafeValue;
 
     private double _x;
     public double X { get => _x; set => SetProperty(ref _x, value); }
@@ -30,11 +53,15 @@ public sealed class ChamberPlacement : ObservableObject
 }
 
 /// <summary>离线示意布局：坐标为场景单位，设备引用相对于 ComponentRoot，不包含控制指令。</summary>
-public sealed class ChamberLayoutDocument
+public sealed class ChamberLayoutDocument : ObservableObject
 {
     public string ComponentRoot { get; init; } = "Chamber.Chamber1";
-    public double BaseLength { get; init; } = 5.8;
-    public double BaseWidth { get; init; } = 4.6;
+    private double _baseLength = 5.8;
+    public double BaseLength { get => _baseLength; set => SetProperty(ref _baseLength, value); }
+    private double _baseWidth = 4.6;
+    public double BaseWidth { get => _baseWidth; set => SetProperty(ref _baseWidth, value); }
+    private double _baseThickness = 0.12;
+    public double BaseThickness { get => _baseThickness; set => SetProperty(ref _baseThickness, value); }
     public List<ChamberPlacement> Parts { get; } = [];
 
     public static ChamberLayoutDocument CreateDefault(string root = "Chamber.Chamber1", int arms = 2)
@@ -92,12 +119,26 @@ public sealed class ChamberLayoutDocument
         if (root?.Name != "ChamberLayout" || (string?)root.Attribute("Version") != "1")
             throw new InvalidDataException(L10n.Get("chambereditor.invalid_format"));
         var result = new ChamberLayoutDocument { ComponentRoot = Required(root, "ComponentRoot"),
-            BaseLength = Number(root, "BaseLength"), BaseWidth = Number(root, "BaseWidth") };
+            BaseLength = Number(root, "BaseLength"), BaseWidth = Number(root, "BaseWidth"),
+            BaseThickness = (double?)root.Attribute("BaseThickness") ?? 0.12 };
         foreach (var element in root.Elements())
-            result.Parts.Add(new() { Kind = element.Name.LocalName, Id = Required(element, "Id"), Component = Required(element, "Component"),
+        {
+            var part = new ChamberPlacement { Kind = element.Name.LocalName, Id = Required(element, "Id"), Component = Required(element, "Component"),
                 X = Number(element, "X"), Y = Number(element, "Y"), Z = Number(element, "Z"), Yaw = Number(element, "Yaw"),
                 HomeAngle = Number(element, "HomeAngle"), HasLift = bool.Parse(Required(element, "HasLift")),
-                Nozzles = int.Parse(Required(element, "Nozzles"), CultureInfo.InvariantCulture) });
+                Nozzles = int.Parse(Required(element, "Nozzles"), CultureInfo.InvariantCulture) };
+            part.AutoLength = (bool?)element.Attribute("AutoLength") ?? true;
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var size in element.Elements())
+            {
+                string key = Required(size, "Key");
+                var dimension = part.Dimensions.FirstOrDefault(d => d.Key == key);
+                if (size.Name != "Size" || dimension is null || !keys.Add(key))
+                    throw new InvalidDataException(L10n.Get("chambereditor.invalid_size", part.Id));
+                dimension.Value = Number(size, "Value");
+            }
+            result.Parts.Add(part);
+        }
         if (validate) result.Validate();
         return result;
     }
@@ -105,7 +146,8 @@ public sealed class ChamberLayoutDocument
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(ComponentRoot) || !double.IsFinite(BaseLength) || !double.IsFinite(BaseWidth)
-            || BaseLength is < 1 or > 20 || BaseWidth is < 1 or > 20 || Parts.Count is < 1 or > 40
+            || BaseLength is < 1 or > 20 || BaseWidth is < 1 or > 20 || !double.IsFinite(BaseThickness)
+            || BaseThickness is < 0.01 or > 3 || Parts.Count is < 1 or > 40
             || Parts.Count(p => p.Kind == "Disk") != 1)
             throw new InvalidDataException(L10n.Get("chambereditor.invalid_layout"));
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -118,16 +160,18 @@ public sealed class ChamberLayoutDocument
                 || part.Nozzles is < 0 or > 8 || new[] { part.X, part.Y, part.Z }.Any(v => !double.IsFinite(v) || Math.Abs(v) > 10)
                 || new[] { part.Yaw, part.HomeAngle }.Any(v => !double.IsFinite(v) || Math.Abs(v) > 360))
                 throw new InvalidDataException(L10n.Get("chambereditor.invalid_part", part.Id));
-            if (part.IsArm && Math.Sqrt(Math.Pow(part.X - disk.X, 2) + Math.Pow(part.Z - disk.Z, 2)) < 0.8)
+            if (part.Dimensions.Any(d => !d.IsValid)) throw new InvalidDataException(L10n.Get("chambereditor.invalid_size", part.Id));
+            if (part.IsArm && Math.Sqrt(Math.Pow(part.X - disk.X, 2) + Math.Pow(part.Z - disk.Z, 2)) < 0.05)
                 throw new InvalidDataException(L10n.Get("chambereditor.arm_too_close", part.Id));
         }
     }
 
     public string ToXml() => new XDocument(new XElement("ChamberLayout", new XAttribute("Version", "1"),
-        new XAttribute("ComponentRoot", ComponentRoot), new XAttribute("BaseLength", BaseLength), new XAttribute("BaseWidth", BaseWidth),
+        new XAttribute("ComponentRoot", ComponentRoot), new XAttribute("BaseLength", BaseLength), new XAttribute("BaseWidth", BaseWidth), new XAttribute("BaseThickness", BaseThickness),
         Parts.Select(p => new XElement(p.Kind, new XAttribute("Id", p.Id), new XAttribute("Component", p.Component),
             new XAttribute("X", p.X), new XAttribute("Y", p.Y), new XAttribute("Z", p.Z), new XAttribute("Yaw", p.Yaw),
-            new XAttribute("HomeAngle", p.HomeAngle), new XAttribute("HasLift", p.HasLift), new XAttribute("Nozzles", p.Nozzles))))).ToString();
+            new XAttribute("HomeAngle", p.HomeAngle), new XAttribute("HasLift", p.HasLift), new XAttribute("Nozzles", p.Nozzles),
+            new XAttribute("AutoLength", p.AutoLength), p.Dimensions.Select(d => new XElement("Size", new XAttribute("Key", d.Key), new XAttribute("Value", d.Value))))))).ToString();
 
     private static XDocument ReadXml(string xml)
     {

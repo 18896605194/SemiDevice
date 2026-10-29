@@ -10,6 +10,7 @@ namespace ChamberLayoutEditor;
 
 public partial class ChamberEditorPage : UserControl
 {
+    public static BooleanToVisibilityConverter BooleanVisibility { get; } = new();
     private string? _path;
     private bool _embedded;
     public ChamberEditorViewModel ViewModel => (ChamberEditorViewModel)DataContext;

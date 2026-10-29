@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.DataModels.ViewModels;
+using xyz.Client.Presentation.Localization;
 
 namespace ChamberLayoutEditor;
 
@@ -15,8 +16,10 @@ public sealed class ChamberEditorViewModel : BaseViewModel
     private ChamberPlacement? _selected;
     public ChamberPlacement? Selected { get => _selected; set { if (SetProperty(ref _selected, value)) SelectionChanged?.Invoke(); } }
     private bool _isPreview;
-    public bool IsPreview { get => _isPreview; set { if (SetProperty(ref _isPreview, value)) { OnPropertyChanged(nameof(IsEditing)); PreviewChanged?.Invoke(); } } }
+    public bool IsPreview { get => _isPreview; set { if (SetProperty(ref _isPreview, value)) { SelectedInspectorTab = value ? 2 : 0; OnPropertyChanged(nameof(IsEditing)); PreviewChanged?.Invoke(); } } }
     public bool IsEditing => !IsPreview;
+    private int _selectedInspectorTab;
+    public int SelectedInspectorTab { get => _selectedInspectorTab; set => SetProperty(ref _selectedInspectorTab, value); }
     private double _reach;
     public double Reach { get => _reach; set { if (SetProperty(ref _reach, value)) PreviewChanged?.Invoke(); } }
     private bool _lift;
@@ -31,6 +34,16 @@ public sealed class ChamberEditorViewModel : BaseViewModel
     public bool IsDirty { get => _isDirty; private set => SetProperty(ref _isDirty, value); }
     private string _error = "";
     public string Error { get => _error; private set => SetProperty(ref _error, value); }
+    public string Warning
+    {
+        get
+        {
+            if (Document?.Parts.FirstOrDefault(p => p.Kind == "Disk") is not { } disk) return "";
+            return string.Join(Environment.NewLine, Parts.Where(p => p.IsArm && !p.AutoLength)
+                .Where(p => Math.Abs(p.Size("ArmLength") - Math.Sqrt(Math.Pow(p.X - disk.X, 2) + Math.Pow(p.Z - disk.Z, 2))) > 0.01)
+                .Select(p => L10n.Get("chambereditor.manual_length_warning", p.Id)));
+        }
+    }
     #endregion
     #region Command
     public IRelayCommand UndoCommand { get; }
@@ -102,19 +115,36 @@ public sealed class ChamberEditorViewModel : BaseViewModel
     private void Replace(ChamberLayoutDocument document)
     {
         string? selectedId = Selected?.Id;
-        foreach (var part in Parts) part.PropertyChanged -= OnPartChanged;
+        if (Document is not null) Document.PropertyChanged -= OnPartChanged;
+        foreach (var part in Parts)
+        {
+            part.PropertyChanged -= OnPartChanged;
+            foreach (var dimension in part.Dimensions) dimension.PropertyChanged -= OnDimensionChanged;
+        }
         Parts.Clear();
         Document = document;
-        foreach (var part in document.Parts) { part.PropertyChanged += OnPartChanged; Parts.Add(part); }
+        document.PropertyChanged += OnPartChanged;
+        foreach (var part in document.Parts)
+        {
+            part.PropertyChanged += OnPartChanged;
+            foreach (var dimension in part.Dimensions) dimension.PropertyChanged += OnDimensionChanged;
+            Parts.Add(part);
+        }
         Selected = Parts.FirstOrDefault(p => p.Id == selectedId) ?? Parts.FirstOrDefault(p => p.IsArm) ?? Parts.FirstOrDefault();
         Error = "";
+        OnPropertyChanged(nameof(Warning));
         DocumentChanged?.Invoke();
     }
 
     private void OnPartChanged(object? sender, PropertyChangedEventArgs e)
     {
+        OnPropertyChanged(nameof(Warning));
         PlacementChanged?.Invoke();
         if (!IsDragging) Commit();
+    }
+    private void OnDimensionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ChamberDimension.Value)) OnPartChanged(sender, e);
     }
     private void Commit()
     {
