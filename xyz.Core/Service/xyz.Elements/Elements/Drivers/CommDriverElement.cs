@@ -147,7 +147,6 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         if (_driver is null)
         {
             return;

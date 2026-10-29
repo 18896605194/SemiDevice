@@ -208,10 +208,7 @@ public abstract class ElementBase : ILogSource
     #endregion
 
     #region 开启、停止轮询 间隔10ms
-    /// <summary>
-    /// 启动元件树的扫描线程。只有模块根元件调用；
-    /// 子元件随父元件在同一线程上被 OnScan 递归扫描，不要对子元件单独调用 Start。
-    /// </summary>
+
     public void Start()
     {
         if (Interlocked.CompareExchange(ref _scanStarted, 1, 0) != 0)
@@ -290,18 +287,29 @@ public abstract class ElementBase : ILogSource
     }
 
     /// <summary>
-    /// 扫一拍：这一拍抛的异常记日志、不往外抛（单周期异常不杀扫描线程），超过慢扫描阈值记日志。
+    /// 扫一拍：整棵子树先扫完再扫自己；每个元件各自计时、各自接异常，一个抛异常不耽误别的，慢扫描记在它自己名下
     /// </summary>
-    private void ScanOnce()
+    public void ScanOnce()
     {
+        foreach (var child in _children)
+        {
+            child.ScanOnce();
+        }
+
         var watch = Stopwatch.StartNew();
         try
         {
+            // 挂得住动作的元件（模块）：先把动作往前推一步，再做它自己这一拍的活
+            if (this is IRoutineHost host)
+            {
+                host.StepRoutine();
+            }
+
             OnScan();
         }
         catch (Exception exception)
         {
-            // 单周期异常不杀扫描线程：记录后继续下一周期。
+            // 单周期异常不杀扫描线程，也不耽误树上别的元件：记录后继续下一周期。
             LogHelper.Warn(this, $"OnScan 异常: {exception.Message}");
         }
 
@@ -317,24 +325,10 @@ public abstract class ElementBase : ILogSource
     }
 
     /// <summary>
-    /// 扫描周期，默认递归扫描子元件；子类重写时调用 base.OnScan() 后追加自己的周期逻辑。
+    /// 这个元件这一拍做什么；子元件由 ScanOnce 扫，这里不要再递归
     /// </summary>
     protected virtual void OnScan()
     {
-        foreach (var child in _children)
-        {
-            child.OnScan();
-        }
-    }
-
-    /// <summary>
-    /// 单独扫一个子元件：它这一拍抛的异常、扫得慢都记在它自己名下，不往上抛，后面的子元件照扫。
-    /// 默认的 OnScan 是直接递归，一个子元件抛异常，这一拍排在它后面的就都不扫了；
-    /// 子元件之间要互不耽误的父元件（如 Dispatch 下的 Job 和搬运管理）重写 OnScan、逐个调它。
-    /// </summary>
-    protected void ScanChild(ElementBase child)
-    {
-        child.ScanOnce();
     }
 
     #endregion

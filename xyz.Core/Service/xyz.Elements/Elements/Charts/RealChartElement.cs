@@ -195,7 +195,6 @@ public class RealChartElement : ElementBase, IRealChart
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         while (true)
         {
             DataRecord record;

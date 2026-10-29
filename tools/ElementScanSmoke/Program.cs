@@ -224,7 +224,6 @@ public class ScanProbe : ElementBase
         }
 
         Threads.TryAdd(Environment.CurrentManagedThreadId, 0);
-        base.OnScan();
         Interlocked.Increment(ref _count);
     }
 
@@ -243,9 +242,9 @@ public sealed class SlowScanProbe : ScanProbe
 
     protected override void OnScan()
     {
+        base.OnScan();
         _inScan = true;
         Thread.Sleep(150);
-        base.OnScan();
         _inScan = false;
     }
 }

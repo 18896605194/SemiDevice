@@ -20,7 +20,7 @@ public static class ErrorCodes
     /// <summary>动作被拒（状态不允许或已有动作在途）。Args: [模块名, 当前状态码]</summary>
     public const string ActionRejected = "module.action_rejected";
 
-    /// <summary>等待操作结果超时，最终结果尚未确认。Args: [操作名, 等待ms]</summary>
+    /// <summary>等待动作结果超时，最终结果尚未确认。Args: [动作名, 等待ms]</summary>
     public const string WaitTimeout = "module.wait_timeout";
 
     /// <summary>站点不支持这个任务（没有这种站内任务）。Args: [站点, 任务名]</summary>
@@ -111,13 +111,13 @@ public static class ErrorCodes
 
     #region LoadPort
 
-    /// <summary>指令被设备拒绝（未连接或在途）。Args: [操作名]</summary>
+    /// <summary>指令被设备拒绝（未连接或在途）。Args: [动作名]</summary>
     public const string CommandRejected = "loadport.command_rejected";
 
-    /// <summary>动作超时。Args: [操作名, 超时ms]</summary>
+    /// <summary>动作超时。Args: [动作名, 超时ms]</summary>
     public const string Timeout = "loadport.timeout";
 
-    /// <summary>设备报错完成（ABS/NAK/协议错误）。Args: [操作名, 设备错误描述]</summary>
+    /// <summary>设备报错完成（ABS/NAK/协议错误）。Args: [动作名, 设备错误描述]</summary>
     public const string DeviceFailed = "loadport.device_failed";
 
     /// <summary>读码没发起（没挂读头、读头未连接或上一次还没读完）。Args: [模块名]</summary>
@@ -171,11 +171,11 @@ public static class ErrorCodes
     /// </summary>
     public const string LoadPortUnclampUnsupported = "loadport.unclamp_unsupported";
 
-    /// <summary>操作被 Abort 顶替。Args: [操作名]</summary>
+    /// <summary>动作被 Abort 顶替。Args: [动作名]</summary>
     public const string Aborted = "module.action_aborted";
 
-    /// <summary>操作步进内部异常。Args: [操作名, 异常消息]</summary>
-    public const string OperationFaulted = "module.operation_faulted";
+    /// <summary>动作步进内部异常。Args: [动作名, 异常消息]</summary>
+    public const string RoutineFaulted = "module.routine_faulted";
 
     #endregion
 
@@ -416,7 +416,7 @@ public static class ErrorCodes
     /// <summary>这片晶圆没有搬运失败保留的资源（已经释放，或标识不对）。Args: [晶圆内部标识]</summary>
     public const string TransferNotHeld = "transfer.not_held";
 
-    /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [操作名称, 等待ms]</summary>
+    /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [动作名, 等待ms]</summary>
     public const string TransferWaitTimeout = "transfer.wait_timeout";
 
     /// <summary>

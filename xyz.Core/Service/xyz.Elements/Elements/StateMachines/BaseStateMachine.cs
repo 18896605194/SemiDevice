@@ -107,7 +107,7 @@ public abstract class BaseStateMachine<TState, TAction> where TState : struct, E
                 }
 
                 LogHelper.Error(_logOwner, $"{GetType().Name}：{exception.Message}");
-                var failure = HandleResult.Fail(ErrorCodes.OperationFaulted, GetType().Name, exception.Message);
+                var failure = HandleResult.Fail(ErrorCodes.RoutineFaulted, GetType().Name, exception.Message);
                 transition.ErrorHandler?.Invoke(failure, parameters);
                 return failure;
             }

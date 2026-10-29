@@ -3,7 +3,7 @@
 Run from the repository root:
 
 ```powershell
-dotnet run --project tools/OperationWaitSmoke
+dotnet run --project tools/RoutineWaitSmoke
 ```
 
 Checks synchronous success/failure, wait timeout versus action timeout,

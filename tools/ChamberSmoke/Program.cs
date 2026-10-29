@@ -1574,7 +1574,7 @@ public sealed class SmokeChamber : BaseChamberModule
 {
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 }
 
@@ -1586,7 +1586,7 @@ public sealed class CountLifetimeProbe : CountLifetimeElement
 {
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 }
 
@@ -1608,7 +1608,7 @@ public sealed class TimeLifetimeProbe : TimeLifetimeElement
 
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 
     protected override DateTime ReadNow()

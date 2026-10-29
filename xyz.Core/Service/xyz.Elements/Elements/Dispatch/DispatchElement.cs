@@ -12,15 +12,4 @@ namespace xyz.Elements.Elements;
 [Element(description: "指挥层：Job、搬运管理挂在下面，共用一条扫描线程")]
 public class DispatchElement : ElementBase
 {
-    /// <summary>
-    /// 扫描：子元件按挂上的先后逐个单独扫，不走基类的递归——基类那样一个子元件抛异常，这一拍排在后面的就都不扫了，
-    /// Job 一直出错的话搬运管理就一直推不动工单。每个子元件的异常、慢扫描都记在它自己名下。
-    /// </summary>
-    protected override void OnScan()
-    {
-        foreach (var child in Children)
-        {
-            ScanChild(child);
-        }
-    }
 }

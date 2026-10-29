@@ -342,7 +342,6 @@ public partial class IoElement : ElementBase, IIo
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         lock (_doGate)
         {
             EnforceInterlocks(ReadInterlockStates());

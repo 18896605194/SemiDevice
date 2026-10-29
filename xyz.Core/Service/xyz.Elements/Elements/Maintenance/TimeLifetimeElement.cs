@@ -211,7 +211,6 @@ public class TimeLifetimeElement : ElementBase, ITimeLifetime
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         ScanClearDo();
         ScanRunDo();
 

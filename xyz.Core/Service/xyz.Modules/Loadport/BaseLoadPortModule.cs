@@ -1610,7 +1610,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         LoopQueryStatus(); //Loadport 数据轮训
         _carrier.Sense(Status?.IsPresent, Status?.IsPlaced); //盒子到哦没有
         StepE84(); //E84的推进

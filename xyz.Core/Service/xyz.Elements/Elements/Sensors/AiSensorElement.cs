@@ -169,7 +169,6 @@ public class AiSensorElement : ElementBase, IAiSensor
    
     protected override void OnScan()
     {
-        base.OnScan();
         if (AiIndex < 0)
         {
             return;

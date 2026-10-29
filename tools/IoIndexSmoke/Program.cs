@@ -190,6 +190,6 @@ sealed class ScanIo : IoElement
 
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 }

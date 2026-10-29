@@ -353,7 +353,6 @@ public class SystemModule : BaseStateElement, ISystemModule
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         FollowJobs();
         PublishState();
         PublishEquipmentStatus();

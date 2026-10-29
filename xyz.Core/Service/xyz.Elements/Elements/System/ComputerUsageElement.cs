@@ -5,11 +5,22 @@ using xyz.Elements.Enums;
 namespace xyz.Elements.Elements;
 
 /// <summary>
-/// 整台电脑的 CPU、内存占用率，线程数（所有程序合计，同任务管理器“性能”页）。挂在 Computer 下，Computer 隔一个取样周期扫一次，扫一次取一次。
+/// 整台电脑的 CPU、内存占用率，线程数（所有程序合计，同任务管理器“性能”页）。挂在 Computer 下，每隔 SampleIntervalMs 取一次样。
 /// </summary>
 [Element(description: "整台电脑占用（CPU、内存、线程数）")]
 public class ComputerUsageElement : ElementBase
 {
+    #region EC
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "100", "60000", "1000", "多久取一次整台电脑的 CPU、内存和线程数；CPU 是这段时间里的平均值")]
+    public int SampleIntervalMs
+    {
+        get { return GetEcInt(nameof(SampleIntervalMs)); }
+        set { SetEcInt(nameof(SampleIntervalMs), value); }
+    }
+
+    #endregion
+
     #region SV
 
     /// <summary>
@@ -43,9 +54,20 @@ public class ComputerUsageElement : ElementBase
 
     private bool _hasCpuBase;
 
+    /// <summary>
+    /// 下一次该取样的时刻：扫描线程 10 ms 一拍，没到点这一拍什么都不做
+    /// </summary>
+    private long _nextSampleAt;
+
     protected override void OnScan()
     {
-        base.OnScan();
+        long now = Environment.TickCount64;
+        if (now < _nextSampleAt)
+        {
+            return;
+        }
+
+        _nextSampleAt = now + SampleIntervalMs;
 
         CpuUsage = SampleCpu();
 

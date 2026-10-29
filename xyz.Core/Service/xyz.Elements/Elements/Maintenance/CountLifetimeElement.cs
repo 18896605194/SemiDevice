@@ -135,7 +135,6 @@ public class CountLifetimeElement : ElementBase, ICountLifetime
 
     protected override void OnScan()
     {
-        base.OnScan();
         bool? level = ReadDo();
         if (level is not null && _lastLevel is not null && level.Value != _lastLevel.Value)
         {

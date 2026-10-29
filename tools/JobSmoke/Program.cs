@@ -412,7 +412,7 @@ try
     stateFlow.CurrentState = ControlJobState.Created;
     flowTrace.Clear();
     flowTransition.Execute = _ => throw new InvalidOperationException("smoke failure");
-    Check(stateFlow.StateChange(ControlStateAction.Queue).ErrorMessage == ErrorCodes.OperationFaulted
+    Check(stateFlow.StateChange(ControlStateAction.Queue).ErrorMessage == ErrorCodes.RoutineFaulted
           && stateFlow.CurrentState == ControlJobState.Aborted && flowTrace.Count(item => item == "Error") == 1,
         "动作异常返回失败，进入错误状态并调用一次错误处理");
     stateFlow.CurrentState = ControlJobState.Created;
@@ -487,7 +487,7 @@ try
             jobs.CommandTimeoutMs = savedCommandTimeout;
         }
     }
-    Check(jobs.CreateProcessJobAsync("LP1", null!, [1], "SEQ_A", null).Result.ErrorMessage == ErrorCodes.OperationFaulted,
+    Check(jobs.CreateProcessJobAsync("LP1", null!, [1], "SEQ_A", null).Result.ErrorMessage == ErrorCodes.RoutineFaulted,
         "创建 PJ 出异常仍返回错误结果");
     var afterFault = Task.Run(() => jobs.PauseProcessJobAsync("PJ-GUARD").GetAwaiter().GetResult());
     Check(afterFault.Wait(2000) && afterFault.Result.ErrorMessage == ErrorCodes.JobNotFound,
@@ -935,7 +935,7 @@ try
     try
     {
         var rejectedQueue = Do(jobs.CreateProcessJobAsync("LP1", "PJ-QUEUE-FAIL", [1], "SEQ_A", null));
-        Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.OperationFaulted
+        Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.RoutineFaulted
               && processManager.Get("PJ-QUEUE-FAIL") is null && jobs.OwnerOf(first.Id) is null
               && !jobs.FindChild<TaskElement>()!.Rows.Any(row => row.Owner == "PJ-QUEUE-FAIL"),
             "PJ 入队失败返回失败并移除注册、任务行和晶圆归属");
@@ -979,7 +979,7 @@ try
     try
     {
         var rejectedQueue = Do(jobs.CreateControlJobAsync("LP1", ["PJ-QUEUE-FAIL"], "CJ-QUEUE-FAIL"));
-        Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.OperationFaulted
+        Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.RoutineFaulted
               && controlManager.Get("CJ-QUEUE-FAIL") is null
               && processManager.Get("PJ-QUEUE-FAIL")?.ControlJob is null
               && jobs.OwnerOf(first.Id) == "PJ-QUEUE-FAIL",
@@ -2706,7 +2706,7 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
 // 探针指挥层：顶替扫描线程推一拍。
 sealed class ProbeDispatch : DispatchElement
 {
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 // 探针子元件：被扫到就记下名字；Fail 为真时记完就抛异常，看 Dispatch 会不会因此漏扫后面的。
@@ -2777,7 +2777,7 @@ static class Probe
 // 搬运管理、Job 管理：顶替扫描线程推一拍。
 sealed class SmokeTransfers : TransferManager
 {
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 // Job 管理下面挂任务元件（生产里是 machine.xml 的 Task 子节点）。
@@ -2796,7 +2796,7 @@ sealed class SmokeJobs : JobManager
     // 调度挂在 Job 下面（生产里是 machine.xml 的 Scheduler 子节点），测试直接拨它的 PreferIdleStation 开关。
     public SchedulerElement Scheduler { get; }
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 // 没挂任务元件的 Job 管理：装配时应该就抛。
@@ -2922,7 +2922,7 @@ class SmokeRobot : BaseRobotModule
 
     public void NoteState(int state) => State = state;
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     protected override IFrameCodec CreateCodec() => new SmokeCodec();
 
@@ -2965,7 +2965,7 @@ sealed class SmokeBuffer : BaseBufferModule
         SlotCount = slotCount;
     }
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 // 对准器：通道是假的（每条指令 5 拍做完）；每次机械手来取时记下台上那片对好了没有
@@ -2981,7 +2981,7 @@ sealed class SmokeJobAligner : BaseAlignerModule
 
     public List<bool> PickedAligned { get; } = [];
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     protected override IFrameCodec CreateCodec() => new SmokeCodec();
 
@@ -3059,7 +3059,6 @@ sealed class SmokeChannel : ElementBase, ICommDriver
 
     protected override void OnScan()
     {
-        base.OnScan();
         _ticks++;
         foreach (var pending in _inflight.Where(pending => _ticks - pending.SentAt >= 5).ToList())
         {
@@ -3165,7 +3164,7 @@ sealed class SmokePort : BaseLoadPortModule
 
     public void NoteState(int state) => State = state;
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     /// <summary>假端口不发设备动作：前两项检查（状态、资源）照常查，最后的互锁一律不放行，回这个码。</summary>
     public const string NoDevice = "smoke.no_device";
@@ -3262,7 +3261,7 @@ sealed class SmokeChamber : BaseChamberModule
 
     public void NoteState(int state) => State = state;
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     protected override void AddHomeSteps(ModuleRoutine home) => home.Add(new SmokeMotion("Home", 1));
 
@@ -3413,7 +3412,7 @@ sealed class SilentE87 : IE87Callback
 // 整机：测试代替扫描线程推一拍，直接摆状态（省得为了进 Auto 先跑全部初始化）。
 sealed class SmokeSystem : SystemModule
 {
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     public void NoteState(int state) => State = state;
 }

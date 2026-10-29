@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Threading.Channels;
 using SqlSugar;
 using xyz.Common.Events;
@@ -23,6 +22,11 @@ namespace xyz.Elements.Elements;
 [Element(description: "报警管理元件")]
 public class AlarmElement : ElementBase, IAlarm
 {
+    /// <summary>
+    /// 宿主退出时最多等多久把攒着的报警通知处理完
+    /// </summary>
+    private const int StopWaitMs = 3000;
+
     private readonly object _syncRoot = new();
 
     /// <summary>
@@ -41,10 +45,30 @@ public class AlarmElement : ElementBase, IAlarm
     private readonly Dictionary<string, ElementBase> _sources = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// 报警通知 队列
+    /// 报警通知队列：报出、清除都扔进来，消费线程一条条往下走，报警的线程不等它
     /// </summary>
-    private readonly Queue<AlarmItem> _notifications = new();
-    private bool _publishing;
+    private readonly Channel<AlarmItem> _notifications =
+        Channel.CreateUnbounded<AlarmItem>(new UnboundedChannelOptions { SingleReader = true });
+
+    /// <summary>
+    /// 通知消费线程：入库、推界面、发给订阅者都在它上面做
+    /// </summary>
+    private Task? _notifyLoop;
+
+    /// <summary>
+    /// 通知消费线程起没起：报警可能在开机 Bind 之前就报出来，不能只靠 Bind 起
+    /// </summary>
+    private int _notifyLoopStarted;
+
+    /// <summary>
+    /// 按等级取的报警策略（开机 Bind 时建）：报出来那一下交给它决定停不停、怎么停
+    /// </summary>
+    private readonly Dictionary<AlarmLevel, IAlarmStrategy> _strategies = new();
+
+    /// <summary>
+    /// 全部模块（开机 Bind 时取）：按路径算报警归谁
+    /// </summary>
+    private IReadOnlyList<IModule> _modules = Array.Empty<IModule>();
 
     /// <summary>
     /// 映射元件（开机 Bind 时取）：报警转成给界面的样子
@@ -54,6 +78,9 @@ public class AlarmElement : ElementBase, IAlarm
     public override void Bind()
     {
         _mapper = IocHelper.GetService<IMapper>();
+        _modules = IocHelper.GetServices<IModule>();
+        LoadStrategies();
+        EnsureNotifyLoop();
     }
 
     #region Machine
@@ -69,6 +96,18 @@ public class AlarmElement : ElementBase, IAlarm
 
     [Machine("1000", "Alarm", "报警历史页一次最多返回多少条（取最新的），超出界面提示缩小时间段或加条件")]
     public int HistoryQueryMaxCount { get; set; } = 1000;
+
+    [Machine("", "Alarm", "警告报警的处理策略（类型全名），空 = 平台默认")]
+    public string WarnStrategy { get; set; } = string.Empty;
+
+    [Machine("", "Alarm", "轻报警的处理策略（类型全名），空 = 平台默认")]
+    public string LightStrategy { get; set; } = string.Empty;
+
+    [Machine("", "Alarm", "重报警的处理策略（类型全名），空 = 平台默认")]
+    public string HeavyStrategy { get; set; } = string.Empty;
+
+    [Machine("", "Alarm", "致命报警的处理策略（类型全名），空 = 平台默认")]
+    public string FatalStrategy { get; set; } = string.Empty;
 
     #endregion
 
@@ -123,6 +162,7 @@ public class AlarmElement : ElementBase, IAlarm
     /// <exception cref="InvalidOperationException"></exception>
     internal bool Raise(ElementBase source, string alarmCode)
     {
+        AlarmItem raised;
         try
         {
             string path = EnsureRegistered(source); //报警先记住
@@ -152,7 +192,7 @@ public class AlarmElement : ElementBase, IAlarm
                 };
 
                 _activeAlarms.Add(key, alarm); //添加到实时报警里面
-                _notifications.Enqueue(alarm.Snapshot());
+                raised = alarm.Snapshot();
             }
         }
         catch (Exception exception)
@@ -161,7 +201,9 @@ public class AlarmElement : ElementBase, IAlarm
             return false;
         }
 
-        PublishChanges();
+        // 策略在锁外、当场做：它只发请求不等结果，急停这种不能排在入库、推界面后面
+        ApplyStrategy(raised);
+        Notify(raised);
         return true;
     }
 
@@ -173,25 +215,29 @@ public class AlarmElement : ElementBase, IAlarm
     internal int Clear(ElementBase source)
     {
         string path = source.AlarmSource;
-        int cleared = 0;
+        var cleared = new List<AlarmItem>();
         lock (_syncRoot)
         {
             foreach (var key in _activeAlarms.Keys.Where(key => key.SourcePath == path).ToArray())
             {
                 _activeAlarms.Remove(key, out var alarm);
                 alarm!.ClearedAt = DateTimeOffset.UtcNow;
-                _notifications.Enqueue(alarm.Snapshot());
-                cleared++;
+                cleared.Add(alarm.Snapshot());
             }
         }
 
-        if (cleared > 0)
+        if (cleared.Count > 0)
         {
-            LogHelper.Info(this, $"{path} 复位，清除报警 {cleared} 条");
-            PublishChanges();
+            LogHelper.Info(this, $"{path} 复位，清除报警 {cleared.Count} 条");
+
+            // 清除不走策略：报警清掉不触发动作、不自动恢复
+            foreach (var alarm in cleared)
+            {
+                Notify(alarm);
+            }
         }
 
-        return cleared;
+        return cleared.Count;
     }
 
     /// <summary>
@@ -380,6 +426,17 @@ public class AlarmElement : ElementBase, IAlarm
     }
 
     /// <summary>
+    /// 宿主退出：先把攒着的通知处理完（它还要往入库队列里写），再停入库线程
+    /// </summary>
+    public override void OnStopping()
+    {
+        _notifications.Writer.TryComplete();
+        _notifyLoop?.Wait(StopWaitMs);
+        StopHistory();
+        base.OnStopping();
+    }
+
+    /// <summary>
     /// 记一条报警记录：只入队，不写库。报出、清除各一行。
     /// </summary>
     private void RecordHistory(AlarmItem alarm)
@@ -454,61 +511,174 @@ public class AlarmElement : ElementBase, IAlarm
 
     #endregion
 
-    /// <summary>
-    /// 报警入队列，这边一直往外获取
-    /// </summary>
-    private void PublishChanges()
-    {
-        lock (_syncRoot)
-        {
-            if (_publishing)
-            {
-                return;
-            }
+    #region 按策略处理（报出来那一下，在报警的线程上做）
 
-            _publishing = true;
+    /// <summary>
+    /// 把这条报警交给策略：定归属、建上下文、按等级挑策略
+    /// </summary>
+    private void ApplyStrategy(AlarmItem alarm)
+    {
+        if (!_strategies.TryGetValue(alarm.Level, out var strategy))
+        {
+            return;
         }
 
-        while (true)
+        try
         {
-            AlarmItem alarm;
-            lock (_syncRoot)
-            {
-                if (_notifications.Count == 0)
-                {
-                    _publishing = false;
-                    return;
-                }
+            var context = new AlarmContext(alarm, FindModule(alarm.SourcePath));
+            strategy.OnRaised(context);
+        }
+        catch (Exception exception)
+        {
+            // 策略出错不能挡住报警本身：照样入库、推界面、报 Host
+            LogHelper.Warn(this, $"报警 {alarm.SourcePath}.{alarm.AlarmCode} 的策略处理失败: {exception.Message}");
+        }
+    }
 
-                alarm = _notifications.Dequeue();
-            }
-
-            RecordHistory(alarm);  //报警入库
-            PushToClient(alarm);
-
-            var handlers = AlarmChanged;
-            if (handlers is null)
+    /// <summary>
+    /// 报警归哪个模块：路径往上最近的那个；不在任何模块下返回 null，算整机
+    /// </summary>
+    private IModule? FindModule(string sourcePath)
+    {
+        IModule? found = null;
+        foreach (var module in _modules)
+        {
+            if (!IsInScope(sourcePath, module.FullPath))
             {
                 continue;
             }
 
-            foreach (Action<AlarmItem> handler in handlers.GetInvocationList())
+            // 模块可能嵌套（Chamber.Chamber1 下面还有报警来源），路径长的那个才是最近的
+            if (found is null || module.FullPath.Length > found.FullPath.Length)
             {
+                found = module;
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// 开机建四个等级的策略：machine.xml 配了类型全名就用配的，没配用平台默认的
+    /// </summary>
+    private void LoadStrategies()
+    {
+        _strategies.Clear();
+        AddStrategy(AlarmLevel.Warn, WarnStrategy, new WarnAlarmStrategy());
+        AddStrategy(AlarmLevel.Light, LightStrategy, new LightAlarmStrategy());
+        AddStrategy(AlarmLevel.Heavy, HeavyStrategy, new HeavyAlarmStrategy());
+        AddStrategy(AlarmLevel.Fatal, FatalStrategy, new FatalAlarmStrategy());
+    }
+
+    /// <summary>
+    /// 按类型全名建一个策略；名字配错了开机就抛，不留到报警时才发现
+    /// </summary>
+    private void AddStrategy(AlarmLevel level, string typeName, IAlarmStrategy platformDefault)
+    {
+        if (string.IsNullOrWhiteSpace(typeName))
+        {
+            _strategies[level] = platformDefault;
+            return;
+        }
+
+        Type? type = null;
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            type = assembly.GetType(typeName, throwOnError: false);
+            if (type is not null)
+            {
+                break;
+            }
+        }
+
+        if (type is null || !typeof(IAlarmStrategy).IsAssignableFrom(type))
+        {
+            throw new InvalidOperationException(
+                $"machine.xml 的 Alarm 节点上 {level} 等级配的策略 \"{typeName}\" 找不到，或者它没实现 IAlarmStrategy。");
+        }
+
+        // 致命报警关系到人身和全机安全，只认平台那个或它的子类
+        if (level == AlarmLevel.Fatal && !typeof(FatalAlarmStrategy).IsAssignableFrom(type))
+        {
+            throw new InvalidOperationException(
+                $"machine.xml 的 Alarm 节点上致命等级配的策略 \"{typeName}\" 必须继承 {nameof(FatalAlarmStrategy)}。");
+        }
+
+        _strategies[level] = (IAlarmStrategy)Activator.CreateInstance(type)!;
+    }
+
+    #endregion
+
+    #region 通知（入库、推界面、发给订阅者，都在消费线程上做）
+
+    /// <summary>
+    /// 报警变化扔进队列就返回：报警的那个线程不等入库和推送
+    /// </summary>
+    private void Notify(AlarmItem alarm)
+    {
+        EnsureNotifyLoop();
+
+        // 队列已关（OnStopping 之后）就当没通知，不报错
+        _notifications.Writer.TryWrite(alarm);
+    }
+
+    /// <summary>
+    /// 第一次要通知时把消费线程起起来；起过了什么都不做
+    /// </summary>
+    private void EnsureNotifyLoop()
+    {
+        if (Interlocked.CompareExchange(ref _notifyLoopStarted, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _notifyLoop = Task.Run(() => NotifyLoopAsync(_notifications));
+    }
+
+    /// <summary>
+    /// 通知循环：一条条入库、推界面、发给订阅者；队列关了处理完剩下的就退出
+    /// </summary>
+    private async Task NotifyLoopAsync(Channel<AlarmItem> notifications)
+    {
+        while (await notifications.Reader.WaitToReadAsync())
+        {
+            while (notifications.Reader.TryRead(out var alarm))
+            {
+                // 一条出错不能让整个循环退出：退出了后面的报警就再也不入库、不上界面
                 try
                 {
-                    handler(alarm);  //一次性处理所有订阅者
+                    RecordHistory(alarm);  //报警入库
+                    PushToClient(alarm);
+                    RaiseAlarmChanged(alarm);
                 }
                 catch (Exception exception)
                 {
-                    try
-                    {
-                        Trace.TraceError($"AlarmChanged 订阅者处理 {alarm.SourcePath}.{alarm.AlarmCode} 失败：{exception}");
-                    }
-                    catch
-                    {
-                        // 诊断监听器自身失败时，也不能阻断后续报警通知。
-                    }
+                    LogHelper.Warn(this, $"报警 {alarm.SourcePath}.{alarm.AlarmCode} 的通知处理失败: {exception.Message}");
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 发给后端里订了报警的元件（E30 报 Host、EDA 采集）；一个订阅者出错不挡别的
+    /// </summary>
+    private void RaiseAlarmChanged(AlarmItem alarm)
+    {
+        var handlers = AlarmChanged;
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (Action<AlarmItem> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(alarm);
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Warn(this, $"报警 {alarm.SourcePath}.{alarm.AlarmCode} 的订阅者处理失败: {exception.Message}");
             }
         }
     }
@@ -529,9 +699,11 @@ public class AlarmElement : ElementBase, IAlarm
         }
         catch (Exception exception)
         {
-            Trace.TraceError($"报警推送 {alarm.SourcePath}.{alarm.AlarmCode} 失败：{exception}");
+            LogHelper.Warn(this, $"报警 {alarm.SourcePath}.{alarm.AlarmCode} 推送失败: {exception.Message}");
         }
     }
+
+    #endregion
 
     #region 过期记录清理（一天一次：跨天后写第一批之前顺手清；平时不用看）
 

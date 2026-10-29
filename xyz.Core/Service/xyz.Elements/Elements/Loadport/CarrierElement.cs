@@ -336,7 +336,6 @@ public class CarrierElement : ElementBase, ICarrier
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         TakeReadResult();
         RetryAutoRead();
     }

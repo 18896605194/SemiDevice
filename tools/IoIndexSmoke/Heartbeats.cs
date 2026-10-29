@@ -140,7 +140,7 @@ public sealed class HeartbeatProbe : HeartbeatElement
 {
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 }
 

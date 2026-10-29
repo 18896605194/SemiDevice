@@ -1409,7 +1409,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         CheckDeviceAlarm(); //检查报警
         PublishState(); //推送状态
     }

@@ -318,8 +318,6 @@ public partial class AxisElement
 
     protected override void OnScan()
     {
-        base.OnScan();
-
         string? alarm = null;
         lock (_axisGate)
         {

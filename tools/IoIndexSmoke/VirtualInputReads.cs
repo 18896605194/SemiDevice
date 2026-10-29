@@ -288,5 +288,5 @@ static class VirtualInputReads
 [Element]
 public sealed class VirtualInputGroup : ElementBase
 {
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }

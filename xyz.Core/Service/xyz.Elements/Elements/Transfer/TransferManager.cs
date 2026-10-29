@@ -1103,7 +1103,6 @@ public class TransferManager : ElementBase, ITransferManager
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         List<TransferExecution> running;
         lock (_gate)
         {

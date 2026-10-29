@@ -1683,7 +1683,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         LoopQueryStatus(); //设备状态轮询
         CheckDeviceAlarm(); //检查报警
         PublishState(); //推送状态

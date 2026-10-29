@@ -141,7 +141,7 @@ static class IoInterlocks
     private sealed class TestIo : IoElement
     {
         public void Load() => OnSettingLoaded(new ModuleConfig());
-        public void Tick() => OnScan();
+        public void Tick() => ScanOnce();
     }
 
     private sealed class RecordingPlc : IPlcIo

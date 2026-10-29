@@ -15,7 +15,7 @@
     <sys:String x:Key="module.busy">{0} 正在做别的动作，等它做完再试</sys:String>
     <sys:String x:Key="module.maintenance">{0} 在维护模式，不接别的模块要它做的动作；切到生产模式再试</sys:String>
     <sys:String x:Key="module.action_aborted">{0} 被 Abort 顶替</sys:String>
-    <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
+    <sys:String x:Key="module.routine_faulted">{0} 动作异常：{1}</sys:String>
     <sys:String x:Key="routine.step_at">第 {0}/{1} 步：</sys:String>
 
     <!-- 整机（machine.xml 的 System 节点：全部初始化、Auto / Manual、整机停止、全部回片） -->

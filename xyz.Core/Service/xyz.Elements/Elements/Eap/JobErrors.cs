@@ -41,7 +41,7 @@ internal static class JobErrors
         [ErrorCodes.JobRecipeNotFound] = E5Error.RecipeError,
         [ErrorCodes.JobStepNoStation] = E5Error.RecipeError,
         [ErrorCodes.JobStationTaskUnsupported] = E5Error.RecipeError,
-        [ErrorCodes.OperationFaulted] = E5Error.FailedDuringProcessing,
+        [ErrorCodes.RoutineFaulted] = E5Error.FailedDuringProcessing,
     };
 
     /// <summary>被拒的结果 → 一条 E5 错误；没收录的码记成"现在不能处理"。</summary>

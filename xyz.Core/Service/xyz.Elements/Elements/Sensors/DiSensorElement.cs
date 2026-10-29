@@ -101,7 +101,6 @@ public class DiSensorElement : ElementBase, IDiSensor
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         if (DiIndex < 0)
         {
             _level = -1;

@@ -893,7 +893,7 @@ public sealed class SmokeIpa : IpaModule
 {
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 }
 
@@ -905,7 +905,7 @@ public sealed class SmokeTank : TankElement
 {
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 }
 

@@ -373,7 +373,6 @@ public class DataChartElement : ElementBase, IDataChart
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         if (!_bound)
         {
             return;

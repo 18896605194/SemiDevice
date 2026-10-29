@@ -60,7 +60,6 @@ public class HeartbeatElement : ElementBase, IHeartbeat
 
     protected override void OnScan()
     {
-        base.OnScan();
         if (DoIndex < 0)
         {
             return;

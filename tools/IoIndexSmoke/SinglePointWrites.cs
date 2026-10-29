@@ -86,7 +86,6 @@ static class SinglePointWrites
         public int WriteCount { get; private set; }
         public bool FailWrites { get; set; }
         public void SetConnected(bool connected) => IsConnected = connected;
-        public void ScanOnce() => OnScan();
 
         protected override bool ReadDevice(string path, out byte[] data)
         {

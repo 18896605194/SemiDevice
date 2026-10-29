@@ -110,7 +110,6 @@ public class AiLevelElement : ElementBase, IAiLevel
 
     protected override void OnScan()
     {
-        base.OnScan();
         if (AiIndex < 0)
         {
             ResetActive();

@@ -145,7 +145,6 @@ public abstract class RfidReaderElement<TReadCommand> : ElementBase, ICarrierIdR
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         ScanRead();
     }
 

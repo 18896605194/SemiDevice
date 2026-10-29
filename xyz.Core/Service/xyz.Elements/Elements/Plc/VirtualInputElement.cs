@@ -67,7 +67,6 @@ public abstract class VirtualInputElement : ElementBase, IVirtualInputElement
 
     protected override void OnScan()
     {
-        base.OnScan();
         TryEvaluate(out _);
     }
 }

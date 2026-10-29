@@ -167,7 +167,7 @@ sealed class ProbeOpcUaPlc : OpcUaPlcElement
     /// <summary>
     /// 顶替扫描线程推一拍
     /// </summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 /// <summary>

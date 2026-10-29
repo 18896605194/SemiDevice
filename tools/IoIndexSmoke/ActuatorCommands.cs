@@ -173,22 +173,22 @@ static class ActuatorCommands
 
     private sealed class ScanningCylinder : CylinderElement
     {
-        public void Tick() => OnScan();
+        public void Tick() => ScanOnce();
     }
 
     private sealed class ScanningValve : ValveElement
     {
-        public void Tick() => OnScan();
+        public void Tick() => ScanOnce();
     }
 
     private sealed class ScanningDi : DiSensorElement
     {
-        public void Tick() => OnScan();
+        public void Tick() => ScanOnce();
     }
 
     private sealed class ScanningAi : AiSensorElement
     {
-        public void Tick() => OnScan();
+        public void Tick() => ScanOnce();
     }
 
     /// <summary>假 PLC：DI/DO/AI 各一张表，断了什么都读不到、写不进。</summary>

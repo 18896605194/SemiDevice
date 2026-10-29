@@ -181,8 +181,6 @@ public abstract class PlcElement : ElementBase
 
     private void ScanPlc()
     {
-        base.OnScan();
-
         if (_closed || string.IsNullOrWhiteSpace(Host))
         {
             return;

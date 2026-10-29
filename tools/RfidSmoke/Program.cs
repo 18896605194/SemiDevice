@@ -372,7 +372,7 @@ namespace RfidSmoke
         /// </summary>
         public void Tick()
         {
-            OnScan();
+            ScanOnce();
         }
     }
 

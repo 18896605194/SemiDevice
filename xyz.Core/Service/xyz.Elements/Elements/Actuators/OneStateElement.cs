@@ -175,7 +175,6 @@ public abstract class OneStateElement : ElementBase
 
     protected override void OnScan()
     {
-        base.OnScan();
         lock (_actionGate)
         {
             if (_action != ActionState.Running)

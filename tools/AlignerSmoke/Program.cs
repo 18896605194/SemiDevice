@@ -295,7 +295,7 @@ sealed class SmokeAligner : BaseAlignerModule
 
     public void Tick()
     {
-        OnScan();
+        ScanOnce();
     }
 
     protected override IFrameCodec CreateCodec()
@@ -465,7 +465,6 @@ sealed class FakeAlignerDriver : ElementBase, ICommDriver
 
     protected override void OnScan()
     {
-        base.OnScan();
         if (Hang)
         {
             return;

@@ -3,6 +3,7 @@ using xyz.Elements;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
+using xyz.Elements.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
@@ -11,7 +12,7 @@ namespace xyz.Modules;
 /// <summary>
 /// 带状态表、一次挂一个动作的元件：模块和整机都从它来
 /// </summary>
-public abstract class BaseStateElement : ElementBase
+public abstract class BaseStateElement : ElementBase, IRoutineHost
 {
     public abstract int State { get; protected set; }
 
@@ -272,13 +273,10 @@ public abstract class BaseStateElement : ElementBase
     }
 
     /// <summary>
-    /// 扫描周期：先扫子元件，再推一下挂着的动作
-    /// 子类只在有自己的周期逻辑时才重写（记得调 base.OnScan）。
+    /// 把挂着的动作往前推一步，到终态就收尾；框架扫一拍时调（IRoutineHost），排在元件自己的 OnScan 之前
     /// </summary>
-    protected override void OnScan()
+    public void StepRoutine()
     {
-        base.OnScan();
-
         lock (RoutineGate)
         {
             var routine = _routine;

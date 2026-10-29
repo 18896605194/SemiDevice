@@ -209,7 +209,7 @@ for (var i = 0; i < 200; i++)
     // 步骤里抛异常：判失败（operation_faulted），不往外抛、不卡住扫描
     var faulted = new ModuleRoutine(new SmokeLog("Engine"), "Fault").Add("抛异常", _ => throw new InvalidOperationException("boom"), null);
     faulted.Scan();
-    Check(faulted.Code == ErrorCodes.OperationFaulted && faulted.ErrorArgs.SequenceEqual(["Fault", "boom"]),
+    Check(faulted.Code == ErrorCodes.RoutineFaulted && faulted.ErrorArgs.SequenceEqual(["Fault", "boom"]),
         "步骤抛异常：动作判 operation_faulted [动作名, 异常信息]");
 
     // 整个动作的上限：超了在当时那一步判失败，报给的错误码 [模块名, ms]
@@ -1982,14 +1982,17 @@ port.E87Callback = null;
 }
 
 // ── 电脑：Program（本程序）、Total（整台电脑）两个子节点各取 CPU、内存、线程数；第一拍就取内存和线程数，
-//    CPU 要隔一个取样周期跟上一次比才有值；没到周期电脑不扫子节点 ─────
+//    CPU 要隔一个取样周期跟上一次比才有值；取样间隔是两个子节点各自的 EC，没到点它自己这一拍不取样 ─────
 {
     var computer = new ProbeComputer("SmokeComputer");
     var program = new ProgramUsageElement();
     var total = new ComputerUsageElement();
+    typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(program, "SmokeComputer.Program");
+    typeof(ElementBase).GetProperty(nameof(ElementBase.FullPath))!.SetValue(total, "SmokeComputer.Total");
     computer.AddChild(program);
     computer.AddChild(total);
-    computer.SampleIntervalMs = 200;
+    program.SampleIntervalMs = 200;
+    total.SampleIntervalMs = 200;
     computer.Tick();
     Check(program.MemoryUsage > 0 && program.ThreadCount > 0, "第一拍就取到本程序的内存占用（MB）和线程数");
     Check(total.MemoryUsage > 0 && total.MemoryUsage <= 100 && total.ThreadCount >= program.ThreadCount,
@@ -1997,7 +2000,7 @@ port.E87Callback = null;
     Check(program.CpuUsage is null && total.CpuUsage is null, "第一拍还没有上一次可比，CPU 占用率是 null");
 
     computer.Tick();
-    Check(program.CpuUsage is null && total.CpuUsage is null, "没到取样周期电脑不扫子节点");
+    Check(program.CpuUsage is null && total.CpuUsage is null, "没到取样周期，子节点这一拍自己不取样");
 
     Thread.Sleep(250);
     computer.Tick();
@@ -4865,7 +4868,7 @@ sealed class ProbeModule : BaseModule
     public ManualResetEventSlim? ReleaseCompletion { get; init; }
     public bool CleanupDone { get; private set; }
     public bool StartRoutine(ModuleRoutine routine, bool replace = false) => Run(routine, replace);
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
     protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
         Completing?.Set();
@@ -4929,7 +4932,7 @@ sealed class ProbePort : LoadPortModule
     public void NotePodPlaced(bool placed) => SetDeviceReportedPlaced(placed);
 
     /// <summary>顶替扫描线程推一拍（本工具不跑扫描循环）。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>
     public void NoteState(int state) => State = state;
@@ -5004,7 +5007,7 @@ class PlainPort : LoadPortModule
     }
 
     /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     /// <summary>直接摆状态，省去先跑一遍 Home。</summary>
     public void NoteState(int state) => State = state;
@@ -5064,7 +5067,7 @@ sealed class NoMapPort : BaseLoadPortModule
     }
 
     /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     /// <summary>直接摆状态，省去先跑一遍 Home。</summary>
     public void NoteState(int state) => State = state;
@@ -5282,7 +5285,7 @@ sealed class ProbeDi : DiSensorElement
     }
 
     /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     protected override bool? ReadDi() => Level;
 }
@@ -5300,7 +5303,7 @@ sealed class ProbeAi : AiSensorElement
     }
 
     /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     protected override double? ReadAi() => Reading;
 
@@ -5322,7 +5325,7 @@ sealed class ProbePlc : PlcElement
     public int Connects => Volatile.Read(ref _connects);
 
     /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     protected override bool ConnectDevice()
     {
@@ -5348,8 +5351,8 @@ sealed class ProbeComputer : ComputerElement
         typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
     }
 
-    /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    /// <summary>顶替扫描线程推一拍：走 ScanOnce，子节点跟着一起扫。</summary>
+    public void Tick() => ScanOnce();
 }
 
 // 只记下收到了哪些 E84 回调（带方向/计时段），派发在别的线程上，等到为止。
@@ -5469,7 +5472,7 @@ sealed class ProbeRobot : RobotModule
     public void NoteState(int state) => State = state;
 
     /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     /// <summary>
     /// 灌机械手自己的 machine.xml 节点（生产里由 ElementLoader 交给 OnSettingLoaded）
@@ -5546,7 +5549,7 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
 
     public void NoteState(int state) => State = state;
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     /// <summary>
     /// 挂示教点（生产里由 ElementLoader 照 machine.xml 机械手下的 Size12 / Size8 建）；元件初始化时收进示教点表
@@ -5575,7 +5578,7 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
 // 搬运管理：顶替指挥层的扫描线程推一拍
 sealed class MapProbeTransfers : TransferManager
 {
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 // 探针手指：模拟机型自己提供的有效持片反馈，不挂 DI 传感器。
@@ -5602,7 +5605,7 @@ sealed class ProbeChamber : BaseChamberModule
 
     public void NoteState(int state) => State = state;
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 
     protected override void AddResetSteps(ModuleRoutine reset) => reset.Add(NextReset ?? new ProbeStep());
 }
@@ -5935,7 +5938,7 @@ class SystemProbeModule : BaseModule, IMode
     }
 
     /// <summary>顶替扫描线程推一拍。</summary>
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 // 整机冒烟用的探针机械手：全部初始化要先认出机械手，别的动作一律不收。
@@ -5983,7 +5986,7 @@ sealed class SmokeSystem : SystemModule
         typeof(ElementBase).GetProperty(nameof(FullPath))!.SetValue(this, "System");
     }
 
-    public void Tick() => OnScan();
+    public void Tick() => ScanOnce();
 }
 
 /// <summary>

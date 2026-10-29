@@ -411,7 +411,7 @@ public class ModuleRoutine
         }
         catch (Exception exception)
         {
-            Stop(RoutineState.Failed, ErrorCodes.OperationFaulted, $"异常：{exception.Message}", [Name, exception.Message]);
+            Stop(RoutineState.Failed, ErrorCodes.RoutineFaulted, $"异常：{exception.Message}", [Name, exception.Message]);
         }
     }
 

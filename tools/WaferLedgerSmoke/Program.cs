@@ -376,6 +376,28 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         }
     };
 
+    // 报警入库、推界面、发给订阅者都在报警元件自己的消费线程上做，等它追上来再查
+    int WaitRaised(int expected, int timeoutMs)
+    {
+        for (int waited = 0; waited < timeoutMs; waited += 10)
+        {
+            lock (raised)
+            {
+                if (raised.Count >= expected)
+                {
+                    return raised.Count;
+                }
+            }
+
+            Thread.Sleep(10);
+        }
+
+        lock (raised)
+        {
+            return raised.Count;
+        }
+    }
+
     var faulty = new LedgerManagerElement();
     SmokeIoc.Use<ILedgerManager>(faulty);
     faulty.InitElement();
@@ -402,23 +424,24 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     faulty.Move("AlarmLp", 1, "AlarmLp", 2);
     faulty.Move("AlarmLp", 1, "AlarmLp", 2);
     Check(alarms.ActiveAlarms.Count == 1, "同一个报警重复触发不该堆出多条");
-    lock (raised)
-    {
-        Check(raised.Count == 1, $"重复触发不该重复通知，实际 {raised.Count} 条");
-    }
+    // 等第二条的机会给够：等不到才说明重复触发真的没重复通知
+    int afterRepeat = WaitRaised(2, 500);
+    Check(afterRepeat == 1, $"重复触发不该重复通知，实际 {afterRepeat} 条");
 
     // 只能人工复位清：界面按来源复位，走到账本元件的 Reset
     Check(!alarms.Reset("没报过的来源"), "没报过报警的来源复位返回 false");
     Check(alarms.Reset("SmokeLedger"), "按来源复位应找到账本");
     Check(alarms.ActiveAlarms.Count == 0 && !faulty.HasAlarm, "复位后应移出报警列表");
+    int afterReset = WaitRaised(2, 2000);
     lock (raised)
     {
-        Check(raised.Count == 2 && raised[^1].ClearedAt is not null,
-            $"报出、清除各推一条，实际 {raised.Count} 条");
+        Check(afterReset == 2 && raised[^1].ClearedAt is not null,
+            $"报出、清除各推一条，实际 {afterReset} 条");
     }
 
     // 入库：报出、清除各一行，清除那行带上报出时刻
-    alarms.StopHistory();
+    // 走 OnStopping：先把攒着的通知处理完（入库是在那上面做的），再停入库线程
+    alarms.OnStopping();
     var alarmRows = new List<AlarmHistoryEntity>();
     for (int attempt = 0; attempt < 50 && alarmRows.Count < 2; attempt++)
     {

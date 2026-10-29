@@ -487,8 +487,6 @@ public class TankElement : ElementBase, ITank
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
-
         bool mismatch = IsMismatch();
         Level = ReadLevel(mismatch);
 

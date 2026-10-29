@@ -394,7 +394,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -571,7 +571,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -642,7 +642,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -689,7 +689,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -736,7 +736,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -791,7 +791,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -846,7 +846,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -893,7 +893,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -960,7 +960,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1012,7 +1012,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1064,7 +1064,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1131,7 +1131,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1195,7 +1195,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1254,7 +1254,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1306,7 +1306,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1369,7 +1369,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1421,7 +1421,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1495,7 +1495,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1535,7 +1535,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1575,7 +1575,7 @@ public class JobManager : ElementBase, IJobManager
         catch (Exception exception)
         {
             LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
-            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.RoutineFaulted, Name, exception.Message));
         }
         finally
         {
@@ -1991,8 +1991,6 @@ public class JobManager : ElementBase, IJobManager
 
     protected override void OnScan()
     {
-        base.OnScan();
-
         if (!IsEnable || _tasks is null || _scheduler is null)
         {
             return;

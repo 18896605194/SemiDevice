@@ -83,7 +83,6 @@ public abstract class BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess, 
     /// </summary>
     protected override void OnScan()
     {
-        base.OnScan();
         _isReady = CheckReady();
         PublishState();
     }

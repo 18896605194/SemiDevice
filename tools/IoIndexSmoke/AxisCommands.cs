@@ -170,7 +170,7 @@ static class AxisCommands
     {
         public void Tick()
         {
-            OnScan();
+            ScanOnce();
         }
     }
 
@@ -182,7 +182,7 @@ static class AxisCommands
         public bool FailWrites { get; set; }
         public void Connect() => IsConnected = true;
         public void Disconnect() => IsConnected = false;
-        public void Tick() => OnScan();
+        public void Tick() => ScanOnce();
         protected override bool ConnectDevice() => false;
 
         public void Put<T>(string path, T value) where T : unmanaged
