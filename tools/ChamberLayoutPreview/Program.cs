@@ -46,6 +46,10 @@ internal static class Program
                 Capture(page, Path.Combine(output, "chamber-editor.png"));
                 page.ViewModel.SelectedInspectorTab = 1;
                 Pump(100); Capture(page, Path.Combine(output, "chamber-dimensions.png"));
+                var scene = (ChamberLayoutScene)page.FindName("Scene");
+                scene.SetViewPreset(ChamberViewPreset.Top);
+                Pump(100); Capture(page, Path.Combine(output, "chamber-top.png"));
+                scene.SetViewPreset(ChamberViewPreset.Perspective);
                 page.ViewModel.IsPreview = true; page.ViewModel.Reach = 1; page.ViewModel.Lift = true; page.ViewModel.Spray = true;
                 Pump(500); Capture(page, Path.Combine(output, "chamber-preview.png"));
                 page.ViewModel.IsPreview = false;

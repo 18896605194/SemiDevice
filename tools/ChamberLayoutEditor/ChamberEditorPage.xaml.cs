@@ -23,6 +23,8 @@ public partial class ChamberEditorPage : UserControl
         InitializeComponent();
         DataContext = IocHelper.GetRequiredService<ChamberEditorViewModel>();
         Scene.Bind(ViewModel);
+        Scene.ViewPresetChanged += preset => ViewPicker.SelectedItem = ViewPicker.Items.Cast<ComboBoxItem>()
+            .First(item => (string)item.Tag == preset.ToString());
         ViewModel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ViewModel.IsDirty)) DocumentChanged?.Invoke(); };
         ViewModel.PlacementChanged += () => DocumentChanged?.Invoke();
         PreviewKeyDown += OnKeyDown;
@@ -96,6 +98,11 @@ public partial class ChamberEditorPage : UserControl
         _path = null;
     }
     private void OnDefaultView(object sender, RoutedEventArgs e) => Scene.DefaultView();
+    private void OnViewChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (Scene is not null && ViewPicker.SelectedItem is ComboBoxItem item
+            && Enum.TryParse<ChamberViewPreset>((string)item.Tag, out var preset)) Scene.SetViewPreset(preset);
+    }
     private void ShowError(Exception ex) => MessageBox.Show(Window.GetWindow(this), ex.Message, L10n.Get("chambereditor.title"), MessageBoxButton.OK, MessageBoxImage.Error);
     private void OnKeyDown(object sender, KeyEventArgs e)
     {

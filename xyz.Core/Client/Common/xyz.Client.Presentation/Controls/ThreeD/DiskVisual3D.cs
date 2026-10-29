@@ -204,15 +204,27 @@ public sealed class DiskVisual3D : HardwareVisual3D
         // 边缘方向标记让没有文字的盘面也能看出旋转。
         AddMesh(HardwareMesh3D.ChamferedBox(new Point3D(Radius * 0.86, Thickness + 0.003, -Radius * 0.025),
             Radius * 0.1, 0.006, Radius * 0.05), 1.4);
-        // Wafer 内部 100×100 画布有 2 单位留白，使可见圆盘半径与实体侧壁对齐。
-        double r = Radius / 0.96;
+        // Wafer 的圆盘在 100×100 画布内留白 2 单位，圆周对应 UV 半径 0.48。
+        // 三维承载网格也必须是圆形：透明纹理四角仍会参与深度/命中，矩形面会挡住后面的接液杯。
         double y = Thickness + 0.001;
-        var mesh = new MeshGeometry3D
+        var mesh = new MeshGeometry3D();
+        mesh.Positions.Add(new Point3D(0, y, 0));
+        mesh.TextureCoordinates.Add(new Point(0.5, 0.5));
+        mesh.Normals.Add(new Vector3D(0, 1, 0));
+        const int segments = 128;
+        for (int i = 0; i <= segments; i++)
         {
-            Positions = new Point3DCollection { new(-r, y, -r), new(-r, y, r), new(r, y, r), new(r, y, -r) },
-            TextureCoordinates = new PointCollection { new(0, 0), new(0, 1), new(1, 1), new(1, 0) },
-            TriangleIndices = new Int32Collection { 0, 1, 2, 0, 2, 3 }
-        };
+            double angle = i * Math.PI * 2 / segments;
+            double x = Math.Cos(angle), z = Math.Sin(angle);
+            mesh.Positions.Add(new Point3D(Radius * x, y, Radius * z));
+            mesh.TextureCoordinates.Add(new Point(0.5 + 0.48 * x, 0.5 + 0.48 * z));
+            mesh.Normals.Add(new Vector3D(0, 1, 0));
+            if (i == segments) continue;
+            // 从上方看为正面，保持盘面输入和原有 UV 方向。
+            mesh.TriangleIndices.Add(0);
+            mesh.TriangleIndices.Add(i + 2);
+            mesh.TriangleIndices.Add(i + 1);
+        }
         mesh.Freeze();
         _surface.Geometry = mesh;
         UpdateDisplay();

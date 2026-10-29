@@ -124,6 +124,19 @@ internal static class Program
                 },
                 new RayHitTestParameters(new Point3D(0, 3, 0), new Vector3D(0, -1, 0)));
             Check(hits.OrderBy(hit => hit.DistanceToRayOrigin).FirstOrDefault()?.VisualHit == surface, "ray hits interactive top surface rather than underlying geometry");
+            // 圆盘外的透明四角没有实体；它们不能挡住后面的接液杯，也不能截获选择。
+            foreach (double x in new[] { -0.9, 0.9 })
+            foreach (double z in new[] { -0.9, 0.9 })
+            {
+                var outside = surface.Transform.Transform(new Point3D(disk.Radius * x, 3, disk.Radius * z));
+                hits.Clear();
+                VisualTreeHelper.HitTest(disk, null, result =>
+                {
+                    if (result is RayHitTestResult ray) hits.Add(ray);
+                    return HitTestResultBehavior.Continue;
+                }, new RayHitTestParameters(outside, new Vector3D(0, -1, 0)));
+                Check(hits.Count == 0, "transparent corner outside the circular disk does not occlude or intercept the cup");
+            }
             if (args.Length > 0)
             {
                 var drawing = new DrawingVisual();

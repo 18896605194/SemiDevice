@@ -11,12 +11,12 @@
  <sys:String x:Key="chambereditor.undo">Undo</sys:String>
  <sys:String x:Key="chambereditor.redo">Redo</sys:String>
  <sys:String x:Key="chambereditor.snap">Snap to grid</sys:String>
- <sys:String x:Key="chambereditor.preview">3D motion preview</sys:String>
+ <sys:String x:Key="chambereditor.preview">Motion preview</sys:String>
  <sys:String x:Key="chambereditor.components">Components</sys:String>
- <sys:String x:Key="chambereditor.components_tip">Select a component and drag it in the top view.</sys:String>
+ <sys:String x:Key="chambereditor.components_tip">Select a component and drag it in the current view.</sys:String>
  <sys:String x:Key="chambereditor.scene">Placement</sys:String>
  <sys:String x:Key="chambereditor.default_view">Default view</sys:String>
- <sys:String x:Key="chambereditor.gesture_tip">Edit: left-drag to place, wheel to zoom. Preview: right-drag to orbit. Esc cancels a drag.</sys:String>
+ <sys:String x:Key="chambereditor.gesture_tip">Left-drag components, right-drag to orbit, wheel to zoom. Switch between 3D, top, front and side views.</sys:String>
  <sys:String x:Key="chambereditor.placement">Placement properties</sys:String>
  <sys:String x:Key="chambereditor.x">X · Left / right</sys:String>
  <sys:String x:Key="chambereditor.y">Y · Mount height</sys:String>
@@ -66,4 +66,11 @@
  <sys:String x:Key="chambereditor.dimension.DepthScale">Depth scale</sys:String>
  <sys:String x:Key="chambereditor.dimension.LengthScale">Length scale</sys:String>
  <sys:String x:Key="chambereditor.dimension.DiameterScale">Diameter scale</sys:String>
+ <sys:String x:Key="chambereditor.view">View</sys:String>
+ <sys:String x:Key="chambereditor.view.Perspective">3D</sys:String>
+ <sys:String x:Key="chambereditor.view.Top">Top</sys:String>
+ <sys:String x:Key="chambereditor.view.Front">Front</sys:String>
+ <sys:String x:Key="chambereditor.view.Back">Back</sys:String>
+ <sys:String x:Key="chambereditor.view.Left">Left</sys:String>
+ <sys:String x:Key="chambereditor.view.Right">Right</sys:String>
 </ResourceDictionary>

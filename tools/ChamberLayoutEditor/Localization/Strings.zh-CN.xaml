@@ -11,12 +11,12 @@
  <sys:String x:Key="chambereditor.undo">撤销</sys:String>
  <sys:String x:Key="chambereditor.redo">重做</sys:String>
  <sys:String x:Key="chambereditor.snap">网格吸附</sys:String>
- <sys:String x:Key="chambereditor.preview">三维动作预览</sys:String>
+ <sys:String x:Key="chambereditor.preview">模拟动作预览</sys:String>
  <sys:String x:Key="chambereditor.components">腔体组件</sys:String>
- <sys:String x:Key="chambereditor.components_tip">选择组件，在俯视图中拖动摆放。</sys:String>
+ <sys:String x:Key="chambereditor.components_tip">选择组件，在当前视角中拖动摆放。</sys:String>
  <sys:String x:Key="chambereditor.scene">安装布局</sys:String>
  <sys:String x:Key="chambereditor.default_view">默认视角</sys:String>
- <sys:String x:Key="chambereditor.gesture_tip">编辑：左键拖动组件，滚轮缩放。预览：右键拖动旋转视角。Esc 取消拖动。</sys:String>
+ <sys:String x:Key="chambereditor.gesture_tip">左键拖动组件，右键旋转视角，滚轮缩放。可切换三维、俯视、正视和侧视。</sys:String>
  <sys:String x:Key="chambereditor.placement">安装参数</sys:String>
  <sys:String x:Key="chambereditor.x">X · 左右位置</sys:String>
  <sys:String x:Key="chambereditor.y">Y · 安装高度</sys:String>
@@ -66,4 +66,11 @@
  <sys:String x:Key="chambereditor.dimension.DepthScale">厚度倍率</sys:String>
  <sys:String x:Key="chambereditor.dimension.LengthScale">长度倍率</sys:String>
  <sys:String x:Key="chambereditor.dimension.DiameterScale">管径倍率</sys:String>
+ <sys:String x:Key="chambereditor.view">视角</sys:String>
+ <sys:String x:Key="chambereditor.view.Perspective">三维</sys:String>
+ <sys:String x:Key="chambereditor.view.Top">俯视</sys:String>
+ <sys:String x:Key="chambereditor.view.Front">正视</sys:String>
+ <sys:String x:Key="chambereditor.view.Back">后视</sys:String>
+ <sys:String x:Key="chambereditor.view.Left">左视</sys:String>
+ <sys:String x:Key="chambereditor.view.Right">右视</sys:String>
 </ResourceDictionary>

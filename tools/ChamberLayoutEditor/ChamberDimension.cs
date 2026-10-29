@@ -27,6 +27,7 @@ public sealed class ChamberDimension(string key, double initial, double minimum,
         void Add(string key, double initial, double min = 0.01, double max = 10) => result.Add(new(key, initial, min, max));
         switch (kind)
         {
+            case "Base": Add("Length", 5.8, 1, 20); Add("Width", 4.6, 1, 20); Add("Thickness", 0.12, 0.01, 3); break;
             case "Disk": Add("Radius", 1.32); Add("Thickness", 0.045, 0.005, 2); Add("SpindleHeight", 0.32); break;
             case "Bowl": Add("Radius", 1.59); Add("HeightScale", 1, 0.1, 4); break;
             case "Door": Add("Width", 2.2); Add("Height", 0.58); Add("DepthScale", 1, 0.1, 4); break;

@@ -5,9 +5,6 @@ using xyz.Elements.Attributes;
 
 namespace xyz.Elements.Interfaces;
 
-/// <summary>
-/// EC 参数：读写、落盘
-/// </summary>
 [Ioc]
 public interface IEc
 {

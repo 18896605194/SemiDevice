@@ -14,20 +14,13 @@ using xyz.Tools;
 namespace xyz.Elements.Elements;
 
 /// <summary>
-/// EC 管理元件。ec.xml 不随程序发布，是启动时照元件树生成的：元件上每个 [VariableMark(EC)] 属性一项，
-/// 层级、先后都跟元件树（也就是 machine.xml）一样；文件已经有了就只补新的、更新说明和上下限，改过的值不动。
+/// EC 管理元件
 /// </summary>
 [Element(description: "EC 管理元件（在线可调参数 ec.xml）")]
 public class EcElement : ElementBase, IEc
 {
-    /// <summary>
-    /// 当前 EC；machine.xml 里装出来即生效。没装时各元件的 EC 属性读回退 [VariableMark] 的默认值，写不生效。
-    /// 冒烟与测试直接 new 一个：只在内存里，不读也不写 ec.xml。
-    /// </summary>
     private readonly object _gate = new();
     private List<EcSettingConfig> _settings = new();
-
-    /// <summary>"路径\0名字" → 值节点。</summary>
     private readonly Dictionary<string, EcValueConfig> _values = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -37,24 +30,21 @@ public class EcElement : ElementBase, IEc
     private HashSet<string>? _declared;
 
     /// <summary>
-    /// 映射元件（开机 Bind 时取）：EC 转成给界面的样子
+    /// ec.xml 全路径
     /// </summary>
+    public string FilePath { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// 值变了的事件
+    /// </summary>
+    public event Action<string, EcValueConfig>? ValueChanged;
+
     private IMapper? _mapper;
 
     public override void Bind()
     {
         _mapper = IocHelper.GetService<IMapper>();
     }
-
-    /// <summary>
-    /// ec.xml 全路径；空 = 只在内存里（直接 new 出来、没 Load 过），Flush 不写盘。
-    /// </summary>
-    public string FilePath { get; private set; } = string.Empty;
-
-    /// <summary>
-    /// 一项的值变了（界面改的、元件自己写的都算）：元件全路径 + 改完的值节点副本。在改值的那个线程上触发。
-    /// </summary>
-    public event Action<string, EcValueConfig>? ValueChanged;
 
     #region 装载
 
@@ -103,10 +93,10 @@ public class EcElement : ElementBase, IEc
     #region 合并声明
 
     /// <summary>
-    /// 把元件树上全部 [VariableMark(EC)] 声明合并进来：缺的按声明的 Default 补建；
-    /// 已有的只更新元数据（格式、单位、上下限、说明），不动值；节点和值的先后按元件树重排。
-    /// 装配完成后调一次，有变化才写盘；返回是否写了盘。
+    /// 合并，value不合并
     /// </summary>
+    /// <param name="roots"></param>
+    /// <returns></returns>
     public bool Merge(IEnumerable<ElementBase> roots)
     {
         var declarations = new List<(string Path, string Name, VariableMarkAttribute Mark)>();
@@ -153,7 +143,7 @@ public class EcElement : ElementBase, IEc
     }
 
     /// <summary>
-    /// 收集一个元件及其各级子元件上的 EC 声明。路径取元件全路径，跟 GetEc*/SetEc* 读写时是同一个键。
+    /// 收集所有的组件ec声明递归
     /// </summary>
     private static void CollectDeclarations(ElementBase element,
         List<(string Path, string Name, VariableMarkAttribute Mark)> declarations)
@@ -173,6 +163,12 @@ public class EcElement : ElementBase, IEc
         }
     }
 
+    /// <summary>
+    /// 合并
+    /// </summary>
+    /// <param name="value"></param>
+    /// <param name="mark"></param>
+    /// <returns></returns>
     private static bool UpdateMetadata(EcValueConfig value, VariableMarkAttribute mark)
     {
         bool changed = false;
@@ -406,8 +402,7 @@ public class EcElement : ElementBase, IEc
     }
 
     /// <summary>
-    /// 整树写回 ec.xml；只在内存里（没有文件）或还是空树时不写。
-    /// 先写临时文件再整个换上去：写到一半断电、崩溃，原来那份还是完整的——里面是现场调过的值。
+    /// 整树写回 ec.xml 刷新一下
     /// </summary>
     public void Flush()
     {
@@ -583,7 +578,7 @@ public class EcElement : ElementBase, IEc
     #endregion
 
     /// <summary>
-    /// 值变了：先告诉订了事件的（E30），再推给界面（EC 设置页、输入框按 EcKey 取的范围跟着走）
+    /// 值变了
     /// </summary>
     private void OnValueChanged(string path, EcValueConfig item)
     {

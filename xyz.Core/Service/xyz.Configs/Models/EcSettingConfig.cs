@@ -3,7 +3,7 @@
 namespace xyz.Configs.Models;
 
 /// <summary>
-/// EC 配置文件中的 Setting 节点，对应 ec.xml 的 Setting。
+/// EC 配置文件中的 Setting
 /// </summary>
 [XmlType("Setting")]
 public class EcSettingConfig

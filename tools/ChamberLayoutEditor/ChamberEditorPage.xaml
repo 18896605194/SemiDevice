@@ -53,8 +53,19 @@
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <DockPanel Margin="14,10">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+       <TextBlock Text="{DynamicResource chambereditor.view}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+       <ComboBox x:Name="ViewPicker" SelectedIndex="0" SelectionChanged="OnViewChanged" Width="110" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,10,0">
+        <ComboBoxItem Tag="Perspective" Content="{DynamicResource chambereditor.view.Perspective}"/>
+        <ComboBoxItem Tag="Top" Content="{DynamicResource chambereditor.view.Top}"/>
+        <ComboBoxItem Tag="Front" Content="{DynamicResource chambereditor.view.Front}"/>
+        <ComboBoxItem Tag="Back" Content="{DynamicResource chambereditor.view.Back}"/>
+        <ComboBoxItem Tag="Left" Content="{DynamicResource chambereditor.view.Left}"/>
+        <ComboBoxItem Tag="Right" Content="{DynamicResource chambereditor.view.Right}"/>
+       </ComboBox>
+       <Button Content="{DynamicResource chambereditor.default_view}" Click="OnDefaultView" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+      </StackPanel>
       <TextBlock Text="{DynamicResource chambereditor.scene}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-      <Button Content="{DynamicResource chambereditor.default_view}" Click="OnDefaultView" HorizontalAlignment="Right" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
      </DockPanel>
      <local:ChamberLayoutScene x:Name="Scene" Grid.Row="1" MinHeight="280"/>
      <TextBlock Grid.Row="2" Margin="14,10" Text="{DynamicResource chambereditor.gesture_tip}" Foreground="{DynamicResource DarkSecondaryText}" TextWrapping="Wrap" FontSize="{DynamicResource Size12}"/>

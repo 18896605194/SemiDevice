@@ -16,6 +16,9 @@ public sealed class ChamberPlacement : ObservableObject
     public bool HasLift { get; init; } = true;
     public int Nozzles { get; init; } = 2;
     public bool IsArm => Kind == "ArmAssembly";
+    public bool IsBase => Kind == "Base";
+    public string DisplayName => IsBase ? L10n.Get("chambereditor.base") : Id;
+    public string Caption => IsBase ? DisplayName : Component;
     public string KindTitle => L10n.Get("chambereditor.kind." + Kind);
     private ObservableCollection<ChamberDimension>? _dimensions;
     public ObservableCollection<ChamberDimension> Dimensions
@@ -56,17 +59,26 @@ public sealed class ChamberPlacement : ObservableObject
 public sealed class ChamberLayoutDocument : ObservableObject
 {
     public string ComponentRoot { get; init; } = "Chamber.Chamber1";
-    private double _baseLength = 5.8;
-    public double BaseLength { get => _baseLength; set => SetProperty(ref _baseLength, value); }
-    private double _baseWidth = 4.6;
-    public double BaseWidth { get => _baseWidth; set => SetProperty(ref _baseWidth, value); }
-    private double _baseThickness = 0.12;
-    public double BaseThickness { get => _baseThickness; set => SetProperty(ref _baseThickness, value); }
     public List<ChamberPlacement> Parts { get; } = [];
+    public ChamberPlacement BasePart => Parts.Single(p => p.IsBase);
+    // 保留调用入口，实际尺寸统一存放在底盘组件中。
+    public double BaseLength { get => BasePart.Size("Length"); set => BasePart.Dimensions.Single(d => d.Key == "Length").Value = value; }
+    public double BaseWidth { get => BasePart.Size("Width"); set => BasePart.Dimensions.Single(d => d.Key == "Width").Value = value; }
+    public double BaseThickness { get => BasePart.Size("Thickness"); set => BasePart.Dimensions.Single(d => d.Key == "Thickness").Value = value; }
+
+    private static ChamberPlacement CreateBase(double length = 5.8, double width = 4.6, double thickness = 0.12)
+    {
+        var part = new ChamberPlacement { Id = "Base", Kind = "Base", HasLift = false, Nozzles = 0 };
+        part.Dimensions.Single(d => d.Key == "Length").Value = length;
+        part.Dimensions.Single(d => d.Key == "Width").Value = width;
+        part.Dimensions.Single(d => d.Key == "Thickness").Value = thickness;
+        return part;
+    }
 
     public static ChamberLayoutDocument CreateDefault(string root = "Chamber.Chamber1", int arms = 2)
     {
         var document = new ChamberLayoutDocument { ComponentRoot = root };
+        document.Parts.Add(CreateBase());
         document.Parts.Add(new() { Id = "SpinMotor", Kind = "Disk", Component = "SpinMotor", Y = 0.32 });
         document.Parts.Add(new() { Id = "Bowl1", Kind = "Bowl", Component = "Bowl1" });
         document.Parts.Add(new() { Id = "Door", Kind = "Door", Component = "Door", Z = 2.42 });
@@ -85,6 +97,7 @@ public sealed class ChamberLayoutDocument : ObservableObject
         {
             string root = string.Join('.', chamber.AncestorsAndSelf("Setting").Reverse().Select(e => (string?)e.Attribute("Name")));
             var document = new ChamberLayoutDocument { ComponentRoot = root };
+            document.Parts.Add(CreateBase());
             int arms = 0;
             foreach (var item in chamber.Elements("Setting"))
             {
@@ -116,14 +129,16 @@ public sealed class ChamberLayoutDocument : ObservableObject
     internal static ChamberLayoutDocument ParseSnapshot(string xml, bool validate = false)
     {
         var root = ReadXml(xml).Root;
-        if (root?.Name != "ChamberLayout" || (string?)root.Attribute("Version") != "1")
+        string? version = (string?)root?.Attribute("Version");
+        if (root?.Name != "ChamberLayout" || version is not ("1" or "2"))
             throw new InvalidDataException(L10n.Get("chambereditor.invalid_format"));
-        var result = new ChamberLayoutDocument { ComponentRoot = Required(root, "ComponentRoot"),
-            BaseLength = Number(root, "BaseLength"), BaseWidth = Number(root, "BaseWidth"),
-            BaseThickness = (double?)root.Attribute("BaseThickness") ?? 0.12 };
+        var result = new ChamberLayoutDocument { ComponentRoot = Required(root, "ComponentRoot") };
+        if (version == "1") result.Parts.Add(CreateBase(Number(root, "BaseLength"), Number(root, "BaseWidth"),
+            (double?)root.Attribute("BaseThickness") ?? 0.12));
         foreach (var element in root.Elements())
         {
-            var part = new ChamberPlacement { Kind = element.Name.LocalName, Id = Required(element, "Id"), Component = Required(element, "Component"),
+            var part = new ChamberPlacement { Kind = element.Name.LocalName, Id = Required(element, "Id"),
+                Component = element.Name == "Base" ? (string?)element.Attribute("Component") ?? "" : Required(element, "Component"),
                 X = Number(element, "X"), Y = Number(element, "Y"), Z = Number(element, "Z"), Yaw = Number(element, "Yaw"),
                 HomeAngle = Number(element, "HomeAngle"), HasLift = bool.Parse(Required(element, "HasLift")),
                 Nozzles = int.Parse(Required(element, "Nozzles"), CultureInfo.InvariantCulture) };
@@ -145,18 +160,16 @@ public sealed class ChamberLayoutDocument : ObservableObject
 
     public void Validate()
     {
-        if (string.IsNullOrWhiteSpace(ComponentRoot) || !double.IsFinite(BaseLength) || !double.IsFinite(BaseWidth)
-            || BaseLength is < 1 or > 20 || BaseWidth is < 1 or > 20 || !double.IsFinite(BaseThickness)
-            || BaseThickness is < 0.01 or > 3 || Parts.Count is < 1 or > 40
-            || Parts.Count(p => p.Kind == "Disk") != 1)
+        if (string.IsNullOrWhiteSpace(ComponentRoot) || Parts.Count is < 2 or > 41
+            || Parts.Count(p => p.Kind == "Disk") != 1 || Parts.Count(p => p.IsBase) != 1)
             throw new InvalidDataException(L10n.Get("chambereditor.invalid_layout"));
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var components = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var disk = Parts.Single(p => p.Kind == "Disk");
         foreach (var part in Parts)
         {
-            if (part.Kind is not ("Disk" or "Bowl" or "Door" or "ArmAssembly") || string.IsNullOrWhiteSpace(part.Id)
-                || string.IsNullOrWhiteSpace(part.Component) || !ids.Add(part.Id) || !components.Add(part.Component)
+            if (part.Kind is not ("Base" or "Disk" or "Bowl" or "Door" or "ArmAssembly") || string.IsNullOrWhiteSpace(part.Id)
+                || (!part.IsBase && (string.IsNullOrWhiteSpace(part.Component) || !components.Add(part.Component))) || !ids.Add(part.Id)
                 || part.Nozzles is < 0 or > 8 || new[] { part.X, part.Y, part.Z }.Any(v => !double.IsFinite(v) || Math.Abs(v) > 10)
                 || new[] { part.Yaw, part.HomeAngle }.Any(v => !double.IsFinite(v) || Math.Abs(v) > 360))
                 throw new InvalidDataException(L10n.Get("chambereditor.invalid_part", part.Id));
@@ -166,8 +179,8 @@ public sealed class ChamberLayoutDocument : ObservableObject
         }
     }
 
-    public string ToXml() => new XDocument(new XElement("ChamberLayout", new XAttribute("Version", "1"),
-        new XAttribute("ComponentRoot", ComponentRoot), new XAttribute("BaseLength", BaseLength), new XAttribute("BaseWidth", BaseWidth), new XAttribute("BaseThickness", BaseThickness),
+    public string ToXml() => new XDocument(new XElement("ChamberLayout", new XAttribute("Version", "2"),
+        new XAttribute("ComponentRoot", ComponentRoot),
         Parts.Select(p => new XElement(p.Kind, new XAttribute("Id", p.Id), new XAttribute("Component", p.Component),
             new XAttribute("X", p.X), new XAttribute("Y", p.Y), new XAttribute("Z", p.Z), new XAttribute("Yaw", p.Yaw),
             new XAttribute("HomeAngle", p.HomeAngle), new XAttribute("HasLift", p.HasLift), new XAttribute("Nozzles", p.Nozzles),

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Xml.Linq;
+using System.Windows.Media.Media3D;
 using ChamberLayoutEditor;
 
 namespace ChamberLayoutPreview;
@@ -124,6 +125,29 @@ internal static class EditorChecks
         model.Load(ChamberLayoutDocument.Parse(initial));
         model.Lift = false; model.Spray = false; model.Spin = false; model.Reach = 0;
         Program.Pump(350);
+        scene.DefaultView();
+        Check(scene.ViewPreset == ChamberViewPreset.Perspective && !model.IsPreview, "默认采用三维编辑视角，模拟动作独立关闭");
+        string beforeViewChange = model.PrepareSave();
+        foreach (var preset in Enum.GetValues<ChamberViewPreset>())
+        {
+            scene.SetViewPreset(preset);
+            var anchor = new Point3D(1.2, 0.6, -0.8);
+            var delta = preset switch
+            {
+                ChamberViewPreset.Front or ChamberViewPreset.Back => new Vector3D(0.2, 0.1, 0),
+                ChamberViewPreset.Left or ChamberViewPreset.Right => new Vector3D(0, 0.1, 0.2),
+                _ => new Vector3D(0.2, 0, 0.1)
+            };
+            var projected = scene.Project(anchor + delta);
+            var recovered = scene.Unproject(projected, anchor);
+            Check((recovered - anchor - delta).Length < 1e-6, $"{preset} 视角投影和拖动坐标转换一致，无无效数值");
+        }
+        scene.SetViewPreset(ChamberViewPreset.Top);
+        model.IsPreview = true;
+        Check(scene.ViewPreset == ChamberViewPreset.Top, "切换模拟动作不覆盖用户选择的视角");
+        model.IsPreview = false;
+        scene.DefaultView();
+        Check(model.PrepareSave() == beforeViewChange && !model.IsDirty, "切换六种视角不修改布局、尺寸或保存状态");
         File.WriteAllLines(Path.Combine(output, "editor-checks.txt"), checks);
     }
 }

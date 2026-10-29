@@ -10,6 +10,8 @@ using xyz.Client.Presentation.Controls.ThreeD;
 
 namespace ChamberLayoutEditor;
 
+public enum ChamberViewPreset { Perspective, Top, Front, Back, Left, Right }
+
 /// <summary>编辑、预览共用原生三维组件；编辑安装位置和模拟反馈完全分开。</summary>
 public sealed class ChamberLayoutScene : Grid
 {
@@ -22,11 +24,15 @@ public sealed class ChamberLayoutScene : Grid
     private readonly ModelVisual3D _world = new();
     private ChamberEditorViewModel? _model;
     private ChamberBaseVisual3D? _base;
-    private Point? _drag;
+    private Point3D? _drag;
+    private Vector3D _dragNormal;
     private Point? _orbit;
-    private double _startX, _startZ;
+    private double _startX, _startY, _startZ;
     private double _yaw = -18, _pitch = 34, _width = 10.8;
+    private ChamberViewPreset _viewPreset = ChamberViewPreset.Perspective;
     private bool _queued;
+    public ChamberViewPreset ViewPreset => _viewPreset;
+    public event Action<ChamberViewPreset>? ViewPresetChanged;
 
     public ChamberLayoutScene()
     {
@@ -41,7 +47,7 @@ public sealed class ChamberLayoutScene : Grid
         PreviewMouseRightButtonDown += OnOrbitDown;
         PreviewMouseRightButtonUp += (_, e) => { _orbit = null; ReleaseMouseCapture(); e.Handled = true; };
         PreviewMouseMove += OnPointerMove;
-        PreviewMouseWheel += (_, e) => { _width = Math.Clamp(_width - e.Delta / 120d * 0.5, 5, 48); UpdateCamera(); e.Handled = true; };
+        PreviewMouseWheel += (_, e) => { FinishGesture(); _width = Math.Clamp(_width - e.Delta / 120d * 0.5, 5, 48); UpdateCamera(); e.Handled = true; };
         LostMouseCapture += (_, _) => { if (_drag is not null) { _drag = null; _model?.CancelDrag(); Apply(); } _orbit = null; };
         SizeChanged += (_, _) => UpdateCamera();
         IsVisibleChanged += (_, _) => Apply();
@@ -65,9 +71,31 @@ public sealed class ChamberLayoutScene : Grid
     }
     public void DefaultView()
     {
+        FinishGesture();
+        _viewPreset = ChamberViewPreset.Perspective;
         _yaw = -18; _pitch = 34;
         _width = Math.Max(10.8, Math.Max(_model?.Document?.BaseLength ?? 0, _model?.Document?.BaseWidth ?? 0) * 1.3);
         UpdateCamera();
+        ViewPresetChanged?.Invoke(_viewPreset);
+    }
+
+    public void SetViewPreset(ChamberViewPreset preset)
+    {
+        if (!Enum.IsDefined(preset)) throw new ArgumentOutOfRangeException(nameof(preset));
+        if (_viewPreset == preset) return;
+        FinishGesture();
+        _viewPreset = preset;
+        (_yaw, _pitch) = preset switch
+        {
+            ChamberViewPreset.Top => (0, 89),
+            ChamberViewPreset.Front => (0, 0),
+            ChamberViewPreset.Back => (180, 0),
+            ChamberViewPreset.Left => (-90, 0),
+            ChamberViewPreset.Right => (90, 0),
+            _ => (-18, 34)
+        };
+        UpdateCamera();
+        ViewPresetChanged?.Invoke(_viewPreset);
     }
 
     internal (double CenterError, double HomeError, double TipHeight) Probe(string id) => _parts[id].Probe();
@@ -122,9 +150,8 @@ public sealed class ChamberLayoutScene : Grid
 
     private void UpdateCamera()
     {
-        bool editing = _model?.IsPreview != true;
         var target = new Point3D(0, 0.3, 0);
-        if (editing)
+        if (_viewPreset == ChamberViewPreset.Top)
         {
             _camera.Position = new Point3D(0, 15, 0);
             _camera.LookDirection = new Vector3D(0, -1, 0);
@@ -158,15 +185,23 @@ public sealed class ChamberLayoutScene : Grid
             (0.5 - Vector3D.DotProduct(delta, u) / height) * ActualHeight);
     }
 
-    private Point OnPlane(Point point, double y)
+    private Vector3D DragNormal()
+    {
+        var f = Basis().Forward;
+        if (Math.Abs(f.Y) > 0.15) return new Vector3D(0, 1, 0);
+        return Math.Abs(f.X) > Math.Abs(f.Z) ? new Vector3D(1, 0, 0) : new Vector3D(0, 0, 1);
+    }
+
+    private Point3D OnPlane(Point point, Point3D anchor, Vector3D normal)
     {
         var (f, r, u) = Basis();
         double height = _camera.Width * ActualHeight / Math.Max(1, ActualWidth);
         var origin = _camera.Position + r * ((point.X / Math.Max(1, ActualWidth) - 0.5) * _camera.Width)
             + u * ((0.5 - point.Y / Math.Max(1, ActualHeight)) * height);
-        var world = origin + f * ((y - origin.Y) / f.Y);
-        return new Point(world.X, world.Z);
+        return origin + f * (Vector3D.DotProduct(anchor - origin, normal) / Vector3D.DotProduct(f, normal));
     }
+
+    internal Point3D Unproject(Point point, Point3D anchor) => OnPlane(point, anchor, DragNormal());
 
     private void DrawMarkers()
     {
@@ -216,8 +251,9 @@ public sealed class ChamberLayoutScene : Grid
         if (!_model.IsPreview)
         {
             _model.BeginDrag();
-            _drag = OnPlane(point, part.Y);
-            _startX = part.X; _startZ = part.Z;
+            _dragNormal = DragNormal();
+            _drag = OnPlane(point, new Point3D(part.X, part.Y, part.Z), _dragNormal);
+            _startX = part.X; _startY = part.Y; _startZ = part.Z;
             CaptureMouse();
         }
         e.Handled = true;
@@ -227,16 +263,21 @@ public sealed class ChamberLayoutScene : Grid
         var point = e.GetPosition(this);
         if (_drag is { } start && _model?.Selected is { } part)
         {
-            var current = OnPlane(point, part.Y);
-            double x = Math.Clamp(_startX + current.X - start.X, -9, 9), z = Math.Clamp(_startZ + current.Y - start.Y, -9, 9);
-            part.X = _model.Snap ? Math.Round(x / 0.05) * 0.05 : x;
-            part.Z = _model.Snap ? Math.Round(z / 0.05) * 0.05 : z;
+            var current = OnPlane(point, new Point3D(_startX, _startY, _startZ), _dragNormal);
+            double Snap(double value, double limit)
+            {
+                value = Math.Clamp(value, -limit, limit);
+                return _model.Snap ? Math.Round(value / 0.05) * 0.05 : value;
+            }
+            if (Math.Abs(_dragNormal.X) < 0.5) part.X = Snap(_startX + current.X - start.X, 9);
+            if (Math.Abs(_dragNormal.Y) < 0.5) part.Y = Snap(_startY + current.Y - start.Y, 3);
+            if (Math.Abs(_dragNormal.Z) < 0.5) part.Z = Snap(_startZ + current.Z - start.Z, 9);
             e.Handled = true;
         }
         else if (_orbit is { } previous)
         {
             _yaw -= (point.X - previous.X) * 0.35;
-            _pitch = Math.Clamp(_pitch + (point.Y - previous.Y) * 0.25, 8, 89);
+            _pitch = Math.Clamp(_pitch + (point.Y - previous.Y) * 0.25, -85, 89);
             _orbit = point;
             UpdateCamera();
         }
@@ -252,7 +293,9 @@ public sealed class ChamberLayoutScene : Grid
     }
     private void OnOrbitDown(object sender, MouseButtonEventArgs e)
     {
-        if (_model?.IsPreview != true) return;
+        FinishGesture();
+        _viewPreset = ChamberViewPreset.Perspective;
+        ViewPresetChanged?.Invoke(_viewPreset);
         _orbit = e.GetPosition(this); CaptureMouse(); e.Handled = true;
     }
 

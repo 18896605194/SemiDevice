@@ -197,6 +197,7 @@ IsMoving / IsSelected 保留公共硬件高亮约定，不向设备发指令。
 ```
 
 盘面是可交互的二维表面：鼠标点在盘面上，事件先进到盘面里的 Wafer，所以装配层要收点击就挂 Viewport3D 的 Preview 事件（LoadPortScene 就是这样）。
+承载二维盘面的三维网格为圆形，圆外不存在透明矩形四角，避免遮挡或拦截盘后接液杯等组件；圆内仍按实体盘面正常遮挡。
 无 Data、无 IsDiskVisible 时整个盘（含盘面）都不画。
 整个装配直接挂在 Viewport3D 或硬件父节点下，遵守前述生命周期约定。
 实现采用 WPF [Viewport2DVisual3D 可交互三维表面](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.media3d.viewport2dvisual3d)。
