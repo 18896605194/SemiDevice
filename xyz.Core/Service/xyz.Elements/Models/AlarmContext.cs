@@ -19,7 +19,7 @@ public sealed class AlarmContext
     public AlarmItem Alarm { get; }
 
     /// <summary>
-    /// 报警所属的模块：往上最近的那个；不在任何模块下为 null，算整机
+    /// 报警所属的模块
     /// </summary>
     public IModule? Module { get; }
 }

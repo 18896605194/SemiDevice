@@ -120,12 +120,15 @@ faulty.AlarmChanged += item =>
 
 inner.Raise(SmokeModule.HeavyAlarmCode);
 Check(faulty.ActiveAlarms.Count == 1, "策略抛异常，报警本身照样记下来");
-Check(WaitFor(faultyChanged, 1, 2000) == 1, "策略抛异常，照样推给订阅者（入库、报 Host 不能被策略挡住）");
+lock (faultyChanged)
+{
+    Check(faultyChanged.Count == 1, "策略抛异常，照样推给订阅者（入库、报 Host 不能被策略挡住）");
+}
 inner.Reset();
 
 #endregion
 
-#region 通知走自己的线程：报警的线程不等它，最终都要到
+#region 反复报出、清除：报出和清除各推一条，一条不少
 
 RecordingStrategy.Clear();
 SmokeIoc.Tree(alarms, outer, inner, safety);
@@ -141,7 +144,10 @@ for (int round = 0; round < 20; round++)
     inner.Reset();
 }
 
-Check(WaitFor(changed, 40, 5000) == 40, "报出、清除各推一条，攒下来的通知最终都要发完");
+lock (changed)
+{
+    Check(changed.Count == 40, $"报出、清除各推一条，实际 {changed.Count} 条");
+}
 
 #endregion
 
@@ -162,7 +168,10 @@ plain.AlarmChanged += item =>
 
 inner.Raise(SmokeModule.HeavyAlarmCode);
 Check(plain.ActiveAlarms.Count == 1, "一个策略都不配也要能报出来（平台默认策略什么都不做）");
-Check(WaitFor(plainChanged, 1, 2000) == 1, "一个策略都不配，照样推给订阅者");
+lock (plainChanged)
+{
+    Check(plainChanged.Count == 1, "一个策略都不配，照样推给订阅者");
+}
 inner.Reset();
 
 #endregion
@@ -212,11 +221,10 @@ Check(failed, "machine.xml 配了不存在的策略类，开机就要抛");
 
 #endregion
 
-alarms.OnStopping();
 Console.WriteLine($"PASS: {checks} alarm checks (strategy dispatch on raise, ownership by nearest module, "
     + "system-level alarms with no module, per-level strategy pick, the platform defaults when nothing is configured, "
     + "the fatal level only accepting FatalAlarmStrategy subclasses (a machine one overriding it gets called), "
-    + "a throwing strategy not blocking the alarm, the notification consumer thread draining everything, "
+    + "a throwing strategy not blocking the alarm, every raise and clear pushing one notification, "
     + "and a bad strategy name failing at startup).");
 
 #region 冒烟用的小件
@@ -261,28 +269,6 @@ static void SetPath(ElementBase element, string name, string fullPath)
 {
     typeof(ElementBase).GetProperty("Name")!.SetValue(element, name);
     typeof(ElementBase).GetProperty("FullPath")!.SetValue(element, fullPath);
-}
-
-// 通知是消费线程发的，等它追上来再查
-static int WaitFor(List<AlarmItem> items, int expected, int timeoutMs)
-{
-    for (int waited = 0; waited < timeoutMs; waited += 10)
-    {
-        lock (items)
-        {
-            if (items.Count >= expected)
-            {
-                return items.Count;
-            }
-        }
-
-        Thread.Sleep(10);
-    }
-
-    lock (items)
-    {
-        return items.Count;
-    }
 }
 
 #endregion

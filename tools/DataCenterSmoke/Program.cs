@@ -371,29 +371,12 @@ try
     var alarmService = new AlarmService();
     var pushedAlarms = new List<AlarmDto>();
     using var alarmPushes = RemoteEventSubscriber.Register<AlarmDto>(AlarmDto.EventToken, dto => pushedAlarms.Add(dto));
-
-    // 报警推界面走报警元件自己的消费线程，等够了再查
-    int WaitPushed(int expected)
-    {
-        for (int waited = 0; waited < 2000; waited += 10)
-        {
-            if (pushedAlarms.Count >= expected)
-            {
-                return pushedAlarms.Count;
-            }
-
-            Thread.Sleep(10);
-        }
-
-        return pushedAlarms.Count;
-    }
     device.Fault();
     var active = JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!;
     Check(active.Count == 1 && active[0].Source == "Tool1" && active[0].Code == "ProbeFault"
           && active[0].Level == "Light" && active[0].IsActive, "当前报警带来源、代码、等级");
     Check(active[0].Text == "探针故障" && active[0].Solution == "检查探针后复位", "报警文本与处理建议");
-    // 推界面是在报警元件自己的消费线程上做的，等它追上来再查
-    Check(WaitPushed(1) == 1 && pushedAlarms[0].Source == "Tool1" && pushedAlarms[0].Code == "ProbeFault" && pushedAlarms[0].IsActive,
+    Check(pushedAlarms.Count == 1 && pushedAlarms[0].Source == "Tool1" && pushedAlarms[0].Code == "ProbeFault" && pushedAlarms[0].IsActive,
         "报警元件自己推给界面：报出来推一条（照映射元件的规则转）");
 
     var noSource = await alarmService.ResetAsync(new RpcRequest());
@@ -405,7 +388,7 @@ try
         "复位没报过报警的来源：给错误码和来源");
     var reset = await alarmService.ResetAsync(RpcRequest.Of((RpcParams.Source, "Tool1")));
     Check(reset.Success && alarms.ActiveAlarms.Count == 0, "复位来源后报警清掉");
-    Check(WaitPushed(2) == 2 && pushedAlarms[1].Source == "Tool1" && !pushedAlarms[1].IsActive, "清掉也推一条");
+    Check(pushedAlarms.Count == 2 && pushedAlarms[1].Source == "Tool1" && !pushedAlarms[1].IsActive, "清掉也推一条");
 
     device.Fault();
     var resetAll = await alarmService.ResetAllAsync(new RpcRequest());
