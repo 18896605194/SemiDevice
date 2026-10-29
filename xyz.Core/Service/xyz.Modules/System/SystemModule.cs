@@ -472,7 +472,7 @@ public class SystemModule : BaseStateElement, ISystemModule
     }
 
     /// <summary>
-    /// 模块的生产 / 维护；没有这个模式的（供液）是 null
+    /// 模块的生产 / 维护；没实现 IMode 的是 null
     /// </summary>
     private static ModuleMode? ModeOf(IModule module)
     {

@@ -1,0 +1,41 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+ <sys:String x:Key="chambereditor.title">Chamber layout editor</sys:String>
+ <sys:String x:Key="chambereditor.offline">Offline editing · Simulation</sys:String>
+ <sys:String x:Key="chambereditor.kind.Disk">Disk</sys:String>
+ <sys:String x:Key="chambereditor.kind.Bowl">Bowl</sys:String>
+ <sys:String x:Key="chambereditor.kind.Door">Door</sys:String>
+ <sys:String x:Key="chambereditor.kind.ArmAssembly">Arm assembly</sys:String>
+ <sys:String x:Key="chambereditor.import">Import machine</sys:String>
+ <sys:String x:Key="chambereditor.open">Open layout</sys:String>
+ <sys:String x:Key="chambereditor.save">Save layout</sys:String>
+ <sys:String x:Key="chambereditor.undo">Undo</sys:String>
+ <sys:String x:Key="chambereditor.redo">Redo</sys:String>
+ <sys:String x:Key="chambereditor.snap">Snap to grid</sys:String>
+ <sys:String x:Key="chambereditor.preview">3D motion preview</sys:String>
+ <sys:String x:Key="chambereditor.components">Components</sys:String>
+ <sys:String x:Key="chambereditor.components_tip">Select a component and drag it in the top view.</sys:String>
+ <sys:String x:Key="chambereditor.scene">Placement</sys:String>
+ <sys:String x:Key="chambereditor.default_view">Default view</sys:String>
+ <sys:String x:Key="chambereditor.gesture_tip">Edit: left-drag to place, wheel to zoom. Preview: right-drag to orbit. Esc cancels a drag.</sys:String>
+ <sys:String x:Key="chambereditor.placement">Placement properties</sys:String>
+ <sys:String x:Key="chambereditor.x">X · Left / right</sys:String>
+ <sys:String x:Key="chambereditor.y">Y · Mount height</sys:String>
+ <sys:String x:Key="chambereditor.z">Z · Front / back</sys:String>
+ <sys:String x:Key="chambereditor.yaw">Mount rotation (°)</sys:String>
+ <sys:String x:Key="chambereditor.rotate">Rotate 90°</sys:String>
+ <sys:String x:Key="chambereditor.home_angle">Local home angle (°)</sys:String>
+ <sys:String x:Key="chambereditor.motion">Simulation</sys:String>
+ <sys:String x:Key="chambereditor.reach">Home → Edge → Center</sys:String>
+ <sys:String x:Key="chambereditor.home">Home</sys:String>
+ <sys:String x:Key="chambereditor.center">Center</sys:String>
+ <sys:String x:Key="chambereditor.lift">Raise Lift / Bowl, open door</sys:String>
+ <sys:String x:Key="chambereditor.spray">Nozzle flow</sys:String>
+ <sys:String x:Key="chambereditor.spin">Spin disk</sys:String>
+ <sys:String x:Key="chambereditor.no_chamber">No supported chamber was found in this file.</sys:String>
+ <sys:String x:Key="chambereditor.invalid_format">Expected a Version=1 ChamberLayout document.</sys:String>
+ <sys:String x:Key="chambereditor.invalid_layout">A layout requires one disk, base dimensions of 1–20, and 1–40 components.</sys:String>
+ <sys:String x:Key="chambereditor.invalid_part">Component {0} has an invalid type, reference, position or angle.</sys:String>
+ <sys:String x:Key="chambereditor.arm_too_close">Arm {0} is too close to the disk center. Adjust its placement.</sys:String>
+ <sys:String x:Key="chambereditor.discard">Discard unsaved layout changes?</sys:String>
+ <sys:String x:Key="chambereditor.layout_filter">Chamber layout (*.xml)|*.xml</sys:String>
+</ResourceDictionary>

@@ -169,7 +169,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `BaseModule : BaseStateElement, IModule` 只放模块才有的：`Kind`、站点类型 `Type`、`InitModule()`（动硬件的模块初始化，没重写的算被拒 `module.action_rejected`）；默认的 `Reset()` / `Abort()` 子元件跟着做完就回做完的空动作。
 - **生产 / 维护模式** `IMode`（`Mode`、`SetProduction()`、`SetMaintenance()`；2026-10-23 原来的上线 / 下线改名、从 IModule 拿出来，见 decisions.md「整机不算模块；上线 / 下线改成生产 / 维护模式」）：
   不继承别的接口，要这个能力的类直接实现——`BaseTransferStationModule`（LoadPort、腔体、buffer、对准器）、`BaseRobotModule` 各写一份（虚方法，只改 Mode、不经设备，开机维护）；
-  供液、整机没有。调度、整机推模块表按 `is IMode` 判；LoadPort、腔体、机械手的服务各自写切生产 / 维护：按自己的模块接口找到模块、`as IMode` 调 `SetProduction()` / `SetMaintenance()`（服务基类只放通用的回包和找模块，不放具体业务，2026-10-26 用户定）。
+  供液 `BaseCdsModule` 也写一份（2026-10-29 用户定）：没有手动页，开机就是生产，维护时 `IsReady` 为假、腔体起不了新工艺；整机没有。调度、整机推模块表按 `is IMode` 判；LoadPort、腔体、机械手的服务各自写切生产 / 维护：按自己的模块接口找到模块、`as IMode` 调 `SetProduction()` / `SetMaintenance()`（服务基类只放通用的回包和找模块，不放具体业务，2026-10-26 用户定）。
 - 状态码（`public const int`，有继承）：`ModuleState` NotInit 10 / Initing 20 / Idle 30 / Aborting 35 / Error 40；
   `TransferModuleState` 50/60/70/80；`LoadPortState` 100~150；`ChamberState` Homing 100 / Processing 110 / Manual 120（部件手动动作中）；`RobotState` 200/210/220。
   同一个码在不同模块意思不同，客户端按模块种类翻（`ModuleStates`）。

@@ -2617,7 +2617,7 @@ port.E87Callback = null;
     SmokeIoc.Use<IWaferSize>(previousWaferSize);
     SmokeIoc.Use<ILedgerManager>(previousSizeLedger);
 
-    // 不分生产 / 维护的模块（供液这类，这里拿没实现 IMode 的探针模块当它）：推的模式是 null，顶栏小框不画边框；分的照推
+    // 不分生产 / 维护的模块（没实现 IMode 的，这里拿探针模块当它）：推的模式是 null，顶栏小框不画边框；分的照推
     var supplySystem = new SmokeSystem();
     supplySystem.Bind([sysPort, new ProbeModule()]);
     supplySystem.Tick();
