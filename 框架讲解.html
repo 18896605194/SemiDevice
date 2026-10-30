@@ -524,6 +524,380 @@ public interface IAlarm
 </section>
 </section>
 
+<section class="chapter" id="b2">
+<h2>二、扫描线程</h2>
+
+<section class="topic" id="b2-1">
+<h3>2.1 三种线程</h3>
+<p>后端跑起来之后只有三种线程在动设备。看懂这张表，后面所有"为什么这段代码写成这样"都有答案了。</p>
+<table>
+<tr><th>线程</th><th>有几条</th><th>谁起的</th><th>干什么</th></tr>
+<tr><td><b>扫描线程</b></td><td>35021 是 16 条</td><td>开机第三步 <code>StartScanning</code></td><td>设备的事全在这上面做：读 IO、推动作、推状态</td></tr>
+<tr><td><b>RPC 线程</b></td><td>来一个调用一条</td><td>gRPC 宿主</td><td>只做两件事：调动作入口、等动作到终态。不碰设备</td></tr>
+<tr><td><b>接收泵</b></td><td>每条连上的通道一条</td><td><a class="ref" data-f="xyz.Core/Service/xyz.Drivers/Communication/FrameCommunication.cs">FrameCommunication.cs</a></td><td>只管从串口／网口收字节、拼成一帧放下，不解释内容</td></tr>
+</table>
+<p>另外还有两条跟设备无关的：数据曲线的写库线程 <code>DataChart.Writer</code>（<a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Charts/DataChartElement.cs">DataChartElement.cs</a>）和托盘图标的消息循环（<a class="ref" data-f="xyz.Core/Service/xyz.GrpcHost/HostTrayIcon.cs">HostTrayIcon.cs</a>）。</p>
+<p>一条规矩贯穿全框架：<b>设备的事只在扫描线程上做</b>。这样每个元件的状态只有一条线程在改，绝大多数地方不需要加锁。</p>
+</section>
+
+<section class="topic" id="b2-2">
+<h3>2.2 谁起线程：IsRun</h3>
+<p>不是每个元件都有自己的线程。只有 machine.xml 里写了 <code>IsRun</code> 的<b>根元件</b>才起一条，它下面的子元件跟着它一起扫。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementBase.cs"><figcaption>IsRun 是装机参数，默认不起</figcaption><script type="text/plain">
+    /// <summary>
+    /// 根元件是否由装配入口启动独立扫描线程；子元件随父元件扫描，不单独启动。
+    /// </summary>
+    [Machine("false", "Element", "根元件是否启动独立扫描线程；子元件跟随父元件扫描，无需开启")]
+    public bool IsRun { get; set; }
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementLoader.cs"><figcaption>开机第三步：只起根元件</figcaption><script type="text/plain">
+    public static void StartScanning(IEnumerable<ElementBase> roots)
+    {
+        foreach (var root in roots)
+        {
+            if (root.IsEnabled && root.IsRun)
+            {
+                root.Start();
+            }
+        }
+    }
+</script></figure>
+<p>35021 开机日志那一行就是答案：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Service/ServiceExtensions.cs"><figcaption>开机汇总日志</figcaption><script type="text/plain">
+启动独立扫描 16 个：System, Plc, Io, Safety, Computer, DataChart, RealChart,
+LoadPort.LoadPort1, LoadPort.LoadPort2, Robot.Robot1, Dispatch,
+Chamber.Chamber1, Chamber.Chamber2, Chamber.Chamber3, Chamber.Chamber4, CDS.IPA
+</script></figure>
+<ul>
+<li><b>16 条线程背着 189 个元件。</b>两个 LoadPort 各一条、互不影响；但 Chamber1 下面的腔门、摆臂、8 个喷嘴、一堆 DI 全挤在 Chamber1 这一条上。</li>
+<li>8 个模块都是根元件，<b>所以每个模块的动作都在它自己那条线程上推</b>（见 2.5）。</li>
+<li>子元件<b>不要</b>单独调 <code>Start()</code>——它已经在父元件的扫描里了，再起一条就是同一个元件被两条线程扫。</li>
+</ul>
+<p>起线程那一行有个保护：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementBase.cs"><figcaption>并发重复调用也只起一条</figcaption><script type="text/plain">
+    public void Start()
+    {
+        if (Interlocked.CompareExchange(ref _scanStarted, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _scanTask = Task.Factory.StartNew(ScanLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    }
+</script></figure>
+<p><code>CompareExchange(ref x, 1, 0)</code> 的意思是"<b>x 是 0 就改成 1，不管改没改都返回原值</b>"。第一次调返回 0，往下走起线程；第二次返回 1，直接 return。</p>
+<ul>
+<li>写成 <code>if (已经起过) return; 已经起过 = true;</code> 不行——那是<b>两步</b>，两条线程可能都读到 false、都往下走，起出两条线程扫同一棵树。<code>Interlocked</code> 把"读 + 比 + 写"合成一条不可分割的 CPU 指令。</li>
+<li>用 <code>int</code> 不用 <code>bool</code>，是因为 <code>Interlocked.CompareExchange</code> 没有 <code>bool</code> 的重载。</li>
+<li>ElementScanSmoke 里拿 20 条线程轰它，断言只出现过 1 条线程号（<a class="ref" data-f="tools/ElementScanSmoke/Program.cs">ElementScanSmoke</a>）。</li>
+</ul>
+</section>
+
+<section class="topic" id="b2-3">
+<h3>2.3 一拍</h3>
+<p>扫描线程就是个死循环：扫一拍、歇 10 ms、再扫一拍。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementBase.cs"><figcaption>循环，和一拍里做的四件事</figcaption><script type="text/plain">
+    private void ScanLoop()
+    {
+        _scanThreadId = Environment.CurrentManagedThreadId;
+        while (!_scanStopping)
+        {
+            ScanOnce();
+            Thread.Sleep(ScanIntervalMs);
+        }
+    }
+
+    /// <summary>
+    /// 扫一拍：整棵子树先扫完再扫自己；每个元件各自计时、各自接异常，一个抛异常不耽误别的，慢扫描记在它自己名下
+    /// </summary>
+    public void ScanOnce()
+    {
+        foreach (var child in _children)
+        {
+            child.ScanOnce();
+        }
+
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            // 挂得住动作的元件（模块）：先把动作往前推一步，再做它自己这一拍的活
+            if (this is IRoutineHost host)
+            {
+                host.StepRoutine();
+            }
+
+            OnScan();
+        }
+        catch (Exception exception)
+        {
+            // 单周期异常不杀扫描线程，也不耽误树上别的元件：记录后继续下一周期。
+            LogHelper.Warn(this, $"OnScan 异常: {exception.Message}");
+        }
+@@
+    }
+</script></figure>
+<ul>
+<li><b>遍历是框架做的。</b><code>ScanOnce</code> 不是 <code>virtual</code>，谁都改不掉——元件作者不需要、也没办法管"子元件怎么扫"。</li>
+<li><b>每个元件各自计时、各自接异常。</b>一个部件抛异常，它的兄弟和父元件这一拍照跑。</li>
+<li><b>10 ms 是"扫完再歇 10 ms"，不是"每 10 ms 一拍"。</b>实际周期 = 这一拍耗时 + 10 ms。一拍跑了 50 ms，这一轮就是 60 ms。</li>
+<li><code>ScanOnce</code> 是 <code>public</code>：冒烟测试不起线程，手动打一拍用的就是它。</li>
+<li><code>TaskCreationOptions.LongRunning</code> 让扫描线程拿一条专用线程，不占线程池。</li>
+</ul>
+</section>
+
+<section class="topic" id="b2-4">
+<h3>2.4 元件自己的一拍：OnScan</h3>
+<p>基类是<b>空的</b>：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementBase.cs"><figcaption>元件只写自己的活，不管子元件</figcaption><script type="text/plain">
+    /// <summary>
+    /// 这个元件这一拍做什么；子元件由 ScanOnce 扫，这里不要再递归
+    /// </summary>
+    protected virtual void OnScan()
+    {
+    }
+</script></figure>
+<p>元件重写它，<b>只写自己的活，不写 <code>base.OnScan()</code></b>。LoadPort 这一拍的全貌：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>一拍里从上到下走一遍</figcaption><script type="text/plain">
+    /// <summary>
+    /// 扫描周期
+    /// </summary>
+    protected override void OnScan()
+    {
+        LoopQueryStatus(); //Loadport 数据轮训
+        _carrier.Sense(Status?.IsPresent, Status?.IsPlaced); //盒子到哦没有
+        StepE84(); //E84的推进
+        CheckDeviceAlarm();  //检查报警
+        CheckCarrierComplete();  //干完了：自动 Unload，或者只对账
+        PublishState();  //推送状态
+    }
+</script></figure>
+<p>腔体短得多，因为腔体的活儿都在动作里（<a class="ref" data-f="xyz.Core/Service/xyz.Modules/Clean/Routines/ChamberProcessRoutine.cs">ChamberProcessRoutine.cs</a>）：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/BaseChamberModule.cs"><figcaption>一拍只剩查报警、推状态</figcaption><script type="text/plain">
+    protected override void OnScan()
+    {
+        CheckDeviceAlarm(); //检查报警
+        PublishState(); //推送状态
+    }
+</script></figure>
+<ul>
+<li><b>为什么子元件要先扫</b>：LoadPort 那段第 2 行 <code>_carrier.Sense(Status?.IsPresent, …)</code> 用的是 <code>Serial</code>、<code>Carrier</code> 这些子元件<b>这一拍刚读回来</b>的值。顺序倒过来，父元件拿到的就是上一拍的旧值，每步慢 10 ms，一串十几步的动作就累加了。</li>
+<li>全仓 <b>29 个类重写了 <code>OnScan</code>，<code>base.OnScan()</code> 零处</b>。</li>
+</ul>
+</section>
+
+<section class="topic" id="b2-5">
+<h3>2.5 动作驱动：IRoutineHost</h3>
+<p>模块身上还挂着动作。动作推进<b>不占用 <code>OnScan</code></b>，它是一种独立的能力：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Interfaces/IRoutineHost.cs"><figcaption>框架在扫一拍时按这个接口认</figcaption><script type="text/plain">
+/// <summary>
+/// 挂得住动作的元件：框架扫一拍时给它一次把动作往前推的机会，排在元件自己的 OnScan 之前
+/// </summary>
+public interface IRoutineHost
+{
+    void StepRoutine();
+}
+</script></figure>
+<p><code>BaseStateElement</code>（所有模块和整机的基类）实现它：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>挂着动作就推一步，到终态就收尾</figcaption><script type="text/plain">
+    public void StepRoutine()
+    {
+        lock (RoutineGate)
+        {
+            var routine = _routine;
+            if (routine is null)
+            {
+                return;
+            }
+
+            //动作扫描
+            routine.Scan();
+
+            if (routine.IsTerminal)
+            {
+                CompleteRoutine(routine);
+            }
+        }
+    }
+</script></figure>
+<p>三层分工，名字容易混：</p>
+<table>
+<tr><th>层</th><th>方法</th><th>含义</th></tr>
+<tr><td>元件</td><td><code>OnScan()</code></td><td>这个<b>元件</b>这一拍做什么</td></tr>
+<tr><td>动作</td><td><code>ModuleRoutine.Scan()</code></td><td>这个<b>动作</b>往前走一格</td></tr>
+<tr><td>步骤</td><td><code>RoutineStep.Run()</code> / <code>Check()</code></td><td>这一<b>步</b>发指令 / 查做完没</td></tr>
+</table>
+<p>调用链：<code>框架 ScanOnce → IRoutineHost.StepRoutine → 动作.Scan() → 步骤.Run()/Check()</code>。</p>
+<p>"走一格"具体是什么：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs"><figcaption>当前这一步没进过就发指令，发过了就查，查好了接着走下一步</figcaption><script type="text/plain">
+        while (_index < _steps.Count)
+        {
+            var step = _steps[_index];
+            if (!_entered)
+            {
+                _entered = true;
+                step.Begin();
+                step.Run();
+            }
+
+            // Run 里判了失败就不再判；判了没好就等下一拍；判的时候判了失败也停
+            if (IsTerminal || !step.Check())
+            {
+                return;
+            }
+@@
+            _entered = false;
+            _index++;
+        }
+
+        Complete();
+</script></figure>
+<p>所以一拍里是三种情况之一：第一次进这一步就 <code>Run()</code> <b>发指令</b>（发完就走，不等）；这一步在等就只 <code>Check()</code> 一下；刚好好了就 <code>_index++</code>，<b>循环不 return，接着把下一步也发出去</b>——一拍可以连走好几步，只要它们都是立刻完成的。</p>
+<p>一步等 480 ms，就是被 <code>Check()</code> 查了 48 拍，这期间整条扫描线程照常在跑，别的元件一拍都没少。</p>
+<p>到终态的收尾，四步顺序是定死的：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>后两步在 finally 里：回调出事也不卡死模块、不吊住 RPC</figcaption><script type="text/plain">
+    private void CompleteRoutine(ModuleRoutine routine)
+    {
+        try
+        {
+            // 先落状态：成功走迁移表的成功态，失败/被打断落 Error。回调里看到的已经是终态。
+            if (routine.IsSuccess)
+            {
+                State = _transition.SuccessState;
+            }
+            else
+            {
+                State = ModuleState.Error;
+            }
+
+            OnRoutineCompleted(routine);
+        }
+        finally
+        {
+            _routine = null;
+            routine.NotifyCompletion();   // 唤醒等结果的
+        }
+    }
+</script></figure>
+<ul>
+<li><code>_routine = null</code> 在 <code>finally</code> 里：回调抛异常也要清掉，否则这个模块以后永远"忙着"、再也接不了新动作。</li>
+<li><code>NotifyCompletion()</code> 唤醒的是在 <code>WaitReply</code> 上等着的 <b>RPC 线程</b>——界面那次点击才等得到回包。</li>
+</ul>
+<p><b>为什么做成接口、不占 <code>OnScan</code></b>：动作推进是"挂得住动作"这类元件的<b>能力</b>，不是"这一拍做什么"的一部分。分开之后模块的 <code>OnScan</code> 只剩自己的活，继承链上一个 <code>base.OnScan()</code> 都不需要。跟 <code>IPlcBlock</code>、<code>ITransferRobotStep</code> 一样，是<b>可选能力做成接口、调用方 <code>is</code> 判断</b>的路子。</p>
+</section>
+
+<section class="topic" id="b2-6">
+<h3>2.6 慢扫描：200 / 300</h3>
+<p>一拍扫太久要报出来，否则设备"反应慢"这种事查不到根。阈值分两档。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementBase.cs"><figcaption>默认两档阈值，和 ScanOnce 末尾的判断</figcaption><script type="text/plain">
+    /// <summary>
+    /// 单周期慢扫描警告阈值（毫秒），默认 200；超过记警告日志。
+    /// </summary>
+    protected virtual int SlowScanWarnMilliseconds => 200;
+
+    /// <summary>
+    /// 单周期慢扫描报警阈值（毫秒），默认 300；超过按报警级别处理（Error 日志，
+    /// 接入报警系统后在此 Raise）。
+    /// </summary>
+    protected virtual int SlowScanAlarmMilliseconds => 300;
+@@
+        var elapsed = watch.ElapsedMilliseconds;
+        if (elapsed > SlowScanAlarmMilliseconds)
+        {
+            LogHelper.Error(this, $"慢扫描报警 {elapsed}ms（阈值 {SlowScanAlarmMilliseconds}ms）");
+        }
+        else if (elapsed > SlowScanWarnMilliseconds)
+        {
+            LogHelper.Warn(this, $"慢扫描警告 {elapsed}ms（阈值 {SlowScanWarnMilliseconds}ms）");
+        }
+</script></figure>
+<p>模块和两个管理器把阈值接到了 EC 上，现场能在线调：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>模块基类：阈值走 EC，改完即生效</figcaption><script type="text/plain">
+    protected override int SlowScanWarnMilliseconds => SlowScanWarnMs;
+
+    protected override int SlowScanAlarmMilliseconds => SlowScanAlarmMs;
+</script></figure>
+<ul>
+<li>接了 EC 的：所有模块（<a class="ref" data-f="xyz.Core/Service/xyz.Modules/BaseStateElement.cs">BaseStateElement.cs</a>）、Job 管理（<a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Job/JobManager.cs">JobManager.cs</a>）、搬运管理（<a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Transfer/TransferManager.cs">TransferManager.cs</a>）。其余元件用默认的 200 / 300。</li>
+<li><b>因为是每个元件各自计时，日志能直接指到具体部件</b>——<code>【Chamber.Chamber1】【Arm1.Nozzle_SC1】慢扫描报警 420ms</code>，而不是笼统记在 <code>Chamber1</code> 头上。</li>
+</ul>
+</section>
+
+<section class="topic" id="b2-7">
+<h3>2.7 扫描线程里不等待</h3>
+<p>这条是前面所有内容的推论，但值得单独写出来，因为它是最容易写错的地方。</p>
+<table>
+<tr><th>在哪条线程</th><th>能不能等</th><th>为什么</th></tr>
+<tr><td>扫描线程</td><td><b>不能</b></td><td>整棵树共用这一条。在这里 <code>Wait</code> 一秒，这棵树上十几个元件这一秒全部停拍：状态不推、IO 不读、别的动作也不往下走</td></tr>
+<tr><td>RPC 线程</td><td>可以</td><td>这条线程本来就是为这个调用开的，等完就回包</td></tr>
+</table>
+<ul>
+<li>扫描线程上的写法永远是：<b>发出去就走，下一拍再看做完没有</b>。</li>
+<li><code>WaitReply</code> 这种阻塞等终态的方法，只给 RPC 线程和冒烟测试用。</li>
+<li>所以界面上点一个动作，<b>回包只说成没成</b>；界面上看到的状态变化全靠推送，是扫描线程每一拍 <code>PublishState()</code> 发出来的。</li>
+</ul>
+</section>
+
+<section class="topic" id="b2-8">
+<h3>2.8 停扫描</h3>
+<p>宿主退出时先把所有扫描停掉，再让元件收尾。顺序反了会出事。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementBase.cs"><figcaption>打标记，等手上这一拍扫完</figcaption><script type="text/plain">
+    /// <summary>
+    /// 停扫描：等手上这一拍扫完再回来（最多等 StopScanWaitMs）；宿主退出时先停扫描、再让各元件收尾
+    /// </summary>
+    public void StopScan()
+    {
+        _scanStopping = true;
+
+        // 没起过扫描，或者是在自己的扫描里停自己：不等，这一拍扫完循环自己出来
+        if (_scanTask is null || Environment.CurrentManagedThreadId == _scanThreadId)
+        {
+            return;
+        }
+
+        if (!_scanTask.Wait(StopScanWaitMs))
+        {
+            LogHelper.Warn(this, $"扫描 {StopScanWaitMs}ms 内没停下来，不等了");
+        }
+    }
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/ElementLoader.cs"><figcaption>退出：先全停扫描，再整棵树倒着收尾</figcaption><script type="text/plain">
+    public static void StopAll(IEnumerable<ElementBase> roots)
+    {
+        // 收尾要断链路、落库，扫描还在跑就会撞上；宿主随后还要释放容器，扫描里再取报警、EC 会报"对象已释放"
+        var rootList = roots.ToList();
+        foreach (var root in rootList)
+        {
+            root.StopScan();
+        }
+
+        foreach (var element in Walk(rootList).Reverse())
+        {
+@@
+        }
+    }
+</script></figure>
+<ul>
+<li><b>最多等 2 秒</b>（<code>StopScanWaitMs</code>）。一拍正常几毫秒、慢扫描报警线才 300 ms，2 秒足够；卡死的不等，免得宿主退不掉。</li>
+<li><b>在自己的扫描里停自己不会卡</b>：比对 <code>_scanThreadId</code>，是自己就直接返回，循环下一次判断 <code>_scanStopping</code> 时自己出来。整机"全部停止"这类动作会用到。</li>
+<li><code>_scanStopping</code> 是 <code>volatile</code> 的——改它的是别的线程，扫描线程每一拍都要看见最新值。</li>
+</ul>
+</section>
+
+<section class="topic" id="b2-9">
+<h3>2.9 现在的边界（没改）</h3>
+<table>
+<tr><th>#</th><th>现状</th><th>影响</th><th>要改的话</th></tr>
+<tr><td>1</td><td>周期是"扫完再歇 10 ms"，不是固定 10 ms 一拍</td><td>一拍越慢、周期越长，节拍会抖；没有"这一拍超时就跳过"的保护</td><td>按截止时间算 Sleep：<code>10 - 这一拍耗时</code>，不够就不歇</td></tr>
+<tr><td>2</td><td>慢扫描只记日志，没挂报警</td><td>代码注释里写着"接入报警系统后在此 Raise"，现在界面上看不到，只能翻日志</td><td>在那两个分支里 Raise 一条报警</td></tr>
+<tr><td>3</td><td>扫描线程没起名字</td><td>抓 dump、看线程列表时认不出是哪棵树（曲线写库线程反而有名字 <code>DataChart.Writer</code>）</td><td>起线程时命名为元件全路径</td></tr>
+<tr><td>4</td><td>一拍里的异常只记 Warn，不计数</td><td>某个元件每一拍都抛，日志会被刷屏，但没有"连续失败 N 次就报警"</td><td>加失败计数，连续超过阈值挂报警</td></tr>
+<tr><td>5</td><td><code>this is IRoutineHost</code> 每个元件每拍判一次</td><td>189 个元件 × 约 100 拍/秒 ≈ 1.9 万次类型判断/秒，实测没影响</td><td>装配期算好存成字段</td></tr>
+</table>
+</section>
+
+</section>
+
+
 </section>
 
 <section class="module" id="grpc" data-title="gRPC 通讯">
