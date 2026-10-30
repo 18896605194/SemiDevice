@@ -1,0 +1,4710 @@
+{
+  "controls": [
+    {
+      "name": "InputTextBox",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/InputTextBox.cs",
+      "summary": "\u901A\u7528\u8F93\u5165\u6846\uFF1A\u6846\u67B6\u91CC\u7684\u6587\u672C\u3001\u6570\u503C\u8F93\u5165\u90FD\u7528\u5B83\u3002\u754C\u9762\u7ED1 Value\uFF08\u63D0\u4EA4\u540E\u7684\u5408\u6CD5\u503C\uFF09\uFF0C\u4E0D\u8981\u7ED1 Text\uFF08\u6B63\u5728\u8F93\u5165\u7684\u539F\u6587\uFF09\u3002 \u6821\u9A8C\u5206\u4E24\u6B65\uFF0C\u514D\u5F97\u0022\u8303\u56F4 2~20 \u60F3\u8F93 10\uFF0C\u6572\u4E0B 1 \u5C31\u62A5\u9519\u0022\uFF1A \u2460 \u8FB9\u8F93\u5165\u8FB9\u67E5\u683C\u5F0F\u2014\u2014\u53EA\u62E6\u4E0D\u53EF\u80FD\u518D\u53D8\u5408\u6CD5\u7684\u8F93\u5165\uFF08\u6574\u6570\u91CC\u6572\u4E86\u5B57\u6BCD\u3001\u5C0F\u6570\u91CC\u4E24\u4E2A\u5C0F\u6570\u70B9\uFF09\uFF0C\u0022-\u0022\u3001\u00221.\u0022 \u8FD9\u79CD\u6CA1\u8F93\u5B8C\u7684\u4E0D\u7B97\u9519\uFF1B \u2461 \u56DE\u8F66\u6216\u79BB\u5F00\u8F93\u5165\u6846\u65F6\u63D0\u4EA4\u2014\u2014\u67E5\u5B8C\u6574\u683C\u5F0F\u548C\u8303\u56F4\uFF0C\u5408\u6CD5\u624D\u5199\u8FDB Value\uFF0C\u4E0D\u5408\u6CD5\u7EA2\u6846\u63D0\u793A\u3001Value \u4FDD\u7559\u4E0A\u4E00\u6B21\u7684\u5408\u6CD5\u503C\u3002 \u7C7B\u578B\u548C\u8303\u56F4\uFF1A\u754C\u9762\u4E0A\u5199\u7684\uFF08DataType / Minimum / Maximum / Unit\uFF09\u4F18\u5148\uFF1B\u6CA1\u5199\u7684\u6309 EcKey \u4ECE EC \u53D6\uFF08\u683C\u5F0F\u3001\u4E0A\u4E0B\u9650\u3001\u5355\u4F4D\uFF09\uFF1B \u90FD\u6CA1\u914D\u5C31\u662F\u666E\u901A\u8F93\u5165\u6846\uFF0C\u4E0D\u6821\u9A8C\u3002\u6587\u672C\u7C7B\u578B\u6CA1\u6709\u4E0A\u4E0B\u9650\u7684\u6982\u5FF5\uFF0C\u53EA\u6709\u6574\u6570\u3001\u5C0F\u6570\u624D\u67E5\u8303\u56F4\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Value",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "InputTextBox",
+          "description": "\u63D0\u4EA4\u540E\u7684\u5408\u6CD5\u503C\uFF08\u53CC\u5411\u7ED1\u5B9A\uFF09\u3002\u6574\u6570\u3001\u5C0F\u6570\u6309\u4E0D\u53D8\u533A\u57DF\u6027\u5199\uFF08\u5C0F\u6570\u70B9\u662F\u70B9\u53F7\uFF09\uFF0C\u7ED1\u5230\u6570\u503C\u5C5E\u6027\u7531\u7ED1\u5B9A\u81EA\u52A8\u8F6C\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "DataType",
+          "type": "InputDataType",
+          "default": "Text",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "InputTextBox",
+          "description": "\u6570\u636E\u7C7B\u578B\uFF1B\u4E0D\u5199\u5C31\u6309 EC \u7684\u683C\u5F0F\uFF08Int \u2192 \u6574\u6570\uFF0CDouble \u2192 \u5C0F\u6570\uFF09\uFF0C\u518D\u6CA1\u6709\u5C31\u662F\u6587\u672C\u3002",
+          "enumValues": [
+            "Text",
+            "Integer",
+            "Decimal"
+          ]
+        },
+        {
+          "name": "Minimum",
+          "type": "Double?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "InputTextBox",
+          "description": "\u6700\u5C0F\u503C\uFF08\u542B\uFF09\uFF1B\u4E0D\u5199\u5C31\u7528 EC \u7684\u4E0B\u9650\uFF0C\u518D\u6CA1\u6709\u5C31\u4E0D\u9650\u3002\u6587\u672C\u7C7B\u578B\u4E0D\u751F\u6548\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Maximum",
+          "type": "Double?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "InputTextBox",
+          "description": "\u6700\u5927\u503C\uFF08\u542B\uFF09\uFF1B\u4E0D\u5199\u5C31\u7528 EC \u7684\u4E0A\u9650\uFF0C\u518D\u6CA1\u6709\u5C31\u4E0D\u9650\u3002\u6587\u672C\u7C7B\u578B\u4E0D\u751F\u6548\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Unit",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "InputTextBox",
+          "description": "\u5355\u4F4D\uFF0C\u53EA\u7528\u5728\u8303\u56F4\u63D0\u793A\u91CC\uFF08\u5982\u0022\u8303\u56F4 2 ~ 20 L/min\u0022\uFF09\uFF1B\u4E0D\u5199\u5C31\u7528 EC \u7684\u5355\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "EcKey",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "InputTextBox",
+          "description": "\u4ECE\u54EA\u9879 EC \u53D6\u7C7B\u578B\u3001\u8303\u56F4\u3001\u5355\u4F4D\uFF1A\u0022\u5143\u4EF6\u5168\u8DEF\u5F84.\u53C2\u6570\u540D\u0022\uFF0C\u5982 LoadPort1.LoadTimeout\u3001Chamber1.Door.ActionTimeoutMs\u3002 \u53EF\u4EE5\u7ED1\u5B9A\uFF08\u6309\u6A21\u5757\u62FC\u51FA\u6765\u7684\u952E\uFF09\uFF1BEC \u91CC\u6CA1\u6709\u8FD9\u9879\u5C31\u5F53\u6CA1\u914D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ErrorMessage",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "InputTextBox",
+          "description": "\u81EA\u5B9A\u4E49\u9519\u8BEF\u63D0\u793A\uFF1A\u7ED9\u4E86\u5C31\u4E00\u5F8B\u663E\u793A\u5B83\uFF0C\u53EF\u7528 {0} {1} \u5360\u6700\u5C0F\u3001\u6700\u5927\u503C\uFF1B\u4E0D\u7ED9\u7528\u8BED\u8A00\u5305\u91CC\u7684\u9ED8\u8BA4\u63D0\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HasError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "InputTextBox",
+          "description": "\u5F53\u524D\u8F93\u5165\u6709\u6CA1\u6709\u9519\uFF08\u683C\u5F0F\u4E0D\u5BF9\uFF0C\u6216\u63D0\u4EA4\u65F6\u8303\u56F4\u4E0D\u5BF9\uFF09\u3002\u5916\u9762\u53EF\u4EE5 OneWayToSource \u7ED1\u51FA\u53BB\uFF0C\u6BD4\u5982\u9519\u7740\u7684\u65F6\u5019\u4E0D\u8BA9\u4E0B\u53D1\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "InputTextBox-0.png",
+          "mesh": null
+        },
+        {
+          "label": "\u6574\u6570",
+          "values": {
+            "DataType": "Integer"
+          },
+          "image": "InputTextBox-1.png",
+          "mesh": null
+        },
+        {
+          "label": "\u9519\u8BEF\u72B6\u6001",
+          "values": {
+            "HasError": "true"
+          },
+          "image": "InputTextBox-2.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "DateTimePicker",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/DateTimePicker.xaml.cs",
+      "summary": "\u65E5\u671F\u65F6\u95F4\u9009\u62E9\uFF1A\u65E5\u671F\u6846 \u002B \u0022\u65F6\u0022\u4E0B\u62C9\uFF0800~23\uFF09\u002B \u0022\u5206\u0022\u4E0B\u62C9\uFF0800~59\uFF09\uFF0C\u7CBE\u786E\u5230\u5206\u949F\u3002\u62A5\u8B66\u5386\u53F2\u3001\u65E5\u5FD7\u5386\u53F2\u3001\u6570\u636E\u66F2\u7EBF\u7684\u67E5\u8BE2\u65F6\u95F4\u6BB5\u90FD\u7528\u5B83\u3002 \u7ED1 Value\uFF08\u53CC\u5411\uFF09\uFF1B\u65E5\u671F\u6E05\u7A7A\u65F6 Value \u4E3A null\uFF0C\u7531\u9875\u9762\u6309\u81EA\u5DF1\u7684\u9ED8\u8BA4\u503C\u5904\u7406\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Value",
+          "type": "DateTime?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "DateTimePicker",
+          "description": "\u9009\u4E2D\u7684\u65F6\u523B\uFF08\u79D2\u4E00\u5F8B\u4E3A 0\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Hint",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DateTimePicker",
+          "description": "\u63D0\u793A\u6587\u5B57\uFF08\u5F00\u59CB\u65F6\u95F4\u3001\u7ED3\u675F\u65F6\u95F4\u2026\u2026\uFF09\uFF0C\u663E\u793A\u5728\u65E5\u671F\u6846\u4E0A\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "DateTimePicker-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "PickerBox",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/PickerBox.xaml.cs",
+      "summary": "\u516C\u5171\u9009\u62E9\u6846\uFF1A\u4ECE\u4E00\u4E2A\u5E93\u91CC\u9009\u4E00\u9879\uFF08\u5982\u6D41\u7A0B\u914D\u65B9\u91CC\u9009\u5DE5\u827A\u914D\u65B9\uFF09\u4E0D\u7528\u4E0B\u62C9\u6846\uFF0C\u7528\u5B83\u2014\u2014\u5DE6\u8FB9\u663E\u793A\u9009\u4E2D\u7684\u503C\uFF0C\u53F3\u8FB9\u0022\u2026\u0022\u70B9\u5F00\u516C\u5171\u9009\u62E9\u5F39\u7A97\u3002 \u5F39\u7A97\u91CC\u663E\u793A\u4EC0\u4E48\u7531\u7528\u7684\u5730\u65B9\u7ED9\uFF1A\u6807\u9898\uFF08PickerTitle\uFF09\u3001\u5217\uFF08Columns\uFF09\u3001\u6570\u636E\uFF08ItemsSource\uFF09\u3001\u9009\u4E2D\u540E\u56DE\u586B\u54EA\u4E2A\u5C5E\u6027\uFF08ValuePath\uFF09\u3002 \u7528\u6CD5\u8DDF InputTextBox \u4E00\u6837\u7ED1 Value\uFF1B\u5BBD\u9AD8\u76F4\u63A5\u8BBE Width / Height\uFF0C\u6216\u8005\u7528 DefaultPickerBoxStyle / ToolbarPickerBoxStyle / CompactPickerBoxStyle\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Value",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "PickerBox",
+          "description": "\u9009\u4E2D\u7684\u503C\uFF08\u53CC\u5411\u7ED1\u5B9A\uFF09\uFF1A\u5F39\u7A97\u91CC\u9009\u4E2D\u90A3\u4E00\u9879\u7684 ValuePath \u5C5E\u6027\uFF1B\u80FD\u624B\u8F93\u65F6\u4E5F\u662F\u8F93\u5165\u7684\u5B57\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Placeholder",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "PickerBox",
+          "description": "\u6CA1\u6709\u503C\u65F6\u6846\u91CC\u7684\u63D0\u793A\u5B57\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "PickerTitle",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "PickerBox",
+          "description": "\u5F39\u7A97\u6807\u9898\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ItemsSource",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "PickerBox",
+          "description": "\u5F39\u7A97\u91CC\u5217\u51FA\u6765\u7684\u6570\u636E\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ValuePath",
+          "type": "String",
+          "default": "Name",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "PickerBox",
+          "description": "\u9009\u4E2D\u540E\u628A\u6570\u636E\u9879\u7684\u54EA\u4E2A\u5C5E\u6027\u586B\u56DE Value\uFF08\u9ED8\u8BA4 Name\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsEditable",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "PickerBox",
+          "description": "\u80FD\u4E0D\u80FD\u624B\u8F93\uFF1A\u9ED8\u8BA4\u4E0D\u80FD\uFF08\u53EA\u80FD\u4ECE\u5F39\u7A97\u91CC\u9009\uFF0C\u514D\u5F97\u6253\u9519\u540D\u5B57\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HasError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "PickerBox",
+          "description": "\u503C\u4E0D\u5BF9\uFF08\u6CA1\u9009\u3001\u9009\u7684\u4E0D\u5B58\u5728\u2026\u2026\uFF09\uFF1A\u6846\u53D8\u7EA2\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [
+        {
+          "name": "Columns",
+          "type": "ObservableCollection\u003CPickerColumn\u003E",
+          "description": "\u5F39\u7A97\u91CC\u663E\u793A\u54EA\u51E0\u5217\uFF0C\u5728 XAML \u91CC\u5199\u3002"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "PickerBox-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "HoldButton",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/HoldButton.cs",
+      "summary": "\u6309\u4F4F\u7C7B\u6309\u94AE\uFF08\u70B9\u52A8\uFF09\uFF1A\u6309\u4E0B\u53D1\u4E00\u6B21 PressCommand\uFF1B\u677E\u5F00\u3001\u9F20\u6807\u62D6\u51FA\u6309\u94AE\u3001\u6309\u94AE\u88AB\u7981\u7528\u6216\u85CF\u8D77\u6765\u90FD\u53D1 ReleaseCommand\uFF0C\u4E2D\u95F4\u4E0D\u53D1\u522B\u7684\u3002 \u4E24\u4E2A\u547D\u4EE4\u5171\u7528 CommandParameter\u3002\u4E0D\u7528 Button.Command\uFF08\u90A3\u662F\u677E\u5F00\u65F6\u624D\u89E6\u53D1\u7684\u5355\u51FB\uFF09\u3002\u677E\u624B\u4E00\u5B9A\u8981\u53D1\u51FA\u53BB\uFF0C\u6240\u4EE5 Release \u4E0D\u770B CanExecute\u3002 \u6837\u5F0F\u7167\u666E\u901A\u6309\u94AE\u5199\uFF08Style \u7684 TargetType \u5199 Button \u4E5F\u80FD\u5957\uFF09\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "PressCommand",
+          "type": "ICommand",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HoldButton",
+          "description": "\u6309\u4E0B\u65F6\u53D1\uFF08\u5982\u70B9\u52A8\u5F00\u59CB\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ReleaseCommand",
+          "type": "ICommand",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HoldButton",
+          "description": "\u677E\u624B\u65F6\u53D1\uFF08\u5982\u505C\u6B62\uFF09\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "HoldButton-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "SignalLamp",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SignalLamp.xaml.cs",
+      "summary": "\u4FE1\u53F7\u706F\uFF1A\u4E00\u76CF\u706F \u002B \u540D\u5B57\uFF0C\u5BF9\u4E00\u4E2A DI \u4FE1\u53F7",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Text",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "SignalLamp",
+          "description": "\u540D\u5B57\uFF08machine.xml \u91CC\u7684\u8282\u70B9\u540D\uFF0C\u539F\u6837\u663E\u793A\uFF09",
+          "enumValues": []
+        },
+        {
+          "name": "IsActive",
+          "type": "Boolean?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "SignalLamp",
+          "description": "\u6709\u6CA1\u6709\u89E6\u53D1\uFF0C\u8BFB\u4E0D\u5230\u662F null",
+          "enumValues": []
+        },
+        {
+          "name": "IsAlarm",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "SignalLamp",
+          "description": "\u62A5\u8B66\u4F4D\uFF08HH\u3001Overfill \u8FD9\u79CD\uFF09\uFF1A\u89E6\u53D1\u4E86\u4EAE\u7EA2",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "SignalLamp-0.png",
+          "mesh": null
+        },
+        {
+          "label": "\u89E6\u53D1",
+          "values": {
+            "IsActive": "true"
+          },
+          "image": "SignalLamp-1.png",
+          "mesh": null
+        },
+        {
+          "label": "\u672A\u89E6\u53D1",
+          "values": {
+            "IsActive": "false"
+          },
+          "image": "SignalLamp-2.png",
+          "mesh": null
+        },
+        {
+          "label": "\u672A\u77E5",
+          "values": {
+            "IsActive": "null"
+          },
+          "image": "SignalLamp-3.png",
+          "mesh": null
+        },
+        {
+          "label": "\u62A5\u8B66\u4F4D\u89E6\u53D1",
+          "values": {
+            "IsAlarm": "true"
+          },
+          "image": "SignalLamp-4.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "SignalTower",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SignalTower.xaml.cs",
+      "summary": "\u56DB\u8272\u706F\uFF08\u7AD6\u6392\uFF09\uFF1A\u7EA2 = \u62A5\u8B66\u3001\u9EC4 = \u8B66\u544A\u3001\u7EFF = \u8FD0\u884C\u3001\u84DD = \u901A\u8BAF\u3002\u53EA\u7BA1\u663E\u793A\uFF0C\u4EAE\u4E0D\u4EAE\u7531\u5916\u9762\u7ED1\u5B9A\u56DB\u4E2A\u5F00\u5173\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "IsRedOn",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "SignalTower",
+          "description": "\u7EA2\u706F\uFF1A\u62A5\u8B66\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsYellowOn",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "SignalTower",
+          "description": "\u9EC4\u706F\uFF1A\u8B66\u544A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsGreenOn",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "SignalTower",
+          "description": "\u7EFF\u706F\uFF1A\u8FD0\u884C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsBlueOn",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "SignalTower",
+          "description": "\u84DD\u706F\uFF1A\u901A\u8BAF\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "SignalTower-0.png",
+          "mesh": null
+        },
+        {
+          "label": "\u7EA2\u706F",
+          "values": {
+            "IsRedOn": "true"
+          },
+          "image": "SignalTower-1.png",
+          "mesh": null
+        },
+        {
+          "label": "\u9EC4\u706F",
+          "values": {
+            "IsYellowOn": "true"
+          },
+          "image": "SignalTower-2.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "TrendChart",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/TrendChart.ReferenceLines.cs",
+      "summary": "\u8D8B\u52BF\u56FE\u7684\u57FA\u51C6\u7EBF\uFF08\u53F3\u4E0A\u89D2 X\u3001Y \u4E24\u4E2A\u6309\u94AE\u5F00\u5173\uFF09\uFF1AX \u4E24\u6761\u7AD6\u7EBF\u91CF\u65F6\u95F4\u5DEE\uFF0CY \u4E24\u6761\u6A2A\u7EBF\u91CF\u6570\u503C\u5DEE\u3002 \u7EBF\u6BD4\u66F2\u7EBF\u7C97\u3001\u753B\u5728\u66F2\u7EBF\u4E0B\u9762\uFF1B\u6309\u4F4F\u7EBF\uFF086 \u50CF\u7D20\u4EE5\u5185\uFF09\u6216\u8F74\u4E0A\u7684\u6807\u7B7E\u5C31\u80FD\u62D6\uFF0C\u79BB\u7EBF\u8FDC\u7684\u5730\u65B9\u5DE6\u952E\u7167\u65E7\u5E73\u79FB\u3002 \u7EBF\u9489\u5728\u6570\u636E\u4E0A\uFF08X \u662F\u65F6\u523B\u3001Y \u662F\u7EB5\u8F74\u4E0A\u7684\u503C\uFF09\uFF0C\u7F29\u653E\u3001\u5E73\u79FB\u4EE5\u540E\u8FD8\u5728\u539F\u5904\uFF1B\u6253\u5F00\u65F6\u539F\u6765\u7684\u4F4D\u7F6E\u4E0D\u5728\u773C\u524D\uFF0C\u5C31\u653E\u5230\u5F53\u524D\u8FD9\u4E00\u6BB5\u7684 1/3\u30012/3\u3002 X1\u3001X2 \u7684\u65F6\u523B\u6807\u5728\u65F6\u95F4\u8F74\u4E0A\uFF0CY1\u3001Y2 \u7684\u503C\u6807\u5728\u7EB5\u8F74\u4E0A\uFF08\u88AB\u538B\u4F4F\u7684\u523B\u5EA6\u4E0D\u5199\u5B57\uFF09\uFF1B\u4E24\u6761\u7EBF\u4E4B\u95F4\u4E00\u4E2A\u53CC\u5411\u7BAD\u5934\u6807\u51FA\u5DEE\uFF08\u0394X\u3001\u0394Y\uFF09\u3002 \u5F00\u7740 X \u7EBF\u65F6\uFF0C\u6BCF\u6761\u66F2\u7EBF\u5728 X1\u3001X2 \u90A3\u4E00\u523B\u7684\u503C\u5199\u8FDB TrendSeries.ValueAtX1 / ValueAtX2\uFF0C\u4FE1\u606F\u8868\u4ECE\u90A3\u513F\u663E\u793A\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "ShowXLines",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "TrendChart",
+          "description": "\u663E\u793A X \u57FA\u51C6\u7EBF\uFF08\u4E24\u6761\u7AD6\u7EBF\uFF09\uFF1B\u53F3\u4E0A\u89D2 X \u6309\u94AE\u5F00\u5173\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ShowYLines",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "TrendChart",
+          "description": "\u663E\u793A Y \u57FA\u51C6\u7EBF\uFF08\u4E24\u6761\u6A2A\u7EBF\uFF09\uFF1B\u53F3\u4E0A\u89D2 Y \u6309\u94AE\u5F00\u5173\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Series",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TrendChart",
+          "description": "\u8981\u753B\u7684\u66F2\u7EBF\uFF08TrendSeries \u7684\u96C6\u5408\uFF0CObservableCollection \u589E\u5220\u4F1A\u8DDF\u7740\u53D8\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RangeStart",
+          "type": "DateTime?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TrendChart",
+          "description": "\u6574\u6BB5\u7684\u8D77\u70B9\uFF08\u6570\u636E\u66F2\u7EBF\u662F\u67E5\u8BE2\u7684\u65F6\u95F4\u6BB5\uFF0C\u5B9E\u65F6\u66F2\u7EBF\u662F\u6700\u8FD1 N \u5206\u949F\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RangeEnd",
+          "type": "DateTime?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TrendChart",
+          "description": "\u5B8C\u6574\u6570\u636E\u533A\u95F4\u7684\u8D77\u6B62\u65F6\u95F4\uFF1B\u4E0D\u7B49\u4E8E\u7528\u6237\u5F53\u524D\u7F29\u653E\u540E\u7684\u53EF\u89C1\u533A\u95F4\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FollowRange",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "TrendChart",
+          "description": "\u6A2A\u8F74\u8DDF\u7740\u6574\u6BB5\u8D70\uFF1B\u7528\u6237\u7F29\u653E\u3001\u5E73\u79FB\u3001\u6846\u9009\u65F6\u81EA\u52A8\u53D8\u5047\uFF08\u505C\u5728\u4ED6\u770B\u7684\u5730\u65B9\uFF09\uFF0C\u53CC\u51FB\u56DE\u5230\u6574\u6BB5\u65F6\u53D8\u771F\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "VisibleStart",
+          "type": "DateTime?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "TrendChart",
+          "description": "\u5F53\u524D\u770B\u5230\u7684\u65F6\u95F4\u6BB5\uFF08\u6BCF\u6B21\u91CD\u753B\u540E\u66F4\u65B0\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "VisibleEnd",
+          "type": "DateTime?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "TrendChart",
+          "description": "\u5F53\u524D\u753B\u9762\u53EF\u89C1\u65F6\u95F4\u8303\u56F4\u7684\u8F93\u51FA\u503C\uFF1B\u901A\u5E38\u4F7F\u7528\u53CC\u5411\u7ED1\u5B9A\u8BFB\u53D6\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "CursorTime",
+          "type": "DateTime?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": true,
+          "owner": "TrendChart",
+          "description": "\u9F20\u6807\u5BF9\u51C6\u7684\u65F6\u523B\uFF08\u5BF9\u51C6\u4E86\u91C7\u6837\u70B9\u5C31\u662F\u90A3\u4E2A\u70B9\u7684\u65F6\u523B\uFF09\uFF1B\u9F20\u6807\u4E0D\u5728\u7ED8\u56FE\u533A\u4E3A null\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "TrendChart-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "Wafer",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Wafer.xaml.cs",
+      "summary": "Wafer \u63A7\u4EF6\uFF08\u7531 GR \u7684 Disk \u63A7\u4EF6\u6539\u540D\u4E3A Wafer\uFF09\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Data",
+          "type": "Object",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Wafer",
+          "description": "\u63A7\u4EF6\u8981\u663E\u793A\u7684\u6570\u636E\u5BF9\u8C61\uFF1B\u6676\u5706\u63A7\u4EF6\u901A\u5E38\u63A5\u6536 WaferModel\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsDiskVisible",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Wafer",
+          "description": "\u65E0\u4E1A\u52A1\u6570\u636E\u65F6\u662F\u5426\u4ECD\u663E\u793A Wafer \u56FE\u5F62\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FillColor",
+          "type": "Brush",
+          "default": "#FF808080",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Wafer",
+          "description": "\u5706\u76D8\u586B\u5145\u753B\u5237\uFF1B\u6709\u5339\u914D\u7684\u6676\u5706\u4E1A\u52A1\u72B6\u6001\u65F6\u4F18\u5148\u4F7F\u7528\u72B6\u6001\u8272\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Label",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Wafer",
+          "description": "\u5706\u7247\u6587\u5B57\u8986\u76D6\u503C\uFF1B\u4E09\u7EF4 Disk \u652F\u6301\u8986\u76D6\uFF0C\u4E8C\u7EF4 Wafer \u5F53\u524D\u6A21\u677F\u4ECD\u663E\u793A Data.LpSlot\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RotationSpeed",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Wafer",
+          "description": "\u663E\u793A\u65CB\u8F6C\u901F\u5EA6\uFF08\u5EA6/\u79D2\uFF09\uFF0C\u4E0D\u80FD\u628A\u8BBE\u5907 RPM \u4E0D\u7ECF\u6362\u7B97\u76F4\u63A5\u7ED1\u5B9A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RotateClockwise",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Wafer",
+          "description": "\u4ECE\u4E0A\u65B9\u89C2\u5BDF\u65F6\u7684\u65CB\u8F6C\u65B9\u5411\uFF0Ctrue \u4E3A\u987A\u65F6\u9488\uFF1BRotationSpeed \u4ECD\u4F7F\u7528\u5EA6/\u79D2\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "Wafer-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "AlarmBar",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/AlarmBar.xaml.cs",
+      "summary": "\u9876\u680F\u62A5\u8B66\u680F\uFF1A\u5F53\u524D\u62A5\u8B66\u7684\u6761\u6570\u548C\u6700\u65B0\u4E00\u6761\uFF0C\u5C55\u5F00\u770B\u5168\u90E8\u3002\u63A7\u4EF6\u81EA\u5E26 ViewModel\uFF0C\u653E\u5230\u4EFB\u610F\u7A97\u53E3\u5373\u53EF\u7528\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [],
+      "members": [
+        {
+          "name": "ViewModel",
+          "type": "AlarmBarViewModel",
+          "description": "\u62A5\u8B66\u680F ViewModel\u3002"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "AlarmBar-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "BottomChamberInfoCard",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/BottomChamberInfoCard.xaml.cs",
+      "summary": "\u6807\u9898\u680F\u4F4D\u4E8E\u5E95\u90E8\u7684\u72EC\u7ACB\u8154\u4F53\u4FE1\u606F\u5361\u7247\u63A7\u4EF6\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Title",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u5361\u7247\u6807\u9898\uFF1B\u7ED1\u5B9A\u6A21\u5757\u663E\u793A\u540D\uFF0C\u4E0D\u627F\u62C5\u8BBE\u5907\u8EAB\u4EFD\u6216\u6307\u4EE4\u8DEF\u7531\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StatusOn",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u72B6\u6001\u6307\u793A\u5F00\u5173\uFF1Btrue \u663E\u793A\u70B9\u4EAE\u72B6\u6001\uFF0Cfalse \u663E\u793A\u672A\u70B9\u4EAE\u72B6\u6001\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsOnline",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u8FDE\u63A5\u72B6\u6001\u663E\u793A\u6587\u672C\uFF1B\u6CE8\u610F\u672C\u63A7\u4EF6\u8BE5\u5C5E\u6027\u7684\u7C7B\u578B\u662F\u5B57\u7B26\u4E32\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "State",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u663E\u793A\u72B6\u6001\uFF1B\u6309\u672C\u884C\u7C7B\u578B\u7ED1\u5B9A\uFF0C\u5B57\u7B26\u4E32\u72B6\u6001\u548C ProgressState \u5BF9\u8C61\u4E0D\u80FD\u6DF7\u7528\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RecipeState",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u914D\u65B9\u6267\u884C\u72B6\u6001\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Recipe",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u5F53\u524D\u914D\u65B9\u540D\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Step",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u5F53\u524D\u5DE5\u827A\u6B65\u9AA4\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StepTime",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u5F53\u524D\u6B65\u9AA4\u65F6\u95F4\u7684\u663E\u793A\u503C\uFF1B\u67E5\u770B\u672C\u884C\u7C7B\u578B\u51B3\u5B9A\u4F20\u6587\u672C\u8FD8\u662F\u6570\u503C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RecipeTime",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u6574\u4EFD\u914D\u65B9\u65F6\u95F4\u7684\u663E\u793A\u503C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ShutterState",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u8154\u95E8\u6216\u6321\u677F\u72B6\u6001\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafer",
+          "type": "WaferModel",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u5F53\u524D\u4F4D\u7F6E\u7684\u6676\u5706\u663E\u793A\u6570\u636E\uFF1B\u6CA1\u6709\u7247\u65F6\u4F20 null\uFF0C\u4E0D\u521B\u5EFA\u540E\u7AEF\u6676\u5706\u8D26\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RotationSpeed",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BottomChamberInfoCard",
+          "description": "\u663E\u793A\u65CB\u8F6C\u901F\u5EA6\uFF08\u5EA6/\u79D2\uFF09\uFF0C\u4E0D\u80FD\u628A\u8BBE\u5907 RPM \u4E0D\u7ECF\u6362\u7B97\u76F4\u63A5\u7ED1\u5B9A\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "BottomChamberInfoCard-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "Buffer",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Buffer.xaml.cs",
+      "summary": "Buffer \u6A21\u5757\u5361\u7247\uFF1A\u6807\u9898\u548C\u72B6\u6001\u56F4\u7ED5\u53EF\u72EC\u7ACB\u4F7F\u7528\u7684 BufferView\uFF0C\u6570\u636E\u4E0E\u4EA4\u4E92\u7531\u5185\u5C42\u89C6\u56FE\u5904\u7406\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Title",
+          "type": "String",
+          "default": "Buffer",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "\u5361\u7247\u6807\u9898\uFF1B\u7ED1\u5B9A\u6A21\u5757\u663E\u793A\u540D\uFF0C\u4E0D\u627F\u62C5\u8BBE\u5907\u8EAB\u4EFD\u6216\u6307\u4EE4\u8DEF\u7531\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StateText",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "\u72B6\u6001\u6587\u6848\u7531\u8C03\u7528\u65B9\u63D0\u4F9B\uFF0C\u7A7A\u5B57\u7B26\u4E32\u4E0D\u663E\u793A\u5FBD\u6807\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StateTone",
+          "type": "ModuleStateTone",
+          "default": "Inactive",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "\u72B6\u6001\u8272\u8C03\uFF1B\u4F7F\u7528\u5C5E\u6027\u7C7B\u578B\u5BF9\u5E94\u7684\u679A\u4E3E\u503C\uFF0C\u4E0D\u76F4\u63A5\u4F20\u540E\u7AEF\u6574\u6570\u3002",
+          "enumValues": [
+            "Inactive",
+            "Busy",
+            "Ready",
+            "Warning",
+            "Alarm"
+          ]
+        },
+        {
+          "name": "IsProduction",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "\u751F\u4EA7\u6A21\u5F0F\uFF08\u4EA4\u7ED9\u8C03\u5EA6\u7528\uFF09\u4EAE\uFF0C\u7EF4\u62A4\u706D",
+          "enumValues": []
+        },
+        {
+          "name": "FirstSlot",
+          "type": "Int32",
+          "default": "1",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "\u6700\u5E95\u5C42\u7684\u7269\u7406\u69FD\u53F7\uFF1B\u7528\u4E8E\u663E\u793A\u540C\u4E00\u4E2A\u67B6\u5B50\u7684\u67D0\u4E2A\u69FD\u6BB5\uFF0C\u9ED8\u8BA4 1\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "SlotCount",
+          "type": "Int32",
+          "default": "10",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "\u5B9E\u9645\u69FD\u6570\uFF0C\u9ED8\u8BA4 10\uFF1B0 \u663E\u793A\u7A7A\u89C6\u56FE\u3002\u56FA\u5B9A\u69FD\u8DDD\uFF0C\u589E\u51CF\u69FD\u6570\u540E\u81EA\u52A8\u91CD\u65B0\u53D6\u666F\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafers",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "WaferModel \u96C6\u5408\uFF0C\u6309\u7269\u7406 Slot \u6446\u7247\u3001State \u4E0A\u8272\uFF1B\u652F\u6301\u96C6\u5408\u589E\u5220\u3001\u66FF\u6362\u53CA\u5355\u7247 Slot/State \u53D8\u5316\u3002 \u8303\u56F4\u5916\u7684\u7247\u4E0D\u663E\u793A\uFF0C\u540C\u69FD\u91CD\u590D\u53EA\u663E\u793A\u7B2C\u4E00\u7247\uFF1B\u4E0D\u6309 LoadPort \u7684\u6765\u6E90\u69FD\u53F7\u63A8\u65AD\u4F4D\u7F6E\u3002 \u96C6\u5408\u4E0E\u6A21\u578B\u5E94\u50CF\u5176\u5B83 WPF \u7ED1\u5B9A\u6570\u636E\u4E00\u6837\u5728 UI \u7EBF\u7A0B\u66F4\u65B0\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WaferCount",
+          "type": "Int32",
+          "default": "0",
+          "readOnly": true,
+          "twoWay": false,
+          "owner": "Buffer",
+          "description": "\u5F53\u524D\u663E\u793A\u7684\u7247\u6570\uFF0C\u53EA\u8BFB\uFF0C\u6309\u5B9E\u9645\u6709\u6548\u5360\u7528\u69FD\u7EDF\u8BA1\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "Buffer-0.png",
+          "mesh": null
+        },
+        {
+          "label": "8 \u4E2A\u69FD\uFF08\u793A\u4F8B\uFF09",
+          "values": {
+            "SlotCount": "8"
+          },
+          "image": "Buffer-1.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "BufferView",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/BufferView.xaml.cs",
+      "summary": "\u53EF\u76F4\u63A5\u653E\u8FDB Grid \u7684\u72EC\u7ACB\u7F13\u5B58\u67B6\u89C6\u56FE\u3002\u81EA\u5E26\u76F8\u673A\u548C\u706F\u5149\uFF0C\u7EE7\u627F\u9875\u9762 DataContext\uFF1B \u6CA1\u6709\u6A21\u5757\u6807\u9898\u3001\u72B6\u6001\u680F\u3001\u8BA1\u6570\u6587\u5B57\u6216\u6309\u94AE\u3002\u62D6\u52A8\u65CB\u8F6C\u3001\u6EDA\u8F6E\u7F29\u653E\uFF0C\u4E0D\u63D0\u4F9B\u9009\u7247\u64CD\u4F5C\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "FirstSlot",
+          "type": "Int32",
+          "default": "1",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BufferView",
+          "description": "\u6700\u5E95\u5C42\u7269\u7406\u69FD\u53F7\uFF1B\u4E0E SlotCount \u4E00\u8D77\u5B9A\u4E49\u6709\u6548\u69FD\u4F4D\u8303\u56F4\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "SlotCount",
+          "type": "Int32",
+          "default": "10",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BufferView",
+          "description": "\u5B9E\u9645\u69FD\u4F4D\u6570\u91CF\uFF0C\u5E94\u6765\u81EA\u88C5\u673A\u6216\u540E\u7AEF\u5FEB\u7167\uFF1B\u6587\u6863\u6F14\u793A\u503C\u53EA\u662F\u6837\u4F8B\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafers",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BufferView",
+          "description": "\u6676\u5706\u96C6\u5408\uFF0C\u6309 WaferModel.Slot \u653E\u5165\u69FD\u4F4D\uFF1B\u96C6\u5408\u53D8\u66F4\u76D1\u542C\u7B56\u7565\u89C1\u63A7\u4EF6\u4F7F\u7528\u8BF4\u660E\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WaferCount",
+          "type": "Int32",
+          "default": "0",
+          "readOnly": true,
+          "twoWay": false,
+          "owner": "BufferView",
+          "description": "\u5F53\u524D\u6709\u6548\u5360\u7528\u69FD\u6570\uFF0C\u53EA\u8BFB\uFF1B\u53EF\u4F5C\u4E3A\u5176\u4ED6\u63A7\u4EF6\u7ED1\u5B9A\u7684\u6765\u6E90\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "BufferView-0.png",
+          "mesh": "BufferView-0.mesh.js"
+        },
+        {
+          "label": "8 \u4E2A\u69FD\uFF08\u793A\u4F8B\uFF09",
+          "values": {
+            "SlotCount": "8"
+          },
+          "image": "BufferView-1.png",
+          "mesh": "BufferView-1.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ChamberInfoCard",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ChamberInfoCard.xaml.cs",
+      "summary": "\u8FD1\u65B9\u5F62\u8154\u4F53\u4FE1\u606F\u5361\u7247\uFF0C\u53C2\u8003 GR \u8C03\u5EA6\u754C\u9762\u7684 ChamberInfoCard\uFF1A\u6807\u9898\u884C\u5E26\u7F29\u5C0F\u7248\u72B6\u6001\u5FBD\u6807\uFF0C\u5DE6\u4E94\u884C\u5B57\u6BB5 \u002B \u53F3\u5706\u7247\u3002\u6309\u771F\u5B9E\u5B57\u53F7\u6392\u7248\u3001\u968F\u7ED9\u5B9A\u5C3A\u5BF8\u4F38\u7F29\uFF0C\u4E0D\u6574\u5361\u7F29\u653E\u3002 \u5B57\u6BB5\u54EA\u4E00\u884C\u6CA1\u6709\u503C\u5C31\u6574\u884C\u4E0D\u663E\u793A\uFF08\u73B0\u5728\u540E\u7AEF\u53EA\u7ED9\u914D\u65B9\uFF0C\u6B65\u9AA4\u3001\u8154\u95E8\u3001\u65F6\u95F4\u8FD9\u4E9B\u6709\u4E86\u6570\u636E\u624D\u51FA\u6765\uFF09\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Title",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u5361\u7247\u6807\u9898\uFF1B\u7ED1\u5B9A\u6A21\u5757\u663E\u793A\u540D\uFF0C\u4E0D\u627F\u62C5\u8BBE\u5907\u8EAB\u4EFD\u6216\u6307\u4EE4\u8DEF\u7531\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Number",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u7AD9\u70B9\u53F7\u89D2\u6807\uFF08\u673A\u68B0\u624B\u793A\u6559\u70B9\u8868\u91CC\u7684\u8BBE\u5907\u7AD9\u70B9\u53F7\uFF09\uFF1B\u7A7A\u5C31\u4E0D\u663E\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "DiskSize",
+          "type": "Double",
+          "default": "100",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u5706\u7247\u76F4\u5F84\uFF1A\u8DDF\u8C03\u5EA6\u56FE\u91CC\u673A\u68B0\u624B\u53C9\u4E0A\u7684\u7247\u4E00\u6837\u5927\uFF0C\u7531\u9875\u9762\u6309\u673A\u68B0\u624B\u7684\u663E\u793A\u5C3A\u5BF8\u7ED9\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StatusOn",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u72B6\u6001\u6307\u793A\u5F00\u5173\uFF1Btrue \u663E\u793A\u70B9\u4EAE\u72B6\u6001\uFF0Cfalse \u663E\u793A\u672A\u70B9\u4EAE\u72B6\u6001\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsOnline",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u8FDE\u63A5\u72B6\u6001\u663E\u793A\u6587\u672C\uFF1B\u6CE8\u610F\u672C\u63A7\u4EF6\u8BE5\u5C5E\u6027\u7684\u7C7B\u578B\u662F\u5B57\u7B26\u4E32\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StateText",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u8154\u4F53\u72B6\u6001\u6587\u5B57\uFF0C\u6807\u9898\u884C\u53F3\u4FA7\u7F29\u5C0F\u7248\u72B6\u6001\u5FBD\u6807\u663E\u793A\uFF1B\u7A7A\u5C31\u4E0D\u663E\u793A\u5FBD\u6807\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StateTone",
+          "type": "ModuleStateTone",
+          "default": "Inactive",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u8154\u4F53\u72B6\u6001\u8272\u8C03\uFF08\u5FBD\u6807\u5E95\u8272\uFF09\u3002",
+          "enumValues": [
+            "Inactive",
+            "Busy",
+            "Ready",
+            "Warning",
+            "Alarm"
+          ]
+        },
+        {
+          "name": "RecipeState",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u914D\u65B9\u6267\u884C\u72B6\u6001\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Recipe",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u5F53\u524D\u914D\u65B9\u540D\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Step",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u5F53\u524D\u5DE5\u827A\u6B65\u9AA4\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StepTime",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u5F53\u524D\u6B65\u9AA4\u65F6\u95F4\u7684\u663E\u793A\u503C\uFF1B\u67E5\u770B\u672C\u884C\u7C7B\u578B\u51B3\u5B9A\u4F20\u6587\u672C\u8FD8\u662F\u6570\u503C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RecipeTime",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u6574\u4EFD\u914D\u65B9\u65F6\u95F4\u7684\u663E\u793A\u503C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ShutterState",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u8154\u95E8\u6216\u6321\u677F\u72B6\u6001\u7684\u663E\u793A\u6587\u672C\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafer",
+          "type": "WaferModel",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u5F53\u524D\u4F4D\u7F6E\u7684\u6676\u5706\u663E\u793A\u6570\u636E\uFF1B\u6CA1\u6709\u7247\u65F6\u4F20 null\uFF0C\u4E0D\u521B\u5EFA\u540E\u7AEF\u6676\u5706\u8D26\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RotationSpeed",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberInfoCard",
+          "description": "\u663E\u793A\u65CB\u8F6C\u901F\u5EA6\uFF08\u5EA6/\u79D2\uFF09\uFF0C\u4E0D\u80FD\u628A\u8BBE\u5907 RPM \u4E0D\u7ECF\u6362\u7B97\u76F4\u63A5\u7ED1\u5B9A\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ChamberInfoCard-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ChamberView",
+      "namespace": "xyz._35021.Client.Presentation.Controls",
+      "source": "xyz.35021/Client/Presentation/Controls/ChamberView.xaml.cs",
+      "summary": "35021 \u6B63\u5F0F\u8154\u4F53\u56FE\u3002\u52A0\u8F7D\u5E03\u5C40\u6570\u636E\uFF0C\u5168\u90E8\u52A8\u4F5C\u53D6\u540E\u53F0\u53CD\u9988\uFF1B\u6CA1\u6709\u5E03\u5C40\u7F16\u8F91\u6216\u6A21\u62DF\u6307\u4EE4\u3002",
+      "is3D": true,
+      "project": true,
+      "properties": [
+        {
+          "name": "Snapshot",
+          "type": "ChamberDeviceDataDto",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberView",
+          "description": "\u5B8C\u6574\u8BBE\u5907\u5FEB\u7167\uFF1B\u8BBE\u5907\u7EC4\u6210\u7531\u5B9E\u9645\u5FEB\u7167\u51B3\u5B9A\uFF0C\u5E03\u5C40\u4E0D\u80FD\u6DFB\u52A0\u4E0D\u5B58\u5728\u7684\u786C\u4EF6\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Layout",
+          "type": "ChamberLayoutModel",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberView",
+          "description": "ToolBuilder \u5BFC\u51FA\u7684\u663E\u793A\u5E03\u5C40\uFF1B\u4EC5\u63CF\u8FF0\u4F4D\u7F6E\u3001\u5927\u5C0F\u4E0E\u7236\u5B50\u6302\u8F7D\u5173\u7CFB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "VisualCatalog",
+          "type": "ChamberVisualCatalog",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberView",
+          "description": "\u9879\u76EE\u63A7\u4EF6\u63D0\u4F9B\u8005\u76EE\u5F55\uFF1B\u5DF2\u5B9E\u73B0\u7684\u9879\u76EE\u63A7\u4EF6\u4F18\u5148\uFF0C\u7F3A\u5C11\u7684\u79CD\u7C7B\u4F7F\u7528\u5E73\u53F0\u5916\u89C2\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafer",
+          "type": "Object",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberView",
+          "description": "\u5F53\u524D\u4F4D\u7F6E\u7684\u6676\u5706\u663E\u793A\u6570\u636E\uFF1B\u6CA1\u6709\u7247\u65F6\u4F20 null\uFF0C\u4E0D\u521B\u5EFA\u540E\u7AEF\u6676\u5706\u8D26\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [
+        {
+          "name": "DisplayedParts",
+          "type": "IReadOnlyDictionary\u003Cstring, ChamberPartVisual\u003E",
+          "description": ""
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ChamberView-0.png",
+          "mesh": "ChamberView-0.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "DispatchMap",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/DispatchMap.xaml.cs",
+      "summary": "\u8C03\u5EA6\u56FE\uFF08\u516C\u5171\u63A7\u4EF6\uFF0CRobot \u624B\u52A8\u9875\u548C\u4E3B\u754C\u9762\u90FD\u7528\uFF09\uFF1A\u7ED9\u4E00\u4E2A\u673A\u68B0\u624B\u6A21\u5757\u540D\uFF0C\u63A7\u4EF6\u81EA\u5DF1\u5EFA ViewModel\u3001\u8BA2\u63A8\u9001\uFF0C \u673A\u68B0\u624B\u753B\u5728\u4E2D\u95F4\uFF0C\u7AD9\u70B9\u5361\u7247\u6309\u5B83\u793A\u6559\u70B9\u8868\u91CC\u7684\u65B9\u5411\u6446\u5728\u56DB\u5468\u2014\u2014machine.xml \u91CC\u591A\u4E00\u4E2A\u8154\u4F53\u3001\u4E00\u4E2A LoadPort\uFF0C\u56FE\u4E0A\u5C31\u591A\u4E00\u5F20\u5361\u7247\uFF0C\u4E0D\u7528\u6539\u754C\u9762\u3002 \u673A\u578B\u7684\u4E3B\u754C\u9762\u8981\u522B\u7684\u6446\u6CD5\uFF08\u4E24\u53F0\u673A\u68B0\u624B\u3001\u7F13\u5B58\u4F4D\u2026\u2026\uFF09\u65F6\uFF0C\u81EA\u5DF1\u5199\u8C03\u5EA6\u56FE\uFF0C\u7167\u6837\u53EF\u4EE5\u62FF\u5B83\u3001StationCard\u3001Robot \u6765\u62FC\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "RobotName",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DispatchMap",
+          "description": "\u673A\u68B0\u624B\u6A21\u5757\u540D\uFF08\u5982 Robot1\uFF09\uFF0C\u4E5F\u662F\u5B83\u72B6\u6001\u63A8\u9001\u7684 token\uFF1B\u6362\u4E86\u5C31\u91CD\u5EFA ViewModel\u3001\u91CD\u8BA2\u63A8\u9001\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "CardWidth",
+          "type": "Double",
+          "default": "280",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DispatchMap",
+          "description": "\u7AD9\u70B9\u5361\u7247\u5BBD\uFF08\u9ED8\u8BA4 280\uFF0C\u8FD1\u65B9\u5F62\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "CardHeight",
+          "type": "Double",
+          "default": "233",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DispatchMap",
+          "description": "\u7AD9\u70B9\u5361\u7247\u9AD8\uFF08\u9ED8\u8BA4 233\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RobotHeight",
+          "type": "Double",
+          "default": "360",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DispatchMap",
+          "description": "\u673A\u68B0\u624B\u753B\u591A\u9AD8\uFF08\u9ED8\u8BA4 360\uFF09\uFF1B\u5361\u7247\u4E0A\u7684\u5706\u7247\u8DDF\u7740\u5B83\u7B97\uFF0C\u8DDF\u53C9\u4E0A\u7684\u7247\u4E00\u6837\u5927\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "DiskSize",
+          "type": "Double",
+          "default": "75.6",
+          "readOnly": true,
+          "twoWay": false,
+          "owner": "DispatchMap",
+          "description": "\u5361\u7247\u4E0A\u5706\u7247\u7684\u76F4\u5F84 = \u673A\u68B0\u624B\u53C9\u4E0A\u7684\u7247\u6309 RobotHeight \u7F29\u653E\u540E\u7684\u5927\u5C0F\uFF08\u53EA\u8BFB\uFF0C\u8DDF\u7740 RobotHeight \u53D8\uFF09\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "DispatchMap-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "FluidPipe",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/FluidPipe.xaml.cs",
+      "summary": "\u53EF\u76F4\u63A5\u653E\u8FDB Grid\u3001Canvas\u3001StackPanel \u7684\u7BA1\u8DEF\u63A7\u4EF6\u3002 \u9ED8\u8BA4\u662F\u4E00\u6839\u76F4\u7BA1\uFF1B\u8BBE\u7F6E Points \u540E\u6309\u4E8C\u7EF4\u8DEF\u5F84\u7ED8\u5236\uFF0C\u76F8\u673A\u548C\u706F\u5149\u7531\u63A7\u4EF6\u5185\u90E8\u7BA1\u7406\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Points",
+          "type": "PointCollection",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u7BA1\u4E2D\u5FC3\u7684\u4E8C\u7EF4\u8DEF\u5F84\u70B9\uFF0CX \u5411\u53F3\u3001Y \u5411\u4E0B\u3002\u4E0D\u8BBE\u7F6E\u65F6\u6309\u63A7\u4EF6\u5927\u5C0F\u663E\u793A\u76F4\u7BA1\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Orientation",
+          "type": "Orientation",
+          "default": "Horizontal",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u9ED8\u8BA4\u76F4\u7BA1\u7684\u65B9\u5411\u3002\u8BBE\u7F6E Points \u540E\u6309\u8DEF\u5F84\u7ED8\u5236\u3002",
+          "enumValues": [
+            "Horizontal",
+            "Vertical"
+          ]
+        },
+        {
+          "name": "PipeThickness",
+          "type": "Double",
+          "default": "14",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u7BA1\u5916\u76F4\u5F84\uFF0C\u4F7F\u7528 WPF \u903B\u8F91\u50CF\u7D20\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WallThickness",
+          "type": "Double",
+          "default": "2",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u7BA1\u58C1\u539A\u5EA6\uFF0C\u4F7F\u7528 WPF \u903B\u8F91\u50CF\u7D20\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BendRadius",
+          "type": "Double",
+          "default": "24",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u8F6C\u5F2F\u5706\u89D2\u534A\u5F84\uFF0C\u4F7F\u7528\u8DEF\u5F84\u5750\u6807\u5355\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FluidCoreRatio",
+          "type": "Double",
+          "default": "0.58",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u6DB2\u82AF\u534A\u5F84\u5360\u5185\u8154\u534A\u5F84\u7684\u6BD4\u4F8B\uFF0C\u8303\u56F4\u4E3A (0, 1]\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WallOpacity",
+          "type": "Double",
+          "default": "0.18",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u7BA1\u58C1\u4E0D\u900F\u660E\u5EA6\u5F3A\u5EA6\uFF0C\u8303\u56F4\u4E3A [0, 1]\uFF0C\u8D8A\u5C0F\u8D8A\u900F\u660E\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WallColor",
+          "type": "Color",
+          "default": "#FFB4B4B4",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u7BA1\u58C1\u989C\u8272\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FluidColor",
+          "type": "Color",
+          "default": "#FFC4C4C4",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u6DB2\u4F53\u5E95\u8272\uFF0C\u4E0E FlowColor \u6309 1:3 \u6DF7\u5408\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FlowColor",
+          "type": "Color",
+          "default": "#FF52D4EF",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u6C34\u6D41\u4E3B\u8272\u548C\u79FB\u52A8\u6C34\u7EB9\u7684\u989C\u8272\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsFilled",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u662F\u5426\u6709\u6DB2\u4F53\u3002false \u65F6\u4E0D\u663E\u793A\u6DB2\u82AF\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsFlowing",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u662F\u5426\u6D41\u52A8\u3002false \u65F6\u6E05\u9664\u6DB2\u82AF\u548C\u6C34\u7EB9\uFF0C\u53EA\u663E\u793A\u7BA1\u58C1\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FlowSpeed",
+          "type": "Double",
+          "default": "55",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u6C34\u7EB9\u6BCF\u79D2\u79FB\u52A8\u7684\u8DEF\u5F84\u957F\u5EA6\uFF0C0 \u65F6\u6682\u505C\uFF1B\u4E0D\u662F\u8BBE\u5907\u5B9E\u6D4B\u6D41\u91CF\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ReverseFlow",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u662F\u5426\u6CBF\u8DEF\u5F84\u53CD\u5411\u6D41\u52A8\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsAnimationEnabled",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipe",
+          "description": "\u52A8\u753B\u5F00\u5173\u3002false \u65F6\u51BB\u7ED3\u6C34\u7EB9\uFF0C\u4FDD\u7559\u6DB2\u82AF\u548C\u6D41\u52A8\u72B6\u6001\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "FluidPipe-0.png",
+          "mesh": null
+        },
+        {
+          "label": "\u51FA\u6DB2\u663E\u793A",
+          "values": {
+            "IsFlowing": "true"
+          },
+          "image": "FluidPipe-1.png",
+          "mesh": null
+        },
+        {
+          "label": "\u5173\u95ED\u52A8\u753B",
+          "values": {
+            "IsAnimationEnabled": "false"
+          },
+          "image": "FluidPipe-2.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "Foup",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Foup.xaml.cs",
+      "summary": "\u53EF\u7B49\u6BD4\u7F29\u653E\u7684 FOUP \u56FE\u5F62\u7EC4\u4EF6\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "Foup-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "LoadPortInfoCard",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/LoadPortInfoCard.xaml.cs",
+      "summary": "\u6807\u9898\u680F\u4F4D\u4E8E\u5E95\u90E8\u7684\u8FD1\u65B9\u5F62 LoadPort \u4FE1\u606F\u5361\u7247\uFF1A\u5E95\u680F\u6807\u9898 \u002B \u72B6\u6001\u706F\uFF1B\u4E3B\u4F53\u5DE6\u82B1\u7BEE\uFF08\u69FD\u6570\u8DDF machine.xml \u7684 SlotCount\uFF0C\u4E00\u69FD\u4E00\u6761\u7EC6\u7EBF\uFF09\u53F3 disk \u5706\u7247 \u002B \u69FD\u6570\u3002 \u6309\u771F\u5B9E\u5B57\u53F7\u6392\u7248\u3001\u968F\u7ED9\u5B9A\u5C3A\u5BF8\u4F38\u7F29\uFF0C\u4E0D\u6574\u5361\u7F29\u653E\u3002\u8C03\u5EA6\u56FE\u4E0B\u6392\u4E24\u9897 LP \u7528\u5B83\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Title",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u5361\u7247\u6807\u9898\uFF1B\u7ED1\u5B9A\u6A21\u5757\u663E\u793A\u540D\uFF0C\u4E0D\u627F\u62C5\u8BBE\u5907\u8EAB\u4EFD\u6216\u6307\u4EE4\u8DEF\u7531\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Number",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u7AD9\u70B9\u53F7\u89D2\u6807\uFF08\u673A\u68B0\u624B\u793A\u6559\u70B9\u8868\u91CC\u7684\u8BBE\u5907\u7AD9\u70B9\u53F7\uFF09\uFF1B\u7A7A\u5C31\u4E0D\u663E\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "DiskSize",
+          "type": "Double",
+          "default": "100",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u5706\u7247\u76F4\u5F84\uFF1A\u8DDF\u8C03\u5EA6\u56FE\u91CC\u673A\u68B0\u624B\u53C9\u4E0A\u7684\u7247\u4E00\u6837\u5927\uFF0C\u7531\u9875\u9762\u6309\u673A\u68B0\u624B\u7684\u663E\u793A\u5C3A\u5BF8\u7ED9\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsOnline",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u5E95\u680F Online \u6587\u6848\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StateText",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "LoadPort \u72B6\u6001\u6587\u5B57\uFF0C\u6807\u9898\u884C\u53F3\u4FA7\u7F29\u5C0F\u7248\u72B6\u6001\u5FBD\u6807\u663E\u793A\uFF1B\u7A7A\u5C31\u4E0D\u663E\u793A\u5FBD\u6807\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StateTone",
+          "type": "ModuleStateTone",
+          "default": "Inactive",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "LoadPort \u72B6\u6001\u8272\u8C03\uFF08\u5FBD\u6807\u5E95\u8272\uFF09\u3002",
+          "enumValues": [
+            "Inactive",
+            "Busy",
+            "Ready",
+            "Warning",
+            "Alarm"
+          ]
+        },
+        {
+          "name": "IsConnected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u901A\u8BAF\u706F\uFF1A\u9A71\u52A8\u4E32\u53E3\u662F\u5426\u8FDE\u4E0A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Present",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u5728\u4F4D\u706F\uFF1AFOUP \u662F\u5426\u653E\u4E0A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Placed",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u5230\u4F4D\u706F\uFF1AFOUP \u662F\u5426\u5939\u7D27\u653E\u5E73\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Alarm",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u62A5\u8B66\u706F\uFF1A\u8BBE\u5907\u786C\u4EF6\u62A5\u8B66\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "AutoMode",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "AUTO / MANUAL \u706F\uFF1Atrue=Auto\uFF0Cfalse=Manual\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafers",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u82B1\u7BEE\u91CC\u7684\u7247\uFF08\u6709\u7247\u7684\u69FD\u4F4D\uFF09\uFF1B\u69FD\u6570\u7531 SlotCount \u51B3\u5B9A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "SlotCount",
+          "type": "Int32",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u82B1\u7BEE\u69FD\u6570\uFF08machine.xml \u7684 LoadPort.SlotCount\uFF09\uFF1B0 \u8868\u793A\u8FD8\u4E0D\u77E5\u9053\u3001\u4E0D\u753B\u69FD\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafer",
+          "type": "WaferModel",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u53F3\u4FA7 disk \u5706\u7247\u4E0A\u7684\u7247\uFF08\u4E0E ChamberCard \u540C\u5B57\u6BB5\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RotationSpeed",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortInfoCard",
+          "description": "\u663E\u793A\u65CB\u8F6C\u901F\u5EA6\uFF08\u5EA6/\u79D2\uFF09\uFF0C\u4E0D\u80FD\u628A\u8BBE\u5907 RPM \u4E0D\u7ECF\u6362\u7B97\u76F4\u63A5\u7ED1\u5B9A\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [
+        {
+          "name": "Slots",
+          "type": "ObservableCollection\u003CLoadPortSlot\u003E",
+          "description": ""
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "LoadPortInfoCard-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "LogBar",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/LogBar.xaml.cs",
+      "summary": "\u9876\u680F\u65E5\u5FD7\u4E0B\u62C9\u6846\uFF1A\u663E\u793A\u540E\u7AEF\u65E5\u5FD7\uFF08\u7ECF\u4E8B\u4EF6\u6D41\uFF09\u4E0E\u5BA2\u6237\u7AEF\u81EA\u8EAB\u62A5\u9519\u3002 \u63A7\u4EF6\u81EA\u5E26 ViewModel\uFF0C\u653E\u5230\u4EFB\u610F\u7A97\u53E3\u5373\u53EF\u7528\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [],
+      "members": [
+        {
+          "name": "ViewModel",
+          "type": "LogViewModel",
+          "description": "\u65E5\u5FD7 ViewModel\uFF08\u6D88\u8D39\u8005\uFF09\u3002"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "LogBar-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ModuleChip",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleChip.xaml.cs",
+      "summary": "\u6A21\u5757\u5C0F\u6846\uFF1A\u4E00\u4E2A\u5706\u70B9\uFF08\u72B6\u6001\uFF09\u002B \u6A21\u5757\u540D\uFF0C\u8FB9\u6846\u4EAE\u706D\u8868\u793A\u751F\u4EA7 / \u7EF4\u62A4\u3002\u9876\u680F\u6A21\u5757\u884C\u7528\u5B83\uFF0C\u522B\u5904\u8981\u663E\u793A\u6A21\u5757\u72B6\u6001\u548C\u751F\u4EA7 / \u7EF4\u62A4\u4E5F\u7528\u5B83",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Text",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ModuleChip",
+          "description": "\u6846\u91CC\u7684\u5B57\uFF08\u6A21\u5757\u540D\uFF0Cmachine.xml \u539F\u6837\uFF09",
+          "enumValues": []
+        },
+        {
+          "name": "Tone",
+          "type": "ModuleStateTone",
+          "default": "Inactive",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ModuleChip",
+          "description": "\u72B6\u6001\u8272\u8C03\uFF1A\u5C31\u7EEA\u5706\u70B9\u7EFF\u3001\u62A5\u8B66\u7EA2\uFF0C\u5176\u4ED6\u7070",
+          "enumValues": [
+            "Inactive",
+            "Busy",
+            "Ready",
+            "Warning",
+            "Alarm"
+          ]
+        },
+        {
+          "name": "IsProduction",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ModuleChip",
+          "description": "\u751F\u4EA7\u6A21\u5F0F\uFF1A\u8FB9\u6846\u4EAE\uFF1B\u7EF4\u62A4\uFF08\u6216\u4E0D\u77E5\u9053\uFF09\u8FB9\u6846\u706D",
+          "enumValues": []
+        },
+        {
+          "name": "HasMode",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ModuleChip",
+          "description": "\u5206\u4E0D\u5206\u751F\u4EA7 / \u7EF4\u62A4\uFF1A\u4E0D\u5206\u7684\uFF08\u4F9B\u6DB2\uFF09\u4E0D\u753B\u8FB9\u6846",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ModuleChip-0.png",
+          "mesh": null
+        },
+        {
+          "label": "\u7EF4\u62A4\u6A21\u5F0F",
+          "values": {
+            "IsProduction": "false"
+          },
+          "image": "ModuleChip-1.png",
+          "mesh": null
+        },
+        {
+          "label": "\u4E0D\u533A\u5206\u751F\u4EA7\u7EF4\u62A4",
+          "values": {
+            "HasMode": "false"
+          },
+          "image": "ModuleChip-2.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ModuleStateBadge",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleStateBadge.xaml.cs",
+      "summary": "\u6A21\u5757\u72B6\u6001\u5FBD\u6807\uFF1A\u72B6\u6001\u5B57 \u002B \u6309\u8272\u8C03\u4E0A\u8272\u7684\u6574\u6761\u5E95\u8272\u3002LoadPort\u3001Robot\u3001\u8154\u4F53\u2026\u2026\u6240\u6709\u6A21\u5757\u7684\u72B6\u6001\u663E\u793A\u7EDF\u4E00\u7528\u5B83\u3002 \u6CA1\u6709\u72B6\u6001\u5B57\uFF08\u6CA1\u63A5\u72B6\u6001\u7684\u5730\u65B9\uFF09\u6574\u4E2A\u6536\u8D77\uFF0C\u4E0D\u7559\u4E00\u6761\u7A7A\u7684\u7070\u6761\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "Text",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ModuleStateBadge",
+          "description": "\u72B6\u6001\u5B57\uFF08\u663E\u793A\u6A21\u578B\u7684 StateText\uFF0C\u5DF2\u6309\u5F53\u524D\u8BED\u8A00\u7FFB\u597D\uFF09\uFF1B\u7A7A\u5C31\u4E0D\u663E\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Tone",
+          "type": "ModuleStateTone",
+          "default": "Inactive",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ModuleStateBadge",
+          "description": "\u8272\u8C03\uFF08\u663E\u793A\u6A21\u578B\u7684 StateTone\uFF09\u3002",
+          "enumValues": [
+            "Inactive",
+            "Busy",
+            "Ready",
+            "Warning",
+            "Alarm"
+          ]
+        },
+        {
+          "name": "IsCompact",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ModuleStateBadge",
+          "description": "\u7F29\u5C0F\u7248\uFF1A\u5C0F\u5361\u7247\u6807\u9898\u884C\u91CC\u7528\uFF0C\u77EE\u4E00\u622A\u3001\u5B57\u5C0F\u3001\u5BBD\u5EA6\u968F\u5B57\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ModuleStateBadge-0.png",
+          "mesh": null
+        },
+        {
+          "label": "\u7D27\u51D1\u6A21\u5F0F",
+          "values": {
+            "IsCompact": "true"
+          },
+          "image": "ModuleStateBadge-1.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ModuleStatusBar",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleStatusBar.xaml.cs",
+      "summary": "\u9876\u680F\u6A21\u5757\u884C\uFF1A\u5207\u54EA\u4E00\u9875\u90FD\u770B\u5F97\u5230\u5404\u6A21\u5757\u7684\u72B6\u6001\u548C Auto / Manual\u3002\u63A7\u4EF6\u81EA\u5E26 ViewModel",
+      "is3D": false,
+      "project": false,
+      "properties": [],
+      "members": [
+        {
+          "name": "ViewModel",
+          "type": "ModuleStatusBarViewModel",
+          "description": "\u6A21\u5757\u884C ViewModel"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ModuleStatusBar-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ProgressOverlay",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ProgressOverlay.xaml.cs",
+      "summary": "\u8FDB\u5EA6\u5F39\u6846\uFF08\u67E5\u8BE2\u3001\u5BFC\u51FA\u2026\u2026\u90FD\u7528\u5B83\uFF09\uFF1A\u76D6\u4F4F\u6574\u9875\u3001\u4E2D\u95F4\u4E00\u4E2A\u5706\u73AF\uFF0C\u5F00\u5173\u3001\u8FDB\u5EA6\u3001\u53D6\u6D88\u7ED1 VM \u4E0A\u7684 ProgressState",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "State",
+          "type": "ProgressState",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ProgressOverlay",
+          "description": "\u7ED1 VM \u4E0A\u7684 ProgressState\uFF1A\u5F00\u6CA1\u5F00\u3001\u8FDB\u5EA6\u3001\u53D6\u6D88\u90FD\u4ECE\u5B83\u6765",
+          "enumValues": []
+        },
+        {
+          "name": "Text",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ProgressOverlay",
+          "description": "\u5706\u73AF\u4E0B\u9762\u90A3\u884C\u5B57\uFF08\u9875\u9762\u4E0A\u7ED1\u8BED\u8A00\u5305\uFF0C\u5982 {DynamicResource datachart.exporting}\uFF09",
+          "enumValues": []
+        },
+        {
+          "name": "IsIndeterminate",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ProgressOverlay",
+          "description": "\u4E0D\u77E5\u9053\u8FDB\u5EA6\uFF08\u67E5\u8BE2\uFF09\uFF1A\u5706\u73AF\u4E00\u76F4\u8F6C\uFF0C\u4E2D\u95F4\u4E0D\u5199\u767E\u5206\u6BD4",
+          "enumValues": []
+        },
+        {
+          "name": "ShowDelay",
+          "type": "Int32",
+          "default": "500",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ProgressOverlay",
+          "description": "\u5F00\u59CB\u4EE5\u540E\u8FC7\u591A\u5C11\u6BEB\u79D2\u8FD8\u6CA1\u5B8C\u624D\u5F39\u51FA\u6765\uFF08\u9ED8\u8BA4 500\uFF09\uFF1A\u653E\u5927\u3001\u62D6\u52A8\u65F6\u7684\u5FEB\u67E5\u8BE2\u4E0D\u95EA",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ProgressOverlay-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "Robot",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Robot.xaml.cs",
+      "summary": "\u539F\u4E8C\u7EF4\u673A\u68B0\u624B\u5916\u89C2\uFF1B\u7ED1\u5B9A\u5165\u53E3\u4E0E\u8FD0\u52A8\u884C\u4E3A\u6CBF\u7528 RobotViewBase\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "ArmType",
+          "type": "RobotArmType",
+          "default": "Linear",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u673A\u68B0\u624B\u7ED3\u6784\u679A\u4E3E\uFF1B\u9009\u62E9\u76F4\u4F38\u6216\u86D9\u5F0F\uFF0C\u8FD0\u52A8\u59FF\u6001\u4ECD\u4ECE\u5404\u624B\u81C2\u6570\u636E\u7ED9\u5165\u3002",
+          "enumValues": [
+            "Linear",
+            "FrogLeg"
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "RobotDirection",
+          "default": "North",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u8F6C\u53F0\u76EE\u6807\u671D\u5411\uFF08\u4FEF\u89C6\uFF0C\u5C4F\u5E55\u4E0A\u65B9\u4E3A\u5317\uFF09\uFF1ANorth 0\u00B0\u3001East 90\u00B0\u3001South 180\u00B0\u3001West 270\u00B0\uFF0C\u53EA\u63A5\u53D7\u8FD9\u56DB\u4E2A\u65B9\u5411\uFF1B\u6309\u6700\u77ED\u8DEF\u5F84\u8F6C\u8FC7\u53BB\u3002",
+          "enumValues": [
+            "North",
+            "East",
+            "South",
+            "West"
+          ]
+        },
+        {
+          "name": "Travel",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u6C34\u5E73\u5E73\u79FB\u76EE\u6807\uFF1A\u673A\u68B0\u624B\u4E2D\u5FC3\u76F8\u5BF9\u63A7\u4EF6\u4E2D\u5FC3\u5411\u53F3\u79FB\u591A\u5C11\uFF0C\u8D1F\u6570\u5411\u5DE6\uFF1B\u673A\u68B0\u624B\u53EF\u4EE5\u79FB\u51FA\u63A7\u4EF6\u8303\u56F4\u3002 \u6309\u673A\u68B0\u624B\u8BBE\u8BA1\u5C3A\u5BF8 400\u00D7400 \u8BA1\uFF0C\u8DDF\u673A\u68B0\u624B\u4E00\u8D77\u6309\u77ED\u8FB9\u7B49\u6BD4\u7F29\u653E\uFF1A\u77ED\u8FB9 400 \u65F6\u5C31\u662F\u50CF\u7D20\uFF0C\u77ED\u8FB9 800 \u65F6\u5B9E\u9645\u79FB\u52A8 2 \u500D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ExtendedReach",
+          "type": "Double",
+          "default": "150",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u4F38\u51FA\u884C\u7A0B\uFF1A\u624B\u81C2\u5B8C\u5168\u4F38\u51FA\uFF08Extension = 1\uFF09\u65F6\u7247\u5FC3\u79BB\u8F6C\u53F0\u4E2D\u5FC3\u591A\u8FDC\uFF0C\u6309\u673A\u68B0\u624B\u8BBE\u8BA1\u5C3A\u5BF8 400\u00D7400 \u8BA1\uFF0C\u8DDF\u673A\u68B0\u624B\u4E00\u8D77\u7B49\u6BD4\u7F29\u653E\u3002 \u5404\u673A\u53F0\u6309\u81EA\u5DF1\u7684\u81C2\u5C55\u914D\uFF1B\u5F62\u72B6\u4E0D\u53D8\uFF0C\u53EA\u662F\u4F38\u5F97\u8FDC\u8FD1\u4E0D\u540C\u3002\u6536\u56DE\u5230\u5E95\u56FA\u5B9A\u4E3A 24\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ArmCount",
+          "type": "Int32",
+          "default": "2",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u624B\u6307\uFF08\u624B\u81C2\uFF09\u6570\u91CF\uFF0C1~4\uFF1A\u63A7\u4EF6\u753B\u51FA 1..ArmCount \u53F7\u624B\u81C2\uFF0CArms \u91CC\u6CA1\u6709\u6570\u636E\u7684\u624B\u81C2\u6309\u7A7A\u624B\u6536\u56DE\u663E\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Arms",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u624B\u81C2\u6570\u636E\uFF08RobotArmModel\uFF09\uFF0C\u6309 Arm \u53F7\u5BF9\u5E94 1..ArmCount\uFF1A\u8D85\u51FA ArmCount \u7684\u5FFD\u7565\uFF0C\u540C\u53F7\u53D6\u7B2C\u4E00\u4E2A\uFF1B \u96C6\u5408\u589E\u5220\u4E0E\u6BCF\u53EA\u624B\u81C2\u7684\u5C5E\u6027\u53D8\u5316\u90FD\u4F1A\u5237\u65B0\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsAnimationEnabled",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u662F\u5426\u64AD\u653E\u8FD0\u52A8\u52A8\u753B\uFF1Bfalse \u65F6\u59FF\u6001\u76F4\u63A5\u8DF3\u5230\u76EE\u6807\uFF08\u8BBE\u8BA1\u5668\u3001\u622A\u56FE\u7528\uFF09\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "Robot-0.png",
+          "mesh": null
+        },
+        {
+          "label": "\u671D\u4E1C\uFF0890\u00B0\uFF09",
+          "values": {
+            "Rotation": "East"
+          },
+          "image": "Robot-1.png",
+          "mesh": null
+        },
+        {
+          "label": "\u86D9\u5F0F\u673A\u68B0\u624B",
+          "values": {
+            "ArmType": "FrogLeg"
+          },
+          "image": "Robot-2.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "Robot3D",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Robot3D.xaml.cs",
+      "summary": "\u53EF\u50CF\u4E8C\u7EF4 Robot \u4E00\u6837\u76F4\u63A5\u58F0\u660E\u548C\u7ED1\u5B9A\u7684\u4E09\u7EF4\u673A\u68B0\u624B\u3002\u76F4\u4F38\u5F0F\u3001\u86D9\u5F0F\u5171\u7528\u539F\u52A8\u4F5C\u8F68\u9053\u548C\u624B\u81C2\u6A21\u578B\uFF1B \u81EA\u5E26\u76F8\u673A\u3001\u706F\u5149\u3001\u65CB\u8F6C\u548C\u7F29\u653E\uFF0C\u7EE7\u627F\u9875\u9762 DataContext\uFF0C\u4E0D\u8FDE\u63A5\u670D\u52A1\u6216\u53D1\u8BBE\u5907\u6307\u4EE4\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "ShowViewToolbar",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "Robot3D",
+          "description": "\u662F\u5426\u663E\u793A\u89C6\u89D2\u6309\u94AE\uFF1B\u4E0D\u6539\u53D8\u8BBE\u5907\u72B6\u6001\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ArmType",
+          "type": "RobotArmType",
+          "default": "Linear",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u673A\u68B0\u624B\u7ED3\u6784\u679A\u4E3E\uFF1B\u9009\u62E9\u76F4\u4F38\u6216\u86D9\u5F0F\uFF0C\u8FD0\u52A8\u59FF\u6001\u4ECD\u4ECE\u5404\u624B\u81C2\u6570\u636E\u7ED9\u5165\u3002",
+          "enumValues": [
+            "Linear",
+            "FrogLeg"
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "RobotDirection",
+          "default": "North",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u8F6C\u53F0\u76EE\u6807\u671D\u5411\uFF08\u4FEF\u89C6\uFF0C\u5C4F\u5E55\u4E0A\u65B9\u4E3A\u5317\uFF09\uFF1ANorth 0\u00B0\u3001East 90\u00B0\u3001South 180\u00B0\u3001West 270\u00B0\uFF0C\u53EA\u63A5\u53D7\u8FD9\u56DB\u4E2A\u65B9\u5411\uFF1B\u6309\u6700\u77ED\u8DEF\u5F84\u8F6C\u8FC7\u53BB\u3002",
+          "enumValues": [
+            "North",
+            "East",
+            "South",
+            "West"
+          ]
+        },
+        {
+          "name": "Travel",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u6C34\u5E73\u5E73\u79FB\u76EE\u6807\uFF1A\u673A\u68B0\u624B\u4E2D\u5FC3\u76F8\u5BF9\u63A7\u4EF6\u4E2D\u5FC3\u5411\u53F3\u79FB\u591A\u5C11\uFF0C\u8D1F\u6570\u5411\u5DE6\uFF1B\u673A\u68B0\u624B\u53EF\u4EE5\u79FB\u51FA\u63A7\u4EF6\u8303\u56F4\u3002 \u6309\u673A\u68B0\u624B\u8BBE\u8BA1\u5C3A\u5BF8 400\u00D7400 \u8BA1\uFF0C\u8DDF\u673A\u68B0\u624B\u4E00\u8D77\u6309\u77ED\u8FB9\u7B49\u6BD4\u7F29\u653E\uFF1A\u77ED\u8FB9 400 \u65F6\u5C31\u662F\u50CF\u7D20\uFF0C\u77ED\u8FB9 800 \u65F6\u5B9E\u9645\u79FB\u52A8 2 \u500D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ExtendedReach",
+          "type": "Double",
+          "default": "150",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u4F38\u51FA\u884C\u7A0B\uFF1A\u624B\u81C2\u5B8C\u5168\u4F38\u51FA\uFF08Extension = 1\uFF09\u65F6\u7247\u5FC3\u79BB\u8F6C\u53F0\u4E2D\u5FC3\u591A\u8FDC\uFF0C\u6309\u673A\u68B0\u624B\u8BBE\u8BA1\u5C3A\u5BF8 400\u00D7400 \u8BA1\uFF0C\u8DDF\u673A\u68B0\u624B\u4E00\u8D77\u7B49\u6BD4\u7F29\u653E\u3002 \u5404\u673A\u53F0\u6309\u81EA\u5DF1\u7684\u81C2\u5C55\u914D\uFF1B\u5F62\u72B6\u4E0D\u53D8\uFF0C\u53EA\u662F\u4F38\u5F97\u8FDC\u8FD1\u4E0D\u540C\u3002\u6536\u56DE\u5230\u5E95\u56FA\u5B9A\u4E3A 24\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ArmCount",
+          "type": "Int32",
+          "default": "2",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u624B\u6307\uFF08\u624B\u81C2\uFF09\u6570\u91CF\uFF0C1~4\uFF1A\u63A7\u4EF6\u753B\u51FA 1..ArmCount \u53F7\u624B\u81C2\uFF0CArms \u91CC\u6CA1\u6709\u6570\u636E\u7684\u624B\u81C2\u6309\u7A7A\u624B\u6536\u56DE\u663E\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Arms",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u624B\u81C2\u6570\u636E\uFF08RobotArmModel\uFF09\uFF0C\u6309 Arm \u53F7\u5BF9\u5E94 1..ArmCount\uFF1A\u8D85\u51FA ArmCount \u7684\u5FFD\u7565\uFF0C\u540C\u53F7\u53D6\u7B2C\u4E00\u4E2A\uFF1B \u96C6\u5408\u589E\u5220\u4E0E\u6BCF\u53EA\u624B\u81C2\u7684\u5C5E\u6027\u53D8\u5316\u90FD\u4F1A\u5237\u65B0\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsAnimationEnabled",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "RobotViewBase",
+          "description": "\u662F\u5426\u64AD\u653E\u8FD0\u52A8\u52A8\u753B\uFF1Bfalse \u65F6\u59FF\u6001\u76F4\u63A5\u8DF3\u5230\u76EE\u6807\uFF08\u8BBE\u8BA1\u5668\u3001\u622A\u56FE\u7528\uFF09\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "Robot3D-0.png",
+          "mesh": "Robot3D-0.mesh.js"
+        },
+        {
+          "label": "\u671D\u4E1C\uFF0890\u00B0\uFF09",
+          "values": {
+            "Rotation": "East"
+          },
+          "image": "Robot3D-1.png",
+          "mesh": "Robot3D-1.mesh.js"
+        },
+        {
+          "label": "\u86D9\u5F0F\u673A\u68B0\u624B",
+          "values": {
+            "ArmType": "FrogLeg"
+          },
+          "image": "Robot3D-2.png",
+          "mesh": "Robot3D-2.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "SampleUserControl",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SampleUserControl.xaml.cs",
+      "summary": "",
+      "is3D": false,
+      "project": false,
+      "properties": [],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "SampleUserControl-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "StationCard",
+      "namespace": "xyz.Client.Presentation.Controls",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/StationCard.xaml.cs",
+      "summary": "\u8C03\u5EA6\u56FE\u4E0A\u7684\u4E00\u4E2A\u7AD9\u70B9\u5361\u7247\uFF08DataContext = RobotStationModel\uFF09\uFF1A\u6309\u7AD9\u70B9\u7C7B\u578B\u9009\u5361\u7247\u2014\u2014LoadPort \u7528 LoadPortInfoCard\uFF08\u82B1\u7BEE\uFF09\uFF0C \u8154\u4F53\u548C\u5176\u4ED6\u7AD9\u70B9\u7528 ChamberInfoCard\uFF08\u5355\u7247\uFF09\u3002\u5361\u7247\u6309\u771F\u5B9E\u5B57\u53F7\u6392\u7248\u3001\u968F\u7ED9\u5B9A\u5BBD\u9AD8\u4F38\u7F29\u3002",
+      "is3D": false,
+      "project": false,
+      "properties": [
+        {
+          "name": "DiskSize",
+          "type": "Double",
+          "default": "100",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "StationCard",
+          "description": "\u5361\u7247\u4E0A\u5706\u7247\u7684\u76F4\u5F84\uFF1A\u8DDF\u8C03\u5EA6\u56FE\u91CC\u673A\u68B0\u624B\u53C9\u4E0A\u7684\u7247\u4E00\u6837\u5927\uFF0C\u7531\u8C03\u5EA6\u56FE\u6309\u673A\u68B0\u624B\u7684\u663E\u793A\u5C3A\u5BF8\u7ED9\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "StationCard-0.png",
+          "mesh": null
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ArmVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ArmVisual3D.cs",
+      "summary": "\u53EF\u7EC4\u5408\u7684\u6446\u81C2\u5916\u89C2\uFF1A\u5C40\u90E8 Y \u8F74\u5411\u4E0A\uFF0C\u539F\u70B9\u662F\u56DE\u8F6C\u4E2D\u5FC3\uFF0C\u96F6\u89D2\u5EA6\u6CBF \u002BX\u3002 \u53EA\u663E\u793A\u5916\u90E8\u53CD\u9988\uFF1B\u4E0D\u5305\u542B Lift\u3001\u55B7\u5634\u3001\u4F9B\u6DB2\u7BA1\u8DEF\u6216\u4EFB\u4F55\u8BBE\u5907\u63A7\u5236\u903B\u8F91\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "Angle",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ArmVisual3D",
+          "description": "\u5F53\u524D\u6446\u89D2\uFF0C\u5355\u4F4D\u4E3A\u5EA6\u3002\u6B63\u89D2\u5EA6\u4F7F\u81C2\u5C16\u4ECE \u002BX \u8F6C\u5411 -Z\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Length",
+          "type": "Double",
+          "default": "2.2",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ArmVisual3D",
+          "description": "\u56DE\u8F6C\u4E2D\u5FC3\u5230\u672B\u7AEF\u5B89\u88C5\u5757\u4E2D\u5FC3\u7684\u8DDD\u79BB\uFF0C\u4E0E\u573A\u666F\u4F7F\u7528\u540C\u4E00\u957F\u5EA6\u5355\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Width",
+          "type": "Double",
+          "default": "0.23",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ArmVisual3D",
+          "description": "\u63A7\u5236\u5916\u89C2\u5C3A\u5BF8\uFF1B\u4E09\u7EF4\u4EF6\u4F7F\u7528\u573A\u666F\u793A\u610F\u5355\u4F4D\uFF0C\u4E0D\u80FD\u5F53\u6210\u8BBE\u5907\u6BEB\u7C73\u503C\u6216\u8FD0\u52A8\u6307\u4EE4\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Thickness",
+          "type": "Double",
+          "default": "0.085",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ArmVisual3D",
+          "description": "\u63A7\u5236\u5916\u89C2\u5C3A\u5BF8\uFF1B\u4E09\u7EF4\u4EF6\u4F7F\u7528\u573A\u666F\u793A\u610F\u5355\u4F4D\uFF0C\u4E0D\u80FD\u5F53\u6210\u8BBE\u5907\u6BEB\u7C73\u503C\u6216\u8FD0\u52A8\u6307\u4EE4\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "PivotRadius",
+          "type": "Double",
+          "default": "0.285",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ArmVisual3D",
+          "description": "\u63A7\u5236\u5916\u89C2\u5C3A\u5BF8\uFF1B\u4E09\u7EF4\u4EF6\u4F7F\u7528\u573A\u666F\u793A\u610F\u5355\u4F4D\uFF0C\u4E0D\u80FD\u5F53\u6210\u8BBE\u5907\u6BEB\u7C73\u503C\u6216\u8FD0\u52A8\u6307\u4EE4\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [
+        {
+          "name": "Attachments",
+          "type": "Visual3DCollection",
+          "description": "\u968F\u6446\u89D2\u548C\u5916\u90E8\u5B89\u88C5\u53D8\u6362\u4E00\u8D77\u8FD0\u52A8\u7684\u9644\u4EF6\uFF0C\u5982 DIW/SC1 \u7BA1\u8DEF\uFF1B\u9644\u4EF6\u52A8\u4F5C\u72B6\u6001\u72EC\u7ACB\u3002"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ArmVisual3D-0.png",
+          "mesh": "ArmVisual3D-0.mesh.js"
+        },
+        {
+          "label": "Angle = 45\u00B0",
+          "values": {
+            "Angle": "45"
+          },
+          "image": "ArmVisual3D-1.png",
+          "mesh": "ArmVisual3D-1.mesh.js"
+        },
+        {
+          "label": "Angle = 90\u00B0",
+          "values": {
+            "Angle": "90"
+          },
+          "image": "ArmVisual3D-2.png",
+          "mesh": "ArmVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u52A0\u957F\u81F3 3.2",
+          "values": {
+            "Length": "3.2"
+          },
+          "image": "ArmVisual3D-3.png",
+          "mesh": "ArmVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "ArmVisual3D-4.png",
+          "mesh": "ArmVisual3D-4.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "ArmVisual3D-5.png",
+          "mesh": "ArmVisual3D-5.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "BowlVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/BowlVisual3D.cs",
+      "summary": "\u8584\u58C1 Bowl \u5916\u89C2\u3002HeightLevel \u9009\u62E9\u4E09\u7EA7\u4FA7\u58C1\u9AD8\u5EA6\uFF0CIsRaised \u63A7\u5236\u5347\u964D\uFF1A\u5E95\u8FB9\u4E00\u76F4\u8D34\u7740\u5B89\u88C5\u9762\uFF0C \u5347\u8D77\u65F6\u53EA\u628A\u4E0A\u6CBF\u62AC\u9AD8\u3001\u76F4\u4FA7\u58C1\u8DDF\u7740\u62C9\u957F\uFF0C\u4FA7\u58C1\u59CB\u7EC8\u8FDE\u5230\u5E95\uFF0C\u4E0D\u4F1A\u60AC\u7A7A\u9732\u7F1D\u3002 IsUnknown=true\uFF08\u547D\u4EE4\u53D1\u4E86\u3001\u5230\u4F4D\u4FE1\u53F7\u8FD8\u6CA1\u4EAE\uFF09\u4E0A\u6CBF\u505C\u5728\u884C\u7A0B\u4E2D\u95F4\u3001\u6574\u4E2A Bowl \u753B\u6210\u7EA2\u8272\u3002 \u539F\u70B9\u4E3A\u5E95\u9762\u4E2D\u5FC3\uFF0CY \u5411\u4E0A\uFF1B\u4E0D\u5305\u542B\u6676\u5706\u3001\u4E3B\u8F74\u548C\u8BBE\u5907\u6307\u4EE4\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "HeightLevel",
+          "type": "Int32",
+          "default": "1",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BowlVisual3D",
+          "description": "\u5916\u89C2\u9AD8\u5EA6\u7B49\u7EA7\uFF1A1 \u4E3A\u539F\u6709\u4F4E\u77EE\u9020\u578B\uFF0C2\u30013 \u4F9D\u6B21\u52A0\u9AD8\uFF1B\u4E0D\u662F\u5347\u964D\u6321\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Radius",
+          "type": "Double",
+          "default": "1.59",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BowlVisual3D",
+          "description": "\u5916\u534A\u5F84\uFF0C\u4E0E\u88C5\u914D\u4F7F\u7528\u540C\u4E00\u957F\u5EA6\u5355\u4F4D\uFF1B\u5185\u5F84\u968F\u534A\u5F84\u4FDD\u6301\u8584\u58C1\u6BD4\u4F8B\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsRaised",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BowlVisual3D",
+          "description": "\u5347\u964D\u53CD\u9988\uFF0Ctrue \u4E0A\u4F4D\u3001false \u4E0B\u4F4D\uFF1B\u5E95\u8FB9\u4FDD\u6301\u5728\u5B89\u88C5\u9762\uFF0C\u4E0D\u6539\u53D8 HeightLevel\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsUnknown",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BowlVisual3D",
+          "description": "\u4F4D\u7F6E\u672A\u77E5\uFF1A\u4E0A\u6CBF\u753B\u5230\u884C\u7A0B\u4E2D\u95F4\u3001\u6574\u4E2A Bowl \u53D8\u7EA2\uFF0C\u5230\u4F4D\uFF08\u53D8\u56DE false\uFF09\u540E\u7EA2\u8272\u64A4\u6389\u3001\u518D\u8D70\u5230 IsRaised \u90A3\u4E00\u5934\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "BowlVisual3D-0.png",
+          "mesh": "BowlVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u5347\u5230\u4F4D",
+          "values": {
+            "IsRaised": "true"
+          },
+          "image": "BowlVisual3D-1.png",
+          "mesh": "BowlVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u4F4D\u7F6E\u672A\u77E5",
+          "values": {
+            "IsUnknown": "true"
+          },
+          "image": "BowlVisual3D-2.png",
+          "mesh": "BowlVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u5916\u89C2\u9AD8\u5EA6 2",
+          "values": {
+            "HeightLevel": "2"
+          },
+          "image": "BowlVisual3D-3.png",
+          "mesh": "BowlVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "BowlVisual3D-4.png",
+          "mesh": "BowlVisual3D-4.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "BowlVisual3D-5.png",
+          "mesh": "BowlVisual3D-5.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "LiftVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LiftVisual3D.cs",
+      "summary": "\u4E24\u6001\u5347\u964D\u6C14\u7F38\u5916\u89C2\uFF1AIsRaised=true \u5347\u8D77\uFF0Cfalse \u6536\u56DE\uFF1BIsUnknown=true\uFF08\u547D\u4EE4\u53D1\u4E86\u3001\u5230\u4F4D\u4FE1\u53F7\u8FD8\u6CA1\u4EAE\uFF09\u505C\u5728\u884C\u7A0B\u4E2D\u95F4\u3001\u6574\u4E2A\u6C14\u7F38\u753B\u6210\u7EA2\u8272\u3002 \u539F\u70B9\u5728\u5E95\u5EA7\u5E95\u9762\u4E2D\u5FC3\uFF0C\u6CBF \u002BY \u4F38\u51FA\uFF1B\u5C3A\u5BF8\u3001\u884C\u7A0B\u548C\u8FC7\u6E21\u65F6\u95F4\u5747\u4E3A\u5185\u90E8\u793A\u610F\u53C2\u6570\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "IsRaised",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LiftVisual3D",
+          "description": "\u7ED1\u5B9A\u5916\u90E8\u6C14\u7F38\u72B6\u6001\uFF1Atrue \u4E3A\u4E0A\u4F4D\uFF0Cfalse \u4E3A\u4E0B\u4F4D\u3002\u53D8\u5316\u65F6\u81EA\u52A8\u64AD\u653E\u5347\u964D\u8FC7\u6E21\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsUnknown",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LiftVisual3D",
+          "description": "\u4F4D\u7F6E\u672A\u77E5\uFF1A\u753B\u5230\u884C\u7A0B\u4E2D\u95F4\u3001\u6574\u4E2A\u6C14\u7F38\u53D8\u7EA2\uFF0C\u5230\u4F4D\uFF08\u53D8\u56DE false\uFF09\u540E\u7EA2\u8272\u64A4\u6389\u3001\u518D\u8D70\u5230 IsRaised \u90A3\u4E00\u5934\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "MountHeight",
+          "type": "Double",
+          "default": "0",
+          "readOnly": true,
+          "twoWay": false,
+          "owner": "LiftVisual3D",
+          "description": "\u5B89\u88C5\u9762\u5F53\u524D\u7684\u5C40\u90E8 Y \u5750\u6807\uFF08\u542B\u52A8\u753B\uFF09\uFF0C\u7528\u4E8E\u7EC4\u88C5\uFF1B\u4E0D\u5305\u542B\u5916\u90E8 Transform\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "LiftVisual3D-0.png",
+          "mesh": "LiftVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u5347\u5230\u4F4D",
+          "values": {
+            "IsRaised": "true"
+          },
+          "image": "LiftVisual3D-1.png",
+          "mesh": "LiftVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u4F4D\u7F6E\u672A\u77E5",
+          "values": {
+            "IsUnknown": "true"
+          },
+          "image": "LiftVisual3D-2.png",
+          "mesh": "LiftVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "LiftVisual3D-3.png",
+          "mesh": "LiftVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "LiftVisual3D-4.png",
+          "mesh": "LiftVisual3D-4.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "TankVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/TankVisual3D.cs",
+      "summary": "\u4F9B\u6DB2\u69FD\u4E09\u7EF4\u5916\u89C2\uFF1A\u900F\u660E\u5706\u7B52 \u002B \u91CC\u9762\u7684\u6DB2\u4F53\uFF0C\u539F\u70B9\u5728\u7F50\u5E95\u4E2D\u5FC3\u3001Y \u5411\u4E0A",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "FillFraction",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TankVisual3D",
+          "description": "\u6DB2\u9762\u9AD8\u5EA6\u5360\u7F50\u9AD8\u7684\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C0 \u4E0D\u753B\u6DB2\u4F53",
+          "enumValues": []
+        },
+        {
+          "name": "IsAlarm",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TankVisual3D",
+          "description": "\u6DB2\u4F53\u753B\u6210\u62A5\u8B66\u7EA2",
+          "enumValues": []
+        },
+        {
+          "name": "WallTransparency",
+          "type": "Double",
+          "default": "0.72",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TankVisual3D",
+          "description": "\u7F50\u58C1\u900F\u660E\u5EA6\uFF080\uFF5E1\uFF09",
+          "enumValues": []
+        },
+        {
+          "name": "Azimuth",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TankVisual3D",
+          "description": "\u76F8\u673A\u7684\u65B9\u4F4D\u89D2\uFF08\u5EA6\uFF09\uFF0C\u7528\u6765\u5206\u524D\u540E\u4E24\u534A\u7F50\u58C1",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "TankVisual3D-0.png",
+          "mesh": "TankVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u6DB2\u9762 25%\uFF08\u793A\u4F8B\u8F93\u5165\uFF09",
+          "values": {
+            "FillFraction": "0.25"
+          },
+          "image": "TankVisual3D-1.png",
+          "mesh": "TankVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u6DB2\u9762 80%\uFF08\u793A\u4F8B\u8F93\u5165\uFF09",
+          "values": {
+            "FillFraction": "0.8"
+          },
+          "image": "TankVisual3D-2.png",
+          "mesh": "TankVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u62A5\u8B66\u6DB2\u9762",
+          "values": {
+            "IsAlarm": "true"
+          },
+          "image": "TankVisual3D-3.png",
+          "mesh": "TankVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "TankVisual3D-4.png",
+          "mesh": "TankVisual3D-4.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "TankVisual3D-5.png",
+          "mesh": "TankVisual3D-5.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "FluidRouteVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/FluidRouteVisual3D.cs",
+      "summary": "\u6309\u8DEF\u5F84\u7ED8\u5236\u7684\u900F\u660E\u7A7A\u5FC3\u7BA1\u8DEF\uFF0C\u53EF\u7528\u4E8E\u8154\u4F53\u3001Tank \u548C CDS\u3002 \u5916\u90E8\u901A\u8FC7\u4F9D\u8D56\u5C5E\u6027\u63D0\u4F9B\u8DEF\u5F84\u3001\u5916\u89C2\u548C\u6D41\u52A8\u72B6\u6001\uFF0C\u63A7\u4EF6\u53EA\u8D1F\u8D23\u663E\u793A\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "Path",
+          "type": "Point3DCollection",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u7BA1\u4E2D\u5FC3\u7684\u8DEF\u5F84\u70B9\uFF0C\u4F7F\u7528\u573A\u666F\u7EDF\u4E00\u957F\u5EA6\u5355\u4F4D\u3002\u66FF\u6362\u96C6\u5408\u6216\u4FEE\u6539\u96C6\u5408\u4E2D\u7684\u70B9\u90FD\u4F1A\u91CD\u753B\u7BA1\u8DEF\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "PipeRadius",
+          "type": "Double",
+          "default": "0.06",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u7BA1\u5916\u534A\u5F84\uFF0C\u5FC5\u987B\u5927\u4E8E 0\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WallThickness",
+          "type": "Double",
+          "default": "0.012",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u7BA1\u58C1\u539A\u5EA6\u3002\u5B9E\u9645\u539A\u5EA6\u6700\u591A\u53D6\u5916\u534A\u5F84\u7684 90%\uFF0C\u59CB\u7EC8\u4FDD\u7559\u7A7A\u8154\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FluidCoreRatio",
+          "type": "Double",
+          "default": "0.58",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u6DB2\u82AF\u534A\u5F84\u4E0E\u5185\u8154\u534A\u5F84\u7684\u6BD4\u503C\uFF0C\u8303\u56F4\u4E3A (0, 1]\u3002\u7528\u4E8E\u7559\u51FA\u900F\u660E\u95F4\u9699\uFF0C\u4E0D\u8868\u793A\u771F\u5B9E\u5145\u6DB2\u7387\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BendRadius",
+          "type": "Double",
+          "default": "0.22",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u5F2F\u5934\u5706\u89D2\u534A\u5F84\u3002\u77ED\u7BA1\u6BB5\u4F1A\u81EA\u52A8\u7F29\u5C0F\u5706\u89D2\uFF0C0 \u8868\u793A\u4FDD\u7559\u6298\u7EBF\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WallOpacity",
+          "type": "Double",
+          "default": "0.18",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u7BA1\u58C1\u4E0D\u900F\u660E\u5EA6\u5F3A\u5EA6\uFF0C\u8303\u56F4\u4E3A [0, 1]\uFF0C\u9ED8\u8BA4 0.18\u3002\u5185\u5916\u58C1\u6309\u6BD4\u4F8B\u4F7F\u7528\u6B64\u503C\uFF0C0 \u65F6\u9690\u85CF\u7BA1\u58C1\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WallColor",
+          "type": "Color",
+          "default": "#FFB4B4B4",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u900F\u660E\u7BA1\u58C1\u7684\u989C\u8272\uFF0C\u9ED8\u8BA4\u4F7F\u7528\u4E2D\u6027\u7070\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FluidColor",
+          "type": "Color",
+          "default": "#FFC4C4C4",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u6DB2\u4F53\u5E95\u8272\u3002\u6DB2\u82AF\u989C\u8272\u7531 FlowColor \u548C\u6B64\u989C\u8272\u6309 3:1 \u6DF7\u5408\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FlowColor",
+          "type": "Color",
+          "default": "#FF52D4EF",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u6C34\u6D41\u4E3B\u8272\uFF0C\u540C\u65F6\u7528\u4E8E\u6DB2\u82AF\u7740\u8272\u548C\u79FB\u52A8\u6C34\u7EB9\uFF0C\u9ED8\u8BA4\u9752\u84DD\u8272\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsFilled",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u7BA1\u5185\u662F\u5426\u6709\u6DB2\u4F53\u3002\u53EA\u6709 IsFilled \u548C IsFlowing \u90FD\u4E3A true \u65F6\u663E\u793A\u6DB2\u82AF\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsFlowing",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u662F\u5426\u6B63\u5728\u6D41\u52A8\u3002false \u65F6\u79FB\u9664\u6DB2\u82AF\u548C\u6C34\u7EB9\uFF0C\u53EA\u663E\u793A\u900F\u660E\u7BA1\u58C1\uFF1B\u4E0D\u4FEE\u6539 IsFilled\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FlowSpeed",
+          "type": "Double",
+          "default": "0.55",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u52A8\u753B\u901F\u5EA6\uFF0C\u5355\u4F4D\u4E3A\u573A\u666F\u957F\u5EA6/\u79D2\u30020 \u8868\u793A\u6682\u505C\u6C34\u7EB9\uFF1B\u53EA\u662F\u663E\u793A\u53C2\u6570\uFF0C\u4E0D\u4EE3\u8868\u5B9E\u6D4B\u6D41\u91CF\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "ReverseFlow",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u662F\u5426\u53CD\u5411\u6D41\u52A8\u3002\u9ED8\u8BA4\u4ECE Path \u7684\u7B2C\u4E00\u4E2A\u70B9\u6D41\u5411\u6700\u540E\u4E00\u4E2A\u70B9\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsAnimationEnabled",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidRouteVisual3D",
+          "description": "\u662F\u5426\u64AD\u653E\u52A8\u753B\u3002false \u65F6\u51BB\u7ED3\u6C34\u7EB9\uFF0C\u4FDD\u7559\u5F53\u524D\u6DB2\u82AF\u548C\u6D41\u52A8\u72B6\u6001\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "FluidRouteVisual3D-0.png",
+          "mesh": "FluidRouteVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u51FA\u6DB2\u663E\u793A",
+          "values": {
+            "IsFlowing": "true"
+          },
+          "image": "FluidRouteVisual3D-1.png",
+          "mesh": "FluidRouteVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u5173\u95ED\u52A8\u753B",
+          "values": {
+            "IsAnimationEnabled": "false"
+          },
+          "image": "FluidRouteVisual3D-2.png",
+          "mesh": "FluidRouteVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "FluidRouteVisual3D-3.png",
+          "mesh": "FluidRouteVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "FluidRouteVisual3D-4.png",
+          "mesh": "FluidRouteVisual3D-4.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "BufferVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/BufferVisual3D.cs",
+      "summary": "\u53EF\u653E\u8FDB\u5171\u4EAB Viewport3D \u7684\u8D2F\u901A\u7F13\u5B58\u67B6\u3002\u524D\u540E\u5BF9\u79F0\uFF0C\u4EC5\u663E\u793A\u69FD\u4F4D\u548C\u6676\u5706\uFF0C\u4E0D\u5305\u542B\u76F8\u673A\u3001\u706F\u5149\u6216\u6A21\u5757\u72B6\u6001\u3002 \u4E09\u7EF4\u5BF9\u8C61\u4E0D\u7EE7\u627F DataContext\uFF0C\u7ED1\u5B9A\u6570\u636E\u65F6\u663E\u5F0F\u6307\u5B9A Source \u6216 ElementName\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "FirstSlot",
+          "type": "Int32",
+          "default": "1",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BufferVisual3D",
+          "description": "\u6700\u5E95\u5C42\u7684\u7269\u7406\u69FD\u53F7\uFF0C\u9ED8\u8BA4 1\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "SlotCount",
+          "type": "Int32",
+          "default": "10",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BufferVisual3D",
+          "description": "\u5B9E\u9645\u69FD\u6570\uFF0C\u9ED8\u8BA4 10\uFF1B0 \u6E05\u7A7A\u7ED3\u6784\u548C\u6676\u5706\u3002\u56FA\u5B9A\u7D27\u51D1\u69FD\u8DDD\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafers",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "BufferVisual3D",
+          "description": "\u6309 WaferModel.Slot \u6446\u7247\u3001State \u4E0A\u8272\u3002\u8DDF\u8E2A\u96C6\u5408\u548C\u5355\u7247\u69FD\u4F4D\u53D8\u5316\uFF1B\u5728 UI \u7EBF\u7A0B\u66F4\u65B0\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WaferCount",
+          "type": "Int32",
+          "default": "0",
+          "readOnly": true,
+          "twoWay": false,
+          "owner": "BufferVisual3D",
+          "description": "\u5F53\u524D\u6709\u6548\u5360\u7528\u69FD\u6570\uFF0C\u53EA\u8BFB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "BufferVisual3D-0.png",
+          "mesh": "BufferVisual3D-0.mesh.js"
+        },
+        {
+          "label": "8 \u4E2A\u69FD\uFF08\u793A\u4F8B\uFF09",
+          "values": {
+            "SlotCount": "8"
+          },
+          "image": "BufferVisual3D-1.png",
+          "mesh": "BufferVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "BufferVisual3D-2.png",
+          "mesh": "BufferVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "BufferVisual3D-3.png",
+          "mesh": "BufferVisual3D-3.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "CarrierVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/CarrierVisual3D.cs",
+      "summary": "\u8F7D\u5177\uFF08\u82B1\u7BEE\uFF09\u4E09\u7EF4\u5916\u89C2\uFF1A\u5E95\u677F\u3001\u4E24\u4FA7\u5E26\u69FD\u9F7F\u7684\u4FA7\u58C1\u3001\u524D\u540E\u7ACB\u67F1\u3001\u9876\u6881\u548C\u63D0\u624B\uFF0C\u524D\u7ACB\u67F1\u4E0A\u6807\u69FD\u53F7\uFF081\u30015\u300110\u2026\u2026\uFF09\uFF1B \u6709\u7247\u7684\u69FD\u5404\u653E\u4E00\u7247 DiskVisual3D\uFF08\u8DDF\u8154\u4F53\u7684\u65CB\u8F6C\u76D8\u540C\u4E00\u4E2A\u7EC4\u4EF6\uFF0C\u76D8\u9762\u72B6\u6001\u8272\u3001\u7247\u53F7\u90FD\u6CBF\u7528\uFF09\u3002 \u69FD\u6570\u7167 machine.xml \u914D\uFF08SlotCount\uFF09\uFF0C\u69FD\u8DDD\u4E0D\u53D8\u3001\u69FD\u6570\u591A\u82B1\u7BEE\u5C31\u9AD8\u3002 \u5F00\u53E3\u671D \u002BZ\uFF08\u64CD\u4F5C\u5458\u90A3\u9762\uFF09\u9732\u51FA\u6676\u5706\uFF0C\u80CC\u9762\u671D -Z \u5BF9\u7740 LoadPort \u80CC\u677F\u3002\u539F\u70B9\u5728\u5E95\u9762\u4E2D\u5FC3\uFF0CY \u5411\u4E0A\uFF1B \u653E\u8FDB LoadPortVisual3D.Attachments \u5C31\u5750\u5728\u6258\u677F\u7684\u5B9A\u4F4D\u9500\u4E0A\u3001\u8DDF\u7740\u5BF9\u63A5\u524D\u540E\u8D70\u3002\u53EA\u663E\u793A\uFF0C\u70B9\u4E86\u54EA\u7247\u7531\u88C5\u914D\u5C42\u7528 SlotOf \u8BA4\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "SlotCount",
+          "type": "Int32",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "CarrierVisual3D",
+          "description": "\u69FD\u6570\uFF08machine.xml \u91CC LoadPort \u7684 SlotCount\uFF09\uFF0C\u82B1\u7BEE\u9AD8\u5EA6\u3001\u69FD\u9F7F\u3001\u69FD\u53F7\u90FD\u8DDF\u7740\u5B83\uFF1B0 = \u8FD8\u4E0D\u77E5\u9053\uFF0C\u4EC0\u4E48\u90FD\u4E0D\u753B\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafers",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "CarrierVisual3D",
+          "description": "\u82B1\u7BEE\u91CC\u7684\u7247\uFF08WaferModel\uFF0C\u6309 Slot \u653E\u8FDB\u69FD\u91CC\uFF0C\u4EA4\u7ED9 DiskVisual3D \u6309 State \u4E0A\u8272\uFF09\uFF1B\u6574\u4E2A\u6362\u6389\u624D\u5237\u65B0\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "SelectedSlot",
+          "type": "Int32",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "CarrierVisual3D",
+          "description": "\u9009\u4E2D\u7684\u69FD\uFF08\u70B9\u4E86\u54EA\u7247\uFF09\uFF0C0 = \u6CA1\u9009\uFF1B\u90A3\u4E00\u7247\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF484848",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [
+        {
+          "name": "OccupiedSlots",
+          "type": "IReadOnlyList\u003Cint\u003E",
+          "description": "\u6709\u7247\u7684\u69FD\u53F7\uFF08\u4ECE\u5C0F\u5230\u5927\uFF09\u3002"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "CarrierVisual3D-0.png",
+          "mesh": "CarrierVisual3D-0.mesh.js"
+        },
+        {
+          "label": "8 \u4E2A\u69FD\uFF08\u793A\u4F8B\uFF09",
+          "values": {
+            "SlotCount": "8"
+          },
+          "image": "CarrierVisual3D-1.png",
+          "mesh": "CarrierVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "CarrierVisual3D-2.png",
+          "mesh": "CarrierVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "CarrierVisual3D-3.png",
+          "mesh": "CarrierVisual3D-3.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ChamberBaseVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ChamberBaseVisual3D.cs",
+      "summary": "\u6DF1\u7070\u8272\u5207\u89D2\u5B89\u88C5\u5E95\u677F\u3002\u539F\u70B9\u5728\u4E0A\u8868\u9762\u4E2D\u5FC3\uFF0CY \u5411\u4E0A\uFF0C\u677F\u539A\u5411\u4E0B\u5EF6\u4F38\u3002 Attachments \u5185\u7684\u786C\u4EF6\u5171\u4EAB\u5E95\u5EA7\u7684\u5916\u90E8\u53D8\u6362\uFF0C\u8BBE\u5907\u72B6\u6001\u4E92\u76F8\u72EC\u7ACB\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "Length",
+          "type": "Double",
+          "default": "5.6",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberBaseVisual3D",
+          "description": "\u5E95\u677F\u6CBF X \u8F74\u7684\u957F\u5EA6\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Width",
+          "type": "Double",
+          "default": "4.4",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberBaseVisual3D",
+          "description": "\u5E95\u677F\u6CBF Z \u8F74\u7684\u5BBD\u5EA6\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Thickness",
+          "type": "Double",
+          "default": "0.12",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberBaseVisual3D",
+          "description": "\u677F\u539A\u5411 -Y \u5EF6\u4F38\uFF1B\u8C03\u6574\u539A\u5EA6\u4E0D\u4F1A\u9876\u8D77\u6216\u79FB\u52A8\u4E0A\u65B9\u786C\u4EF6\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF333333",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [
+        {
+          "name": "Attachments",
+          "type": "Visual3DCollection",
+          "description": "\u5B89\u88C5\u786C\u4EF6\u7684\u96C6\u5408\uFF1B\u5404\u5B50\u9879 Transform \u76F8\u5BF9\u4E8E\u5E95\u677F\u4E0A\u8868\u9762\u4E2D\u5FC3\u3002"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ChamberBaseVisual3D-0.png",
+          "mesh": "ChamberBaseVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "ChamberBaseVisual3D-1.png",
+          "mesh": "ChamberBaseVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "ChamberBaseVisual3D-2.png",
+          "mesh": "ChamberBaseVisual3D-2.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "DiskVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/DiskVisual3D.cs",
+      "summary": "Wafer/Disk \u7684\u4E09\u7EF4\u7248\u672C\u3002\u590D\u7528\u72EC\u7ACB Wafer \u5B9E\u4F8B\u7684\u76D8\u9762\u548C\u72B6\u6001\u8272\uFF0C\u539F\u4E8C\u7EF4\u63A7\u4EF6\u4E0D\u53D8\uFF1B\u8154\u4F53\u7684\u65CB\u8F6C\u76D8\u3001LoadPort \u82B1\u7BEE\u91CC\u7684\u7247\u90FD\u7528\u5B83\u3002 \u5C40\u90E8 Y \u5411\u4E0A\uFF0C\u5E95\u9762\u4E2D\u5FC3\u4E3A\u539F\u70B9\u3002\u65CB\u8F6C\u901F\u5EA6\u6CBF\u7528\u4E8C\u7EF4\u63A7\u4EF6\u7684\u5EA6/\u79D2\u8BED\u4E49\uFF08\u5927\u4E8E 1 \u65F6\u65CB\u8F6C\uFF09\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "Data",
+          "type": "Object",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u63A7\u4EF6\u8981\u663E\u793A\u7684\u6570\u636E\u5BF9\u8C61\uFF1B\u6676\u5706\u63A7\u4EF6\u901A\u5E38\u63A5\u6536 WaferModel\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsDiskVisible",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u6CA1\u6709\u6676\u5706\u6570\u636E\u65F6\u662F\u5426\u4ECD\u663E\u793A\u5706\u76D8\uFF1B\u6709 Data \u65F6\u6309\u6676\u5706\u4E1A\u52A1\u72B6\u6001\u663E\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FillColor",
+          "type": "Brush",
+          "default": "#FF808080",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u5706\u76D8\u586B\u5145\u753B\u5237\uFF1B\u6709\u5339\u914D\u7684\u6676\u5706\u4E1A\u52A1\u72B6\u6001\u65F6\u4F18\u5148\u4F7F\u7528\u72B6\u6001\u8272\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BorderBrush",
+          "type": "Brush",
+          "default": "#FF808080",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u5706\u76D8\u8FB9\u7EBF\u7684\u753B\u5237\uFF1B\u4E09\u7EF4\u76D8\u6CBF\u7528\u4E8C\u7EF4\u7684\u903B\u8F91\u5916\u89C2\u53C2\u6570\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BorderThickness",
+          "type": "Thickness",
+          "default": "1,1,1,1",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u5706\u76D8\u8FB9\u7EBF\u539A\u5EA6\uFF0CThickness \u7C7B\u578B\uFF1B\u4E0D\u662F\u4E09\u7EF4\u76D8\u5B9E\u4F53\u7684 Thickness\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Label",
+          "type": "String",
+          "default": "\u7A7A\u5B57\u7B26\u4E32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u5706\u7247\u6587\u5B57\u8986\u76D6\u503C\uFF1B\u4E09\u7EF4 Disk \u652F\u6301\u8986\u76D6\uFF0C\u4E8C\u7EF4 Wafer \u5F53\u524D\u6A21\u677F\u4ECD\u663E\u793A Data.LpSlot\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RotationSpeed",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u663E\u793A\u65CB\u8F6C\u901F\u5EA6\uFF08\u5EA6/\u79D2\uFF09\uFF0C\u4E0D\u80FD\u628A\u8BBE\u5907 RPM \u4E0D\u7ECF\u6362\u7B97\u76F4\u63A5\u7ED1\u5B9A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "RotateClockwise",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u4ECE\u4E0A\u65B9\u89C2\u5BDF\u65F6\u7684\u65CB\u8F6C\u65B9\u5411\uFF0Ctrue \u4E3A\u987A\u65F6\u9488\uFF1BRotationSpeed \u4ECD\u4F7F\u7528\u5EA6/\u79D2\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Radius",
+          "type": "Double",
+          "default": "1.32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u63A7\u5236\u5916\u89C2\u5C3A\u5BF8\uFF1B\u4E09\u7EF4\u4EF6\u4F7F\u7528\u573A\u666F\u793A\u610F\u5355\u4F4D\uFF0C\u4E0D\u80FD\u5F53\u6210\u8BBE\u5907\u6BEB\u7C73\u503C\u6216\u8FD0\u52A8\u6307\u4EE4\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Thickness",
+          "type": "Double",
+          "default": "0.045",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u63A7\u5236\u5916\u89C2\u5C3A\u5BF8\uFF1B\u4E09\u7EF4\u4EF6\u4F7F\u7528\u573A\u666F\u793A\u610F\u5355\u4F4D\uFF0C\u4E0D\u80FD\u5F53\u6210\u8BBE\u5907\u6BEB\u7C73\u503C\u6216\u8FD0\u52A8\u6307\u4EE4\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "SpindleHeight",
+          "type": "Double",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DiskVisual3D",
+          "description": "\u76D8\u4E0B\u9762\u4E3B\u8F74\uFF08\u65CB\u8F6C\u7535\u673A\uFF09\u9732\u51FA\u6765\u7684\u957F\u5EA6\uFF1A\u76D8\u67B6\u9AD8\u4E86\u5C31\u7528\u4E00\u6839\u8F74\u6491\u5230\u5B89\u88C5\u9762\u4E0A\uFF0C\u514D\u5F97\u60AC\u7A7A\uFF1B0 = \u4E0D\u753B\u4E3B\u8F74\uFF08\u9ED8\u8BA4\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "DiskVisual3D-0.png",
+          "mesh": "DiskVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "DiskVisual3D-1.png",
+          "mesh": "DiskVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "DiskVisual3D-2.png",
+          "mesh": "DiskVisual3D-2.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "DoorVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/DoorVisual3D.cs",
+      "summary": "\u6C14\u7F38\u9A71\u52A8\u7684\u4E0A\u4E0B\u5347\u964D\u95E8\u793A\u610F\u3002\u4E0A\u5347\u6253\u5F00\u3001\u4E0B\u964D\u5173\u95ED\uFF0C\u5916\u90E8\u7ED1\u5B9A IsOpen\uFF1BIsUnknown=true\uFF08\u547D\u4EE4\u53D1\u4E86\u3001\u5230\u4F4D\u4FE1\u53F7\u8FD8\u6CA1\u4EAE\uFF09\u95E8\u677F\u505C\u5728\u884C\u7A0B\u4E2D\u95F4\u3001\u6574\u4E2A\u95E8\u753B\u6210\u7EA2\u8272\u3002 \u539F\u70B9\u4E3A\u95E8\u6846\u4E0B\u65B9\u5B89\u88C5\u9762\u4E2D\u5FC3\uFF0CY \u5411\u4E0A\uFF0C\u95E8\u5BBD\u6CBF X\uFF1B\u6253\u5F00\u65F6\u95E8\u677F\u5B8C\u5168\u9AD8\u4E8E\u95E8\u6846\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "IsOpen",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DoorVisual3D",
+          "description": "\u95E8\u7684\u5F00\u5230\u4F4D\u53CD\u9988\uFF1B\u4E0E IsUnknown \u5206\u5F00\u63D0\u4F9B\uFF0C\u672A\u77E5\u4F18\u5148\u663E\u793A\u4E2D\u95F4\u4F4D\u7F6E\u53CA\u62A5\u8B66\u8272\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsUnknown",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DoorVisual3D",
+          "description": "\u4F4D\u7F6E\u672A\u77E5\uFF1A\u95E8\u677F\u753B\u5230\u884C\u7A0B\u4E2D\u95F4\u3001\u6574\u4E2A\u95E8\u53D8\u7EA2\uFF0C\u5230\u4F4D\uFF08\u53D8\u56DE false\uFF09\u540E\u7EA2\u8272\u64A4\u6389\u3001\u518D\u8D70\u5230 IsOpen \u90A3\u4E00\u5934\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Width",
+          "type": "Double",
+          "default": "2.2",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DoorVisual3D",
+          "description": "\u95E8\u677F\u5BBD\u5EA6\uFF0C\u4F7F\u7528\u88C5\u914D\u7684\u7EDF\u4E00\u957F\u5EA6\u5355\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Height",
+          "type": "Double",
+          "default": "0.58",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "DoorVisual3D",
+          "description": "\u95E8\u677F\u9AD8\u5EA6\uFF1B\u52A8\u753B\u884C\u7A0B\u7531\u5185\u90E8\u793A\u610F\u7ED3\u6784\u51B3\u5B9A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "DoorVisual3D-0.png",
+          "mesh": "DoorVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u5F00\u5230\u4F4D",
+          "values": {
+            "IsOpen": "true"
+          },
+          "image": "DoorVisual3D-1.png",
+          "mesh": "DoorVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u4F4D\u7F6E\u672A\u77E5",
+          "values": {
+            "IsUnknown": "true"
+          },
+          "image": "DoorVisual3D-2.png",
+          "mesh": "DoorVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "DoorVisual3D-3.png",
+          "mesh": "DoorVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "DoorVisual3D-4.png",
+          "mesh": "DoorVisual3D-4.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "FluidPipeVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/FluidPipeVisual3D.cs",
+      "summary": "Arm \u4E0A\u7684\u4E00\u8DEF\u55B7\u5634\uFF1A\u900F\u660E\u4F9B\u6DB2\u7BA1\u3001\u5411\u4E0B\u55B7\u53E3\u548C\u5916\u90E8\u6DB2\u67F1\u3002 \u4E0E\u666E\u901A FluidPipe \u63A7\u4EF6\u5171\u7528 FluidRouteVisual3D\uFF1BDIW\u3001SC1 \u5404\u81EA\u7ED1\u5B9A IsFlowing\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "IsFlowing",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipeVisual3D",
+          "description": "\u672C\u8DEF\u55B7\u5634\u662F\u5426\u51FA\u6DB2\u3002\u5173\u95ED\u65F6\u7BA1\u5185\u6DB2\u82AF\u3001\u5916\u90E8\u6DB2\u67F1\u548C\u843D\u70B9\u6CE2\u7EB9\u5168\u90E8\u6D88\u5931\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsAnimationEnabled",
+          "type": "Boolean",
+          "default": "true",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipeVisual3D",
+          "description": "\u6682\u505C\u52A8\u753B\u4F46\u4FDD\u7559\u51FA\u6DB2\u72B6\u6001\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Length",
+          "type": "Double",
+          "default": "2.2",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipeVisual3D",
+          "description": "\u6CBF Arm \u7684\u5C40\u90E8 \u002BX \u65B9\u5411\u5E03\u7BA1\uFF0C\u957F\u5EA6\u4E0E\u573A\u666F\u4F7F\u7528\u540C\u4E00\u5355\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "StreamLength",
+          "type": "Double",
+          "default": "0.55",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipeVisual3D",
+          "description": "\u55B7\u53E3\u5230\u63A5\u6DB2\u9762\u7684\u8DDD\u79BB\uFF1B0 \u65F6\u53EA\u6709\u7BA1\u5185\u6C34\u6D41\uFF0C\u4E0D\u663E\u793A\u5916\u90E8\u6DB2\u67F1\u548C\u6CE2\u7EB9\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "FlowColor",
+          "type": "Color",
+          "default": "#FF52D4EF",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipeVisual3D",
+          "description": "\u7BA1\u5185\u6C34\u6D41\u3001\u55B7\u53E3\u6DB2\u67F1\u548C\u843D\u70B9\u6CE2\u7EB9\u4F7F\u7528\u540C\u4E00\u79CD\u989C\u8272\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "WallOpacity",
+          "type": "Double",
+          "default": "0.18",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "FluidPipeVisual3D",
+          "description": "\u900F\u660E\u4F9B\u6DB2\u7BA1\u7684\u7BA1\u58C1\u4E0D\u900F\u660E\u5EA6\u5F3A\u5EA6\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "FluidPipeVisual3D-0.png",
+          "mesh": "FluidPipeVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u51FA\u6DB2\u663E\u793A",
+          "values": {
+            "IsFlowing": "true"
+          },
+          "image": "FluidPipeVisual3D-1.png",
+          "mesh": "FluidPipeVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u5173\u95ED\u52A8\u753B",
+          "values": {
+            "IsAnimationEnabled": "false"
+          },
+          "image": "FluidPipeVisual3D-2.png",
+          "mesh": "FluidPipeVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "FluidPipeVisual3D-3.png",
+          "mesh": "FluidPipeVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "FluidPipeVisual3D-4.png",
+          "mesh": "FluidPipeVisual3D-4.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "HomeCupVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/HomeCupVisual3D.cs",
+      "summary": "Home \u4F4D\u7F6E\u7684\u56FA\u5B9A\u63A5\u6DB2\u676F\uFF1A\u655E\u53E3\u3001\u6536\u6DB2\u9525\u9762\u53CA\u8D2F\u901A\u7684\u4E0B\u6392\u6DB2\u53E3\u3002 \u539F\u70B9\u5728\u6392\u6DB2\u53E3\u5E95\u9762\u4E2D\u5FC3\uFF0CY \u5411\u4E0A\u3002\u653E\u5728\u573A\u666F\u4E2D\uFF0C\u4E0D\u968F Arm \u6216 Lift \u79FB\u52A8\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "Radius",
+          "type": "Double",
+          "default": "0.32",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HomeCupVisual3D",
+          "description": "\u676F\u53E3\u5916\u534A\u5F84\uFF0C\u4E0E\u88C5\u914D\u4F7F\u7528\u76F8\u540C\u957F\u5EA6\u5355\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Height",
+          "type": "Double",
+          "default": "0.655",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HomeCupVisual3D",
+          "description": "\u6392\u6DB2\u53E3\u5E95\u9762\u5230\u676F\u53E3\u7684\u603B\u9AD8\u5EA6\uFF1B\u676F\u53E3\u5C40\u90E8\u5750\u6807\u4E3A (0, Height, 0)\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsDraining",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HomeCupVisual3D",
+          "description": "\u53EF\u9009\u7684\u63A5\u6DB2/\u6392\u6DB2\u72B6\u6001\u53CD\u9988\uFF0Ctrue \u81EA\u52A8\u9AD8\u4EAE\uFF1B\u6DB2\u6D41\u7531\u7BA1\u5B50\u7EC4\u4EF6\u663E\u793A\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "HomeCupVisual3D-0.png",
+          "mesh": "HomeCupVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "HomeCupVisual3D-1.png",
+          "mesh": "HomeCupVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "HomeCupVisual3D-2.png",
+          "mesh": "HomeCupVisual3D-2.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "LoadPortVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LoadPortVisual3D.cs",
+      "summary": "LoadPort \u4E09\u7EF4\u5916\u89C2\uFF1A\u80CC\u677F\uFF08\u95E8\u6D1E\u3001\u4FE1\u53F7\u706F\u9762\u677F\uFF09\u3001\u80CC\u677F\u95E8\u3001\u4E0B\u9762\u7684\u9A71\u52A8\u67DC\u3001\u627F\u8F7D\u53F0\u548C\u524D\u540E\u8D70\u7684\u6258\u677F\u3002 \u8F7D\u5177\uFF08CarrierVisual3D\uFF09\u653E\u8FDB Attachments\uFF0C\u5750\u5728\u6258\u677F\u7684\u5B9A\u4F4D\u9500\u4E0A\u3001\u8DDF\u7740\u5BF9\u63A5\u524D\u540E\u8D70\u3002 \u5916\u90E8\u53EA\u7ED1\u7ED3\u679C\uFF1AIsDocked\uFF08\u6258\u677F\u63A8\u8FDB\u53BB\u8D34\u7740\u95E8\u6D1E\uFF09\u3001IsDoorOpen / IsDoorUnknown\uFF08\u95E8\u5F00\u5230\u4F4D / \u5728\u534A\u8DEF\uFF09\u3001\u9762\u677F\u4E0A\u7684\u706F\u3002 \u52A8\u4F5C\u6709\u5148\u540E\uFF1A\u8981\u5F00\u95E8\u5148\u63A8\u8FDB\u53BB\u518D\u5F00\uFF0C\u8981\u9000\u51FA\u5148\u5173\u95E8\u518D\u9000\uFF1B\u6BCF\u4E2A\u52A8\u4F5C\u5168\u884C\u7A0B 0.5 s\uFF08\u7528\u6237\u5B9A\u7684\uFF0C\u5199\u6B7B\uFF09\uFF0C\u4E2D\u9014\u6362\u76EE\u6807\u4ECE\u5F53\u524D\u4F4D\u7F6E\u63A5\u7740\u8D70\u3002 \u53EA\u6709\u5728\u52A8\u7684\u90A3\u4E00\u5757\uFF08\u95E8\u6216\u6258\u677F\uFF09\u9AD8\u4EAE\uFF1B\u95E8\u5728\u534A\u8DEF\u505C\u5728\u884C\u7A0B\u4E2D\u95F4\u3001\u4E00\u76F4\u9AD8\u4EAE\u3002\u539F\u70B9\u5728\u627F\u8F7D\u53F0\u9762\u4E2D\u5FC3\uFF0CY \u5411\u4E0A\uFF0C\u002BZ \u671D\u64CD\u4F5C\u5458\uFF0C\u80CC\u677F\u5728 -Z\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "IsDocked",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortVisual3D",
+          "description": "\u6258\u677F\u63A8\u8FDB\u53BB\u4E86\uFF08\u5BF9\u63A5\uFF09\uFF1A\u8F7D\u5177\u8D34\u7740\u95E8\u6D1E\u3002false = \u9000\u51FA\u6765\uFF0C\u4EBA\u53EF\u4EE5\u653E\u53D6\u8F7D\u5177\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsDoorOpen",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortVisual3D",
+          "description": "\u95E8\u5F00\u5230\u4F4D\uFF08\u53EA\u5728\u5BF9\u63A5\u65F6\u624D\u753B\u5F97\u5F00\uFF1A\u6CA1\u63A8\u8FDB\u53BB\u95E8\u4E00\u5B9A\u662F\u5173\u7740\u7684\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsDoorUnknown",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortVisual3D",
+          "description": "\u95E8\u5728\u534A\u8DEF\uFF08\u5F00\u5230\u4F4D\u3001\u5173\u5230\u4F4D\u90FD\u6CA1\u4EAE\uFF09\uFF1A\u95E8\u753B\u5728\u884C\u7A0B\u4E2D\u95F4\u5E76\u4E00\u76F4\u9AD8\u4EAE\uFF0C\u5230\u4F4D\u4E86\u518D\u8D70\u5230\u90A3\u4E00\u5934\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsPresent",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortVisual3D",
+          "description": "\u9762\u677F\u4E0A\u0022\u5728\u4F4D\u0022\u706F\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsPlaced",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortVisual3D",
+          "description": "\u9762\u677F\u4E0A\u0022\u653E\u7F6E\u5230\u4F4D\u0022\u706F\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsAutoMode",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortVisual3D",
+          "description": "\u5B58\u53D6\u65B9\u5F0F\uFF1Atrue \u4EAE AUTO\uFF08\u7EFF\uFF09\uFF0Cfalse \u4EAE MANUAL\uFF08\u9EC4\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [
+        {
+          "name": "Attachments",
+          "type": "Visual3DCollection",
+          "description": "\u88C5\u5728\u6258\u677F\u4E0A\u7684\u4E1C\u897F\uFF08\u8F7D\u5177\uFF09\uFF1B\u539F\u70B9\u5728\u6258\u677F\u5B9A\u4F4D\u9500\u4E0A\uFF0C\u8DDF\u7740\u5BF9\u63A5\u524D\u540E\u8D70\u3002"
+        }
+      ],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "LoadPortVisual3D-0.png",
+          "mesh": "LoadPortVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u5DF2\u5BF9\u63A5",
+          "values": {
+            "IsDocked": "true"
+          },
+          "image": "LoadPortVisual3D-1.png",
+          "mesh": "LoadPortVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u95E8\u6253\u5F00",
+          "values": {
+            "IsDoorOpen": "true"
+          },
+          "image": "LoadPortVisual3D-2.png",
+          "mesh": "LoadPortVisual3D-2.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "LoadPortVisual3D-3.png",
+          "mesh": "LoadPortVisual3D-3.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "LoadPortVisual3D-4.png",
+          "mesh": "LoadPortVisual3D-4.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "RobotVisual3D",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/RobotVisual3D.cs",
+      "summary": "\u642C\u8FD0\u673A\u68B0\u624B\u4E09\u7EF4\u5916\u89C2\u3002\u4F7F\u7528\u539F RobotViewBase.ArmVisual \u7684\u6BCF\u5E27\u51E0\u4F55\u548C\u539F XAML \u624B\u53C9\u8F6E\u5ED3\uFF0C\u6676\u5706\u76F4\u63A5\u4F7F\u7528 DiskVisual3D\u3002 \u4E0D\u8BA1\u7B97\u8FD0\u52A8\u987A\u5E8F\u3001\u4E0D\u8BA2\u9605\u8BBE\u5907\u3001\u4E0D\u521B\u5EFA\u76F8\u673A\uFF1B\u53EF\u653E\u5165\u5171\u4EAB Viewport3D\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "IsMoving",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u52A8\u4F5C\u53CD\u9988\uFF1B\u4E3A true \u65F6\u81EA\u52A8\u9AD8\u4EAE\uFF0C\u4E0D\u4F9D\u8D56\u9F20\u6807\u9009\u4E2D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsError",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7ED1\u5B9A\u8BBE\u5907\u6545\u969C\u53CD\u9988\uFF08\u5982\u8F74\u9A71\u52A8\u5668\u62A5\u9519\uFF09\uFF1B\u4E3A true \u65F6\u6574\u5757\u753B\u6210\u62A5\u8B66\u8272\uFF0C\u76D6\u8FC7\u9AD8\u4EAE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsSelected",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u7531\u5916\u90E8\u9009\u62E9\u903B\u8F91\u8BBE\u7F6E\uFF0C\u4E0E IsMoving \u76F8\u4E92\u72EC\u7ACB\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "BodyColor",
+          "type": "Color",
+          "default": "#FF686868",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightColor",
+          "type": "Color",
+          "default": "#FF42A5F5",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u5916\u89C2\u989C\u8272\uFF1BColor \u7C7B\u578B\u7528\u989C\u8272\u503C\uFF0CBrush \u7C7B\u578B\u7528\u753B\u5237\uFF0C\u4E24\u8005\u4E0D\u80FD\u76F4\u63A5\u4E92\u6362\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "HighlightStrength",
+          "type": "Double",
+          "default": "0.42",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "HardwareVisual3D",
+          "description": "\u4E3B\u9898\u8272\u6DF7\u5165\u6BD4\u4F8B\uFF080\uFF5E1\uFF09\uFF0C\u4FDD\u7559\u91D1\u5C5E\u7070\u7684\u660E\u6697\u5C42\u6B21\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "RobotVisual3D-0.png",
+          "mesh": "RobotVisual3D-0.mesh.js"
+        },
+        {
+          "label": "\u9009\u4E2D\u9AD8\u4EAE",
+          "values": {
+            "IsSelected": "true"
+          },
+          "image": "RobotVisual3D-1.png",
+          "mesh": "RobotVisual3D-1.mesh.js"
+        },
+        {
+          "label": "\u6545\u969C\u663E\u793A",
+          "values": {
+            "IsError": "true"
+          },
+          "image": "RobotVisual3D-2.png",
+          "mesh": "RobotVisual3D-2.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "ChamberScene",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ChamberScene.xaml.cs",
+      "summary": "\u8154\u4F53\u4E09\u7EF4\u56FE\uFF1A\u5E95\u5EA7\u4E0A\u88C5 Bowl\u3001\u65CB\u8F6C\u76D8\u3001\u8154\u95E8\u548C\u6BCF\u6761\u6446\u81C2\uFF08Lift \u7ACB\u67F1\u3001\u6446\u81C2\u3001\u55B7\u5634\u7BA1\u3001Home \u63A5\u6DB2\u676F\uFF09\u3002 \u88C5\u54EA\u4E9B\u8BBE\u5907\u770B Devices\uFF08\u540E\u7AEF\u6309 machine.xml \u63A8\u6765\u7684\u8BBE\u5907\u7EC4\u6210\uFF09\uFF0C\u72B6\u6001\u5168\u90E8\u7ED1\u5B9A\u663E\u793A\u6A21\u578B\uFF1B\u76D8\u4E0A\u7684\u7247\u7ED1 Wafer\uFF08\u6676\u5706\u8D26\uFF09\u3002 \u6446\u81C2\u6536\u5230\u65B0\u4F4D\u7F6E\u540E 0.2 s \u8FC7\u6E21\u8FC7\u53BB\u3002\u95E8\u3001Bowl\u3001Lift \u8DDF\u5230\u4F4D\u53CD\u9988\u8D70\uFF1A\u5230\u4F4D\u753B\u5728\u90A3\u4E00\u5934\uFF0C\u672A\u77E5\uFF08\u547D\u4EE4\u53D1\u4E86\u3001\u5230\u4F4D\u4FE1\u53F7\u8FD8\u6CA1\u4EAE\uFF09\u753B\u5728\u884C\u7A0B\u4E2D\u95F4\u3001\u6574\u5757\u53D8\u7EA2\uFF1B \u6446\u81C2\u3001\u65CB\u8F6C\u76D8\u8DDF\u8F74\u63A8\u9001\u7684\u9A71\u52A8\u5668\u62A5\u9519\uFF08IsError\uFF09\u8D70\uFF0C\u62A5\u9519\u6574\u5757\u53D8\u7EA2\u3002 \u4E0D\u6CE8\u518C\u9010\u5E27\u4E8B\u4EF6\uFF1A\u6DB2\u67F1\u957F\u5EA6\u53EA\u5728\u6446\u81C2\u89D2\u5EA6\u3001Lift \u9AD8\u5EA6\u6216\u51FA\u6DB2\u53D8\u5316\u65F6\u91CD\u7B97\uFF0C\u53EA\u6709\u52A8\u753B\u8FDB\u884C\u4E2D\u89D2\u5EA6\u548C\u9AD8\u5EA6\u624D\u4F1A\u9010\u5E27\u53D8\uFF0C\u505C\u4E0B\u6765\u5C31\u4E00\u70B9\u4E0D\u7B97\u3002 \u5DE6\u952E\u62D6\u52A8\u65CB\u8F6C\u89C6\u89D2\u3001\u6EDA\u8F6E\u7F29\u653E\uFF0C\u56FE\u4E0B\u9762\u4E00\u6761\u5DE5\u5177\u680F\uFF1A\u9ED8\u8BA4\u89C6\u89D2\u3001\u4FEF\u89C6\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "Devices",
+          "type": "ChamberDeviceDataModel",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberScene",
+          "description": "\u8BBE\u5907\u663E\u793A\u6A21\u578B\uFF08\u95E8\u3001Bowl\u3001\u65CB\u8F6C\u7535\u673A\u3001\u6446\u81C2\uFF09\uFF1B\u7EC4\u6210\u53D8\u4E86\uFF08Revision\uFF09\u91CD\u642D\u4E09\u7EF4\u56FE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafer",
+          "type": "Object",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "ChamberScene",
+          "description": "\u76D8\u4E0A\u7684\u7247\uFF08\u6676\u5706\u8D26\uFF0CWaferModel\uFF09\uFF1Bnull \u663E\u793A\u7A7A\u76D8\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "ChamberScene-0.png",
+          "mesh": "ChamberScene-0.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "LoadPortScene",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LoadPortScene.xaml.cs",
+      "summary": "LoadPort \u4E09\u7EF4\u56FE\uFF1ALoadPort\uFF08LoadPortVisual3D\uFF09\u6258\u677F\u4E0A\u88C5\u4E00\u4E2A\u8F7D\u5177\uFF08CarrierVisual3D\uFF09\uFF0C\u5728\u4F4D\u3001\u5230\u4F4D\u4E24\u76CF\u706F\u90FD\u4EAE\u624D\u88C5\u4E0A\u3002 \u72B6\u6001\u90FD\u4ECE\u4F9D\u8D56\u5C5E\u6027\u8FDB\u6765\u3001\u539F\u6837\u8F6C\u7ED9\u4E24\u4E2A\u7EC4\u4EF6\uFF1A\u5BF9\u63A5\u3001\u95E8\u5F00 / \u95E8\u5728\u534A\u8DEF\u3001\u9762\u677F\u4E0A\u7684\u706F\uFF0C\u69FD\u6570\u548C\u7247\uFF08\u6676\u5706\u8D26\uFF09\u3002 \u5DE6\u952E\u62D6\u52A8\u65CB\u8F6C\u89C6\u89D2\u3001\u6EDA\u8F6E\u7F29\u653E\u3001\u70B9\u4E00\u4E0B\u6676\u5706\u9009\u4E2D\u770B\u69FD\u4F4D\uFF1B\u56FE\u4E0B\u9762\u4E00\u6761\u5DE5\u5177\u680F\uFF1A\u9ED8\u8BA4\u89C6\u89D2\u3001\u4FEF\u89C6\u3001\u80CC\u9762\u3002 \u53F3\u4E0A\u89D2\u5199\u7247\u6570\uFF0C\u6846\u5916\u4E00\u884C\u5199\u9009\u4E2D\u7684\u69FD\u4F4D\u548C\u7A7A\u69FD\u3002",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "IsDocked",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u6258\u677F\u63A8\u8FDB\u53BB\u4E86\uFF08\u5BF9\u63A5\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsDoorOpen",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u95E8\u5F00\u5230\u4F4D\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsDoorUnknown",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u95E8\u5728\u534A\u8DEF\uFF08\u5F00\u5230\u4F4D\u3001\u5173\u5230\u4F4D\u90FD\u6CA1\u4EAE\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsPresent",
+          "type": "Boolean?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u5728\u4F4D\u53CD\u9988\uFF1Bnull = \u53CD\u9988\u4E0D\u53EF\u7528\uFF0C\u706F\u706D\u3002\u8DDF\u5230\u4F4D\u4E00\u8D77\u5B9A\u88C5\u4E0D\u88C5\u82B1\u7BEE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsPlaced",
+          "type": "Boolean?",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u653E\u7F6E\u5230\u4F4D\u53CD\u9988\uFF1Bnull = \u53CD\u9988\u4E0D\u53EF\u7528\uFF0C\u706F\u706D\u3002\u8DDF\u5728\u4F4D\u4E00\u8D77\u5B9A\u88C5\u4E0D\u88C5\u82B1\u7BEE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "IsAutoMode",
+          "type": "Boolean",
+          "default": "false",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u5B58\u53D6\u65B9\u5F0F Auto\uFF08AUTO \u706F\u4EAE\uFF09/ Manual\uFF08MANUAL \u706F\u4EAE\uFF09\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "SlotCount",
+          "type": "Int32",
+          "default": "0",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u69FD\u6570\uFF08machine.xml \u7684 SlotCount\uFF09\uFF1A\u82B1\u7BEE\u9AD8\u5EA6\u3001\u69FD\u53F7\u3001\u7247\u6570\u3001\u7A7A\u69FD\u90FD\u6309\u5B83\uFF1B0 = \u8FD8\u4E0D\u77E5\u9053\uFF0C\u4E0D\u88C5\u82B1\u7BEE\u3002",
+          "enumValues": []
+        },
+        {
+          "name": "Wafers",
+          "type": "IEnumerable",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "LoadPortScene",
+          "description": "\u82B1\u7BEE\u91CC\u7684\u7247\uFF08\u6676\u5706\u8D26\uFF0CWaferModel \u6309 Slot \u6446\u3001\u6309 State \u4E0A\u8272\uFF09\u3002",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "LoadPortScene-0.png",
+          "mesh": "LoadPortScene-0.mesh.js"
+        },
+        {
+          "label": "\u5DF2\u5BF9\u63A5",
+          "values": {
+            "IsDocked": "true"
+          },
+          "image": "LoadPortScene-1.png",
+          "mesh": "LoadPortScene-1.mesh.js"
+        },
+        {
+          "label": "\u95E8\u6253\u5F00",
+          "values": {
+            "IsDoorOpen": "true"
+          },
+          "image": "LoadPortScene-2.png",
+          "mesh": "LoadPortScene-2.mesh.js"
+        }
+      ],
+      "error": null
+    },
+    {
+      "name": "TankScene",
+      "namespace": "xyz.Client.Presentation.Controls.ThreeD",
+      "source": "xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/TankScene.xaml.cs",
+      "summary": "\u4F9B\u6DB2\u69FD\u4E09\u7EF4\u56FE\uFF1A\u6DB2\u9762\u8DDF\u6DB2\u4F4D\uFF0C\u4FE1\u53F7\u706F\u8DDF\u5404\u81EA\u7684 DI \u4FE1\u53F7",
+      "is3D": true,
+      "project": false,
+      "properties": [
+        {
+          "name": "Tank",
+          "type": "TankModel",
+          "default": "null",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TankScene",
+          "description": "\u69FD\u7684\u663E\u793A\u6A21\u578B\uFF08\u540E\u7AEF TankDto\uFF09",
+          "enumValues": []
+        },
+        {
+          "name": "WallTransparency",
+          "type": "Double",
+          "default": "0.72",
+          "readOnly": false,
+          "twoWay": false,
+          "owner": "TankScene",
+          "description": "\u7F50\u58C1\u900F\u660E\u5EA6\uFF080\uFF5E1\uFF09\uFF0C\u5916\u90E8\u6309\u9700\u8981\u8C03",
+          "enumValues": []
+        }
+      ],
+      "members": [],
+      "variants": [
+        {
+          "label": "\u57FA\u7840\u793A\u4F8B",
+          "values": {},
+          "image": "TankScene-0.png",
+          "mesh": "TankScene-0.mesh.js"
+        }
+      ],
+      "error": null
+    }
+  ],
+  "styles": [
+    "Color",
+    "DarkColors",
+    "FontSize",
+    "TextBlockStyles",
+    "BorderStyles",
+    "TextBoxStyles",
+    "ComboBoxStyles",
+    "DatePickerStyles",
+    "ButtonStyles",
+    "CardStyles",
+    "DataGridStyles",
+    "ListBoxStyles",
+    "TreeViewStyles"
+  ],
+  "schemas": [
+    "TankModel",
+    "DiSensorModel",
+    "WaferModel",
+    "RobotArmModel",
+    "TrendSeries",
+    "ProgressState"
+  ],
+  "resourceFiles": [
+    "Color",
+    "DarkColors",
+    "FontSize",
+    "TextBlockStyles",
+    "BorderStyles",
+    "TextBoxStyles",
+    "ComboBoxStyles",
+    "DatePickerStyles",
+    "ButtonStyles",
+    "CardStyles",
+    "DataGridStyles",
+    "ListBoxStyles",
+    "TreeViewStyles"
+  ]
+}

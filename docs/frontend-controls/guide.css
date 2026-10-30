@@ -1,0 +1,43 @@
+#frontend { width: min(1040px, calc(100vw - var(--side) - 80px)); }
+#frontend .fe-small, #frontend .fe-kicker { color: #626d79; font-size: 13px; }
+#frontend .fe-kicker { margin-bottom: 8px; }
+#frontend .fe-search-label, #frontend .fe-property-filter { display: flex; gap: 12px; align-items: center; margin: 16px 0 12px; font-size: 13px; }
+#frontend input[type="search"] { min-width: 0; width: 340px; padding: 8px 10px; border: 1px solid #cbd3dc; border-radius: 4px; font: inherit; }
+#frontend .fe-index { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-bottom: 20px; }
+#frontend .fe-index > div { border: 1px solid var(--line); padding: 12px 14px; border-radius: 5px; background: #fafbfc; }
+#frontend .fe-index ul { margin: 8px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+#frontend .fe-control-topic { scroll-margin-top: 16px; padding-bottom: 16px; }
+#frontend .fe-demo { border: 1px solid #cbd3dc; border-radius: 6px; overflow: hidden; margin: 14px 0; }
+#frontend .fe-demo-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 12px; background: #f3f5f8; font-size: 12px; }
+#frontend .fe-demo-toolbar label { display: inline-flex; align-items: center; gap: 8px; }
+#frontend .fe-demo-toolbar span { margin-left: auto; color: #657080; }
+#frontend select, #frontend button { font: inherit; }
+#frontend select { max-width: 260px; padding: 4px 7px; background: white; border: 1px solid #bfc9d5; border-radius: 4px; }
+#frontend button { padding: 4px 10px; color: #23466f; background: #fff; border: 1px solid #bfc9d5; border-radius: 4px; cursor: pointer; }
+#frontend button:hover { background: #e5eef9; }
+#frontend button[aria-pressed="true"] { background: #dceaff; border-color: #4d7ebd; }
+#frontend .fe-demo-stage { position: relative; height: 320px; background: #1e1e1e; display: flex; align-items: center; justify-content: center; }
+#frontend .fe-demo-stage img { width: 100%; height: 100%; object-fit: contain; }
+#frontend .fe-demo-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#frontend .fe-demo-stage canvas:active { cursor: grabbing; }
+#frontend canvas:focus-visible { outline: 3px solid #42a5f5; outline-offset: -3px; }
+#frontend .fe-demo-values { display: block; padding: 7px 12px; border-top: 1px solid #dce1e8; font: 12px/1.7 Consolas, "Microsoft YaHei", monospace; color: #4a596c; background: #fafbfc; overflow-wrap: anywhere; }
+#frontend .fe-table-scroll { overflow-x: auto; margin-bottom: 14px; }
+#frontend .fe-properties { min-width: 720px; font-size: 13px; }
+#frontend .fe-properties td:first-child { width: 145px; }
+#frontend .fe-properties td:nth-child(2) { width: 120px; }
+#frontend .fe-properties td:nth-child(3) { width: 90px; }
+#frontend .fe-properties td:nth-child(4) { width: 85px; white-space: nowrap; }
+#frontend .fe-properties td { overflow-wrap: anywhere; padding: 7px 9px; }
+#frontend .fe-properties td small { display: block; font-size: 11px; color: #6a7582; margin-top: 5px; }
+#frontend .fe-properties code { font-size: 12px; }
+#frontend figure.code { position: relative; }
+#frontend .fe-copy { float: right; margin: 3px 0 4px 8px; font: 12px "Microsoft YaHei", sans-serif; }
+#frontend .fe-input-lab { padding: 12px; border: 1px dashed #b7c7db; border-radius: 4px; margin: 12px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+#frontend .fe-input-lab input { width: 100px; padding: 6px; border: 1px solid #aebccc; border-radius: 3px; }
+#frontend .fe-input-lab small { flex-basis: 100%; color: #687587; }
+#frontend .fe-input-lab [aria-invalid="true"] { border: 2px solid #bd3944; }
+#frontend .fe-hidden { display: none !important; }
+@media(max-width:860px) { #frontend { width:100%; } #frontend .fe-index { grid-template-columns:repeat(2,minmax(0,1fr)); } #frontend .fe-demo-toolbar span { margin-left:0; width:100%; } }
+@media(max-width:520px) { #frontend .fe-index { grid-template-columns:1fr; } #frontend .fe-search-label, #frontend .fe-property-filter { align-items:stretch; flex-direction:column; } #frontend input[type="search"] { width:100%; } #frontend .fe-demo-stage { height:260px; } }
+@media print { #frontend { width:100%; } #frontend .fe-demo-stage canvas, #frontend .fe-copy, #frontend .fe-search-label, #frontend .fe-property-filter { display:none; } #frontend .fe-demo { break-inside:avoid; } #frontend .fe-hidden { display:block !important; } }

@@ -241,7 +241,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         }
 
         var rejected = CheckState(AlignerAction.Align) ?? AlignInterlock();
-        if (rejected is null && BeginAction(AlignerAction.Align, CreateAlignRoutine()) is not null)
+        if (rejected is null && Begin(AlignerAction.Align, CreateAlignRoutine()).IsSuccess)
         {
             return;
         }
@@ -277,7 +277,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
                 return Rejected(rejected);
             }
 
-            return Started(AlignerAction.Home, CreateHomeRoutine(WaferOnStage() is not null));
+            return Begin(AlignerAction.Home, CreateHomeRoutine(WaferOnStage() is not null));
         }
     }
 
@@ -297,7 +297,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
             var reset = new ModuleRoutine(this, "Reset", _driver, () => ResetTimeout);
             AddResetSteps(reset);
-            return Started(AlignerAction.Reset, reset);
+            return Begin(AlignerAction.Reset, reset);
         }
     }
 
@@ -317,7 +317,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
             var abort = new ModuleRoutine(this, "Abort", _driver, () => AbortTimeout);
             AddAbortSteps(abort);
-            return Started(AlignerAction.Abort, abort);
+            return Begin(AlignerAction.Abort, abort);
         }
     }
 
@@ -366,6 +366,8 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// </summary>
     protected virtual ModuleRoutine CreateHomeRoutine(bool hasWafer)
     {
+        _alignedWafer = null;
+        _aligningWafer = WaferOnStage()?.Id;
         var home = new ModuleRoutine(this, "Home", _driver, () => HomeTimeout);
         AddHomeSteps(home);
         if (hasWafer)
@@ -382,6 +384,8 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// </summary>
     protected virtual ModuleRoutine CreateAlignRoutine()
     {
+        _alignedWafer = null;
+        _aligningWafer = WaferOnStage()?.Id;
         var align = new ModuleRoutine(this, "Align", _driver, () => AlignTimeout);
         AddAlignSteps(align, NotchAngle);
         return align;
@@ -476,7 +480,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         RaiseActionFailedAlarm(routine);
 
         // 是不是平台自己建的那个动作；机型拿自己的动作枚举发起的动作对不上，收尾由机型重写这个方法做（先调 base）
-        bool platform = ReferenceEquals(routine, _platformRoutine);
+        bool platform = CurrentAction is AlignerAction;
         if (platform)
         {
             _platformRoutine = null;
@@ -493,7 +497,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
             return;
         }
 
-        if (_platformAction == AlignerAction.Home || _platformAction == AlignerAction.Align)
+        if (CurrentAction is AlignerAction.Home or AlignerAction.Align)
         {
             _alignedWafer = _aligningWafer;
         }

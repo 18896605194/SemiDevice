@@ -51,6 +51,7 @@ a.ref { font-family: Consolas, "Microsoft YaHei", monospace; font-size: 13px; wh
   main { max-width: none; margin-left: 0; }
 }
 </style>
+<link rel="stylesheet" href="docs/frontend-controls/guide.css">
 </head>
 <body>
 <aside class="side" id="side">
@@ -899,6 +900,1108 @@ public interface IRoutineHost
 
 
 </section>
+
+<!-- FRONTEND-CONTROLS:BEGIN -->
+<section class="module" id="frontend" data-title="前端">
+<h1>前端</h1>
+<p>这一部分先讲控件：选哪个、怎么放进页面、绑什么数据、每个依赖属性怎么用。44 个可实例化控件，其中 20 个提供 3D 网格交互；抽象基类的公共属性列在派生控件表中。</p>
+<section class="chapter" id="fe-controls"><h2>一、控件</h2>
+<section class="topic" id="fe-controls-start"><h3>1.1 先从这里选控件</h3>
+<p>下方原生截图由当前 WPF 控件直接生成；3D 演示使用同一控件导出的真实网格，可以拖动旋转、滚轮缩放、切换示例属性。网页材质与 WPF 的透明、纹理效果可能略有差异，可切到原生截图核对。所有演示均离线，不连接 PLC 或发送设备指令。</p>
+<label class="fe-search-label">查找控件 <input type="search" id="fe-search" placeholder="例如 Sensor、Tank、Bowl、输入、管路" autocomplete="off"></label>
+<div class="fe-index"><div><strong>输入与操作</strong><ul><li data-fe-index="InputTextBox"><a href="#fe-control-InputTextBox">InputTextBox</a></li><li data-fe-index="DateTimePicker"><a href="#fe-control-DateTimePicker">DateTimePicker</a></li><li data-fe-index="PickerBox"><a href="#fe-control-PickerBox">PickerBox</a></li><li data-fe-index="HoldButton"><a href="#fe-control-HoldButton">HoldButton</a></li></ul></div><div><strong>信号与状态</strong><ul><li data-fe-index="SignalLamp"><a href="#fe-control-SignalLamp">SignalLamp</a></li><li data-fe-index="SignalTower"><a href="#fe-control-SignalTower">SignalTower</a></li><li data-fe-index="AlarmBar"><a href="#fe-control-AlarmBar">AlarmBar</a></li><li data-fe-index="LogBar"><a href="#fe-control-LogBar">LogBar</a></li><li data-fe-index="ModuleChip"><a href="#fe-control-ModuleChip">ModuleChip</a></li><li data-fe-index="ModuleStateBadge"><a href="#fe-control-ModuleStateBadge">ModuleStateBadge</a></li><li data-fe-index="ModuleStatusBar"><a href="#fe-control-ModuleStatusBar">ModuleStatusBar</a></li><li data-fe-index="ProgressOverlay"><a href="#fe-control-ProgressOverlay">ProgressOverlay</a></li></ul></div><div><strong>数据与设备卡片</strong><ul><li data-fe-index="TrendChart"><a href="#fe-control-TrendChart">TrendChart</a></li><li data-fe-index="Wafer"><a href="#fe-control-Wafer">Wafer</a></li><li data-fe-index="BottomChamberInfoCard"><a href="#fe-control-BottomChamberInfoCard">BottomChamberInfoCard</a></li><li data-fe-index="Buffer"><a href="#fe-control-Buffer">Buffer</a></li><li data-fe-index="ChamberInfoCard"><a href="#fe-control-ChamberInfoCard">ChamberInfoCard</a></li><li data-fe-index="DispatchMap"><a href="#fe-control-DispatchMap">DispatchMap</a></li><li data-fe-index="FluidPipe"><a href="#fe-control-FluidPipe">FluidPipe</a></li><li data-fe-index="Foup"><a href="#fe-control-Foup">Foup</a></li><li data-fe-index="LoadPortInfoCard"><a href="#fe-control-LoadPortInfoCard">LoadPortInfoCard</a></li><li data-fe-index="Robot"><a href="#fe-control-Robot">Robot</a></li><li data-fe-index="SampleUserControl"><a href="#fe-control-SampleUserControl">SampleUserControl</a></li><li data-fe-index="StationCard"><a href="#fe-control-StationCard">StationCard</a></li></ul></div><div><strong>3D 组合视图</strong><ul><li data-fe-index="BufferView"><a href="#fe-control-BufferView">BufferView</a></li><li data-fe-index="Robot3D"><a href="#fe-control-Robot3D">Robot3D</a></li><li data-fe-index="ChamberScene"><a href="#fe-control-ChamberScene">ChamberScene</a></li><li data-fe-index="LoadPortScene"><a href="#fe-control-LoadPortScene">LoadPortScene</a></li><li data-fe-index="TankScene"><a href="#fe-control-TankScene">TankScene</a></li></ul></div><div><strong>项目控件</strong><ul><li data-fe-index="ChamberView"><a href="#fe-control-ChamberView">ChamberView</a></li></ul></div><div><strong>3D 组件</strong><ul><li data-fe-index="ArmVisual3D"><a href="#fe-control-ArmVisual3D">ArmVisual3D</a></li><li data-fe-index="BowlVisual3D"><a href="#fe-control-BowlVisual3D">BowlVisual3D</a></li><li data-fe-index="LiftVisual3D"><a href="#fe-control-LiftVisual3D">LiftVisual3D</a></li><li data-fe-index="TankVisual3D"><a href="#fe-control-TankVisual3D">TankVisual3D</a></li><li data-fe-index="FluidRouteVisual3D"><a href="#fe-control-FluidRouteVisual3D">FluidRouteVisual3D</a></li><li data-fe-index="BufferVisual3D"><a href="#fe-control-BufferVisual3D">BufferVisual3D</a></li><li data-fe-index="CarrierVisual3D"><a href="#fe-control-CarrierVisual3D">CarrierVisual3D</a></li><li data-fe-index="ChamberBaseVisual3D"><a href="#fe-control-ChamberBaseVisual3D">ChamberBaseVisual3D</a></li><li data-fe-index="DiskVisual3D"><a href="#fe-control-DiskVisual3D">DiskVisual3D</a></li><li data-fe-index="DoorVisual3D"><a href="#fe-control-DoorVisual3D">DoorVisual3D</a></li><li data-fe-index="FluidPipeVisual3D"><a href="#fe-control-FluidPipeVisual3D">FluidPipeVisual3D</a></li><li data-fe-index="HomeCupVisual3D"><a href="#fe-control-HomeCupVisual3D">HomeCupVisual3D</a></li><li data-fe-index="LoadPortVisual3D"><a href="#fe-control-LoadPortVisual3D">LoadPortVisual3D</a></li><li data-fe-index="RobotVisual3D"><a href="#fe-control-RobotVisual3D">RobotVisual3D</a></li></ul></div></div><p class="fe-small">平台控件位于 <code>xyz.Core/Client/Common/xyz.Client.Presentation/Controls</code>，35021 自有控件位于项目的 <code>Client/Presentation/Controls</code>。当前独立阀门符号 <code>CdsAssemblyPreview.ValveSymbol</code> 仍是工具原型，不计入平台控件清单。</p></section>
+<section class="topic" id="fe-controls-binding"><h3>1.2 引用、绑定与属性表怎么看</h3>
+<p>页面先引用命名空间，平台控件和项目控件分别引用。资源继续沿用应用已经合并的公共资源；单独做预览窗口时，要按 <a class="ref" data-f="xyz.Core/Client/xyz.Client/App.xaml">App.xaml</a> 的顺序补齐 MaterialDesign、颜色、字体、控件样式和语言包。</p>
+<figure class="code" data-file="xyz.Core/Client/xyz.Client/App.xaml"><figcaption>放在页面根节点上的命名空间声明</figcaption><script type="text/plain">xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+xmlns:hardware="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation"
+xmlns:project="clr-namespace:xyz._35021.Client.Presentation.Controls;assembly=xyz.35021.Client.Presentation"</script></figure>
+<table><thead><tr><th>表中标记</th><th>使用方式</th></tr></thead><tbody>
+<tr><td>默认单向</td><td>元数据没有声明默认双向。显示状态一般用 OneWay；想读回用户交互结果时明确设置 Mode。</td></tr>
+<tr><td>默认双向</td><td>元数据声明 BindsTwoWayByDefault；Value、可见时间范围等会回写 VM，VM 需要通知属性变化。</td></tr>
+<tr><td>只读</td><td>只能作为绑定来源读取，例如另一控件用 ElementName 读取 MountHeight；不要向只读属性设置值或 Binding。普通 C# 只读属性不一定是只读依赖属性，表中按 DependencyProperty.ReadOnly 标记。</td></tr>
+<tr><td>继承自 …</td><td>仍可以在当前控件上绑定；不需要在派生控件重写一份属性。</td></tr>
+<tr><td>bool?</td><td>null 是未知，不要用 false 代替。未知、未触发和根本没配点位是不同含义。</td></tr>
+<tr><td>Color / Brush</td><td>Color 接颜色；Brush 接画刷。三维件的 BodyColor 不能直接绑定 SolidColorBrush 对象，需要取其 Color。</td></tr>
+</tbody></table>
+<p><b>三维绑定：</b>独立 Visual3D 不继承页面 DataContext。例子里命名二维宿主 <code>Scene</code>，再用 <code>ElementName=Scene</code> 或显式 Source；<code>Transform</code> 是继承的安装变换。三维几何尺寸用场景示意单位，不是设备毫米值。独立硬件件没有相机和灯光，放入 Viewport3D；以 Scene / View 命名的组合控件通常已自带视口。</p>
+<p><b>组合原则：</b>Tank、Sensor、阀门、摆臂、气缸和喷嘴的归属来自实际装机/状态数据，布局只负责位置和连接。<code>Attachments</code> 等普通集合不放进依赖属性表；下面单列它们。例子中的 Binding 路径是调用方 VM 要提供的显示属性，不是写死的 PLC 路径。</p></section>
+<section class="topic fe-control-topic" id="fe-control-InputTextBox" data-control="InputTextBox"><h3>1.3 InputTextBox</h3>
+<p class="fe-kicker">输入与操作 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/InputTextBox.cs">查看源码</a> · 8 个公开依赖属性（含自定义基类）</p>
+<p>统一文本、整数和小数输入。业务页面绑定 Value；Text 是输入中的草稿。</p><p>Value 默认双向绑定。格式错误立即提示，范围在 Enter 或失焦提交时检查；错误输入不覆盖上次合法 Value。EcKey 可从 EC 目录取得类型、上下限、单位，显式设置优先。下发动作前检查 HasError。</p>
+<div class="fe-demo" data-demo="InputTextBox">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="InputTextBox 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">整数</option><option value="2">错误状态</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/InputTextBox-0.png" alt="InputTextBox 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+<div class="fe-input-lab"><label>提交值教学演示（范围 0~100）：<input aria-label="InputTextBox 提交值演示" value="25.5" inputmode="decimal"></label><button type="button">提交</button><output>Value = 25.5</output><small>这是网页输入演示；上方为实际 WPF 控件截图。非法提交保留上次合法 Value。</small></div>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/InputTextBox.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:InputTextBox
+    Value="{Binding TargetFlow}"
+    DataType="Decimal"
+    Minimum="0"
+    Maximum="100"
+    Unit="L/min"
+    HasError="{Binding FlowHasError, Mode=OneWayToSource}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="InputTextBox 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Value</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认双向</td><td>提交后的合法值（双向绑定）。整数、小数按不变区域性写（小数点是点号），绑到数值属性由绑定自动转换。</td></tr><tr><td><code>DataType</code></td><td><code>InputDataType</code><small>Text / Integer / Decimal</small></td><td><code>Text</code></td><td>默认单向</td><td>数据类型；不写就按 EC 的格式（Int → 整数，Double → 小数），再没有就是文本。</td></tr><tr><td><code>Minimum</code></td><td><code>Double?</code></td><td><code>null</code></td><td>默认单向</td><td>最小值（含）；不写就用 EC 的下限，再没有就不限。文本类型不生效。</td></tr><tr><td><code>Maximum</code></td><td><code>Double?</code></td><td><code>null</code></td><td>默认单向</td><td>最大值（含）；不写就用 EC 的上限，再没有就不限。文本类型不生效。</td></tr><tr><td><code>Unit</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>单位，只用在范围提示里（如&quot;范围 2 ~ 20 L/min&quot;）；不写就用 EC 的单位。</td></tr><tr><td><code>EcKey</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>从哪项 EC 取类型、范围、单位：&quot;元件全路径.参数名&quot;，如 LoadPort1.LoadTimeout、Chamber1.Door.ActionTimeoutMs。 可以绑定（按模块拼出来的键）；EC 里没有这项就当没配。</td></tr><tr><td><code>ErrorMessage</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>自定义错误提示：给了就一律显示它，可用 {0} {1} 占最小、最大值；不给用语言包里的默认提示。</td></tr><tr><td><code>HasError</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>当前输入有没有错（格式不对，或提交时范围不对）。外面可以 OneWayToSource 绑出去，比如错着的时候不让下发。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-DateTimePicker" data-control="DateTimePicker"><h3>1.4 DateTimePicker</h3>
+<p class="fe-kicker">输入与操作 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/DateTimePicker.xaml.cs">查看源码</a> · 2 个公开依赖属性（含自定义基类）</p>
+<p>分钟精度的日期 + 小时 + 分钟选择器。</p><p>绑定 DateTime? Value，清空日期得到 null。秒归零；查询区间的业务处理仍由调用方负责。</p>
+<div class="fe-demo" data-demo="DateTimePicker">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="DateTimePicker 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/DateTimePicker-0.png" alt="DateTimePicker 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/DateTimePicker.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:DateTimePicker
+    Value="{Binding StartTime}"
+    Hint="{DynamicResource common.start_time}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="DateTimePicker 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Value</code></td><td><code>DateTime?</code></td><td><code>null</code></td><td>默认双向</td><td>选中的时刻（秒一律为 0）。</td></tr><tr><td><code>Hint</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>提示文字（开始时间、结束时间……），显示在日期框上。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-PickerBox" data-control="PickerBox"><h3>1.5 PickerBox</h3>
+<p class="fe-kicker">输入与操作 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/PickerBox.xaml.cs">查看源码</a> · 7 个公开依赖属性（含自定义基类）</p>
+<p>从库中选择一个对象，点击省略号打开公共选择弹窗。</p><p>ItemsSource 给候选数据，Columns 是普通集合属性，ValuePath 指定回填字段，默认 Name。Value 默认双向绑定。IsEditable=true 才允许手输；HasError 由页面校验设置。</p>
+<div class="fe-demo" data-demo="PickerBox">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="PickerBox 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/PickerBox-0.png" alt="PickerBox 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/PickerBox.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:PickerBox
+    Value="{Binding RecipeName}"
+    ItemsSource="{Binding Recipes}"
+    ValuePath="Name"
+    PickerTitle="选择配方"
+    Placeholder="请选择">
+    <controls:PickerBox.Columns>
+        <controls:PickerColumn HeaderKey="common.name" Path="Name" />
+    </controls:PickerBox.Columns>
+</controls:PickerBox></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="PickerBox 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Value</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认双向</td><td>选中的值（双向绑定）：弹窗里选中那一项的 ValuePath 属性；能手输时也是输入的字。</td></tr><tr><td><code>Placeholder</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>没有值时框里的提示字。</td></tr><tr><td><code>PickerTitle</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>弹窗标题。</td></tr><tr><td><code>ItemsSource</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>弹窗里列出来的数据。</td></tr><tr><td><code>ValuePath</code></td><td><code>String</code></td><td><code>Name</code></td><td>默认单向</td><td>选中后把数据项的哪个属性填回 Value（默认 Name）。</td></tr><tr><td><code>IsEditable</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>能不能手输：默认不能（只能从弹窗里选，免得打错名字）。</td></tr><tr><td><code>HasError</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>值不对（没选、选的不存在……）：框变红。</td></tr></tbody></table></div>
+<p><b>普通属性 Columns</b>（ObservableCollection&lt;PickerColumn&gt;，不是依赖属性）：弹窗里显示哪几列，在 XAML 里写。</p>
+</section>
+<section class="topic fe-control-topic" id="fe-control-HoldButton" data-control="HoldButton"><h3>1.6 HoldButton</h3>
+<p class="fe-kicker">输入与操作 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/HoldButton.cs">查看源码</a> · 2 个公开依赖属性（含自定义基类）</p>
+<p>按住执行、松开停止的点动按钮。</p><p>PressCommand 和 ReleaseCommand 分别绑定开始与停止。不要只处理 Click；失去捕获、禁用等释放路径由控件处理，真实设备联锁仍在服务端。</p>
+<div class="fe-demo" data-demo="HoldButton">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="HoldButton 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/HoldButton-0.png" alt="HoldButton 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/HoldButton.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:HoldButton
+    Content="按住点动"
+    PressCommand="{Binding JogStartCommand}"
+    ReleaseCommand="{Binding JogStopCommand}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="HoldButton 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>PressCommand</code></td><td><code>ICommand</code></td><td><code>null</code></td><td>默认单向</td><td>按下时发（如点动开始）。</td></tr><tr><td><code>ReleaseCommand</code></td><td><code>ICommand</code></td><td><code>null</code></td><td>默认单向</td><td>松手时发（如停止）。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-SignalLamp" data-control="SignalLamp"><h3>1.7 SignalLamp</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SignalLamp.xaml.cs">查看源码</a> · 3 个公开依赖属性（含自定义基类）</p>
+<p>一个传感器点位的一盏灯和名称。</p><p>IsActive 是 bool?：true 亮、false 灭、null 未知；IsAlarm=true 时触发显示报警色。它是独立控件，不属于 Tank 的几何模型；归属、摆放和数据绑定由组合层决定。</p>
+<div class="fe-demo" data-demo="SignalLamp">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="SignalLamp 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">触发</option><option value="2">未触发</option><option value="3">未知</option><option value="4">报警位触发</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/SignalLamp-0.png" alt="SignalLamp 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SignalLamp.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:SignalLamp
+    Text="Tank1.H"
+    IsActive="{Binding Tank.H.IsActive}"
+    IsAlarm="False" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="SignalLamp 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Text</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>名字（machine.xml 里的节点名，原样显示）</td></tr><tr><td><code>IsActive</code></td><td><code>Boolean?</code></td><td><code>null</code></td><td>默认单向</td><td>有没有触发，读不到是 null</td></tr><tr><td><code>IsAlarm</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>报警位（HH、Overfill 这种）：触发了亮红</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-SignalTower" data-control="SignalTower"><h3>1.8 SignalTower</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SignalTower.xaml.cs">查看源码</a> · 4 个公开依赖属性（含自定义基类）</p>
+<p>红、黄、绿、蓝四盏独立的状态灯。</p><p>四个开关分别绑定，不相互排斥，也不自动控制硬件灯塔。</p>
+<div class="fe-demo" data-demo="SignalTower">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="SignalTower 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">红灯</option><option value="2">黄灯</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/SignalTower-0.png" alt="SignalTower 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SignalTower.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:SignalTower
+    IsRedOn="{Binding HasAlarm}"
+    IsYellowOn="{Binding HasWarning}"
+    IsGreenOn="{Binding IsRunning}"
+    IsBlueOn="{Binding IsConnected}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="SignalTower 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>IsRedOn</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>红灯：报警。</td></tr><tr><td><code>IsYellowOn</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>黄灯：警告。</td></tr><tr><td><code>IsGreenOn</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绿灯：运行。</td></tr><tr><td><code>IsBlueOn</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>蓝灯：通讯。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-TrendChart" data-control="TrendChart"><h3>1.9 TrendChart</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/TrendChart.ReferenceLines.cs">查看源码</a> · 9 个公开依赖属性（含自定义基类）</p>
+<p>统一时间趋势图，复用现有 ScottPlot 封装。</p><p>Series 接收 TrendSeries 集合；Xs 用升序 OADate，Ys 与之等长，NaN 表示缺测。使用 SetData / Append 通知刷新。FollowRange 与可见区间、游标时刻可双向绑定；所有曲线共用左侧纵轴，数字量按 0/1 显示。</p>
+<div class="fe-demo" data-demo="TrendChart">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="TrendChart 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/TrendChart-0.png" alt="TrendChart 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/TrendChart.ReferenceLines.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:TrendChart
+    Series="{Binding Series}"
+    RangeStart="{Binding StartTime}"
+    RangeEnd="{Binding EndTime}"
+    FollowRange="{Binding FollowRange}"
+    VisibleStart="{Binding VisibleStart}"
+    VisibleEnd="{Binding VisibleEnd}"
+    CursorTime="{Binding CursorTime}" /></script></figure>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Models/TrendSeries.cs"><figcaption>创建曲线与通知数据更新</figcaption><script type="text/plain">var temperature = new TrendSeries("Chamber1.Temperature", "℃", false);
+// xs: 升序时间的 ToOADate() 数值，ys: 同样数量的采样值。
+temperature.SetData(xs, ys);
+// 将 temperature 放进绑定到 Series 的集合；追加数据用 Append。</script></figure>
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="TrendChart 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>ShowXLines</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认双向</td><td>显示 X 基准线（两条竖线）；右上角 X 按钮开关。</td></tr><tr><td><code>ShowYLines</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认双向</td><td>显示 Y 基准线（两条横线）；右上角 Y 按钮开关。</td></tr><tr><td><code>Series</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>要画的曲线（TrendSeries 的集合，ObservableCollection 增删会跟着变）。</td></tr><tr><td><code>RangeStart</code></td><td><code>DateTime?</code></td><td><code>null</code></td><td>默认单向</td><td>整段的起点（数据曲线是查询的时间段，实时曲线是最近 N 分钟）。</td></tr><tr><td><code>RangeEnd</code></td><td><code>DateTime?</code></td><td><code>null</code></td><td>默认单向</td><td>完整数据区间的起止时间；不等于用户当前缩放后的可见区间。</td></tr><tr><td><code>FollowRange</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认双向</td><td>横轴跟着整段走；用户缩放、平移、框选时自动变假（停在他看的地方），双击回到整段时变真。</td></tr><tr><td><code>VisibleStart</code></td><td><code>DateTime?</code></td><td><code>null</code></td><td>默认双向</td><td>当前看到的时间段（每次重画后更新）。</td></tr><tr><td><code>VisibleEnd</code></td><td><code>DateTime?</code></td><td><code>null</code></td><td>默认双向</td><td>当前画面可见时间范围的输出值；通常使用双向绑定读取。</td></tr><tr><td><code>CursorTime</code></td><td><code>DateTime?</code></td><td><code>null</code></td><td>默认双向</td><td>鼠标对准的时刻（对准了采样点就是那个点的时刻）；鼠标不在绘图区为 null。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-Wafer" data-control="Wafer"><h3>1.10 Wafer</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Wafer.xaml.cs">查看源码</a> · 6 个公开依赖属性（含自定义基类）</p>
+<p>二维圆片，按晶圆账中的状态和片号显示。</p><p>Data 通常接 WaferModel，显示 LpSlot 和 State。IsDiskVisible 允许无片数据时仍画圆盘。RotationSpeed 是度/秒，超过 1 才转，不能直接当作设备 RPM。Label 虽已声明，当前二维模板仍显示 Data.LpSlot。</p>
+<div class="fe-demo" data-demo="Wafer">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="Wafer 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/Wafer-0.png" alt="Wafer 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Wafer.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:Wafer
+    Data="{Binding Wafer}"
+    IsDiskVisible="True"
+    RotationSpeed="{Binding DisplayDegreesPerSecond}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="Wafer 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Data</code></td><td><code>Object</code></td><td><code>null</code></td><td>默认单向</td><td>控件要显示的数据对象；晶圆控件通常接收 WaferModel。</td></tr><tr><td><code>IsDiskVisible</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>无业务数据时是否仍显示 Wafer 图形。</td></tr><tr><td><code>FillColor</code></td><td><code>Brush</code></td><td><code>#FF808080</code></td><td>默认单向</td><td>圆盘填充画刷；有匹配的晶圆业务状态时优先使用状态色。</td></tr><tr><td><code>Label</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>圆片文字覆盖值；三维 Disk 支持覆盖，二维 Wafer 当前模板仍显示 Data.LpSlot。</td></tr><tr><td><code>RotationSpeed</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>显示旋转速度（度/秒），不能把设备 RPM 不经换算直接绑定。</td></tr><tr><td><code>RotateClockwise</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>从上方观察时的旋转方向，true 为顺时针；RotationSpeed 仍使用度/秒。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-AlarmBar" data-control="AlarmBar"><h3>1.11 AlarmBar</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/AlarmBar.xaml.cs">查看源码</a> · 0 个公开依赖属性（含自定义基类）</p>
+<p>客户端当前报警的顶部摘要栏。</p><p>内部使用 AlarmBarViewModel / ClientAlarms；没有公开自定义依赖属性。装入应用共享资源后声明即可，报警清单由客户端状态提供。文档展示无报警态。</p>
+<div class="fe-demo" data-demo="AlarmBar">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="AlarmBar 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/AlarmBar-0.png" alt="AlarmBar 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/AlarmBar.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:AlarmBar /></script></figure>
+
+<p>没有新增的公开依赖属性。可以使用 Width、Height、Margin、Visibility、DataContext 等继承的 WPF 属性；业务显示方式见上面的说明。</p>
+<p><b>普通属性 ViewModel</b>（AlarmBarViewModel，不是依赖属性）：报警栏 ViewModel。</p>
+</section>
+<section class="topic fe-control-topic" id="fe-control-BottomChamberInfoCard" data-control="BottomChamberInfoCard"><h3>1.12 BottomChamberInfoCard</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/BottomChamberInfoCard.xaml.cs">查看源码</a> · 12 个公开依赖属性（含自定义基类）</p>
+<p>标题在底部的腔体信息卡片。</p><p>此版本使用字符串 State / IsOnline 等显示字段，与 ChamberInfoCard 的 StateText / StateTone 接口不同，替换控件时需核对属性表。</p>
+<div class="fe-demo" data-demo="BottomChamberInfoCard">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="BottomChamberInfoCard 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/BottomChamberInfoCard-0.png" alt="BottomChamberInfoCard 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/BottomChamberInfoCard.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:BottomChamberInfoCard
+    Title="Chamber1"
+    State="{Binding StateText}"
+    IsOnline="{Binding ConnectionText}"
+    Wafer="{Binding Wafer}"
+    Recipe="{Binding Recipe}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="BottomChamberInfoCard 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Title</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>卡片标题；绑定模块显示名，不承担设备身份或指令路由。</td></tr><tr><td><code>StatusOn</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>状态指示开关；true 显示点亮状态，false 显示未点亮状态。</td></tr><tr><td><code>IsOnline</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>连接状态显示文本；注意本控件该属性的类型是字符串。</td></tr><tr><td><code>State</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>显示状态；按本行类型绑定，字符串状态和 ProgressState 对象不能混用。</td></tr><tr><td><code>RecipeState</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>配方执行状态的显示文本。</td></tr><tr><td><code>Recipe</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>当前配方名的显示文本。</td></tr><tr><td><code>Step</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>当前工艺步骤的显示文本。</td></tr><tr><td><code>StepTime</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>当前步骤时间的显示值；查看本行类型决定传文本还是数值。</td></tr><tr><td><code>RecipeTime</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>整份配方时间的显示值。</td></tr><tr><td><code>ShutterState</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>腔门或挡板状态的显示文本。</td></tr><tr><td><code>Wafer</code></td><td><code>WaferModel</code></td><td><code>null</code></td><td>默认单向</td><td>当前位置的晶圆显示数据；没有片时传 null，不创建后端晶圆账。</td></tr><tr><td><code>RotationSpeed</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>显示旋转速度（度/秒），不能把设备 RPM 不经换算直接绑定。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-Buffer" data-control="Buffer"><h3>1.13 Buffer</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Buffer.xaml.cs">查看源码</a> · 8 个公开依赖属性（含自定义基类）</p>
+<p>带标题和模块状态的缓存架组合卡片。</p><p>FirstSlot 表示物理起始槽号，SlotCount 来自装机，Wafers 按 Slot 放片。WaferCount 是只读输出。需要纯场景时选 BufferView，共享视口时选 BufferVisual3D。</p>
+<div class="fe-demo" data-demo="Buffer">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="Buffer 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">8 个槽（示例）</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/Buffer-0.png" alt="Buffer 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Buffer.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:Buffer
+    Title="Buffer1"
+    FirstSlot="1"
+    SlotCount="{Binding SlotCount}"
+    Wafers="{Binding Wafers}"
+    StateText="{Binding StateText}"
+    IsProduction="{Binding IsProduction}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="Buffer 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Title</code></td><td><code>String</code></td><td><code>Buffer</code></td><td>默认单向</td><td>卡片标题；绑定模块显示名，不承担设备身份或指令路由。</td></tr><tr><td><code>StateText</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>状态文案由调用方提供，空字符串不显示徽标。</td></tr><tr><td><code>StateTone</code></td><td><code>ModuleStateTone</code><small>Inactive / Busy / Ready / Warning / Alarm</small></td><td><code>Inactive</code></td><td>默认单向</td><td>状态色调；使用属性类型对应的枚举值，不直接传后端整数。</td></tr><tr><td><code>IsProduction</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>生产模式（交给调度用）亮，维护灭</td></tr><tr><td><code>FirstSlot</code></td><td><code>Int32</code></td><td><code>1</code></td><td>默认单向</td><td>最底层的物理槽号；用于显示同一个架子的某个槽段，默认 1。</td></tr><tr><td><code>SlotCount</code></td><td><code>Int32</code></td><td><code>10</code></td><td>默认单向</td><td>实际槽数，默认 10；0 显示空视图。固定槽距，增减槽数后自动重新取景。</td></tr><tr><td><code>Wafers</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>WaferModel 集合，按物理 Slot 摆片、State 上色；支持集合增删、替换及单片 Slot/State 变化。 范围外的片不显示，同槽重复只显示第一片；不按 LoadPort 的来源槽号推断位置。 集合与模型应像其它 WPF 绑定数据一样在 UI 线程更新。</td></tr><tr><td><code>WaferCount</code></td><td><code>Int32</code></td><td><code>0</code></td><td>只读</td><td>当前显示的片数，只读，按实际有效占用槽统计。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-BufferView" data-control="BufferView"><h3>1.14 BufferView</h3>
+<p class="fe-kicker">3D 组合视图 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/BufferView.xaml.cs">查看源码</a> · 4 个公开依赖属性（含自定义基类）</p>
+<p>自带视口和视角交互的缓存架。</p><p>使用与 BufferVisual3D 相同的槽位数据。WaferCount 为只读依赖属性，绑定输出不能从外部 SetValue。</p>
+<div class="fe-demo" data-demo="BufferView">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="BufferView 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">8 个槽（示例）</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/BufferView-0.png" alt="BufferView 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/BufferView.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:BufferView
+    FirstSlot="1"
+    SlotCount="{Binding SlotCount}"
+    Wafers="{Binding Wafers}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="BufferView 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>FirstSlot</code></td><td><code>Int32</code></td><td><code>1</code></td><td>默认单向</td><td>最底层物理槽号；与 SlotCount 一起定义有效槽位范围。</td></tr><tr><td><code>SlotCount</code></td><td><code>Int32</code></td><td><code>10</code></td><td>默认单向</td><td>实际槽位数量，应来自装机或后端快照；文档演示值只是样例。</td></tr><tr><td><code>Wafers</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>晶圆集合，按 WaferModel.Slot 放入槽位；集合变更监听策略见控件使用说明。</td></tr><tr><td><code>WaferCount</code></td><td><code>Int32</code></td><td><code>0</code></td><td>只读</td><td>当前有效占用槽数，只读；可作为其他控件绑定的来源。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-ChamberInfoCard" data-control="ChamberInfoCard"><h3>1.15 ChamberInfoCard</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ChamberInfoCard.xaml.cs">查看源码</a> · 15 个公开依赖属性（含自定义基类）</p>
+<p>腔体状态信息卡片，标题与圆片分开显示。</p><p>状态文字和色调分别绑定；Wafer 接当前位置晶圆数据，Recipe / Step / 时间仅显示。Number 是站点编号，不会自行定位后端模块。</p>
+<div class="fe-demo" data-demo="ChamberInfoCard">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ChamberInfoCard 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ChamberInfoCard-0.png" alt="ChamberInfoCard 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ChamberInfoCard.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:ChamberInfoCard
+    Title="Chamber1"
+    Number="1"
+    StateText="{Binding StateText}"
+    StateTone="{Binding StateTone}"
+    Wafer="{Binding Wafer}"
+    Recipe="{Binding Recipe}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ChamberInfoCard 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Title</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>卡片标题；绑定模块显示名，不承担设备身份或指令路由。</td></tr><tr><td><code>Number</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>站点号角标（机械手示教点表里的设备站点号）；空就不显示。</td></tr><tr><td><code>DiskSize</code></td><td><code>Double</code></td><td><code>100</code></td><td>默认单向</td><td>圆片直径：跟调度图里机械手叉上的片一样大，由页面按机械手的显示尺寸给。</td></tr><tr><td><code>StatusOn</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>状态指示开关；true 显示点亮状态，false 显示未点亮状态。</td></tr><tr><td><code>IsOnline</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>连接状态显示文本；注意本控件该属性的类型是字符串。</td></tr><tr><td><code>StateText</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>腔体状态文字，标题行右侧缩小版状态徽标显示；空就不显示徽标。</td></tr><tr><td><code>StateTone</code></td><td><code>ModuleStateTone</code><small>Inactive / Busy / Ready / Warning / Alarm</small></td><td><code>Inactive</code></td><td>默认单向</td><td>腔体状态色调（徽标底色）。</td></tr><tr><td><code>RecipeState</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>配方执行状态的显示文本。</td></tr><tr><td><code>Recipe</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>当前配方名的显示文本。</td></tr><tr><td><code>Step</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>当前工艺步骤的显示文本。</td></tr><tr><td><code>StepTime</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>当前步骤时间的显示值；查看本行类型决定传文本还是数值。</td></tr><tr><td><code>RecipeTime</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>整份配方时间的显示值。</td></tr><tr><td><code>ShutterState</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>腔门或挡板状态的显示文本。</td></tr><tr><td><code>Wafer</code></td><td><code>WaferModel</code></td><td><code>null</code></td><td>默认单向</td><td>当前位置的晶圆显示数据；没有片时传 null，不创建后端晶圆账。</td></tr><tr><td><code>RotationSpeed</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>显示旋转速度（度/秒），不能把设备 RPM 不经换算直接绑定。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-ChamberView" data-control="ChamberView"><h3>1.16 ChamberView（35021 项目）</h3>
+<p class="fe-kicker">项目控件 · <a class="ref" data-f="xyz.35021/Client/Presentation/Controls/ChamberView.xaml.cs">查看源码</a> · 4 个公开依赖属性（含自定义基类）</p>
+<p>35021 项目的腔体显示控件，消费 ToolBuilder 布局。</p><p>Snapshot 给完整实际设备清单，Layout 只覆盖位置和挂载。VisualCatalog 使项目自有外观优先、平台外观补齐。它属于项目 Presentation，不是平台通用控件。</p>
+<div class="fe-demo" data-demo="ChamberView">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ChamberView 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ChamberView-0.png" alt="ChamberView 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.35021/Client/Presentation/Controls/ChamberView.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><project:ChamberView
+    Snapshot="{Binding Snapshot}"
+    Layout="{Binding Layout}"
+    VisualCatalog="{Binding VisualCatalog}"
+    Wafer="{Binding Wafer}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ChamberView 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Snapshot</code></td><td><code>ChamberDeviceDataDto</code></td><td><code>null</code></td><td>默认单向</td><td>完整设备快照；设备组成由实际快照决定，布局不能添加不存在的硬件。</td></tr><tr><td><code>Layout</code></td><td><code>ChamberLayoutModel</code></td><td><code>null</code></td><td>默认单向</td><td>ToolBuilder 导出的显示布局；仅描述位置、大小与父子挂载关系。</td></tr><tr><td><code>VisualCatalog</code></td><td><code>ChamberVisualCatalog</code></td><td><code>null</code></td><td>默认单向</td><td>项目控件提供者目录；已实现的项目控件优先，缺少的种类使用平台外观。</td></tr><tr><td><code>Wafer</code></td><td><code>Object</code></td><td><code>null</code></td><td>默认单向</td><td>当前位置的晶圆显示数据；没有片时传 null，不创建后端晶圆账。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-DispatchMap" data-control="DispatchMap"><h3>1.17 DispatchMap</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/DispatchMap.xaml.cs">查看源码</a> · 5 个公开依赖属性（含自定义基类）</p>
+<p>按机械手站点表自动组合的调度图。</p><p>RobotName 是模块名和订阅 token；给值会建立内部显示模型、订阅推送。静态文档展示离线空态，不伪造站点。CardWidth / CardHeight / RobotHeight 调整显示，DiskSize 是只读计算结果。</p>
+<div class="fe-demo" data-demo="DispatchMap">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="DispatchMap 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/DispatchMap-0.png" alt="DispatchMap 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/DispatchMap.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:DispatchMap
+    RobotName="Robot1"
+    CardWidth="280"
+    CardHeight="233"
+    RobotHeight="360" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="DispatchMap 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>RobotName</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>机械手模块名（如 Robot1），也是它状态推送的 token；换了就重建 ViewModel、重订推送。</td></tr><tr><td><code>CardWidth</code></td><td><code>Double</code></td><td><code>280</code></td><td>默认单向</td><td>站点卡片宽（默认 280，近方形）。</td></tr><tr><td><code>CardHeight</code></td><td><code>Double</code></td><td><code>233</code></td><td>默认单向</td><td>站点卡片高（默认 233）。</td></tr><tr><td><code>RobotHeight</code></td><td><code>Double</code></td><td><code>360</code></td><td>默认单向</td><td>机械手画多高（默认 360）；卡片上的圆片跟着它算，跟叉上的片一样大。</td></tr><tr><td><code>DiskSize</code></td><td><code>Double</code></td><td><code>75.6</code></td><td>只读</td><td>卡片上圆片的直径 = 机械手叉上的片按 RobotHeight 缩放后的大小（只读，跟着 RobotHeight 变）。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-FluidPipe" data-control="FluidPipe"><h3>1.18 FluidPipe</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/FluidPipe.xaml.cs">查看源码</a> · 15 个公开依赖属性（含自定义基类）</p>
+<p>二维布局中的三维透明管路控件，自带视口。</p><p>Points 使用画布坐标；管径、管壁和圆角也使用画布单位，内部按 0.01 换算到三维场景。IsFilled 是液芯显示，IsFlowing 是流动显示，IsAnimationEnabled 只暂停动画。拓扑必须由布局提供，控件不能从阀门数量猜出管路。</p>
+<div class="fe-demo" data-demo="FluidPipe">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="FluidPipe 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">出液显示</option><option value="2">关闭动画</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/FluidPipe-0.png" alt="FluidPipe 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/FluidPipe.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:FluidPipe
+    Points="{Binding PipePoints}"
+    PipeThickness="16"
+    WallThickness="1.6"
+    BendRadius="18"
+    IsFilled="True"
+    IsFlowing="{Binding IsFlowing}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="FluidPipe 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Points</code></td><td><code>PointCollection</code></td><td><code>null</code></td><td>默认单向</td><td>管中心的二维路径点，X 向右、Y 向下。不设置时按控件大小显示直管。</td></tr><tr><td><code>Orientation</code></td><td><code>Orientation</code><small>Horizontal / Vertical</small></td><td><code>Horizontal</code></td><td>默认单向</td><td>默认直管的方向。设置 Points 后按路径绘制。</td></tr><tr><td><code>PipeThickness</code></td><td><code>Double</code></td><td><code>14</code></td><td>默认单向</td><td>管外直径，使用 WPF 逻辑像素。</td></tr><tr><td><code>WallThickness</code></td><td><code>Double</code></td><td><code>2</code></td><td>默认单向</td><td>管壁厚度，使用 WPF 逻辑像素。</td></tr><tr><td><code>BendRadius</code></td><td><code>Double</code></td><td><code>24</code></td><td>默认单向</td><td>转弯圆角半径，使用路径坐标单位。</td></tr><tr><td><code>FluidCoreRatio</code></td><td><code>Double</code></td><td><code>0.58</code></td><td>默认单向</td><td>液芯半径占内腔半径的比例，范围为 (0, 1]。</td></tr><tr><td><code>WallOpacity</code></td><td><code>Double</code></td><td><code>0.18</code></td><td>默认单向</td><td>管壁不透明度强度，范围为 [0, 1]，越小越透明。</td></tr><tr><td><code>WallColor</code></td><td><code>Color</code></td><td><code>#FFB4B4B4</code></td><td>默认单向</td><td>管壁颜色。</td></tr><tr><td><code>FluidColor</code></td><td><code>Color</code></td><td><code>#FFC4C4C4</code></td><td>默认单向</td><td>液体底色，与 FlowColor 按 1:3 混合。</td></tr><tr><td><code>FlowColor</code></td><td><code>Color</code></td><td><code>#FF52D4EF</code></td><td>默认单向</td><td>水流主色和移动水纹的颜色。</td></tr><tr><td><code>IsFilled</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>是否有液体。false 时不显示液芯。</td></tr><tr><td><code>IsFlowing</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>是否流动。false 时清除液芯和水纹，只显示管壁。</td></tr><tr><td><code>FlowSpeed</code></td><td><code>Double</code></td><td><code>55</code></td><td>默认单向</td><td>水纹每秒移动的路径长度，0 时暂停；不是设备实测流量。</td></tr><tr><td><code>ReverseFlow</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>是否沿路径反向流动。</td></tr><tr><td><code>IsAnimationEnabled</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>动画开关。false 时冻结水纹，保留液芯和流动状态。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-Foup" data-control="Foup"><h3>1.19 Foup</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Foup.xaml.cs">查看源码</a> · 0 个公开依赖属性（含自定义基类）</p>
+<p>FOUP 载具外形示意。</p><p>当前没有自定义依赖属性，使用 Width / Height 等 WPF 布局属性控制大小。它不是按真实槽位数据装配的 CarrierVisual3D。</p>
+<div class="fe-demo" data-demo="Foup">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="Foup 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/Foup-0.png" alt="Foup 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Foup.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:Foup
+    Width="240"
+    Height="280" /></script></figure>
+
+<p>没有新增的公开依赖属性。可以使用 Width、Height、Margin、Visibility、DataContext 等继承的 WPF 属性；业务显示方式见上面的说明。</p>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-LoadPortInfoCard" data-control="LoadPortInfoCard"><h3>1.20 LoadPortInfoCard</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/LoadPortInfoCard.xaml.cs">查看源码</a> · 15 个公开依赖属性（含自定义基类）</p>
+<p>载具、片数和模块状态的 LoadPort 信息卡片。</p><p>SlotCount / Wafers 提供实际槽位数据。Present、Placed、Alarm、AutoMode 与通信状态分别绑定；缺少某项反馈不能用别的状态代替。</p>
+<div class="fe-demo" data-demo="LoadPortInfoCard">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="LoadPortInfoCard 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/LoadPortInfoCard-0.png" alt="LoadPortInfoCard 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/LoadPortInfoCard.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:LoadPortInfoCard
+    Title="LoadPort1"
+    SlotCount="{Binding SlotCount}"
+    Wafers="{Binding Wafers}"
+    Present="{Binding Present}"
+    Placed="{Binding Placed}"
+    StateText="{Binding StateText}"
+    StateTone="{Binding StateTone}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="LoadPortInfoCard 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Title</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>卡片标题；绑定模块显示名，不承担设备身份或指令路由。</td></tr><tr><td><code>Number</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>站点号角标（机械手示教点表里的设备站点号）；空就不显示。</td></tr><tr><td><code>DiskSize</code></td><td><code>Double</code></td><td><code>100</code></td><td>默认单向</td><td>圆片直径：跟调度图里机械手叉上的片一样大，由页面按机械手的显示尺寸给。</td></tr><tr><td><code>IsOnline</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>底栏 Online 文案。</td></tr><tr><td><code>StateText</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>LoadPort 状态文字，标题行右侧缩小版状态徽标显示；空就不显示徽标。</td></tr><tr><td><code>StateTone</code></td><td><code>ModuleStateTone</code><small>Inactive / Busy / Ready / Warning / Alarm</small></td><td><code>Inactive</code></td><td>默认单向</td><td>LoadPort 状态色调（徽标底色）。</td></tr><tr><td><code>IsConnected</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>通讯灯：驱动串口是否连上。</td></tr><tr><td><code>Present</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>在位灯：FOUP 是否放上。</td></tr><tr><td><code>Placed</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>到位灯：FOUP 是否夹紧放平。</td></tr><tr><td><code>Alarm</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>报警灯：设备硬件报警。</td></tr><tr><td><code>AutoMode</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>AUTO / MANUAL 灯：true=Auto，false=Manual。</td></tr><tr><td><code>Wafers</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>花篮里的片（有片的槽位）；槽数由 SlotCount 决定。</td></tr><tr><td><code>SlotCount</code></td><td><code>Int32</code></td><td><code>0</code></td><td>默认单向</td><td>花篮槽数（machine.xml 的 LoadPort.SlotCount）；0 表示还不知道、不画槽。</td></tr><tr><td><code>Wafer</code></td><td><code>WaferModel</code></td><td><code>null</code></td><td>默认单向</td><td>右侧 disk 圆片上的片（与 ChamberCard 同字段）。</td></tr><tr><td><code>RotationSpeed</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>显示旋转速度（度/秒），不能把设备 RPM 不经换算直接绑定。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-LogBar" data-control="LogBar"><h3>1.21 LogBar</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/LogBar.xaml.cs">查看源码</a> · 0 个公开依赖属性（含自定义基类）</p>
+<p>客户端日志摘要栏。</p><p>内部持有 LogViewModel；没有公开自定义依赖属性。显示数据来自客户端日志链路，文档中不连接真实后台。</p>
+<div class="fe-demo" data-demo="LogBar">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="LogBar 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/LogBar-0.png" alt="LogBar 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/LogBar.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:LogBar /></script></figure>
+
+<p>没有新增的公开依赖属性。可以使用 Width、Height、Margin、Visibility、DataContext 等继承的 WPF 属性；业务显示方式见上面的说明。</p>
+<p><b>普通属性 ViewModel</b>（LogViewModel，不是依赖属性）：日志 ViewModel（消费者）。</p>
+</section>
+<section class="topic fe-control-topic" id="fe-control-ModuleChip" data-control="ModuleChip"><h3>1.22 ModuleChip</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleChip.xaml.cs">查看源码</a> · 4 个公开依赖属性（含自定义基类）</p>
+<p>一个模块名和状态圆点，边框表示生产/维护。</p><p>Text、Tone、IsProduction 独立提供。HasMode=false 不画生产/维护边框，适用于不区分此模式的模块。</p>
+<div class="fe-demo" data-demo="ModuleChip">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ModuleChip 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">维护模式</option><option value="2">不区分生产维护</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ModuleChip-0.png" alt="ModuleChip 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleChip.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:ModuleChip
+    Text="Chamber1"
+    Tone="{Binding StateTone}"
+    IsProduction="{Binding IsProduction}"
+    HasMode="True" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ModuleChip 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Text</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>框里的字（模块名，machine.xml 原样）</td></tr><tr><td><code>Tone</code></td><td><code>ModuleStateTone</code><small>Inactive / Busy / Ready / Warning / Alarm</small></td><td><code>Inactive</code></td><td>默认单向</td><td>状态色调：就绪圆点绿、报警红，其他灰</td></tr><tr><td><code>IsProduction</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>生产模式：边框亮；维护（或不知道）边框灭</td></tr><tr><td><code>HasMode</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>分不分生产 / 维护：不分的（供液）不画边框</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-ModuleStateBadge" data-control="ModuleStateBadge"><h3>1.23 ModuleStateBadge</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleStateBadge.xaml.cs">查看源码</a> · 3 个公开依赖属性（含自定义基类）</p>
+<p>模块状态文字徽章。</p><p>Text 给文字、Tone 给色调，IsCompact 控制紧凑外观；它与模块服务没有耦合。</p>
+<div class="fe-demo" data-demo="ModuleStateBadge">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ModuleStateBadge 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">紧凑模式</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ModuleStateBadge-0.png" alt="ModuleStateBadge 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleStateBadge.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:ModuleStateBadge
+    Text="{Binding StateText}"
+    Tone="{Binding StateTone}"
+    IsCompact="False" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ModuleStateBadge 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Text</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>状态字（显示模型的 StateText，已按当前语言翻好）；空就不显示。</td></tr><tr><td><code>Tone</code></td><td><code>ModuleStateTone</code><small>Inactive / Busy / Ready / Warning / Alarm</small></td><td><code>Inactive</code></td><td>默认单向</td><td>色调（显示模型的 StateTone）。</td></tr><tr><td><code>IsCompact</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>缩小版：小卡片标题行里用，矮一截、字小、宽度随字。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-ModuleStatusBar" data-control="ModuleStatusBar"><h3>1.24 ModuleStatusBar</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleStatusBar.xaml.cs">查看源码</a> · 0 个公开依赖属性（含自定义基类）</p>
+<p>主界面顶部的模块状态行。</p><p>当前控件内部创建 ModuleStatusBarViewModel 并订阅整机状态；没有公开自定义依赖属性。离线时没有真实模块列表，文档画面使用明确的样例数据。</p>
+<div class="fe-demo" data-demo="ModuleStatusBar">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ModuleStatusBar 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ModuleStatusBar-0.png" alt="ModuleStatusBar 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ModuleStatusBar.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:ModuleStatusBar /></script></figure>
+
+<p>没有新增的公开依赖属性。可以使用 Width、Height、Margin、Visibility、DataContext 等继承的 WPF 属性；业务显示方式见上面的说明。</p>
+<p><b>普通属性 ViewModel</b>（ModuleStatusBarViewModel，不是依赖属性）：模块行 ViewModel</p>
+</section>
+<section class="topic fe-control-topic" id="fe-control-ProgressOverlay" data-control="ProgressOverlay"><h3>1.25 ProgressOverlay</h3>
+<p class="fe-kicker">信号与状态 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ProgressOverlay.xaml.cs">查看源码</a> · 4 个公开依赖属性（含自定义基类）</p>
+<p>覆盖当前页面的进度与取消层。</p><p>State 接 ProgressState；VM 使用 RunAsync 执行业务任务，并更新进度。ShowDelay 默认 500ms，快速任务不弹；Text 给语言包提示，IsIndeterminate=true 表示不知道进度。放在根 Grid 最后一层覆盖内容。</p>
+<div class="fe-demo" data-demo="ProgressOverlay">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ProgressOverlay 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ProgressOverlay-0.png" alt="ProgressOverlay 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ProgressOverlay.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:ProgressOverlay
+    State="{Binding Progress}"
+    Text="正在加载"
+    IsIndeterminate="True" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ProgressOverlay 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>State</code></td><td><code>ProgressState</code></td><td><code>null</code></td><td>默认单向</td><td>绑 VM 上的 ProgressState：开没开、进度、取消都从它来</td></tr><tr><td><code>Text</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>圆环下面那行字（页面上绑语言包，如 {DynamicResource datachart.exporting}）</td></tr><tr><td><code>IsIndeterminate</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>不知道进度（查询）：圆环一直转，中间不写百分比</td></tr><tr><td><code>ShowDelay</code></td><td><code>Int32</code></td><td><code>500</code></td><td>默认单向</td><td>开始以后过多少毫秒还没完才弹出来（默认 500）：放大、拖动时的快查询不闪</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-Robot" data-control="Robot"><h3>1.26 Robot</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Robot.xaml.cs">查看源码</a> · 7 个公开依赖属性（含自定义基类）</p>
+<p>二维机械手，直接绑定各手臂数据。</p><p>Arms 接 RobotArmModel 集合，每只手臂独立 Extension（0~1）、Heading 和 Wafer。Rotation 是 RobotDirection 枚举，仅接受 North / East / South / West；Travel 是平移。控件执行先收臂、再转向/平移、再伸出的视觉顺序，不发送设备运动指令。</p>
+<div class="fe-demo" data-demo="Robot">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="Robot 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">朝东（90°）</option><option value="2">蛙式机械手</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/Robot-0.png" alt="Robot 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Robot.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:Robot
+    ArmType="Linear"
+    Arms="{Binding Arms}"
+    Rotation="{Binding Rotation}"
+    Travel="{Binding Travel}"
+    IsAnimationEnabled="True" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="Robot 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>ArmType</code><small>继承自 RobotViewBase</small></td><td><code>RobotArmType</code><small>Linear / FrogLeg</small></td><td><code>Linear</code></td><td>默认单向</td><td>机械手结构枚举；选择直伸或蛙式，运动姿态仍从各手臂数据给入。</td></tr><tr><td><code>Rotation</code><small>继承自 RobotViewBase</small></td><td><code>RobotDirection</code><small>North / East / South / West</small></td><td><code>North</code></td><td>默认单向</td><td>转台目标朝向（俯视，屏幕上方为北）：North 0°、East 90°、South 180°、West 270°，只接受这四个方向；按最短路径转过去。</td></tr><tr><td><code>Travel</code><small>继承自 RobotViewBase</small></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>水平平移目标：机械手中心相对控件中心向右移多少，负数向左；机械手可以移出控件范围。 按机械手设计尺寸 400×400 计，跟机械手一起按短边等比缩放：短边 400 时就是像素，短边 800 时实际移动 2 倍。</td></tr><tr><td><code>ExtendedReach</code><small>继承自 RobotViewBase</small></td><td><code>Double</code></td><td><code>150</code></td><td>默认单向</td><td>伸出行程：手臂完全伸出（Extension = 1）时片心离转台中心多远，按机械手设计尺寸 400×400 计，跟机械手一起等比缩放。 各机台按自己的臂展配；形状不变，只是伸得远近不同。收回到底固定为 24。</td></tr><tr><td><code>ArmCount</code><small>继承自 RobotViewBase</small></td><td><code>Int32</code></td><td><code>2</code></td><td>默认单向</td><td>手指（手臂）数量，1~4：控件画出 1..ArmCount 号手臂，Arms 里没有数据的手臂按空手收回显示。</td></tr><tr><td><code>Arms</code><small>继承自 RobotViewBase</small></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>手臂数据（RobotArmModel），按 Arm 号对应 1..ArmCount：超出 ArmCount 的忽略，同号取第一个； 集合增删与每只手臂的属性变化都会刷新。</td></tr><tr><td><code>IsAnimationEnabled</code><small>继承自 RobotViewBase</small></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>是否播放运动动画；false 时姿态直接跳到目标（设计器、截图用）。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-Robot3D" data-control="Robot3D"><h3>1.27 Robot3D</h3>
+<p class="fe-kicker">3D 组合视图 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Robot3D.xaml.cs">查看源码</a> · 8 个公开依赖属性（含自定义基类）</p>
+<p>自带相机、灯光和视角操作的三维机械手。</p><p>继承 RobotViewBase，与二维 Robot 共用 Arms、Rotation、Travel 等输入。可拖动旋转、滚轮缩放；ResetView / ShowTopView 是普通方法。只显示，不订阅或发送设备动作。</p>
+<div class="fe-demo" data-demo="Robot3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="Robot3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">朝东（90°）</option><option value="2">蛙式机械手</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/Robot3D-0.png" alt="Robot3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Robot3D.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:Robot3D
+    Arms="{Binding Arms}"
+    Rotation="{Binding Rotation}"
+    Travel="{Binding Travel}"
+    ShowViewToolbar="True" /></script></figure>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Models/RobotArmModel.cs"><figcaption>每只手臂独立提供状态</figcaption><script type="text/plain">var arms = new ObservableCollection<RobotArmModel>
+{
+    new() { Arm = 1, Extension = 0.8, Heading = 0, Wafer = wafer },
+    new() { Arm = 2, Extension = 0, Heading = 180, Wafer = null }
+};
+// VM 的 Arms 返回这个集合；Rotation 使用 RobotDirection.East 等枚举。</script></figure>
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="Robot3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>ShowViewToolbar</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>是否显示视角按钮；不改变设备状态。</td></tr><tr><td><code>ArmType</code><small>继承自 RobotViewBase</small></td><td><code>RobotArmType</code><small>Linear / FrogLeg</small></td><td><code>Linear</code></td><td>默认单向</td><td>机械手结构枚举；选择直伸或蛙式，运动姿态仍从各手臂数据给入。</td></tr><tr><td><code>Rotation</code><small>继承自 RobotViewBase</small></td><td><code>RobotDirection</code><small>North / East / South / West</small></td><td><code>North</code></td><td>默认单向</td><td>转台目标朝向（俯视，屏幕上方为北）：North 0°、East 90°、South 180°、West 270°，只接受这四个方向；按最短路径转过去。</td></tr><tr><td><code>Travel</code><small>继承自 RobotViewBase</small></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>水平平移目标：机械手中心相对控件中心向右移多少，负数向左；机械手可以移出控件范围。 按机械手设计尺寸 400×400 计，跟机械手一起按短边等比缩放：短边 400 时就是像素，短边 800 时实际移动 2 倍。</td></tr><tr><td><code>ExtendedReach</code><small>继承自 RobotViewBase</small></td><td><code>Double</code></td><td><code>150</code></td><td>默认单向</td><td>伸出行程：手臂完全伸出（Extension = 1）时片心离转台中心多远，按机械手设计尺寸 400×400 计，跟机械手一起等比缩放。 各机台按自己的臂展配；形状不变，只是伸得远近不同。收回到底固定为 24。</td></tr><tr><td><code>ArmCount</code><small>继承自 RobotViewBase</small></td><td><code>Int32</code></td><td><code>2</code></td><td>默认单向</td><td>手指（手臂）数量，1~4：控件画出 1..ArmCount 号手臂，Arms 里没有数据的手臂按空手收回显示。</td></tr><tr><td><code>Arms</code><small>继承自 RobotViewBase</small></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>手臂数据（RobotArmModel），按 Arm 号对应 1..ArmCount：超出 ArmCount 的忽略，同号取第一个； 集合增删与每只手臂的属性变化都会刷新。</td></tr><tr><td><code>IsAnimationEnabled</code><small>继承自 RobotViewBase</small></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>是否播放运动动画；false 时姿态直接跳到目标（设计器、截图用）。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-SampleUserControl" data-control="SampleUserControl"><h3>1.28 SampleUserControl</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SampleUserControl.xaml.cs">查看源码</a> · 0 个公开依赖属性（含自定义基类）</p>
+<p>控件模板示例。</p><p>当前只初始化模板，没有业务依赖属性，也不是已实现设备控件。新业务控件应根据实际职责命名。</p>
+<div class="fe-demo" data-demo="SampleUserControl">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="SampleUserControl 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/SampleUserControl-0.png" alt="SampleUserControl 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/SampleUserControl.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:SampleUserControl /></script></figure>
+
+<p>没有新增的公开依赖属性。可以使用 Width、Height、Margin、Visibility、DataContext 等继承的 WPF 属性；业务显示方式见上面的说明。</p>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-StationCard" data-control="StationCard"><h3>1.29 StationCard</h3>
+<p class="fe-kicker">数据与设备卡片 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/StationCard.xaml.cs">查看源码</a> · 1 个公开依赖属性（含自定义基类）</p>
+<p>调度图按站点类型选择的卡片包装。</p><p>DataContext 必须是 RobotStationModel。它据站点类型选择 LoadPortInfoCard 或 ChamberInfoCard；DiskSize 统一片的显示尺寸。</p>
+<div class="fe-demo" data-demo="StationCard">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="StationCard 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+
+ <span>原生 WPF 控件效果</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/StationCard-0.png" alt="StationCard 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/StationCard.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><controls:StationCard
+    DataContext="{Binding Station}"
+    DiskSize="100" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="StationCard 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>DiskSize</code></td><td><code>Double</code></td><td><code>100</code></td><td>默认单向</td><td>卡片上圆片的直径：跟调度图里机械手叉上的片一样大，由调度图按机械手的显示尺寸给。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-ArmVisual3D" data-control="ArmVisual3D"><h3>1.30 ArmVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ArmVisual3D.cs">查看源码</a> · 11 个公开依赖属性（含自定义基类）</p>
+<p>摆臂几何件，零角度沿 +X，局部 Y 向上。</p><p>Angle 使用度。Length 是回转中心到末端安装块中心的长度。Attachments 是普通 Visual3DCollection，不是依赖属性；喷嘴管路挂入后随摆角转动，喷液状态仍独立。Lift 也必须单独组合。</p>
+<div class="fe-demo" data-demo="ArmVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ArmVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">Angle = 45°</option><option value="2">Angle = 90°</option><option value="3">加长至 3.2</option><option value="4">选中高亮</option><option value="5">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ArmVisual3D-0.png" alt="ArmVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ArmVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:ArmVisual3D
+            Angle="{Binding DataContext.ArmAngle, ElementName=Scene}"
+            Length="2.2" />
+    </Viewport3D>
+</Grid></script></figure>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ArmVisual3D.cs"><figcaption>普通集合 Attachments：管路随臂转动，喷液反馈独立</figcaption><script type="text/plain"><hardware:ArmVisual3D
+    Angle="{Binding DataContext.ArmAngle, ElementName=Scene}">
+    <hardware:ArmVisual3D.Attachments>
+        <hardware:FluidPipeVisual3D
+            Length="2.2"
+            IsFlowing="{Binding DataContext.NozzleOn, ElementName=Scene}" />
+    </hardware:ArmVisual3D.Attachments>
+</hardware:ArmVisual3D></script></figure>
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ArmVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Angle</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>当前摆角，单位为度。正角度使臂尖从 +X 转向 -Z。</td></tr><tr><td><code>Length</code></td><td><code>Double</code></td><td><code>2.2</code></td><td>默认单向</td><td>回转中心到末端安装块中心的距离，与场景使用同一长度单位。</td></tr><tr><td><code>Width</code></td><td><code>Double</code></td><td><code>0.23</code></td><td>默认单向</td><td>控制外观尺寸；三维件使用场景示意单位，不能当成设备毫米值或运动指令。</td></tr><tr><td><code>Thickness</code></td><td><code>Double</code></td><td><code>0.085</code></td><td>默认单向</td><td>控制外观尺寸；三维件使用场景示意单位，不能当成设备毫米值或运动指令。</td></tr><tr><td><code>PivotRadius</code></td><td><code>Double</code></td><td><code>0.285</code></td><td>默认单向</td><td>控制外观尺寸；三维件使用场景示意单位，不能当成设备毫米值或运动指令。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+<p><b>普通属性 Attachments</b>（Visual3DCollection，不是依赖属性）：随摆角和外部安装变换一起运动的附件，如 DIW/SC1 管路；附件动作状态独立。</p>
+</section>
+<section class="topic fe-control-topic" id="fe-control-BowlVisual3D" data-control="BowlVisual3D"><h3>1.31 BowlVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/BowlVisual3D.cs">查看源码</a> · 10 个公开依赖属性（含自定义基类）</p>
+<p>独立升降的 Bowl 薄壁圆环。</p><p>IsRaised 表示上/下到位；IsUnknown=true 时显示未知位置并变红。HeightLevel=1/2/3 是外观高度规格，不是 Bowl 数量或升降挡位。35021 每腔当前只有一个 Bowl1，不因控件支持高度等级而增加硬件。</p>
+<div class="fe-demo" data-demo="BowlVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="BowlVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">升到位</option><option value="2">位置未知</option><option value="3">外观高度 2</option><option value="4">选中高亮</option><option value="5">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/BowlVisual3D-0.png" alt="BowlVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/BowlVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:BowlVisual3D
+            IsRaised="{Binding DataContext.BowlRaised, ElementName=Scene}"
+            IsUnknown="{Binding DataContext.BowlUnknown, ElementName=Scene}"
+            HeightLevel="1" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="BowlVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>HeightLevel</code></td><td><code>Int32</code></td><td><code>1</code></td><td>默认单向</td><td>外观高度等级：1 为原有低矮造型，2、3 依次加高；不是升降挡位。</td></tr><tr><td><code>Radius</code></td><td><code>Double</code></td><td><code>1.59</code></td><td>默认单向</td><td>外半径，与装配使用同一长度单位；内径随半径保持薄壁比例。</td></tr><tr><td><code>IsRaised</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>升降反馈，true 上位、false 下位；底边保持在安装面，不改变 HeightLevel。</td></tr><tr><td><code>IsUnknown</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>位置未知：上沿画到行程中间、整个 Bowl 变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-LiftVisual3D" data-control="LiftVisual3D"><h3>1.32 LiftVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LiftVisual3D.cs">查看源码</a> · 9 个公开依赖属性（含自定义基类）</p>
+<p>独立气缸升降件，供摆臂等组件安装。</p><p>IsRaised / IsUnknown 来自反馈。MountHeight 是只读依赖属性，表示局部安装面当前 Y 高度，能用于附件平移绑定；不包含外部 Transform，不能重复叠加安装位移。</p>
+<div class="fe-demo" data-demo="LiftVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="LiftVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">升到位</option><option value="2">位置未知</option><option value="3">选中高亮</option><option value="4">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/LiftVisual3D-0.png" alt="LiftVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LiftVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:LiftVisual3D
+            IsRaised="{Binding DataContext.LiftRaised, ElementName=Scene}"
+            IsUnknown="{Binding DataContext.LiftUnknown, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="LiftVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>IsRaised</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定外部气缸状态：true 为上位，false 为下位。变化时自动播放升降过渡。</td></tr><tr><td><code>IsUnknown</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>位置未知：画到行程中间、整个气缸变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。</td></tr><tr><td><code>MountHeight</code></td><td><code>Double</code></td><td><code>0</code></td><td>只读</td><td>安装面当前的局部 Y 坐标（含动画），用于组装；不包含外部 Transform。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-TankVisual3D" data-control="TankVisual3D"><h3>1.33 TankVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/TankVisual3D.cs">查看源码</a> · 10 个公开依赖属性（含自定义基类）</p>
+<p>纯槽体三维几何，透明圆筒和液体。</p><p>FillFraction 接 0~1 的显示比例；槽的离散液位必须由调用方换算，不能声称是实测百分比。IsAlarm 控制液体报警色。这里没有传感器灯和管路，它们应独立组合。</p>
+<div class="fe-demo" data-demo="TankVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="TankVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">液面 25%（示例输入）</option><option value="2">液面 80%（示例输入）</option><option value="3">报警液面</option><option value="4">选中高亮</option><option value="5">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/TankVisual3D-0.png" alt="TankVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/TankVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:TankVisual3D
+            FillFraction="{Binding DataContext.DisplayFillFraction, ElementName=Scene}"
+            IsAlarm="{Binding DataContext.TankAlarm, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="TankVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>FillFraction</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>液面高度占罐高的比例（0～1），0 不画液体</td></tr><tr><td><code>IsAlarm</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>液体画成报警红</td></tr><tr><td><code>WallTransparency</code></td><td><code>Double</code></td><td><code>0.72</code></td><td>默认单向</td><td>罐壁透明度（0～1）</td></tr><tr><td><code>Azimuth</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>相机的方位角（度），用来分前后两半罐壁</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-FluidRouteVisual3D" data-control="FluidRouteVisual3D"><h3>1.34 FluidRouteVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/FluidRouteVisual3D.cs">查看源码</a> · 20 个公开依赖属性（含自定义基类）</p>
+<p>共享视口中按任意三维路径绘制的透明管路。</p><p>Path 是 Point3DCollection，坐标使用场景单位。PipeRadius 是外半径，WallThickness 必须留出内腔。FlowSpeed 是场景单位/秒，ReverseFlow 改变动画方向。路径及端点由布局指定，液芯与流动显示单独控制。</p>
+<div class="fe-demo" data-demo="FluidRouteVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="FluidRouteVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">出液显示</option><option value="2">关闭动画</option><option value="3">选中高亮</option><option value="4">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/FluidRouteVisual3D-0.png" alt="FluidRouteVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/FluidRouteVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:FluidRouteVisual3D
+            Path="{Binding DataContext.Route3D, ElementName=Scene}"
+            PipeRadius="0.08"
+            WallThickness="0.016"
+            BendRadius="0.18"
+            IsFlowing="{Binding DataContext.IsFlowing, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="FluidRouteVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Path</code></td><td><code>Point3DCollection</code></td><td><code>null</code></td><td>默认单向</td><td>管中心的路径点，使用场景统一长度单位。替换集合或修改集合中的点都会重画管路。</td></tr><tr><td><code>PipeRadius</code></td><td><code>Double</code></td><td><code>0.06</code></td><td>默认单向</td><td>管外半径，必须大于 0。</td></tr><tr><td><code>WallThickness</code></td><td><code>Double</code></td><td><code>0.012</code></td><td>默认单向</td><td>管壁厚度。实际厚度最多取外半径的 90%，始终保留空腔。</td></tr><tr><td><code>FluidCoreRatio</code></td><td><code>Double</code></td><td><code>0.58</code></td><td>默认单向</td><td>液芯半径与内腔半径的比值，范围为 (0, 1]。用于留出透明间隙，不表示真实充液率。</td></tr><tr><td><code>BendRadius</code></td><td><code>Double</code></td><td><code>0.22</code></td><td>默认单向</td><td>弯头圆角半径。短管段会自动缩小圆角，0 表示保留折线。</td></tr><tr><td><code>WallOpacity</code></td><td><code>Double</code></td><td><code>0.18</code></td><td>默认单向</td><td>管壁不透明度强度，范围为 [0, 1]，默认 0.18。内外壁按比例使用此值，0 时隐藏管壁。</td></tr><tr><td><code>WallColor</code></td><td><code>Color</code></td><td><code>#FFB4B4B4</code></td><td>默认单向</td><td>透明管壁的颜色，默认使用中性灰。</td></tr><tr><td><code>FluidColor</code></td><td><code>Color</code></td><td><code>#FFC4C4C4</code></td><td>默认单向</td><td>液体底色。液芯颜色由 FlowColor 和此颜色按 3:1 混合。</td></tr><tr><td><code>FlowColor</code></td><td><code>Color</code></td><td><code>#FF52D4EF</code></td><td>默认单向</td><td>水流主色，同时用于液芯着色和移动水纹，默认青蓝色。</td></tr><tr><td><code>IsFilled</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>管内是否有液体。只有 IsFilled 和 IsFlowing 都为 true 时显示液芯。</td></tr><tr><td><code>IsFlowing</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>是否正在流动。false 时移除液芯和水纹，只显示透明管壁；不修改 IsFilled。</td></tr><tr><td><code>FlowSpeed</code></td><td><code>Double</code></td><td><code>0.55</code></td><td>默认单向</td><td>动画速度，单位为场景长度/秒。0 表示暂停水纹；只是显示参数，不代表实测流量。</td></tr><tr><td><code>ReverseFlow</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>是否反向流动。默认从 Path 的第一个点流向最后一个点。</td></tr><tr><td><code>IsAnimationEnabled</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>是否播放动画。false 时冻结水纹，保留当前液芯和流动状态。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-BufferVisual3D" data-control="BufferVisual3D"><h3>1.35 BufferVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/BufferVisual3D.cs">查看源码</a> · 10 个公开依赖属性（含自定义基类）</p>
+<p>贯通缓存架几何件，供共享视口组合。</p><p>FirstSlot / SlotCount 决定物理槽范围，Wafers 按 Slot 放片。支持集合及单片槽位变化，在 UI 线程更新。WaferCount 为只读依赖属性。</p>
+<div class="fe-demo" data-demo="BufferVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="BufferVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">8 个槽（示例）</option><option value="2">选中高亮</option><option value="3">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/BufferVisual3D-0.png" alt="BufferVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/BufferVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:BufferVisual3D
+            FirstSlot="1"
+            SlotCount="{Binding DataContext.SlotCount, ElementName=Scene}"
+            Wafers="{Binding DataContext.Wafers, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="BufferVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>FirstSlot</code></td><td><code>Int32</code></td><td><code>1</code></td><td>默认单向</td><td>最底层的物理槽号，默认 1。</td></tr><tr><td><code>SlotCount</code></td><td><code>Int32</code></td><td><code>10</code></td><td>默认单向</td><td>实际槽数，默认 10；0 清空结构和晶圆。固定紧凑槽距。</td></tr><tr><td><code>Wafers</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>按 WaferModel.Slot 摆片、State 上色。跟踪集合和单片槽位变化；在 UI 线程更新。</td></tr><tr><td><code>WaferCount</code></td><td><code>Int32</code></td><td><code>0</code></td><td>只读</td><td>当前有效占用槽数，只读。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-CarrierVisual3D" data-control="CarrierVisual3D"><h3>1.36 CarrierVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/CarrierVisual3D.cs">查看源码</a> · 9 个公开依赖属性（含自定义基类）</p>
+<p>载具花篮几何，可与 LoadPort 共享视口。</p><p>SlotCount 必须给实际槽数，默认 0 不画。Wafers 按 WaferModel.Slot 放片；整个替换集合触发刷新。SelectedSlot 控制选中槽，SlotOf 是用于命中识别的普通方法。放入 LoadPortVisual3D.Attachments 可随托板移动。</p>
+<div class="fe-demo" data-demo="CarrierVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="CarrierVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">8 个槽（示例）</option><option value="2">选中高亮</option><option value="3">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/CarrierVisual3D-0.png" alt="CarrierVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/CarrierVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:CarrierVisual3D
+            SlotCount="{Binding DataContext.SlotCount, ElementName=Scene}"
+            Wafers="{Binding DataContext.Wafers, ElementName=Scene}"
+            SelectedSlot="{Binding DataContext.SelectedSlot, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="CarrierVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>SlotCount</code></td><td><code>Int32</code></td><td><code>0</code></td><td>默认单向</td><td>槽数（machine.xml 里 LoadPort 的 SlotCount），花篮高度、槽齿、槽号都跟着它；0 = 还不知道，什么都不画。</td></tr><tr><td><code>Wafers</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>花篮里的片（WaferModel，按 Slot 放进槽里，交给 DiskVisual3D 按 State 上色）；整个换掉才刷新。</td></tr><tr><td><code>SelectedSlot</code></td><td><code>Int32</code></td><td><code>0</code></td><td>默认单向</td><td>选中的槽（点了哪片），0 = 没选；那一片高亮。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF484848</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-ChamberBaseVisual3D" data-control="ChamberBaseVisual3D"><h3>1.37 ChamberBaseVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ChamberBaseVisual3D.cs">查看源码</a> · 9 个公开依赖属性（含自定义基类）</p>
+<p>腔体设备的公共安装底板。</p><p>Length / Width / Thickness 使用场景单位。Attachments 是普通集合，放入 Bowl、门、卡盘、摆臂总成等；共用父变换只用于安装位置，不改变各组件反馈。</p>
+<div class="fe-demo" data-demo="ChamberBaseVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ChamberBaseVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">选中高亮</option><option value="2">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ChamberBaseVisual3D-0.png" alt="ChamberBaseVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ChamberBaseVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:ChamberBaseVisual3D
+            Length="6.4"
+            Width="4.2"
+            Thickness="0.12" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ChamberBaseVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Length</code></td><td><code>Double</code></td><td><code>5.6</code></td><td>默认单向</td><td>底板沿 X 轴的长度。</td></tr><tr><td><code>Width</code></td><td><code>Double</code></td><td><code>4.4</code></td><td>默认单向</td><td>底板沿 Z 轴的宽度。</td></tr><tr><td><code>Thickness</code></td><td><code>Double</code></td><td><code>0.12</code></td><td>默认单向</td><td>板厚向 -Y 延伸；调整厚度不会顶起或移动上方硬件。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF333333</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+<p><b>普通属性 Attachments</b>（Visual3DCollection，不是依赖属性）：安装硬件的集合；各子项 Transform 相对于底板上表面中心。</p>
+</section>
+<section class="topic fe-control-topic" id="fe-control-DiskVisual3D" data-control="DiskVisual3D"><h3>1.38 DiskVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/DiskVisual3D.cs">查看源码</a> · 17 个公开依赖属性（含自定义基类）</p>
+<p>三维圆盘与晶圆，复用二维 Wafer 的状态数据。</p><p>Data 接同一份 WaferModel。Label 非空时覆盖文字，二维 Wafer 当前不做这项覆盖。RotationSpeed 为度/秒；Radius、Thickness、SpindleHeight 为场景单位。与 Bowl、SpinMotor 数据分开绑定。</p>
+<div class="fe-demo" data-demo="DiskVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="DiskVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">选中高亮</option><option value="2">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/DiskVisual3D-0.png" alt="DiskVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/DiskVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:DiskVisual3D
+            Data="{Binding DataContext.Wafer, ElementName=Scene}"
+            IsDiskVisible="True"
+            Radius="1.32"
+            Thickness="0.045" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="DiskVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Data</code></td><td><code>Object</code></td><td><code>null</code></td><td>默认单向</td><td>控件要显示的数据对象；晶圆控件通常接收 WaferModel。</td></tr><tr><td><code>IsDiskVisible</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>没有晶圆数据时是否仍显示圆盘；有 Data 时按晶圆业务状态显示。</td></tr><tr><td><code>FillColor</code></td><td><code>Brush</code></td><td><code>#FF808080</code></td><td>默认单向</td><td>圆盘填充画刷；有匹配的晶圆业务状态时优先使用状态色。</td></tr><tr><td><code>BorderBrush</code></td><td><code>Brush</code></td><td><code>#FF808080</code></td><td>默认单向</td><td>圆盘边线的画刷；三维盘沿用二维的逻辑外观参数。</td></tr><tr><td><code>BorderThickness</code></td><td><code>Thickness</code></td><td><code>1,1,1,1</code></td><td>默认单向</td><td>圆盘边线厚度，Thickness 类型；不是三维盘实体的 Thickness。</td></tr><tr><td><code>Label</code></td><td><code>String</code></td><td><code>空字符串</code></td><td>默认单向</td><td>圆片文字覆盖值；三维 Disk 支持覆盖，二维 Wafer 当前模板仍显示 Data.LpSlot。</td></tr><tr><td><code>RotationSpeed</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>显示旋转速度（度/秒），不能把设备 RPM 不经换算直接绑定。</td></tr><tr><td><code>RotateClockwise</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>从上方观察时的旋转方向，true 为顺时针；RotationSpeed 仍使用度/秒。</td></tr><tr><td><code>Radius</code></td><td><code>Double</code></td><td><code>1.32</code></td><td>默认单向</td><td>控制外观尺寸；三维件使用场景示意单位，不能当成设备毫米值或运动指令。</td></tr><tr><td><code>Thickness</code></td><td><code>Double</code></td><td><code>0.045</code></td><td>默认单向</td><td>控制外观尺寸；三维件使用场景示意单位，不能当成设备毫米值或运动指令。</td></tr><tr><td><code>SpindleHeight</code></td><td><code>Double</code></td><td><code>0</code></td><td>默认单向</td><td>盘下面主轴（旋转电机）露出来的长度：盘架高了就用一根轴撑到安装面上，免得悬空；0 = 不画主轴（默认）。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-DoorVisual3D" data-control="DoorVisual3D"><h3>1.39 DoorVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/DoorVisual3D.cs">查看源码</a> · 10 个公开依赖属性（含自定义基类）</p>
+<p>独立腔门外观，显示开、关和未知位置。</p><p>IsOpen 表示开到位；IsUnknown 优先显示行程中间和报警色。Width / Height 是几何尺寸，不是普通 WPF 布局尺寸。只显示，不发 DO。</p>
+<div class="fe-demo" data-demo="DoorVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="DoorVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">开到位</option><option value="2">位置未知</option><option value="3">选中高亮</option><option value="4">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/DoorVisual3D-0.png" alt="DoorVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/DoorVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:DoorVisual3D
+            IsOpen="{Binding DataContext.DoorOpened, ElementName=Scene}"
+            IsUnknown="{Binding DataContext.DoorUnknown, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="DoorVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>IsOpen</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>门的开到位反馈；与 IsUnknown 分开提供，未知优先显示中间位置及报警色。</td></tr><tr><td><code>IsUnknown</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>位置未知：门板画到行程中间、整个门变红，到位（变回 false）后红色撤掉、再走到 IsOpen 那一头。</td></tr><tr><td><code>Width</code></td><td><code>Double</code></td><td><code>2.2</code></td><td>默认单向</td><td>门板宽度，使用装配的统一长度单位。</td></tr><tr><td><code>Height</code></td><td><code>Double</code></td><td><code>0.58</code></td><td>默认单向</td><td>门板高度；动画行程由内部示意结构决定。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-FluidPipeVisual3D" data-control="FluidPipeVisual3D"><h3>1.40 FluidPipeVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/FluidPipeVisual3D.cs">查看源码</a> · 12 个公开依赖属性（含自定义基类）</p>
+<p>沿摆臂布置的专用喷液管路，可显示喷口液柱。</p><p>Length 与摆臂长度配套。StreamLength=0 只保留管内显示；大于 0 显示喷口到接液面的液柱。一般挂进 ArmVisual3D.Attachments，喷液开关绑定独立喷嘴反馈。它与任意路径的 FluidRouteVisual3D 用途不同。</p>
+<div class="fe-demo" data-demo="FluidPipeVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="FluidPipeVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">出液显示</option><option value="2">关闭动画</option><option value="3">选中高亮</option><option value="4">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/FluidPipeVisual3D-0.png" alt="FluidPipeVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/FluidPipeVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:FluidPipeVisual3D
+            Length="2.2"
+            StreamLength="0.6"
+            IsFlowing="{Binding DataContext.NozzleOn, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="FluidPipeVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>IsFlowing</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>本路喷嘴是否出液。关闭时管内液芯、外部液柱和落点波纹全部消失。</td></tr><tr><td><code>IsAnimationEnabled</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>默认单向</td><td>暂停动画但保留出液状态。</td></tr><tr><td><code>Length</code></td><td><code>Double</code></td><td><code>2.2</code></td><td>默认单向</td><td>沿 Arm 的局部 +X 方向布管，长度与场景使用同一单位。</td></tr><tr><td><code>StreamLength</code></td><td><code>Double</code></td><td><code>0.55</code></td><td>默认单向</td><td>喷口到接液面的距离；0 时只有管内水流，不显示外部液柱和波纹。</td></tr><tr><td><code>FlowColor</code></td><td><code>Color</code></td><td><code>#FF52D4EF</code></td><td>默认单向</td><td>管内水流、喷口液柱和落点波纹使用同一种颜色。</td></tr><tr><td><code>WallOpacity</code></td><td><code>Double</code></td><td><code>0.18</code></td><td>默认单向</td><td>透明供液管的管壁不透明度强度。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-HomeCupVisual3D" data-control="HomeCupVisual3D"><h3>1.41 HomeCupVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/HomeCupVisual3D.cs">查看源码</a> · 9 个公开依赖属性（含自定义基类）</p>
+<p>摆臂 Home 位接液杯。</p><p>Radius / Height 控制杯的几何尺寸。IsDraining 只控制接液显示；是否真的有杯、装在哪、与哪条喷嘴对应，由装机与布局组合层决定。</p>
+<div class="fe-demo" data-demo="HomeCupVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="HomeCupVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">选中高亮</option><option value="2">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/HomeCupVisual3D-0.png" alt="HomeCupVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/HomeCupVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:HomeCupVisual3D
+            Radius="0.28"
+            Height="0.35"
+            IsDraining="{Binding DataContext.HomeDraining, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="HomeCupVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Radius</code></td><td><code>Double</code></td><td><code>0.32</code></td><td>默认单向</td><td>杯口外半径，与装配使用相同长度单位。</td></tr><tr><td><code>Height</code></td><td><code>Double</code></td><td><code>0.655</code></td><td>默认单向</td><td>排液口底面到杯口的总高度；杯口局部坐标为 (0, Height, 0)。</td></tr><tr><td><code>IsDraining</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>可选的接液/排液状态反馈，true 自动高亮；液流由管子组件显示。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-LoadPortVisual3D" data-control="LoadPortVisual3D"><h3>1.42 LoadPortVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LoadPortVisual3D.cs">查看源码</a> · 12 个公开依赖属性（含自定义基类）</p>
+<p>LoadPort 机身、托板和门的独立三维外观。</p><p>IsDocked 与门开、门未知分别绑定。IsPresent / IsPlaced / IsAutoMode 是面板显示信号。载具独立挂在 Attachments；该控件本身不拉服务数据。</p>
+<div class="fe-demo" data-demo="LoadPortVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="LoadPortVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">已对接</option><option value="2">门打开</option><option value="3">选中高亮</option><option value="4">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/LoadPortVisual3D-0.png" alt="LoadPortVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LoadPortVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:LoadPortVisual3D
+            IsDocked="{Binding DataContext.Docked, ElementName=Scene}"
+            IsDoorOpen="{Binding DataContext.DoorOpen, ElementName=Scene}"
+            IsDoorUnknown="{Binding DataContext.DoorUnknown, ElementName=Scene}" />
+    </Viewport3D>
+</Grid></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="LoadPortVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>IsDocked</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>托板推进去了（对接）：载具贴着门洞。false = 退出来，人可以放取载具。</td></tr><tr><td><code>IsDoorOpen</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>门开到位（只在对接时才画得开：没推进去门一定是关着的）。</td></tr><tr><td><code>IsDoorUnknown</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>门在半路（开到位、关到位都没亮）：门画在行程中间并一直高亮，到位了再走到那一头。</td></tr><tr><td><code>IsPresent</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>面板上&quot;在位&quot;灯。</td></tr><tr><td><code>IsPlaced</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>面板上&quot;放置到位&quot;灯。</td></tr><tr><td><code>IsAutoMode</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>存取方式：true 亮 AUTO（绿），false 亮 MANUAL（黄）。</td></tr><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+<p><b>普通属性 Attachments</b>（Visual3DCollection，不是依赖属性）：装在托板上的东西（载具）；原点在托板定位销上，跟着对接前后走。</p>
+</section>
+<section class="topic fe-control-topic" id="fe-control-RobotVisual3D" data-control="RobotVisual3D"><h3>1.43 RobotVisual3D</h3>
+<p class="fe-kicker">3D 组件 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/RobotVisual3D.cs">查看源码</a> · 6 个公开依赖属性（含自定义基类）</p>
+<p>共享视口中的机械手底层几何件。</p><p>它没有 Arms / Rotation 依赖属性；姿态通过普通 SetPose(ArmType, rotation, travel, ArmVisuals) 输入，运动解算由 RobotViewBase 提供。一般页面直接选 Robot3D；只有需要共享视口时才用这一层。</p>
+<div class="fe-demo" data-demo="RobotVisual3D">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="RobotVisual3D 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">选中高亮</option><option value="2">故障显示</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/RobotVisual3D-0.png" alt="RobotVisual3D 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/RobotVisual3D.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><Grid x:Name="Scene">
+    <!-- Visual3D 不继承 DataContext，使用 ElementName 明确绑定来源。 -->
+    <Viewport3D>
+        <Viewport3D.Camera>
+            <OrthographicCamera Position="-7,5,9" LookDirection="7,-5,-9"
+                                UpDirection="0,1,0" Width="8" />
+        </Viewport3D.Camera>
+        <ModelVisual3D>
+            <ModelVisual3D.Content>
+                <AmbientLight Color="#A0A0A0" />
+            </ModelVisual3D.Content>
+        </ModelVisual3D>
+        <hardware:RobotVisual3D />
+    </Viewport3D>
+</Grid></script></figure>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/Robot3D.xaml.cs"><figcaption>底层件的普通方法入口（RobotViewBase 派生外观中）</figcaption><script type="text/plain">protected override void RenderFrame(double rotation, double travel)
+{
+    Body.SetPose(ArmType, rotation, travel, ArmVisuals);
+}
+// Body 是视口里的 RobotVisual3D。普通页面优先直接用 Robot3D。</script></figure>
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="RobotVisual3D 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>IsMoving</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</td></tr><tr><td><code>IsError</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。</td></tr><tr><td><code>IsSelected</code><small>继承自 HardwareVisual3D</small></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>由外部选择逻辑设置，与 IsMoving 相互独立。</td></tr><tr><td><code>BodyColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF686868</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightColor</code><small>继承自 HardwareVisual3D</small></td><td><code>Color</code></td><td><code>#FF42A5F5</code></td><td>默认单向</td><td>外观颜色；Color 类型用颜色值，Brush 类型用画刷，两者不能直接互换。</td></tr><tr><td><code>HighlightStrength</code><small>继承自 HardwareVisual3D</small></td><td><code>Double</code></td><td><code>0.42</code></td><td>默认单向</td><td>主题色混入比例（0～1），保留金属灰的明暗层次。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-ChamberScene" data-control="ChamberScene"><h3>1.44 ChamberScene</h3>
+<p class="fe-kicker">3D 组合视图 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ChamberScene.xaml.cs">查看源码</a> · 2 个公开依赖属性（含自定义基类）</p>
+<p>平台原有的腔体组合视图。</p><p>Devices 接 ChamberDeviceDataModel，先 Update(ChamberDeviceDataDto) 再显示；Wafer 独立来自晶圆账。平台固定装配只使用第一个 Bowl；项目按布局装配使用下方的 35021 ChamberView。</p>
+<div class="fe-demo" data-demo="ChamberScene">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="ChamberScene 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/ChamberScene-0.png" alt="ChamberScene 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/ChamberScene.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><hardware:ChamberScene
+    Devices="{Binding Devices}"
+    Wafer="{Binding Wafer}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="ChamberScene 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Devices</code></td><td><code>ChamberDeviceDataModel</code></td><td><code>null</code></td><td>默认单向</td><td>设备显示模型（门、Bowl、旋转电机、摆臂）；组成变了（Revision）重搭三维图。</td></tr><tr><td><code>Wafer</code></td><td><code>Object</code></td><td><code>null</code></td><td>默认单向</td><td>盘上的片（晶圆账，WaferModel）；null 显示空盘。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-LoadPortScene" data-control="LoadPortScene"><h3>1.45 LoadPortScene</h3>
+<p class="fe-kicker">3D 组合视图 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LoadPortScene.xaml.cs">查看源码</a> · 8 个公开依赖属性（含自定义基类）</p>
+<p>LoadPort + 载具的组合视图，自带相机和选片。</p><p>在位和到位都为真才放载具。给 SlotCount、Wafers 以及对接/门/面板状态即可。晶圆来自晶圆账，选片不会创建或删除晶圆。</p>
+<div class="fe-demo" data-demo="LoadPortScene">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="LoadPortScene 示例属性" class="fe-preset"><option value="0">基础示例</option><option value="1">已对接</option><option value="2">门打开</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/LoadPortScene-0.png" alt="LoadPortScene 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/LoadPortScene.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><hardware:LoadPortScene
+    SlotCount="{Binding SlotCount}"
+    Wafers="{Binding Wafers}"
+    IsPresent="{Binding Present}"
+    IsPlaced="{Binding Placed}"
+    IsDocked="{Binding Docked}"
+    IsDoorOpen="{Binding DoorOpen}" /></script></figure>
+
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="LoadPortScene 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>IsDocked</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>托板推进去了（对接）。</td></tr><tr><td><code>IsDoorOpen</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>门开到位。</td></tr><tr><td><code>IsDoorUnknown</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>门在半路（开到位、关到位都没亮）。</td></tr><tr><td><code>IsPresent</code></td><td><code>Boolean?</code></td><td><code>null</code></td><td>默认单向</td><td>在位反馈；null = 反馈不可用，灯灭。跟到位一起定装不装花篮。</td></tr><tr><td><code>IsPlaced</code></td><td><code>Boolean?</code></td><td><code>null</code></td><td>默认单向</td><td>放置到位反馈；null = 反馈不可用，灯灭。跟在位一起定装不装花篮。</td></tr><tr><td><code>IsAutoMode</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>默认单向</td><td>存取方式 Auto（AUTO 灯亮）/ Manual（MANUAL 灯亮）。</td></tr><tr><td><code>SlotCount</code></td><td><code>Int32</code></td><td><code>0</code></td><td>默认单向</td><td>槽数（machine.xml 的 SlotCount）：花篮高度、槽号、片数、空槽都按它；0 = 还不知道，不装花篮。</td></tr><tr><td><code>Wafers</code></td><td><code>IEnumerable</code></td><td><code>null</code></td><td>默认单向</td><td>花篮里的片（晶圆账，WaferModel 按 Slot 摆、按 State 上色）。</td></tr></tbody></table></div>
+
+</section>
+<section class="topic fe-control-topic" id="fe-control-TankScene" data-control="TankScene"><h3>1.46 TankScene</h3>
+<p class="fe-kicker">3D 组合视图 · <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/TankScene.xaml.cs">查看源码</a> · 2 个公开依赖属性（含自定义基类）</p>
+<p>带相机、液位文字及信号灯的槽组合视图。</p><p>Tank 接 TankModel。调用 TankModel.Update(TankDto) 更新；DTO 中没有配置的信号为 null，显示模型 IsPresent=false，不画该灯。要自由摆放每个 Sensor 时可使用 TankVisual3D + 独立 SignalLamp，而不是固定组合视图。</p>
+<div class="fe-demo" data-demo="TankScene">
+ <div class="fe-demo-toolbar"><label>示例属性 <select aria-label="TankScene 示例属性" class="fe-preset"><option value="0">基础示例</option></select></label>
+ <button type="button" class="fe-reset">恢复视角</button><button type="button" class="fe-native" aria-pressed="false">原生截图</button>
+ <span>拖动旋转 · 滚轮缩放</span></div>
+ <div class="fe-demo-stage"><img class="fe-native-image" src="docs/frontend-controls/TankScene-0.png" alt="TankScene 原生 WPF 效果" loading="lazy" width="640" height="360"></div>
+ <output class="fe-demo-values">基础示例；实际默认值见下方属性表。</output>
+</div>
+
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Controls/ThreeD/TankScene.xaml.cs"><figcaption>最小用法；绑定路径由调用方 ViewModel 提供</figcaption><script type="text/plain"><hardware:TankScene
+    Tank="{Binding Tank}"
+    WallTransparency="0.72" /></script></figure>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Models/TankModel.cs"><figcaption>对应的显示模型（在 UI 线程刷新）</figcaption><script type="text/plain">public TankModel Tank { get; } = new();
+
+// dto 由调用方提供，控件不自己查 PLC。
+void ApplyTank(TankDto dto)
+{
+    Tank.Update(dto);
+}</script></figure>
+<label class="fe-property-filter">筛选依赖属性 <input type="search" placeholder="属性名、类型或用途" aria-label="TankScene 筛选依赖属性"></label><div class="fe-table-scroll"><table class="fe-properties"><thead><tr><th>属性</th><th>类型 / 枚举</th><th>默认值</th><th>绑定</th><th>怎样使用</th></tr></thead><tbody><tr><td><code>Tank</code></td><td><code>TankModel</code></td><td><code>null</code></td><td>默认单向</td><td>槽的显示模型（后端 TankDto）</td></tr><tr><td><code>WallTransparency</code></td><td><code>Double</code></td><td><code>0.72</code></td><td>默认单向</td><td>罐壁透明度（0～1），外部按需要调</td></tr></tbody></table></div>
+
+</section>
+</section>
+</section>
+<!-- FRONTEND-CONTROLS:END -->
 
 <section class="module" id="grpc" data-title="gRPC 通讯">
 <h1>gRPC 通讯</h1>
@@ -3584,7 +4687,7 @@ public class ReportingScanGunReader : ElementBase, ICarrierIdReader
 <script>
 (function () {
   // 仓库根目录：别的电脑上路径不一样就改这一处
-  var ROOT = 'D:/Common';
+  var ROOT = location.protocol === 'file:' ? decodeURIComponent(new URL('.', location.href).pathname).replace(/^\/(?=[A-Za-z]:\/)/, '').replace(/\/$/, '') : 'D:/Code';
 
   // 代码块：<script type="text/plain"> 里的原样代码排成 <pre>，不标行号；单独一行 "@@" 表示中间省略
   document.querySelectorAll('figure.code').forEach(function (figure) {
@@ -3700,5 +4803,7 @@ public class ReportingScanGunReader : ElementBase, ICarrierIdReader
   });
 })();
 </script>
+<script src="docs/frontend-controls/catalog.js"></script>
+<script src="docs/frontend-controls/guide.js"></script>
 </body>
 </html>

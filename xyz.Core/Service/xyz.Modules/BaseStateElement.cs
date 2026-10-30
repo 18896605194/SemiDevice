@@ -110,6 +110,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
                     {
                         return false;
                     }
+                            // 已有动作在跑 → 挂不上
 
                     current.AbortByHost("被新动作顶替");
                 }
@@ -118,7 +119,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
             }
 
             routine.DeferCompletion();
-            _routine = routine;
+            _routine = routine;  //挂上动作
             return true;
         }
     }
@@ -233,20 +234,39 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
     /// <param name="action"></param>
     /// <param name="routine"></param>
     /// <returns></returns>
-    protected ModuleRoutine? Begin<TAction>(TAction action, ModuleRoutine routine)
+    protected HandleResult<ModuleRoutine> Begin<TAction>(TAction action, ModuleRoutine routine)
         where TAction : struct, Enum
     {
         lock (RoutineGate)
         {
             string name = action.ToString();
-            if (!TryGetTransition(State, name, out var transition))
+            if (!TryGetTransition(State, name, out var transition))  //查询状态表
             {
-                return null;
+                return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
             }
 
-            return Begin(routine, transition.ExecutingState, transition.SuccessState, name == AbortAction);
+            int from = State;
+            if (Begin(routine, transition.ExecutingState, transition.SuccessState, name == AbortAction) is null)  //真正挂上动作
+            {
+                return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+            }
+
+            CurrentAction = action;
+            FromState = from;
+            LogHelper.Info(this, $"开始 {action}");
+            return HandleResult<ModuleRoutine>.Success(routine);
         }
     }
+
+    /// <summary>
+    /// 现在挂着的动作是用哪个枚举值发起的；没挂为 null。机型用自己的动作枚举发起时这里是机型的值，平台据此不替它收尾
+    /// </summary>
+    protected object? CurrentAction { get; private set; }
+
+    /// <summary>
+    /// 发起当前这个动作时模块在哪个状态（复位、中止的收尾按它判）
+    /// </summary>
+    protected int FromState { get; private set; }
 
     /// <summary>
     /// 发起一个动作，直接给执行态和成功态：挂动作 → 落执行态
@@ -309,11 +329,12 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
                 State = ModuleState.Error;
             }
 
-            OnRoutineCompleted(routine);
+            OnRoutineCompleted(routine);   // 回调里还读得到 CurrentAction、FromState
         }
         finally
         {
             _routine = null;
+            CurrentAction = null;
             routine.NotifyCompletion();   // 唤醒等结果的
         }
     }

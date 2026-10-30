@@ -17,14 +17,51 @@ public class ModuleRoutine
 {
     #region 字段
 
+    /// <summary>
+    /// 做这个动作的模块名，如 Chamber1
+    /// </summary>
+    public string Module { get; }
+
+    /// <summary>
+    /// 动作名，如 Home、Load
+    /// </summary>
+    public string Name { get; }
+
     private readonly object _terminalGate = new();
     private readonly ManualResetEventSlim _settled = new(false);
 
     /// <summary>
-    /// 步骤就是一共有多少步骤，就是这一个方法
+    /// 整个动作超时报的错误码
     /// </summary>
-    private readonly List<RoutineStep> _steps = [];  
+    private string _limitCode = ErrorCodes.Timeout;
 
+    private bool _completionDeferred;
+
+    #region 步骤的基础信息
+
+    private volatile RoutineState _state = RoutineState.Running;
+    /// <summary>
+    /// 步骤的集合
+    /// </summary>
+    private readonly List<RoutineStep> _steps = [];
+    /// <summary>
+    /// 步骤的索引，就是第几步
+    /// </summary>
+    private int _index;
+
+    /// <summary>
+    /// 第一次推的时刻（Stopwatch 时间戳）；还没推为 -1
+    /// </summary>
+    private long _startedAt = -1;
+
+    /// <summary>
+    /// 这一步的 Run 做过了没有；只在持 RoutineGate 的扫描线程里改
+    /// </summary>
+    private bool _entered;
+
+    #endregion
+
+    #region Service
     /// <summary>
     /// 做这个动作的模块 记录日志
     /// </summary>
@@ -47,42 +84,13 @@ public class ModuleRoutine
     /// </summary>
     private Func<int>? _limitMs;
 
-    /// <summary>
-    /// 整个动作超时报的错误码
-    /// </summary>
-    private string _limitCode = ErrorCodes.Timeout;
-
-    private volatile RoutineState _state = RoutineState.Running;
-    private bool _completionDeferred;
-
-    /// <summary>
-    /// 走到第几步（从 0 数）；只在持 RoutineGate 的扫描线程里改
-    /// </summary>
-    private int _index;
-
-    /// <summary>
-    /// 这一步的 Run 做过了没有；只在持 RoutineGate 的扫描线程里改
-    /// </summary>
-    private bool _entered;
-
-    /// <summary>
-    /// 第一次推的时刻（Stopwatch 时间戳）；还没推为 -1
-    /// </summary>
-    private long _startedAt = -1;
+    #endregion  
 
     #endregion
 
     #region 名字和建法
 
-    /// <summary>
-    /// 做这个动作的模块名，如 Chamber1
-    /// </summary>
-    public string Module { get; }
-
-    /// <summary>
-    /// 动作名，如 Home、Load
-    /// </summary>
-    public string Name { get; }
+    
 
     /// <summary>
     /// 建一个动作：owner 是做这个动作的模块（日志记在它名下），name 是动作名（日志、错误码参数用）

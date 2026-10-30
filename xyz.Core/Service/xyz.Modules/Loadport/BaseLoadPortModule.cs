@@ -594,21 +594,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     // 机型用自己的动作枚举发起的动作走基类的 Begin，这三个字段不动，动作对象也对不上，平台就不替它收尾。
 
     /// <summary>
-    /// 平台自己建的、现在挂着的那个动作；没有或者已经收尾了为 null
-    /// </summary>
-    private ModuleRoutine? _platformRoutine;
-
-    /// <summary>
-    /// 它是哪一个动作（做完按它收尾、超时按它报警）
-    /// </summary>
-    private LoadPortAction _platformAction;
-
-    /// <summary>
-    /// 它出发时的状态（复位、中止做完按它判门位）
-    /// </summary>
-    private int _platformFrom;
-
-    /// <summary>
     /// Mapping 数据到达时调用,给载具对象
     /// </summary>
     /// <param name="slotMap"></param>
@@ -637,23 +622,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region 动作入口：状态 → 资源 → 互锁
 
-    /// <summary>
-    /// 状态 → 资源 → 互锁 +原因
-    /// </summary>
-    /// <param name="action"></param>
-    /// <param name="routine"></param>
-    /// <returns></returns>
-    private HandleResult<ModuleRoutine> Started(LoadPortAction action, ModuleRoutine routine)
-    {
-        var started = Begin(action, routine);
-        if (started is null)
-        {
-            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
-        }
-
-        return HandleResult<ModuleRoutine>.Success(started);
-    }
-
     #region Load
 
     public HandleResult<ModuleRoutine> Load()
@@ -666,7 +634,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Load, CreateLoadRoutine());
+            return Begin(LoadPortAction.Load, CreateLoadRoutine());
         }
     }
 
@@ -728,7 +696,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Unload, CreateUnloadRoutine(mapAndVerify));
+            return Begin(LoadPortAction.Unload, CreateUnloadRoutine(mapAndVerify));
         }
     }
 
@@ -766,7 +734,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Home, CreateHomeRoutine());
+            return Begin(LoadPortAction.Home, CreateHomeRoutine());
         }
     }
 
@@ -820,7 +788,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return Rejected(HandleResult.Fail(ErrorCodes.LoadPortClampUnsupported, Name));
             }
 
-            return Started(LoadPortAction.Clamp, clamp);
+            return Begin(LoadPortAction.Clamp, clamp);
         }
     }
 
@@ -840,7 +808,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return Rejected(HandleResult.Fail(ErrorCodes.LoadPortUnclampUnsupported, Name));
             }
 
-            return Started(LoadPortAction.Unclamp, unclamp);
+            return Begin(LoadPortAction.Unclamp, unclamp);
         }
     }
 
@@ -935,7 +903,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
             // 先清掉上一次扫到的，再挂动作：扫完存下的一定是这一次的
             ClearMapResult();
-            return Started(LoadPortAction.Map, map);
+            return Begin(LoadPortAction.Map, map);
         }
     }
 
@@ -1087,7 +1055,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Reset, CreateResetRoutine());
+            return Begin(LoadPortAction.Reset, CreateResetRoutine());
         }
     }
 
@@ -1102,7 +1070,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Abort, CreateAbortRoutine());
+            return Begin(LoadPortAction.Abort, CreateAbortRoutine());
         }
     }
 
@@ -1335,27 +1303,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return null;
     }
 
-    /// <summary>
-    /// 发起平台的动作（查状态表、挂动作、落执行态），记下是哪个动作对象、哪一个动作、从哪个状态出发（做完按它收尾、复位 / 中止按它判门位）。
-    /// 检查都在各动作的入口里（见"动作入口"区），这里不再查联锁。
-    /// </summary>
-    protected ModuleRoutine? Begin(LoadPortAction action, ModuleRoutine routine)
-    {
-        lock (RoutineGate)
-        {
-            int from = State;
-            var started = base.Begin(action, routine);
-            if (started is not null)
-            {
-                _platformRoutine = started;
-                _platformAction = action;
-                _platformFrom = from;
-            }
-
-            return started;
-        }
-    }
-
     #region Interlock
 
     protected virtual HandleResult? LoadInterlock()
@@ -1409,11 +1356,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         RaiseActionFailedAlarm(routine);
 
         // 是不是平台自己建的那个动作；机型拿自己的动作枚举发起的动作对不上，收尾由机型重写这个方法做（先调 base）
-        bool platform = ReferenceEquals(routine, _platformRoutine);
-        if (platform)
-        {
-            _platformRoutine = null;
-        }
+        bool platform = CurrentAction is LoadPortAction;
 
         //动作失败
         if (!routine.IsSuccess)
@@ -1427,12 +1370,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        if (!platform)
+        if (CurrentAction is not LoadPortAction done)
         {
             return;
         }
 
-        switch (_platformAction)
+        switch (done)
         {
             case LoadPortAction.Load:
                 EnqueueE87(callback => callback.LoadCompleted(this));
@@ -1457,7 +1400,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private void SetStateByDoor()
     {
-        if (State != ModuleState.NotInit || !IsLoadedState(_platformFrom))
+        if (State != ModuleState.NotInit || !IsLoadedState(FromState))
         {
             return;
         }
@@ -1833,14 +1776,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         // 超时：机型自己加的动作对不上平台的超时报警，报动作失败（要报自己那条就重写这个方法）
-        if (!ReferenceEquals(routine, _platformRoutine))
+        if (CurrentAction is not LoadPortAction timedOut)
         {
             RaiseAlarm(ControlledStopAlarm);
             return;
         }
 
         // 超时：哪个动作超时就报哪一条
-        switch (_platformAction)
+        switch (timedOut)
         {
             case LoadPortAction.Load:
                 RaiseAlarm(LoadTimeoutAlarm);
