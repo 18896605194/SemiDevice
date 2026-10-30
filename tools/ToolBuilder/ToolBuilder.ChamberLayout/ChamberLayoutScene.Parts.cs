@@ -69,7 +69,7 @@ public sealed partial class ChamberLayoutScene
             var motion = model.MotionFor(_part.Id); UpdatePlacement();
             _state = new(preview && (motion.Raised || motion.Open) ? CylinderPosition.Opened : CylinderPosition.Closed,
                 IsOn: preview && motion.Spray, IsMoving: _part.Kind == "Disk" && preview && motion.Spin,
-                IsSelected: ReferenceEquals(model.Selected, _part), Animate: preview && _scene.IsVisible);
+                IsSelected: !preview && ReferenceEquals(model.Selected, _part), Animate: preview && _scene.IsVisible);
             _sizes = _part.Dimensions.ToDictionary(d => d.Key, d => d.SafeValue);
             if (_part.Kind == "HomeCup") { _sizes["Radius"] /= ParentScale; _sizes["Height"] /= ParentScale; }
             if (_part.Kind == "Nozzle")

@@ -3,11 +3,11 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:local="clr-namespace:ChamberLayoutEditor"
  xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
- Background="{DynamicResource DarkWindowBackground}" Foreground="{DynamicResource DarkPrimaryText}" FontSize="{DynamicResource Size16}"
+ Background="{DynamicResource DarkWindowBackground}" Foreground="{DynamicResource DarkPrimaryText}" FontSize="{DynamicResource Size14}"
  HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
  <Viewbox x:Name="EditorScaleHost" Stretch="Fill" StretchDirection="Both" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
  <Grid x:Name="DesignCanvas" Width="1980" Height="1080">
- <Grid Margin="16">
+ <Grid x:Name="DesignRoot" Margin="16">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <DockPanel x:Name="EditorHeading" Margin="0,0,0,14">
    <StackPanel>
@@ -16,20 +16,8 @@
    </StackPanel>
    <TextBlock Text="{DynamicResource chambereditor.offline}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource DarkSecondaryText}"/>
   </DockPanel>
-  <Border Grid.Row="1" Style="{DynamicResource ToolbarBorderStyle}" Margin="0,0,0,12">
-   <WrapPanel>
-    <StackPanel x:Name="FileActions" Orientation="Horizontal">
-     <Button Content="{DynamicResource chambereditor.import}" Click="OnImportMachine" Style="{DynamicResource ToolbarButtonStyle}"/>
-     <Button Content="{DynamicResource chambereditor.open}" Click="OnOpen" IsEnabled="{Binding HasConfiguration}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-     <Button Content="{DynamicResource chambereditor.save}" Click="OnSave" IsEnabled="{Binding HasConfiguration}" Style="{DynamicResource ToolbarButtonStyle}"/>
-    </StackPanel>
-    <Button Content="{DynamicResource chambereditor.undo}" Command="{Binding UndoCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-    <Button Content="{DynamicResource chambereditor.redo}" Command="{Binding RedoCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-    <CheckBox Content="{DynamicResource chambereditor.snap}" IsChecked="{Binding Snap}" Margin="8,0,16,0" VerticalAlignment="Center"/>
-   </WrapPanel>
-  </Border>
   <Grid Grid.Row="2">
-   <Grid.ColumnDefinitions><ColumnDefinition x:Name="ComponentColumn" Width="200"/><ColumnDefinition x:Name="ComponentGap" Width="12"/><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="340"/></Grid.ColumnDefinitions>
+   <Grid.ColumnDefinitions><ColumnDefinition x:Name="ComponentColumn" Width="200"/><ColumnDefinition x:Name="ComponentGap" Width="12"/><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
    <Border x:Name="ComponentPanel" Style="{DynamicResource ZoneBorderStyle}">
     <DockPanel>
      <StackPanel DockPanel.Dock="Top" Margin="14">
@@ -48,35 +36,52 @@
    </Border>
    <Border Grid.Column="2" Style="{DynamicResource ZoneBorderStyle}">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <DockPanel Margin="14,10">
-      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-       <TextBlock Text="{DynamicResource chambereditor.view}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-       <ComboBox x:Name="ViewPicker" SelectedIndex="0" SelectionChanged="OnViewChanged" Width="110" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,10,0">
-        <ComboBoxItem Tag="Perspective" Content="{DynamicResource chambereditor.view.Perspective}"/>
-        <ComboBoxItem Tag="Top" Content="{DynamicResource chambereditor.view.Top}"/>
-        <ComboBoxItem Tag="Front" Content="{DynamicResource chambereditor.view.Front}"/>
-        <ComboBoxItem Tag="Back" Content="{DynamicResource chambereditor.view.Back}"/>
-        <ComboBoxItem Tag="Left" Content="{DynamicResource chambereditor.view.Left}"/>
-        <ComboBoxItem Tag="Right" Content="{DynamicResource chambereditor.view.Right}"/>
-       </ComboBox>
-       <Button Content="{DynamicResource chambereditor.default_view}" Click="OnDefaultView" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-      </StackPanel>
-      <TextBlock Text="{DynamicResource chambereditor.scene}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-     </DockPanel>
-     <local:ChamberLayoutScene x:Name="Scene" Grid.Row="1" MinHeight="280"/>
-     <TextBlock Grid.Row="1" Text="{DynamicResource chambereditor.machine_required}" Margin="30" TextWrapping="Wrap"
+     <local:ChamberLayoutScene x:Name="Scene" ToolTip="{DynamicResource chambereditor.gesture_tip}"/>
+     <TextBlock Text="{DynamicResource chambereditor.machine_required}" Margin="30" TextWrapping="Wrap"
       HorizontalAlignment="Center" VerticalAlignment="Center"
       Visibility="{Binding NeedsConfiguration, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}"/>
-     <TextBlock Grid.Row="2" Margin="14,10" Text="{DynamicResource chambereditor.gesture_tip}" Foreground="{DynamicResource DarkSecondaryText}" TextWrapping="Wrap" FontSize="{DynamicResource Size12}"/>
     </Grid>
    </Border>
-   <Border Grid.Column="4" Style="{DynamicResource ZoneBorderStyle}">
-    <TabControl SelectedIndex="{Binding SelectedInspectorTab, Mode=TwoWay}" Margin="8" Background="Transparent" BorderThickness="0">
-     <TabItem Header="{DynamicResource chambereditor.placement_tab}">
+   <Border x:Name="InspectorPanel" Grid.Column="4" Style="{DynamicResource ZoneBorderStyle}" Padding="8">
+    <Grid>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <WrapPanel x:Name="ViewActions" Margin="0,0,0,8">
+      <TextBlock Text="{DynamicResource chambereditor.view}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <ComboBox x:Name="ViewPicker" SelectedIndex="0" SelectionChanged="OnViewChanged" Width="110" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,6,0">
+       <ComboBoxItem Tag="Perspective" Content="{DynamicResource chambereditor.view.Perspective}"/>
+       <ComboBoxItem Tag="Top" Content="{DynamicResource chambereditor.view.Top}"/>
+       <ComboBoxItem Tag="Front" Content="{DynamicResource chambereditor.view.Front}"/>
+       <ComboBoxItem Tag="Back" Content="{DynamicResource chambereditor.view.Back}"/>
+       <ComboBoxItem Tag="Left" Content="{DynamicResource chambereditor.view.Left}"/>
+       <ComboBoxItem Tag="Right" Content="{DynamicResource chambereditor.view.Right}"/>
+      </ComboBox>
+      <Button x:Name="DefaultViewButton" Content="{DynamicResource chambereditor.default_view}" Click="OnDefaultView" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0"/>
+     </WrapPanel>
+     <WrapPanel x:Name="ZoomPanel" Grid.Row="1" Margin="0,0,0,8">
+      <Button x:Name="ZoomOutButton" Content="−" ToolTip="{DynamicResource chambereditor.zoom.out}" Style="{DynamicResource ChamberZoomButtonStyle}" Command="{Binding ZoomOutCommand, ElementName=Scene}"/>
+      <controls:InputTextBox x:Name="ZoomInput" DataType="Decimal" Minimum="10" Maximum="400" Unit="%" Width="58" Margin="0" Style="{DynamicResource ToolbarTextBoxStyle}"
+          ToolTip="{DynamicResource chambereditor.zoom.tip}" Value="{Binding ZoomPercent, ElementName=Scene, Mode=TwoWay, StringFormat=0.#}"/>
+      <TextBlock Text="%" VerticalAlignment="Center" Margin="3,0"/>
+      <Button x:Name="ZoomInButton" Content="＋" ToolTip="{DynamicResource chambereditor.zoom.in}" Style="{DynamicResource ChamberZoomButtonStyle}" Command="{Binding ZoomInCommand, ElementName=Scene}"/>
+      <Button x:Name="ActualSizeButton" Content="100%" Style="{DynamicResource ToolbarOutlinedButtonStyle}" MinWidth="48" Padding="4,0" Margin="0,0,4,0" Command="{Binding ActualSizeCommand, ElementName=Scene}"/>
+      <Button x:Name="FitButton" Content="{DynamicResource chambereditor.zoom.fit}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" MinWidth="64" Padding="2,0" Margin="0" Command="{Binding FitCommand, ElementName=Scene}"/>
+     </WrapPanel>
+     <TextBlock Grid.Row="2" Text="{Binding Selected.Caption}" ToolTip="{Binding Selected.Component}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource DarkSecondaryText}" Margin="0,0,0,8"/>
+    <TabControl x:Name="Inspector" Grid.Row="3" SelectedIndex="{Binding SelectedInspectorTab, Mode=TwoWay}" Style="{DynamicResource ChamberInspectorStyle}">
+     <TabItem Header="{DynamicResource chambereditor.placement_tab}" Style="{DynamicResource ChamberInspectorTabStyle}">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-       <StackPanel IsEnabled="{Binding IsEditing}" Margin="8,16,8,8">
-        <TextBlock Text="{Binding Selected.Caption}" Foreground="{DynamicResource DarkSecondaryText}" Margin="0,0,0,18"/>
+       <StackPanel Margin="2,10,4,4">
+        <WrapPanel x:Name="EditingActions" Margin="0,0,0,10">
+         <Button x:Name="UndoButton" Content="{DynamicResource chambereditor.undo}" Command="{Binding UndoCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,6,6"/>
+         <Button x:Name="RedoButton" Content="{DynamicResource chambereditor.redo}" Command="{Binding RedoCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,0,6"/>
+         <CheckBox Content="{DynamicResource chambereditor.snap}" IsChecked="{Binding Snap}" Margin="0,0,0,6" VerticalAlignment="Center"/>
+        </WrapPanel>
+        <WrapPanel x:Name="FileActions" Margin="0,0,0,8">
+         <Button Content="{DynamicResource chambereditor.import}" Click="OnImportMachine" Style="{DynamicResource ToolbarButtonStyle}"/>
+         <Button Content="{DynamicResource chambereditor.open}" Click="OnOpen" IsEnabled="{Binding HasConfiguration}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+         <Button Content="{DynamicResource chambereditor.save}" Click="OnSave" IsEnabled="{Binding HasConfiguration}" Style="{DynamicResource ToolbarButtonStyle}"/>
+        </WrapPanel>
+       <StackPanel IsEnabled="{Binding IsEditing}">
         <StackPanel Visibility="{Binding Selected.HasDeviceBinding, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}">
          <TextBlock Text="{DynamicResource chambereditor.component_binding}"/>
          <TextBlock Text="{Binding Selected.Component}" TextWrapping="Wrap" Foreground="{DynamicResource DarkSecondaryText}" Margin="0,6,0,8"/>
@@ -97,12 +102,12 @@
          <TextBlock Text="{DynamicResource chambereditor.home_angle}"/><controls:InputTextBox DataType="Decimal" Minimum="-360" Maximum="360" Unit="°" Value="{Binding Selected.HomeAngle}" Margin="0,6,0,16"/>
         </StackPanel>
        </StackPanel>
+       </StackPanel>
       </ScrollViewer>
      </TabItem>
-     <TabItem Header="{DynamicResource chambereditor.dimensions_tab}">
+     <TabItem Header="{DynamicResource chambereditor.dimensions_tab}" Style="{DynamicResource ChamberInspectorTabStyle}">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-       <StackPanel IsEnabled="{Binding IsEditing}" Margin="8,16,8,8">
-        <TextBlock Text="{Binding Selected.Caption}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+       <StackPanel IsEnabled="{Binding IsEditing}" Margin="2,10,4,4">
         <TextBlock Text="{DynamicResource chambereditor.size_units}" Foreground="{DynamicResource DarkSecondaryText}" TextWrapping="Wrap" Margin="0,0,0,14"/>
         <CheckBox Content="{DynamicResource chambereditor.auto_length}" IsChecked="{Binding Selected.AutoLength}" Margin="0,0,0,16"
          Visibility="{Binding Selected.IsArm, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}"/>
@@ -120,10 +125,10 @@
        </StackPanel>
       </ScrollViewer>
      </TabItem>
-     <TabItem x:Name="MotionTab" Header="{DynamicResource chambereditor.motion}"
+     <TabItem x:Name="MotionTab" Header="{DynamicResource chambereditor.motion}" Style="{DynamicResource ChamberInspectorTabStyle}"
       Visibility="{Binding HasMotion, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}">
-      <StackPanel Margin="8,16,8,8">
-       <TextBlock Text="{Binding Selected.DisplayName}" FontWeight="SemiBold" Margin="0,0,0,18"/>
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="2,10,4,4">
        <WrapPanel x:Name="ArmMotionActions" Margin="0,0,0,12"
         Visibility="{Binding CanMoveArm, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}">
         <Button x:Name="MotionHomeButton" Content="{DynamicResource chambereditor.home}" Command="{Binding HomeCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
@@ -145,14 +150,16 @@
        <CheckBox x:Name="SpinMotionAction" Content="{DynamicResource chambereditor.spin}" IsChecked="{Binding SelectedMotion.Spin}"
         Visibility="{Binding CanSpin, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}" Margin="0,0,0,12"/>
       </StackPanel>
+      </ScrollViewer>
      </TabItem>
     </TabControl>
-   </Border>
-  </Grid>
-  <DockPanel Grid.Row="3">
+  <DockPanel Grid.Row="4">
    <StackPanel><TextBlock Text="{Binding Error}" Style="{DynamicResource ChamberStatusTextStyle}" Foreground="{DynamicResource DarkAlarmStatus}" TextWrapping="Wrap"/><TextBlock Text="{Binding Warning}" Style="{DynamicResource ChamberStatusTextStyle}" Foreground="{DynamicResource DarkSecondaryText}" TextWrapping="Wrap"/></StackPanel>
    <TextBlock x:Name="FileStatus" Style="{DynamicResource ChamberStatusTextStyle}" HorizontalAlignment="Right" Foreground="{DynamicResource DarkSecondaryText}" MaxWidth="860" TextTrimming="CharacterEllipsis"/>
   </DockPanel>
+    </Grid>
+   </Border>
+  </Grid>
  </Grid>
  </Grid>
  </Viewbox>

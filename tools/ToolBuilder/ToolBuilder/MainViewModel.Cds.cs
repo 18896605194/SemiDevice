@@ -1,6 +1,10 @@
 using System.Security.Cryptography;
 using System.Xml.Linq;
 using ToolBuilder.Core;
+using CdsAssemblyPreview;
+using System.Windows;
+using System.Windows.Threading;
+using xyz.Tools;
 
 namespace ToolBuilder;
 
@@ -11,10 +15,52 @@ public sealed partial class MainViewModel
     private readonly Dictionary<string, FileWrite> _layoutFiles = new(StringComparer.OrdinalIgnoreCase);
     private CdsLayoutViewModel? _currentCdsLayout;
     private string _layoutError = "";
+    private bool _syncingCds, _cdsRefreshQueued;
     public CdsLayoutViewModel? CurrentCdsLayout { get => _currentCdsLayout; private set => Set(ref _currentCdsLayout, value); }
     public string LayoutError { get => _layoutError; private set => Set(ref _layoutError, value); }
-    public bool CanEditCdsLayout => CdsLayoutViewModel.Supports(Selected);
+    public bool CanEditCdsLayout => FindCdsModule(Selected?.Element) is not null;
     public bool HasLayoutChanges => _layouts.Values.Any(layout => layout.IsDirty) || HasChamberChanges;
+
+    private string? CdsRole(string type) => CdsConfigurationReader.Role(type, _catalog.Elements.GetValueOrDefault(type));
+    private XElement? FindCdsModule(XElement? element)
+    {
+        var parents = element?.AncestorsAndSelf("Setting").ToArray() ?? [];
+        return parents.FirstOrDefault(e => CdsRole(ConfigDocument.Attribute(e, "Type")) == "Module")
+            ?? parents.FirstOrDefault(e => ConfigDocument.Attribute(e, "Type").Length > 0 && CdsRole(ConfigDocument.Attribute(e, "Type")) is null
+                && e.Descendants("Setting").Any(n => CdsRole(ConfigDocument.Attribute(n, "Type")) == "Tank"));
+    }
+    private void QueueCdsRefresh()
+    {
+        if (_cdsRefreshQueued || _syncingCds) return;
+        _cdsRefreshQueued = true;
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            _cdsRefreshQueued = false; RefreshCdsLayouts();
+            if (EditorPage == "CdsLayout" && CanEditCdsLayout) OpenCdsLayout();
+        }, DispatcherPriority.Background);
+    }
+    private void RefreshCdsLayouts()
+    {
+        if (_document is null || _syncingCds) return;
+        _syncingCds = true;
+        try
+        {
+            foreach (var pair in _layouts.Where(p => p.Key.Ancestors().Contains(_document.Xml.Root!)))
+                pair.Value.RefreshConfiguration();
+            LayoutError = "";
+        }
+        catch (Exception failure) { LayoutError = failure.Message; }
+        finally { _syncingCds = false; Raise(nameof(CanEditCdsLayout)); Raise(nameof(Title)); }
+    }
+    private void SelectCdsComponentInTree(CdsLayoutViewModel layout)
+    {
+        if (_syncingCds || !ReferenceEquals(CurrentCdsLayout, layout) || layout.Editor.ViewModel.Selected is not { Component.Length: > 0 } part) return;
+        string path = layout.Editor.ViewModel.Snapshot.ComponentRoot + "." + part.Component;
+        var node = Roots.SelectMany(r => r.Walk()).FirstOrDefault(n => n.Path == path);
+        if (node is null || ReferenceEquals(node, Selected)) return;
+        _syncingCds = true;
+        try { SelectNode(node); } finally { _syncingCds = false; }
+    }
 
     private void ValidateCdsLayouts()
     {
@@ -68,22 +114,35 @@ public sealed partial class MainViewModel
 
     private void OpenCdsLayout()
     {
-        if (!CanEditCdsLayout || Selected is null || _document is null)
+        if (FindCdsModule(Selected?.Element) is not { } module || _document is null)
         {
             CurrentCdsLayout = null;
             return;
         }
         try
         {
-            if (!_layouts.TryGetValue(Selected.Element, out var layout))
+            if (!_layouts.TryGetValue(module, out var layout))
             {
-                layout = new CdsLayoutViewModel(Selected, _document.FilePath);
+                layout = IocHelper.GetRequiredService<CdsLayoutViewModel>();
+                layout.Configure(Roots.SelectMany(r => r.Walk()).First(n => ReferenceEquals(n.Element, module)), _document.FilePath, CdsRole);
+                layout.Init();
                 layout.Changed += () => Raise(nameof(Title));
                 layout.Editor.SaveRequested += () => SaveCommand.Execute(null);
-                _layouts.Add(Selected.Element, layout);
+                layout.Editor.ViewModel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(PreviewViewModel.Selected)) SelectCdsComponentInTree(layout); };
+                _layouts.Add(module, layout);
             }
+            _syncingCds = true;
+            try
+            {
+                layout.RefreshConfiguration();
+                string path = Selected?.Path ?? "";
+                var part = layout.Editor.ViewModel.Components.Where(n => n.Component.Length > 0).OrderByDescending(n => n.Component.Length)
+                    .FirstOrDefault(n => path == layout.Editor.ViewModel.Snapshot.ComponentRoot + "." + n.Component);
+                if (part is not null) layout.Editor.ViewModel.Select(part.Id);
+            }
+            finally { _syncingCds = false; }
             CurrentCdsLayout = layout;
-            _layoutErrors.Remove(Selected.Element);
+            _layoutErrors.Remove(module);
             LayoutError = "";
             Raise(nameof(Title));
         }
@@ -91,7 +150,7 @@ public sealed partial class MainViewModel
         {
             CurrentCdsLayout = null;
             LayoutError = "布局加载失败，原文件未修改：" + exception.Message;
-            _layoutErrors[Selected.Element] = LayoutError;
+            _layoutErrors[module] = LayoutError;
             Status = LayoutError;
         }
     }

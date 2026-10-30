@@ -1,0 +1,10 @@
+<UserControl x:Class="CdsAssemblyPreview.PreviewShell"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:CdsAssemblyPreview">
+ <TabControl x:Name="Pages" Style="{DynamicResource HardwareShellTabsStyle}" Background="{DynamicResource DarkWindowBackground}">
+  <TabItem Header="{DynamicResource hw.editor_tab}" Style="{DynamicResource PreviewInspectorTabStyle}"><ContentControl x:Name="EditorHost"/></TabItem>
+  <TabItem Header="{DynamicResource hw.library_tab}" Style="{DynamicResource PreviewInspectorTabStyle}"><local:HardwareCatalogPage/></TabItem>
+  <TabItem Header="{DynamicResource process.tab}" Style="{DynamicResource PreviewInspectorTabStyle}"><local:ProcessPreviewPage/></TabItem>
+  <TabItem Header="{DynamicResource pipeline.tab}" Style="{DynamicResource PreviewInspectorTabStyle}"><local:CdsPipelinePreviewPage/></TabItem>
+ </TabControl>
+</UserControl>

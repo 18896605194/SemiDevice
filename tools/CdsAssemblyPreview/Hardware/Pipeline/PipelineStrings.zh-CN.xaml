@@ -1,0 +1,14 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
+ <sys:String x:Key="pipeline.tab">CDS 管路 · 2D 预览</sys:String>
+ <sys:String x:Key="pipeline.title">CDS 管路 · 泵与加热器 2D 预览</sys:String>
+ <sys:String x:Key="pipeline.subtitle">管路上串接两个正视图控件 · 本地示例</sys:String>
+ <sys:String x:Key="pipeline.path">Tank1 → V1 → 泵 P1 → 加热器 H1 → V2 → OUT</sys:String>
+ <sys:String x:Key="pipeline.front_note">2D 使用同一模型的正交正视图，3D 展示保留在「泵与加热器预览」页</sys:String>
+ <sys:String x:Key="pipeline.run">运行示例</sys:String><sys:String x:Key="pipeline.stop">停止示例</sys:String><sys:String x:Key="pipeline.reset">恢复示例位置</sys:String>
+ <sys:String x:Key="pipeline.flowing">管路流动中</sys:String><sys:String x:Key="pipeline.no_flow">管路已停止流动</sys:String>
+ <sys:String x:Key="pipeline.drag_note">点击选中 · 鼠标拖动 · 方向键微调，Shift ×10 · 双击阀门切换开关 · 管线跟随接口</sys:String>
+ <sys:String x:Key="pipeline.selected">选中的示例控件</sys:String>
+ <sys:String x:Key="pipeline.width">宽度</sys:String><sys:String x:Key="pipeline.height">高度</sys:String><sys:String x:Key="pipeline.angle">平面旋转角度（°）</sys:String>
+ <sys:String x:Key="pipeline.diameter">管路外径</sys:String><sys:String x:Key="pipeline.fill">模拟槽液位（%）</sys:String><sys:String x:Key="pipeline.power">加热输出（%）</sys:String>
+ <sys:String x:Key="pipeline.local_note">本页仅演示控件与管路的组合，不代表当前项目装机或工艺。</sys:String>
+</ResourceDictionary>

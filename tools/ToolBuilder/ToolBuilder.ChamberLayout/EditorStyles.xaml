@@ -28,9 +28,37 @@
   <Setter Property="VerticalContentAlignment" Value="Center"/>
  </Style>
  <Style TargetType="controls:InputTextBox">
-  <Setter Property="MinHeight" Value="36"/><Setter Property="Padding" Value="8,4"/>
-  <Setter Property="FontSize" Value="{DynamicResource Size16}"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+  <Setter Property="MinHeight" Value="34"/><Setter Property="Padding" Value="8,4"/>
+  <Setter Property="FontSize" Value="{DynamicResource Size14}"/><Setter Property="VerticalContentAlignment" Value="Center"/>
   <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}"/><Setter Property="Background" Value="{DynamicResource DarkControlBackground}"/>
   <Setter Property="BorderBrush" Value="{DynamicResource DarkBorderBrush}"/>
+ </Style>
+ <Style x:Key="ToolbarTextBoxStyle" TargetType="TextBox">
+  <Setter Property="MinHeight" Value="34"/><Setter Property="Padding" Value="8,4"/>
+  <Setter Property="FontSize" Value="{DynamicResource Size14}"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+  <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}"/><Setter Property="Background" Value="{DynamicResource DarkControlBackground}"/>
+  <Setter Property="BorderBrush" Value="{DynamicResource DarkBorderBrush}"/>
+ </Style>
+ <Style x:Key="ChamberZoomButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarOutlinedButtonStyle}">
+  <Setter Property="MinWidth" Value="28"/><Setter Property="Width" Value="28"/>
+  <Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,4,0"/>
+ </Style>
+ <Style x:Key="ChamberInspectorStyle" TargetType="TabControl">
+  <Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/>
+  <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}"/>
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabControl"><Grid>
+   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <TabPanel IsItemsHost="True"/>
+   <ContentPresenter Grid.Row="1" x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
+  </Grid></ControlTemplate></Setter.Value></Setter>
+ </Style>
+ <Style x:Key="ChamberInspectorTabStyle" TargetType="TabItem">
+  <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}"/><Setter Property="FontSize" Value="{DynamicResource Size13}"/>
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
+   <Border x:Name="Frame" Background="Transparent" Padding="12,9" BorderThickness="0,0,0,2" BorderBrush="{DynamicResource DarkBorderBrush}">
+    <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+   </Border>
+   <ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource DarkAccentSoft}"/><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource DarkAccent}"/></Trigger></ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
  </Style>
 </ResourceDictionary>

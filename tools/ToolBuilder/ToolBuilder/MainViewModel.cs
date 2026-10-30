@@ -45,12 +45,14 @@ public sealed partial class MainViewModel : Observable
         {
             if (!Set(ref _selected, value)) return;
             bool stayInChamber = EditorPage == "ChamberLayout";
+            bool stayInCds = EditorPage == "CdsLayout";
             if (value is not null) value.IsExpanded = true;
             BuildEditor();
             Raise(nameof(SelectionPath)); Raise(nameof(SelectionDescription)); Raise(nameof(AddChildLabel));
             Raise(nameof(CanEditCdsLayout));
             Raise(nameof(CanEditChamberLayout));
-            EditorPage = CanEditChamberLayout && (stayInChamber || ReferenceEquals(FindChamber(value?.Element), value?.Element)) ? "ChamberLayout" : CanEditCdsLayout ? "CdsLayout"
+            EditorPage = CanEditChamberLayout && (stayInChamber || ReferenceEquals(FindChamber(value?.Element), value?.Element)) ? "ChamberLayout"
+                : CanEditCdsLayout && (stayInCds || ReferenceEquals(FindCdsModule(value?.Element), value?.Element)) ? "CdsLayout"
                 : CanEditRecipeFields ? "RecipeFields" : CanEditRecipeHead ? "RecipeHead" : "Parameters";
             CommandManager.InvalidateRequerySuggested();
         }
@@ -79,7 +81,7 @@ public sealed partial class MainViewModel : Observable
         set
         {
             Set(ref _editorPage, value);
-            if (value == "CdsLayout")
+            if (value == "CdsLayout" && !_syncingCds)
             {
                 OpenCdsLayout();
             }
@@ -223,6 +225,7 @@ public sealed partial class MainViewModel : Observable
         Raise(nameof(XmlPreview)); Raise(nameof(OriginalPreview)); Raise(nameof(SelectionPath));
         Raise(nameof(AddChildLabel));
         QueueChamberRefresh();
+        QueueCdsRefresh();
     }
 
     public bool ConfirmDiscard()
@@ -294,6 +297,7 @@ public sealed partial class MainViewModel : Observable
             foreach (var root in Roots) root.RefreshMetadata(_catalog);
             RefreshChamberVisualCatalog();
             RefreshChamberLayouts();
+            RefreshCdsLayouts();
             BuildEditor();
             Raise(nameof(SelectionDescription)); Raise(nameof(CatalogSummary));
             Validate();

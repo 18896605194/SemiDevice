@@ -10,7 +10,7 @@ using ToolBuilder.Core;
 
 namespace ToolBuilder;
 
-internal static class ChamberLayoutSmoke
+internal static partial class ChamberLayoutSmoke
 {
     public static async Task Run(MainWindow window, string source, string output, string[] catalogSources)
     {
@@ -62,6 +62,7 @@ internal static class ChamberLayoutSmoke
         { WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080, PositionX = -32000, PositionY = -32000, Width = 1600, Height = 1000 });
         host.RootVisual = content; content.Measure(new Size(1600, 1000)); content.Arrange(new Rect(0, 0, 1600, 1000)); content.UpdateLayout(); await Pump(250);
         Check(editor.IsVisible && ((TabItem)window.FindName("ChamberLayoutTab")).IsSelected, "真实 WPF 画面显示嵌入的腔体布局页");
+        await WorkspaceChecks(window, editor, scene, content, output, Check);
         vm.SelectNode(Node(arm.Component)); model.SelectedInspectorTab = 2; model.CenterCommand.Execute(null); await Pump(350);
         Check(scene.Probe(armId).CenterError < 1e-6, "独立摆臂移动到卡盘中心");
         double height = scene.Probe(armId).TipHeight;

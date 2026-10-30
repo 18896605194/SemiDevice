@@ -11,11 +11,11 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <Border Background="#15243E" Padding="22,16">
+        <Border Background="#15243E" Style="{StaticResource WorkspaceHeaderStyle}">
             <Grid>
                 <StackPanel>
                     <TextBlock Text="ToolBuilder" Foreground="White" FontWeight="Bold" FontSize="23"/>
-                    <TextBlock Text="设备配置与管路布局编辑" Foreground="#AFBFD8" Margin="0,3,0,0"/>
+                    <TextBlock Text="设备配置与管路布局编辑" Foreground="#AFBFD8" Margin="0,3,0,0" Style="{StaticResource WorkspaceDetailStyle}"/>
                 </StackPanel>
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="TreeToggle" Content="收起元件树" Click="ToggleTreeClick" />
@@ -27,12 +27,12 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <Border Grid.Row="1" Background="White" BorderBrush="#E0E6EF" BorderThickness="0,0,0,1" Padding="20,10">
+        <Border Grid.Row="1" Background="White" BorderBrush="#E0E6EF" BorderThickness="0,0,0,1" Style="{StaticResource WorkspaceFileStyle}">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="420"/></Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="{Binding FilePath}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding FilePath}"/>
-                    <TextBlock Text="{Binding ConfigDirectory, StringFormat=配置目录：{0}}" Foreground="#728099" FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding ConfigDirectory, StringFormat=配置目录：{0}}" Foreground="#728099" FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" Style="{StaticResource WorkspaceDetailStyle}"/>
                 </StackPanel>
                 <DockPanel Grid.Column="1" VerticalAlignment="Center" Margin="15,0,0,0">
                     <Button Content="打开" DockPanel.Dock="Right" Command="{Binding RecentCommand}" Margin="7,0,0,0"/>
@@ -40,7 +40,7 @@
                 </DockPanel>
             </Grid>
         </Border>
-        <Grid Grid.Row="2" Margin="16">
+        <Grid Grid.Row="2" Style="{StaticResource WorkspaceBodyStyle}">
             <Grid.ColumnDefinitions><ColumnDefinition x:Name="TreeColumn" Width="320" MinWidth="220"/><ColumnDefinition x:Name="SplitterColumn" Width="12"/><ColumnDefinition Width="*" MinWidth="660"/></Grid.ColumnDefinitions>
             <Border x:Name="TreePanel" Grid.Column="0" Background="White" BorderBrush="#DDE4EF" BorderThickness="1" Padding="6">
                 <DockPanel>
@@ -128,10 +128,10 @@
                 </DockPanel>
             </Border>
             <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" Background="Transparent"/>
-            <Border Grid.Column="2" Background="White" BorderBrush="#DDE4EF" BorderThickness="1" Padding="18">
+            <Border Grid.Column="2" Background="White" BorderBrush="#DDE4EF" BorderThickness="1" Style="{StaticResource WorkspaceEditorStyle}">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <DockPanel Margin="0,0,0,14">
+                    <DockPanel x:Name="SelectionHeading" Margin="0,0,0,14" Style="{StaticResource WorkspaceDetailStyle}">
                         <Button DockPanel.Dock="Right" Content="{Binding AddChildLabel}" Command="{Binding AddChildCommand}" Background="#235CCC" Foreground="White" BorderBrush="#235CCC" Padding="16,10" VerticalAlignment="Top" Margin="20,0,0,0"/>
                         <StackPanel>
                             <TextBlock Text="{Binding SelectionPath}" FontSize="23" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
@@ -172,12 +172,11 @@
                     <TabControl x:Name="EditorTabs" Grid.Row="2" BorderBrush="#E0E6EF">
                         <TabItem x:Name="ChamberLayoutTab" Header="腔体布局" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Visibility="{Binding CanEditChamberLayout, Converter={StaticResource BoolVisibility}}" IsSelected="{Binding EditorPage, Converter={StaticResource PageSelection}, ConverterParameter=ChamberLayout, Mode=TwoWay}">
                             <DockPanel>
-                                <TextBlock DockPanel.Dock="Top" Text="{Binding ChamberTitle}" Margin="10,5" Foreground="#63738C"/>
                                 <TextBlock DockPanel.Dock="Bottom" Text="{Binding ChamberLayoutError}" Style="{StaticResource NonEmptyTextStyle}" Margin="10,5" Foreground="#B42318" TextWrapping="Wrap"/>
                                 <ContentControl Content="{Binding ChamberEditor}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
                             </DockPanel>
                         </TabItem>
-                        <TabItem x:Name="CdsLayoutTab" Header="管路布局" Visibility="{Binding CanEditCdsLayout, Converter={StaticResource BoolVisibility}}" IsSelected="{Binding EditorPage, Converter={StaticResource PageSelection}, ConverterParameter=CdsLayout, Mode=TwoWay}">
+                        <TabItem x:Name="CdsLayoutTab" Header="CDS 布局" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Visibility="{Binding CanEditCdsLayout, Converter={StaticResource BoolVisibility}}" IsSelected="{Binding EditorPage, Converter={StaticResource PageSelection}, ConverterParameter=CdsLayout, Mode=TwoWay}">
                             <Grid>
                                 <local:CdsLayoutView DataContext="{Binding CurrentCdsLayout}" />
                                 <TextBlock Text="{Binding LayoutError}" TextWrapping="Wrap" Foreground="#B42318" Margin="15" VerticalAlignment="Top" IsHitTestVisible="False" />
@@ -344,7 +343,7 @@
                             </Grid>
                         </TabItem>
                     </TabControl>
-                    <Border Grid.Row="3" Background="#F0F5FF" Padding="10,8" Margin="0,12,0,0">
+                    <Border Grid.Row="3" Background="#F0F5FF" Padding="10,8" Margin="0,12,0,0" Style="{StaticResource WorkspaceDetailStyle}">
                         <TextBlock Text="machine.xml 在后端启动时装配。保存前校验并备份；运行中可调的 EC 参数仍在原 EC 设置页管理。" Foreground="#5270A4" FontSize="11" TextWrapping="Wrap"/>
                     </Border>
                 </Grid>

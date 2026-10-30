@@ -1,0 +1,36 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <Style x:Key="WorkspaceDetailStyle" TargetType="FrameworkElement">
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding EditorPage}" Value="CdsLayout"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+   <DataTrigger Binding="{Binding EditorPage}" Value="ChamberLayout"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="WorkspaceHeaderStyle" TargetType="Border">
+  <Setter Property="Padding" Value="22,16"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding EditorPage}" Value="CdsLayout"><Setter Property="Padding" Value="16,7"/></DataTrigger>
+   <DataTrigger Binding="{Binding EditorPage}" Value="ChamberLayout"><Setter Property="Padding" Value="16,7"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="WorkspaceFileStyle" TargetType="Border">
+  <Setter Property="Padding" Value="20,10"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding EditorPage}" Value="CdsLayout"><Setter Property="Padding" Value="12,4"/></DataTrigger>
+   <DataTrigger Binding="{Binding EditorPage}" Value="ChamberLayout"><Setter Property="Padding" Value="12,4"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="WorkspaceBodyStyle" TargetType="Grid">
+  <Setter Property="Margin" Value="16"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding EditorPage}" Value="CdsLayout"><Setter Property="Margin" Value="8"/></DataTrigger>
+   <DataTrigger Binding="{Binding EditorPage}" Value="ChamberLayout"><Setter Property="Margin" Value="8"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="WorkspaceEditorStyle" TargetType="Border">
+  <Setter Property="Padding" Value="18"/>
+  <Style.Triggers>
+   <DataTrigger Binding="{Binding EditorPage}" Value="CdsLayout"><Setter Property="Padding" Value="0"/></DataTrigger>
+   <DataTrigger Binding="{Binding EditorPage}" Value="ChamberLayout"><Setter Property="Padding" Value="0"/></DataTrigger>
+  </Style.Triggers>
+ </Style>
+</ResourceDictionary>

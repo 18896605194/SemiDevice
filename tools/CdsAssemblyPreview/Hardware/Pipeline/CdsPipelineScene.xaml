@@ -1,0 +1,18 @@
+<UserControl x:Class="CdsAssemblyPreview.CdsPipelineScene"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:CdsAssemblyPreview">
+ <Grid Background="{DynamicResource DarkSurfaceBackground}" ClipToBounds="True">
+  <Viewbox Stretch="Uniform"><Grid x:Name="Stage" Width="1200" Height="540" Background="{DynamicResource DarkSurfaceBackground}" Focusable="True"
+    PreviewMouseLeftButtonDown="OnDown" MouseMove="OnMove" PreviewMouseLeftButtonUp="OnUp" LostMouseCapture="OnLostCapture">
+   <Viewport3D x:Name="Viewport" IsHitTestVisible="False">
+    <Viewport3D.Camera><OrthographicCamera Position="600,-270,2000" LookDirection="0,0,-1" UpDirection="0,1,0" Width="1200"/></Viewport3D.Camera>
+   </Viewport3D>
+   <Canvas x:Name="Overlay">
+    <local:ProcessHardwareScene x:Name="PumpFront" Kind="CentrifugalPump" ViewMode="Front2D" IsHitTestVisible="False" Focusable="False"/>
+    <local:ProcessHardwareScene x:Name="HeaterFront" Kind="InlineHeater" ViewMode="Front2D" IsHitTestVisible="False" Focusable="False"/>
+    <local:ValveSymbol x:Name="InletSymbol" IsHitTestVisible="False"/>
+    <local:ValveSymbol x:Name="OutletSymbol" IsHitTestVisible="False"/>
+   </Canvas>
+  </Grid></Viewbox>
+ </Grid>
+</UserControl>

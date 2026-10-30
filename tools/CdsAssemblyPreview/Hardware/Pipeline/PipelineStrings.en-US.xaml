@@ -1,0 +1,14 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
+ <sys:String x:Key="pipeline.tab">CDS piping · 2D preview</sys:String>
+ <sys:String x:Key="pipeline.title">CDS piping · Pump and heater in 2D</sys:String>
+ <sys:String x:Key="pipeline.subtitle">Two front-view components connected in series · Local example</sys:String>
+ <sys:String x:Key="pipeline.path">Tank1 → V1 → Pump P1 → Heater H1 → V2 → OUT</sys:String>
+ <sys:String x:Key="pipeline.front_note">2D is an orthographic front view of the same models; 3D remains on the pump and heater tab</sys:String>
+ <sys:String x:Key="pipeline.run">Run example</sys:String><sys:String x:Key="pipeline.stop">Stop example</sys:String><sys:String x:Key="pipeline.reset">Reset example</sys:String>
+ <sys:String x:Key="pipeline.flowing">Piping is flowing</sys:String><sys:String x:Key="pipeline.no_flow">Piping flow stopped</sys:String>
+ <sys:String x:Key="pipeline.drag_note">Click to select · Drag to move · Arrow keys to nudge, Shift ×10 · Double-click valves to toggle · Pipes follow ports</sys:String>
+ <sys:String x:Key="pipeline.selected">Selected example component</sys:String>
+ <sys:String x:Key="pipeline.width">Width</sys:String><sys:String x:Key="pipeline.height">Height</sys:String><sys:String x:Key="pipeline.angle">In-plane rotation (°)</sys:String>
+ <sys:String x:Key="pipeline.diameter">Pipe diameter</sys:String><sys:String x:Key="pipeline.fill">Simulated tank level (%)</sys:String><sys:String x:Key="pipeline.power">Heater output (%)</sys:String>
+ <sys:String x:Key="pipeline.local_note">This page only demonstrates controls on piping, and does not describe the current installation or process.</sys:String>
+</ResourceDictionary>

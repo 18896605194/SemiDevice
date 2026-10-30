@@ -48,8 +48,8 @@
  <sys:String x:Key="chambereditor.base_length">底座长度</sys:String>
  <sys:String x:Key="chambereditor.base_width">底座宽度</sys:String>
  <sys:String x:Key="chambereditor.base_thickness">底座厚度</sys:String>
- <sys:String x:Key="chambereditor.placement_tab">安装</sys:String>
- <sys:String x:Key="chambereditor.dimensions_tab">尺寸</sys:String>
+ <sys:String x:Key="chambereditor.placement_tab">安装布局</sys:String>
+ <sys:String x:Key="chambereditor.dimensions_tab">显示参数</sys:String>
  <sys:String x:Key="chambereditor.auto_length">根据安装位置自动计算臂长</sys:String>
  <sys:String x:Key="chambereditor.nozzle_auto_length">管路长度随所属摆臂计算</sys:String>
  <sys:String x:Key="chambereditor.size_units">位置和尺寸使用逻辑单位，随窗口缩放显示；角度为 °，倍率为倍。</sys:String>
@@ -92,4 +92,8 @@
  <sys:String x:Key="chambereditor.unit.logical">逻辑单位</sys:String>
  <sys:String x:Key="chambereditor.unit.scale">倍</sys:String>
  <sys:String x:Key="chambereditor.invalid_units">布局只支持逻辑单位，请检查 Units 配置。</sys:String>
+ <sys:String x:Key="chambereditor.zoom.out">缩小画布</sys:String>
+ <sys:String x:Key="chambereditor.zoom.in">放大画布</sys:String>
+ <sys:String x:Key="chambereditor.zoom.fit">适应窗口</sys:String>
+ <sys:String x:Key="chambereditor.zoom.tip">画布整体缩放（10%～400%）；也可使用滚轮缩放。</sys:String>
 </ResourceDictionary>

@@ -16,7 +16,7 @@ internal static class ChamberTheme
         {
             ["DarkWindowBackground"] = "#FFFFFF", ["DarkSurfaceBackground"] = "#F8FAFD", ["DarkControlBackground"] = "#FFFFFF",
             ["DarkBorderBrush"] = "#D5DDE9", ["DarkPrimaryText"] = "#23324A", ["DarkSecondaryText"] = "#63738C",
-            ["DarkDisabledText"] = "#8491A3", ["DarkAccent"] = "#2463EB", ["DarkAccentPressed"] = "#DFEBFF"
+            ["DarkDisabledText"] = "#8491A3", ["DarkAccent"] = "#2463EB", ["DarkAccentPressed"] = "#DFEBFF", ["DarkAccentSoft"] = "#EAF1FF"
         }) theme[key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
         return theme;
     }

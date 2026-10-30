@@ -1,0 +1,45 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
+ <sys:String x:Key="hw.editor_tab">CDS 安装布局</sys:String><sys:String x:Key="hw.library_tab">基础硬件控件库</sys:String>
+ <sys:String x:Key="hw.title">基础硬件控件库</sys:String><sys:String x:Key="hw.subtitle">面向供液、清洗和温控的常见硬件 · 点击控件独立预览</sys:String>
+ <sys:String x:Key="hw.sample">独立预览 · 示例数据</sys:String><sys:String x:Key="hw.count">个预览项</sys:String>
+ <sys:String x:Key="hw.category">分类</sys:String><sys:String x:Key="hw.search">查找</sys:String><sys:String x:Key="hw.search_tip">输入名称或英文名，回车筛选</sys:String>
+ <sys:String x:Key="hw.group.all">全部</sys:String><sys:String x:Key="hw.group.delivery">储存与输送</sys:String><sys:String x:Key="hw.group.thermal">加热与换热</sys:String>
+ <sys:String x:Key="hw.group.valves">阀门与调压</sys:String><sys:String x:Key="hw.group.treatment">过滤与缓冲</sys:String><sys:String x:Key="hw.group.measurement">测量与检测</sys:String>
+ <sys:String x:Key="hw.tab.values">数值与状态</sys:String><sys:String x:Key="hw.tab.appearance">外观与位置</sys:String>
+ <sys:String x:Key="hw.reading">当前读数 PV</sys:String><sys:String x:Key="hw.target">目标值 SP</sys:String><sys:String x:Key="hw.unit">显示单位</sys:String>
+ <sys:String x:Key="hw.move_tip">预览中可拖动，↑ ↓ ← → 微调，Shift 加快移动。</sys:String><sys:String x:Key="hw.reset">恢复当前控件的示例值</sys:String>
+ <sys:String x:Key="hw.state.run">运行</sys:String><sys:String x:Key="hw.state.open">打开</sys:String><sys:String x:Key="hw.state.closed">关闭</sys:String>
+ <sys:String x:Key="hw.state.normal">正常</sys:String><sys:String x:Key="hw.state.stopped">停止</sys:String><sys:String x:Key="hw.state.fault">报警 / 故障</sys:String><sys:String x:Key="hw.state.unknown">未知</sys:String>
+ <sys:String x:Key="hw.kind.Tank">储液槽</sys:String><sys:String x:Key="hw.about.Tank">显示槽体与连续液位，可查看正常、报警和未知状态。</sys:String>
+ <sys:String x:Key="hw.kind.CentrifugalPump">离心泵</sys:String><sys:String x:Key="hw.about.CentrifugalPump">显示运行、转速与目标转速，运行时叶轮转动。</sys:String>
+ <sys:String x:Key="hw.kind.DiaphragmPump">隔膜泵</sys:String><sys:String x:Key="hw.about.DiaphragmPump">显示往复运行状态与频次，模拟隔膜动作。</sys:String>
+ <sys:String x:Key="hw.kind.MeteringPump">计量泵</sys:String><sys:String x:Key="hw.about.MeteringPump">显示计量输送状态、流量与目标值。</sys:String>
+ <sys:String x:Key="hw.kind.Mixer">搅拌器</sys:String><sys:String x:Key="hw.about.Mixer">显示搅拌运行与转速，叶片随运行转动。</sys:String>
+ <sys:String x:Key="hw.kind.InlineHeater">管路加热器</sys:String><sys:String x:Key="hw.about.InlineHeater">显示液路加热状态、当前温度与目标温度。</sys:String>
+ <sys:String x:Key="hw.kind.ImmersionHeater">浸入式加热器</sys:String><sys:String x:Key="hw.about.ImmersionHeater">显示槽内加热元件、温度与加热状态。</sys:String>
+ <sys:String x:Key="hw.kind.HeatExchanger">换热器</sys:String><sys:String x:Key="hw.about.HeatExchanger">以两条不同颜色的回路表示热交换，显示温度。</sys:String>
+ <sys:String x:Key="hw.kind.OnOffValve">气动开关阀</sys:String><sys:String x:Key="hw.about.OnOffValve">显示阀门打开、关闭、报警和未知状态。</sys:String>
+ <sys:String x:Key="hw.kind.ManualValve">手动阀</sys:String><sys:String x:Key="hw.about.ManualValve">以手轮区分手动阀，预览其开关状态。</sys:String>
+ <sys:String x:Key="hw.kind.ProportionalValve">比例调节阀</sys:String><sys:String x:Key="hw.about.ProportionalValve">显示阀门开度百分比与目标开度。</sys:String>
+ <sys:String x:Key="hw.kind.ThreeWayValve">三通阀</sys:String><sys:String x:Key="hw.about.ThreeWayValve">显示三个连接方向，便于识别切换或分配节点。</sys:String>
+ <sys:String x:Key="hw.kind.CheckValve">止回阀</sys:String><sys:String x:Key="hw.about.CheckValve">箭头及阀座表示允许流向与止回结构。</sys:String>
+ <sys:String x:Key="hw.kind.PressureRegulator">调压阀</sys:String><sys:String x:Key="hw.about.PressureRegulator">显示压力与目标压力，以弹簧外观区分调压部件。</sys:String>
+ <sys:String x:Key="hw.kind.ReliefValve">泄压阀</sys:String><sys:String x:Key="hw.about.ReliefValve">显示带泄放支路的弹簧阀外观。</sys:String>
+ <sys:String x:Key="hw.kind.Filter">过滤器</sys:String><sys:String x:Key="hw.about.Filter">以滤芯纹理区分过滤器，读数示例为压差 ΔP。</sys:String>
+ <sys:String x:Key="hw.kind.PulseDamper">脉动阻尼器</sys:String><sys:String x:Key="hw.about.PulseDamper">显示隔膜缓冲容器，读数示例为压力。</sys:String>
+ <sys:String x:Key="hw.kind.FlowMeter">流量计</sys:String><sys:String x:Key="hw.about.FlowMeter">在表头直接显示流量与单位，支持零值、报警和未知读数。</sys:String>
+ <sys:String x:Key="hw.kind.PressureGauge">压力表 / 变送器</sys:String><sys:String x:Key="hw.about.PressureGauge">用表盘、指针和数值显示压力。</sys:String>
+ <sys:String x:Key="hw.kind.TemperatureSensor">温度探头</sys:String><sys:String x:Key="hw.about.TemperatureSensor">独立探头外观，显示温度读数与单位。</sys:String>
+ <sys:String x:Key="hw.kind.LevelSensor">连续液位计</sys:String><sys:String x:Key="hw.about.LevelSensor">显示连续液位百分比，区别于两态液位开关。</sys:String>
+ <sys:String x:Key="hw.kind.ConductivitySensor">电导率探头</sys:String><sys:String x:Key="hw.about.ConductivitySensor">以双电极外观显示电导率，单位可设置。</sys:String>
+ <sys:String x:Key="hw.kind.PhSensor">pH 探头</sys:String><sys:String x:Key="hw.about.PhSensor">显示 pH 数值和探头，示例范围为 0 至 14。</sys:String>
+ <sys:String x:Key="hw.kind.LeakSensor">漏液 DI 信号</sys:String><sys:String x:Key="hw.about.LeakSensor">独立 DI 信号灯，与 HH、LL 使用相同显示方式，触发时报警。</sys:String>
+ <sys:String x:Key="hw.di.on">触发</sys:String><sys:String x:Key="hw.di.off">未触发</sys:String>
+ <sys:String x:Key="process.tab">泵与加热器预览</sys:String><sys:String x:Key="process.title">泵与加热器 · 三维交互预览</sys:String>
+ <sys:String x:Key="process.subtitle">金属灰 · 动作高亮 · 故障变色 · 可旋转查看</sys:String><sys:String x:Key="process.internals">显示内部结构</sys:String>
+ <sys:String x:Key="process.pump">泵</sys:String><sys:String x:Key="process.heater">管路加热器</sys:String>
+ <sys:String x:Key="process.default_view">默认视角</sys:String><sys:String x:Key="process.front_view">正视图</sys:String><sys:String x:Key="process.orbit_tip">拖动旋转 · 滚轮缩放 · 双击复位</sys:String>
+ <sys:String x:Key="process.speed">当前转速</sys:String><sys:String x:Key="process.speed_target">目标转速</sys:String>
+ <sys:String x:Key="process.temperature">当前温度</sys:String><sys:String x:Key="process.temperature_target">目标温度</sys:String><sys:String x:Key="process.power">加热输出</sys:String>
+ <sys:String x:Key="process.heat_on">加热</sys:String><sys:String x:Key="process.di">DI 信号预览</sys:String>
+</ResourceDictionary>

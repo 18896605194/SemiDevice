@@ -1,0 +1,45 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
+ <sys:String x:Key="hw.editor_tab">CDS layout</sys:String><sys:String x:Key="hw.library_tab">Hardware library</sys:String>
+ <sys:String x:Key="hw.title">Basic hardware library</sys:String><sys:String x:Key="hw.subtitle">Common hardware for fluid delivery, cleaning and temperature control · Select to preview</sys:String>
+ <sys:String x:Key="hw.sample">Independent preview · Sample data</sys:String><sys:String x:Key="hw.count">preview items</sys:String>
+ <sys:String x:Key="hw.category">Category</sys:String><sys:String x:Key="hw.search">Find</sys:String><sys:String x:Key="hw.search_tip">Enter a name and press Enter to filter</sys:String>
+ <sys:String x:Key="hw.group.all">All</sys:String><sys:String x:Key="hw.group.delivery">Storage and delivery</sys:String><sys:String x:Key="hw.group.thermal">Heating and heat exchange</sys:String>
+ <sys:String x:Key="hw.group.valves">Valves and regulation</sys:String><sys:String x:Key="hw.group.treatment">Filtration and damping</sys:String><sys:String x:Key="hw.group.measurement">Measurement and detection</sys:String>
+ <sys:String x:Key="hw.tab.values">Values and states</sys:String><sys:String x:Key="hw.tab.appearance">Appearance and position</sys:String>
+ <sys:String x:Key="hw.reading">Measured value PV</sys:String><sys:String x:Key="hw.target">Target SP</sys:String><sys:String x:Key="hw.unit">Display unit</sys:String>
+ <sys:String x:Key="hw.move_tip">Drag to move. Arrow keys nudge; hold Shift to move faster.</sys:String><sys:String x:Key="hw.reset">Restore sample values</sys:String>
+ <sys:String x:Key="hw.state.run">Run</sys:String><sys:String x:Key="hw.state.open">Open</sys:String><sys:String x:Key="hw.state.closed">Closed</sys:String>
+ <sys:String x:Key="hw.state.normal">Normal</sys:String><sys:String x:Key="hw.state.stopped">Stopped</sys:String><sys:String x:Key="hw.state.fault">Alarm / Fault</sys:String><sys:String x:Key="hw.state.unknown">Unknown</sys:String>
+ <sys:String x:Key="hw.kind.Tank">Storage tank</sys:String><sys:String x:Key="hw.about.Tank">Tank and continuous level display with normal, alarm and unknown states.</sys:String>
+ <sys:String x:Key="hw.kind.CentrifugalPump">Centrifugal pump</sys:String><sys:String x:Key="hw.about.CentrifugalPump">Running state, speed and speed target with animated impeller.</sys:String>
+ <sys:String x:Key="hw.kind.DiaphragmPump">Diaphragm pump</sys:String><sys:String x:Key="hw.about.DiaphragmPump">Reciprocating diaphragm motion and cycle rate.</sys:String>
+ <sys:String x:Key="hw.kind.MeteringPump">Metering pump</sys:String><sys:String x:Key="hw.about.MeteringPump">Metered delivery state, flow reading and target.</sys:String>
+ <sys:String x:Key="hw.kind.Mixer">Agitator</sys:String><sys:String x:Key="hw.about.Mixer">Mixing state and speed with animated blades.</sys:String>
+ <sys:String x:Key="hw.kind.InlineHeater">Inline heater</sys:String><sys:String x:Key="hw.about.InlineHeater">Heating state, measured and target temperatures.</sys:String>
+ <sys:String x:Key="hw.kind.ImmersionHeater">Immersion heater</sys:String><sys:String x:Key="hw.about.ImmersionHeater">Immersed element, temperature and heating state.</sys:String>
+ <sys:String x:Key="hw.kind.HeatExchanger">Heat exchanger</sys:String><sys:String x:Key="hw.about.HeatExchanger">Two colored circuits and a temperature reading.</sys:String>
+ <sys:String x:Key="hw.kind.OnOffValve">Pneumatic shut-off valve</sys:String><sys:String x:Key="hw.about.OnOffValve">Valve with open, closed, alarm and unknown states.</sys:String>
+ <sys:String x:Key="hw.kind.ManualValve">Manual valve</sys:String><sys:String x:Key="hw.about.ManualValve">Handwheel appearance and simulated valve state.</sys:String>
+ <sys:String x:Key="hw.kind.ProportionalValve">Proportional valve</sys:String><sys:String x:Key="hw.about.ProportionalValve">Measured opening and opening target in percent.</sys:String>
+ <sys:String x:Key="hw.kind.ThreeWayValve">Three-way valve</sys:String><sys:String x:Key="hw.about.ThreeWayValve">Three connection directions for routing and distribution.</sys:String>
+ <sys:String x:Key="hw.kind.CheckValve">Check valve</sys:String><sys:String x:Key="hw.about.CheckValve">Directional seat and non-return valve appearance.</sys:String>
+ <sys:String x:Key="hw.kind.PressureRegulator">Pressure regulator</sys:String><sys:String x:Key="hw.about.PressureRegulator">Spring regulator, measured pressure and pressure target.</sys:String>
+ <sys:String x:Key="hw.kind.ReliefValve">Pressure relief valve</sys:String><sys:String x:Key="hw.about.ReliefValve">Spring valve with a separate relief branch.</sys:String>
+ <sys:String x:Key="hw.kind.Filter">Filter</sys:String><sys:String x:Key="hw.about.Filter">Filter cartridge pattern and differential-pressure sample.</sys:String>
+ <sys:String x:Key="hw.kind.PulseDamper">Pulsation damper</sys:String><sys:String x:Key="hw.about.PulseDamper">Diaphragm buffer vessel and pressure sample.</sys:String>
+ <sys:String x:Key="hw.kind.FlowMeter">Flowmeter</sys:String><sys:String x:Key="hw.about.FlowMeter">Flow and unit on the meter, including zero, alarm and unknown values.</sys:String>
+ <sys:String x:Key="hw.kind.PressureGauge">Pressure gauge / transmitter</sys:String><sys:String x:Key="hw.about.PressureGauge">Dial, needle and numerical pressure reading.</sys:String>
+ <sys:String x:Key="hw.kind.TemperatureSensor">Temperature probe</sys:String><sys:String x:Key="hw.about.TemperatureSensor">Independent probe with a temperature reading and unit.</sys:String>
+ <sys:String x:Key="hw.kind.LevelSensor">Continuous level meter</sys:String><sys:String x:Key="hw.about.LevelSensor">Continuous percentage reading, separate from discrete level switches.</sys:String>
+ <sys:String x:Key="hw.kind.ConductivitySensor">Conductivity probe</sys:String><sys:String x:Key="hw.about.ConductivitySensor">Twin electrodes, conductivity reading and editable display unit.</sys:String>
+ <sys:String x:Key="hw.kind.PhSensor">pH probe</sys:String><sys:String x:Key="hw.about.PhSensor">Probe and pH reading with a sample range of 0 to 14.</sys:String>
+ <sys:String x:Key="hw.kind.LeakSensor">Leak DI signal</sys:String><sys:String x:Key="hw.about.LeakSensor">Independent DI lamp, the same display as HH and LL; active input raises an alarm.</sys:String>
+ <sys:String x:Key="hw.di.on">Triggered</sys:String><sys:String x:Key="hw.di.off">Not triggered</sys:String>
+ <sys:String x:Key="process.tab">Pump and heater preview</sys:String><sys:String x:Key="process.title">Pump and heater · Interactive 3D preview</sys:String>
+ <sys:String x:Key="process.subtitle">Metal gray · Active highlighting · Fault indication · Orbit view</sys:String><sys:String x:Key="process.internals">Show internals</sys:String>
+ <sys:String x:Key="process.pump">Pump</sys:String><sys:String x:Key="process.heater">Inline heater</sys:String>
+ <sys:String x:Key="process.default_view">Default view</sys:String><sys:String x:Key="process.front_view">Front view</sys:String><sys:String x:Key="process.orbit_tip">Drag to orbit · Wheel to zoom · Double-click to reset</sys:String>
+ <sys:String x:Key="process.speed">Measured speed</sys:String><sys:String x:Key="process.speed_target">Speed target</sys:String>
+ <sys:String x:Key="process.temperature">Measured temperature</sys:String><sys:String x:Key="process.temperature_target">Temperature target</sys:String><sys:String x:Key="process.power">Heating output</sys:String>
+ <sys:String x:Key="process.heat_on">Heat</sys:String><sys:String x:Key="process.di">DI signal preview</sys:String>
+</ResourceDictionary>

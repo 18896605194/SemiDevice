@@ -36,7 +36,7 @@ public sealed partial class ChamberLayoutScene : Grid
     private Vector3D _dragNormal;
     private Point? _orbit;
     private double _startX, _startY, _startZ;
-    private double _yaw = -18, _pitch = 34, _width = 7.8;
+    private double _yaw = -18, _pitch = 34;
     private ChamberViewPreset _viewPreset = ChamberViewPreset.Perspective;
     private bool _queued;
     private bool _applyingScene;
@@ -47,6 +47,7 @@ public sealed partial class ChamberLayoutScene : Grid
 
     public ChamberLayoutScene()
     {
+        InitializeZoomCommands();
         Background = Brushes.Transparent;
         ClipToBounds = true;
         _viewport.Camera = _camera;
@@ -60,7 +61,7 @@ public sealed partial class ChamberLayoutScene : Grid
         PreviewMouseRightButtonDown += OnOrbitDown;
         PreviewMouseRightButtonUp += (_, e) => { _orbit = null; ReleaseMouseCapture(); e.Handled = true; };
         PreviewMouseMove += OnPointerMove;
-        PreviewMouseWheel += (_, e) => { FinishGesture(); _width = Math.Clamp(_width - e.Delta / 120d * 0.5, 5, 48); UpdateCamera(); e.Handled = true; };
+        PreviewMouseWheel += (_, e) => { ZoomView(e.Delta); e.Handled = true; };
         LostMouseCapture += (_, _) => { if (_drag is not null) { _drag = null; _model?.CancelDrag(); Apply(); } _orbit = null; };
         SizeChanged += (_, _) => { UpdateCamera(); UpdateAspectCompensation(); };
         Loaded += (_, _) => UpdateAspectCompensation();
@@ -89,7 +90,7 @@ public sealed partial class ChamberLayoutScene : Grid
         FinishGesture();
         _viewPreset = ChamberViewPreset.Perspective;
         _yaw = -18; _pitch = 34;
-        _width = Math.Max(7.8, Math.Max(_model?.Document?.BaseLength ?? 0, _model?.Document?.BaseWidth ?? 0) * 1.3);
+        SetCurrentValue(ZoomPercentProperty, 100d);
         UpdateCamera();
         ViewPresetChanged?.Invoke(_viewPreset);
     }
@@ -230,7 +231,7 @@ public sealed partial class ChamberLayoutScene : Grid
             _camera.LookDirection = -offset;
             _camera.UpDirection = new Vector3D(0, 1, 0);
         }
-        _camera.Width = _width * Math.Max(1, ActualHeight > 0 ? ActualWidth / ActualHeight / 1.35 : 1);
+        _camera.Width = ReferenceWidth * 100 / ZoomPercent * Math.Max(1, ActualHeight > 0 ? ActualWidth / ActualHeight / 1.35 : 1);
         DrawMarkers();
     }
 
@@ -278,7 +279,7 @@ public sealed partial class ChamberLayoutScene : Grid
             var anchor = part.IsBase ? _parts[part.Id].Root.Transform.Transform(new Point3D(-part.Size("Length") / 2, 0, part.Size("Width") / 2))
                 : _parts[part.Id].Origin;
             var position = Project(anchor);
-            bool selected = ReferenceEquals(part, _model.Selected);
+            bool selected = !_model.IsPreview && ReferenceEquals(part, _model.Selected);
             var marker = new Border { Background = ResourceBrush(selected ? "DarkAccentPressed" : "DarkControlBackground"),
                 BorderBrush = ResourceBrush(selected ? "DarkAccent" : "DarkBorderBrush"), BorderThickness = new Thickness(selected ? 2 : 1),
                 CornerRadius = new CornerRadius(5), Padding = new Thickness(8, 4, 8, 4),

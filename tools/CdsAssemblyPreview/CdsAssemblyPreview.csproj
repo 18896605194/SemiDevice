@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems><EnableDefaultPageItems>false</EnableDefaultPageItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ToolBuilder/ToolBuilder.CdsLayout/ToolBuilder.CdsLayout.csproj" />
+    <Compile Include="**/Program*.cs" Exclude="obj/**;bin/**" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <None Update="Example.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

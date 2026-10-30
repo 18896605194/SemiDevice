@@ -49,7 +49,7 @@
  <sys:String x:Key="chambereditor.base_width">Base width</sys:String>
  <sys:String x:Key="chambereditor.base_thickness">Base thickness</sys:String>
  <sys:String x:Key="chambereditor.placement_tab">Placement</sys:String>
- <sys:String x:Key="chambereditor.dimensions_tab">Dimensions</sys:String>
+ <sys:String x:Key="chambereditor.dimensions_tab">Appearance</sys:String>
  <sys:String x:Key="chambereditor.auto_length">Compute arm length from placement</sys:String>
  <sys:String x:Key="chambereditor.nozzle_auto_length">Compute pipe length from its parent arm</sys:String>
  <sys:String x:Key="chambereditor.size_units">Positions and dimensions use logical units and scale with the window. Angles use °; scale factors use ×.</sys:String>
@@ -92,4 +92,8 @@
  <sys:String x:Key="chambereditor.unit.logical">logical units</sys:String>
  <sys:String x:Key="chambereditor.unit.scale">×</sys:String>
  <sys:String x:Key="chambereditor.invalid_units">The layout supports logical units only. Check the Units attribute.</sys:String>
+ <sys:String x:Key="chambereditor.zoom.out">Zoom out</sys:String>
+ <sys:String x:Key="chambereditor.zoom.in">Zoom in</sys:String>
+ <sys:String x:Key="chambereditor.zoom.fit">Fit view</sys:String>
+ <sys:String x:Key="chambereditor.zoom.tip">Canvas zoom (10%–400%). Use the wheel to zoom.</sys:String>
 </ResourceDictionary>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ToolBuilder.Core/ToolBuilder.Core.csproj" />
+    <ProjectReference Include="../../../xyz.Core/Client/Common/xyz.Client.Presentation/xyz.Client.Presentation.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <Compile Include="../../CdsAssemblyPreview/**/*.cs" Exclude="../../CdsAssemblyPreview/**/Program*.cs;../../CdsAssemblyPreview/obj/**;../../CdsAssemblyPreview/bin/**" Link="Editor/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Page Include="../../CdsAssemblyPreview/**/*.xaml" Exclude="../../CdsAssemblyPreview/obj/**;../../CdsAssemblyPreview/bin/**" Link="Editor/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Page Include="../ToolBuilder.ChamberLayout/EditorStyles.xaml" Link="CommonEditorStyles.xaml" />
+  </ItemGroup>
+</Project>

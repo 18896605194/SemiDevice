@@ -37,6 +37,7 @@ public partial class ChamberEditorPage : UserControl
         _embedded = true; FileActions.Visibility = Visibility.Collapsed; EditorHeading.Visibility = Visibility.Collapsed;
         FileStatus.Visibility = Visibility.Collapsed;
         ComponentPanel.Visibility = Visibility.Collapsed; ComponentColumn.Width = new GridLength(0); ComponentGap.Width = new GridLength(0);
+        DesignRoot.Margin = new Thickness(0);
         EditorScaleHost.Child = null;
         DesignCanvas.Width = double.NaN; DesignCanvas.Height = double.NaN;
         Content = DesignCanvas;

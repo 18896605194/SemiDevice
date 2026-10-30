@@ -1,0 +1,75 @@
+<UserControl x:Class="CdsAssemblyPreview.ProcessPreviewPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+ <Grid Margin="22" Background="{DynamicResource DarkWindowBackground}">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <Grid Margin="0,0,0,18"><StackPanel>
+   <TextBlock Text="{DynamicResource process.title}" FontSize="{DynamicResource Size24}" FontWeight="SemiBold"/>
+   <TextBlock Text="{DynamicResource process.subtitle}" Style="{DynamicResource PreviewMutedTextStyle}" Margin="0,7,0,0"/>
+  </StackPanel><CheckBox Content="{DynamicResource process.internals}" IsChecked="{Binding ShowInternals}" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
+  <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Border Style="{DynamicResource PreviewCardStyle}" Padding="16" DataContext="{Binding Pump}">
+    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid><TextBlock Text="{DynamicResource process.pump}" FontSize="{DynamicResource Size20}" FontWeight="SemiBold"/>
+      <TextBlock Text="{Binding StateText}" HorizontalAlignment="Right" Style="{DynamicResource HardwareStateTextStyle}"/></Grid>
+     <local:ProcessHardwareScene x:Name="PumpScene" Grid.Row="1" Kind="CentrifugalPump" State="{Binding State}" Reading="{Binding Reading}" Target="{Binding Target}" IsInteractive="True"
+       ShowInternals="{Binding DataContext.ShowInternals, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}"/>
+     <DockPanel Grid.Row="2" Margin="0,0,0,12">
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"><Button x:Name="PumpResetButton" Content="{DynamicResource process.default_view}" Click="OnPumpReset" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+       <Button Content="{DynamicResource process.front_view}" Click="OnPumpFront" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0"/></StackPanel>
+      <TextBlock Text="{DynamicResource process.orbit_tip}" Style="{DynamicResource PreviewMutedTextStyle}" FontSize="{DynamicResource Size12}" VerticalAlignment="Center"/>
+     </DockPanel>
+     <Grid Grid.Row="3" Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel><TextBlock Text="{DynamicResource process.speed}" Margin="0,0,0,6"/>
+       <controls:InputTextBox x:Name="PumpSpeedInput" Value="{Binding Reading}" DataType="Decimal" Minimum="0" Maximum="10000" Unit="rpm" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0"/></StackPanel>
+      <StackPanel Grid.Column="2"><TextBlock Text="{DynamicResource process.speed_target}" Margin="0,0,0,6"/>
+       <controls:InputTextBox Value="{Binding Target}" DataType="Decimal" Minimum="0" Maximum="10000" Unit="rpm" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0"/></StackPanel>
+     </Grid>
+     <UniformGrid Grid.Row="4" Columns="4">
+      <Button x:Name="PumpRunButton" Content="{DynamicResource hw.state.run}" Command="{Binding DataContext.PumpStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Active}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+      <Button x:Name="PumpStopButton" Content="{DynamicResource hw.state.stopped}" Command="{Binding DataContext.PumpStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+      <Button x:Name="PumpFaultButton" Content="{DynamicResource hw.state.fault}" Command="{Binding DataContext.PumpStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Fault}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+      <Button Content="{DynamicResource hw.state.unknown}" Command="{Binding DataContext.PumpStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0"/>
+     </UniformGrid>
+    </Grid>
+   </Border>
+   <Border Grid.Column="2" Style="{DynamicResource PreviewCardStyle}" Padding="16" DataContext="{Binding Heater}">
+    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid><TextBlock Text="{DynamicResource process.heater}" FontSize="{DynamicResource Size20}" FontWeight="SemiBold"/>
+      <TextBlock Text="{Binding StateText}" HorizontalAlignment="Right" Style="{DynamicResource HardwareStateTextStyle}"/></Grid>
+     <local:ProcessHardwareScene x:Name="HeaterScene" Grid.Row="1" Kind="InlineHeater" State="{Binding State}" Reading="{Binding Reading}" Target="{Binding Target}" IsInteractive="True"
+        PowerFraction="{Binding DataContext.PowerFraction, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" ShowInternals="{Binding DataContext.ShowInternals, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}"/>
+     <DockPanel Grid.Row="2" Margin="0,0,0,12">
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"><Button Content="{DynamicResource process.default_view}" Click="OnHeaterReset" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+       <Button Content="{DynamicResource process.front_view}" Click="OnHeaterFront" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0"/></StackPanel>
+      <TextBlock Text="{DynamicResource process.orbit_tip}" Style="{DynamicResource PreviewMutedTextStyle}" FontSize="{DynamicResource Size12}" VerticalAlignment="Center"/>
+     </DockPanel>
+     <Grid Grid.Row="3" Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel><TextBlock Text="{DynamicResource process.temperature}" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding Reading}" DataType="Decimal" Minimum="-50" Maximum="300" Unit="°C" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0"/></StackPanel>
+      <StackPanel Grid.Column="2"><TextBlock Text="{DynamicResource process.temperature_target}" Margin="0,0,0,6"/><controls:InputTextBox x:Name="HeaterTargetInput" Value="{Binding Target}" DataType="Decimal" Minimum="-50" Maximum="300" Unit="°C" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0"/></StackPanel>
+      <StackPanel Grid.Column="4"><TextBlock Text="{DynamicResource process.power}" Margin="0,0,0,6"/><controls:InputTextBox x:Name="HeaterPowerInput" Value="{Binding DataContext.PowerPercent, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" DataType="Decimal" Minimum="0" Maximum="100" Unit="%" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0"/></StackPanel>
+     </Grid>
+     <UniformGrid Grid.Row="4" Columns="4">
+      <Button x:Name="HeaterRunButton" Content="{DynamicResource process.heat_on}" Command="{Binding DataContext.HeaterStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Active}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+      <Button Content="{DynamicResource hw.state.stopped}" Command="{Binding DataContext.HeaterStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+      <Button Content="{DynamicResource hw.state.fault}" Command="{Binding DataContext.HeaterStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Fault}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+      <Button Content="{DynamicResource hw.state.unknown}" Command="{Binding DataContext.HeaterStateCommand, RelativeSource={RelativeSource AncestorType=local:ProcessPreviewPage}}" CommandParameter="{x:Static local:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0"/>
+     </UniformGrid>
+    </Grid>
+   </Border>
+  </Grid>
+  <Border Grid.Row="2" Style="{DynamicResource PreviewCardStyle}" Padding="16,12" Margin="0,16,0,0">
+   <DockPanel>
+    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+     <Button x:Name="LeakOffButton" Content="{DynamicResource hw.di.off}" Command="{Binding LeakStateCommand}" CommandParameter="{x:Static local:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+     <Button x:Name="LeakOnButton" Content="{DynamicResource hw.di.on}" Command="{Binding LeakStateCommand}" CommandParameter="{x:Static local:HardwareState.Fault}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+     <Button x:Name="LeakUnknownButton" Content="{DynamicResource hw.state.unknown}" Command="{Binding LeakStateCommand}" CommandParameter="{x:Static local:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="{DynamicResource process.di}" Margin="0,0,24,0" VerticalAlignment="Center"/>
+     <controls:SignalLamp Text="HH" IsActive="True" IsAlarm="True" Margin="0,0,24,0"/><controls:SignalLamp Text="LL" IsActive="False" Margin="0,0,24,0"/>
+     <controls:SignalLamp x:Name="LeakLamp" Text="Leak" IsActive="{Binding Leak.DiActive}" IsAlarm="True"/>
+    </StackPanel>
+   </DockPanel>
+  </Border>
+ </Grid>
+</UserControl>

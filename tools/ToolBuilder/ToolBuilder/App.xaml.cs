@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Windows.Controls;
 using ChamberLayoutEditor;
+using CdsAssemblyPreview;
 using Microsoft.Extensions.DependencyInjection;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Localization;
@@ -23,14 +24,17 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.FirstOrDefault()?.EndsWith("-test", StringComparison.Ordinal) == true) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         DispatcherUnhandledException += (_, failure) =>
         {
             string folder = e.Args.Length >= 3 && e.Args[0].EndsWith("-test", StringComparison.Ordinal) ? e.Args[2] : AppContext.BaseDirectory;
             Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "error.txt"), failure.Exception.ToString());
             failure.Handled = true; Shutdown(1);
         };
-        IocHelper.ServiceProvider = new ServiceCollection().AddChamberLayoutEditor().BuildServiceProvider();
+        IocHelper.ServiceProvider = new ServiceCollection().AddChamberLayoutEditor().AddCdsLayoutEditor()
+            .AddTransient<CdsLayoutViewModel>().BuildServiceProvider();
         L10n.AddPack("ToolBuilder.ChamberLayout");
+        L10n.AddPack("ToolBuilder.CdsLayout");
         var window = new MainWindow(e.Args.FirstOrDefault() is not ("--preview" or "--layout-test" or "--config-test" or "--chamber-test"));
         foreach (var model in IocHelper.ServiceProvider.GetServices<BaseViewModel>()) model.Init();
         MainWindow = window;

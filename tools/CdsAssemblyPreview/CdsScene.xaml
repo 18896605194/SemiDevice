@@ -1,0 +1,16 @@
+<UserControl x:Class="CdsAssemblyPreview.CdsScene"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+ <Grid ClipToBounds="True" Background="{DynamicResource DarkSurfaceBackground}">
+  <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" CanContentScroll="False"
+      HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewMouseWheel="OnZoomWheel" SizeChanged="OnSceneSizeChanged">
+   <Grid x:Name="Stage" Background="Transparent" Focusable="True" PreviewMouseLeftButtonDown="OnDown" MouseMove="OnMove" PreviewMouseLeftButtonUp="OnUp" LostMouseCapture="OnLostCapture">
+    <Grid.LayoutTransform><ScaleTransform x:Name="SceneScale"/></Grid.LayoutTransform>
+    <Viewport3D x:Name="Viewport" IsHitTestVisible="False">
+     <Viewport3D.Camera><OrthographicCamera x:Name="Camera" UpDirection="0,1,0" LookDirection="0,0,-1"/></Viewport3D.Camera>
+    </Viewport3D>
+    <Canvas x:Name="Overlay"/>
+   </Grid>
+  </ScrollViewer>
+ </Grid>
+</UserControl>

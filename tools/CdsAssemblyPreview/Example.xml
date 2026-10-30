@@ -1,0 +1,34 @@
+<CdsLayout Version="2">
+  <Page Id="IPA" Title="IPA" ComponentRoot="CDS.IPA" Width="1300" Height="560">
+    <Elements>
+      <Tank Id="T1" Text="Tank1" X="220" Y="130" Component="Tank1" Width="160" Height="230" Template="StandardTank" />
+      <Valve Id="F1" Text="Valve1" X="110" Y="161.17188317000324" Component="Tank1.Fill.Valve1" Width="36" Height="36" />
+      <Valve Id="S1" Text="Valve1" X="450" Y="251.5859415850016" Component="Tank1.Supply.Valve1" Width="36" Height="36" />
+      <Valve Id="D1" Text="Valve1" X="282" Y="420" Angle="90" Component="Tank1.Drain.Valve1" Width="36" Height="36" />
+      <Terminal Id="IN1" Text="" X="45" Y="179.17188317000324" />
+      <Terminal Id="OUT1" Text="" X="595" Y="269.5859415850016" />
+      <Terminal Id="DRAIN1" Text="" X="300" Y="510" />
+      <Tank Id="T2" Text="Tank2" X="870" Y="130" Component="Tank2" Width="160" Height="230" Template="StandardTank" />
+      <Valve Id="F2" Text="Valve1" X="760" Y="161.17188317000324" Component="Tank2.Fill.Valve1" Width="36" Height="36" />
+      <Valve Id="S2" Text="Valve1" X="1100" Y="251.5859415850016" Component="Tank2.Supply.Valve1" Width="36" Height="36" />
+      <Valve Id="D2" Text="Valve1" X="932" Y="420" Angle="90" Component="Tank2.Drain.Valve1" Width="36" Height="36" />
+      <Terminal Id="IN2" Text="" X="695" Y="179.17188317000324" />
+      <Terminal Id="OUT2" Text="" X="1245" Y="269.5859415850016" />
+      <Terminal Id="DRAIN2" Text="" X="950" Y="510" />
+    </Elements>
+    <Pipes>
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p01" From="IN1.Port" To="F1.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p02" From="F1.Outlet" To="T1.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p03" From="T1.Outlet" To="S1.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p04" From="S1.Outlet" To="OUT1.Port" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p05" From="T1.Drain" To="D1.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p06" From="D1.Outlet" To="DRAIN1.Port" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p07" From="IN2.Port" To="F2.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p08" From="F2.Outlet" To="T2.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p09" From="T2.Outlet" To="S2.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p10" From="S2.Outlet" To="OUT2.Port" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p11" From="T2.Drain" To="D2.Inlet" />
+      <Pipe Medium="IPA" PreviewMode="manual" Text="" WallColor="#8291A0" FlowColor="#60BCDE" WallOpacity="0.55" Id="p12" From="D2.Outlet" To="DRAIN2.Port" />
+    </Pipes>
+  </Page>
+</CdsLayout>

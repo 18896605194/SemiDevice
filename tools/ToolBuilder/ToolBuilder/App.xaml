@@ -1,6 +1,7 @@
 ﻿<Application x:Class="ToolBuilder.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <ResourceDictionary xmlns:editor="clr-namespace:CdsLayoutPreview;assembly=CdsLayoutEditor">
+        <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WorkspaceStyles.xaml"/></ResourceDictionary.MergedDictionaries>
         <editor:BooleanTextConverter x:Key="BooleanText" />
         <SolidColorBrush x:Key="Accent" Color="#2463EB"/>
         <BooleanToVisibilityConverter x:Key="BoolVisibility"/>

@@ -1,0 +1,87 @@
+<UserControl x:Class="CdsAssemblyPreview.CdsPipelinePreviewPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+ <Grid Margin="22" Background="{DynamicResource DarkWindowBackground}">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <StackPanel Margin="0,0,0,18">
+   <TextBlock Text="{DynamicResource pipeline.title}" FontSize="{DynamicResource Size24}" FontWeight="SemiBold"/>
+   <TextBlock Text="{DynamicResource pipeline.subtitle}" Style="{DynamicResource PreviewMutedTextStyle}" Margin="0,7,0,0"/>
+  </StackPanel>
+  <Border Grid.Row="1" Style="{DynamicResource PreviewCardStyle}" Padding="12,10" Margin="0,0,0,14">
+   <DockPanel><TextBlock DockPanel.Dock="Right" Style="{DynamicResource PipelineFlowTextStyle}" VerticalAlignment="Center" Margin="12,0"/>
+    <StackPanel Orientation="Horizontal">
+     <Button x:Name="RunButton" Content="{DynamicResource pipeline.run}" Command="{Binding RunCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+     <Button x:Name="StopButton" Content="{DynamicResource pipeline.stop}" Command="{Binding StopCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+     <Button Content="{DynamicResource pipeline.reset}" Command="{Binding ResetCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+    </StackPanel>
+   </DockPanel>
+  </Border>
+  <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="310"/></Grid.ColumnDefinitions>
+   <Border Style="{DynamicResource PreviewCardStyle}">
+    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel Margin="20,18,20,0">
+      <TextBlock Text="{DynamicResource pipeline.path}" FontSize="{DynamicResource Size16}" FontWeight="SemiBold"/>
+      <TextBlock Text="{DynamicResource pipeline.front_note}" Style="{DynamicResource PreviewMutedTextStyle}" Margin="0,7,0,0"/>
+     </StackPanel>
+     <local:CdsPipelineScene x:Name="Scene" Grid.Row="1"/>
+     <Border Grid.Row="2" BorderBrush="{DynamicResource DarkBorderBrush}" BorderThickness="0,1,0,0" Padding="20,14">
+      <TextBlock Text="{DynamicResource pipeline.drag_note}" Style="{DynamicResource PreviewMutedTextStyle}" TextWrapping="Wrap"/>
+     </Border>
+    </Grid>
+   </Border>
+   <Border Grid.Column="2" Style="{DynamicResource PreviewCardStyle}" Padding="14">
+    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <StackPanel><TextBlock Text="{DynamicResource pipeline.selected}" Style="{DynamicResource PreviewMutedTextStyle}"/>
+      <TextBlock Text="{Binding SelectedTitle}" FontSize="{DynamicResource Size20}" FontWeight="SemiBold" Margin="0,6,0,12"/>
+     </StackPanel>
+     <ComboBox x:Name="PartPicker" Grid.Row="1" ItemsSource="{Binding Parts}" SelectedItem="{Binding Selected}" DisplayMemberPath="Text" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,12"/>
+     <TabControl x:Name="DetailsTabs" Grid.Row="2" Style="{DynamicResource PreviewInspectorStyle}">
+      <TabItem Header="{DynamicResource cdsp.tab.placement}" Style="{DynamicResource PreviewInspectorTabStyle}">
+       <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="2,14,8,8">
+        <TextBlock Text="X" Margin="0,0,0,6"/><controls:InputTextBox x:Name="PositionXInput" Value="{Binding X}" DataType="Decimal" Minimum="0" Maximum="{Binding MaxX}" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+        <TextBlock Text="Y" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding Y}" DataType="Decimal" Minimum="0" Maximum="{Binding MaxY}" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+        <TextBlock Text="{DynamicResource pipeline.width}" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding SymbolWidth}" DataType="Decimal" Minimum="12" Maximum="400" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+        <TextBlock Text="{DynamicResource pipeline.height}" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding SymbolHeight}" DataType="Decimal" Minimum="12" Maximum="400" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+       </StackPanel></ScrollViewer>
+      </TabItem>
+      <TabItem Header="{DynamicResource cdsp.tab.parameters}" Style="{DynamicResource PreviewInspectorTabStyle}">
+       <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="2,14,8,8">
+        <TextBlock Text="{DynamicResource pipeline.angle}" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding Angle}" DataType="Decimal" Minimum="-180" Maximum="180" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+        <CheckBox Content="{DynamicResource process.internals}" IsChecked="{Binding ShowInternals}" Margin="0,0,0,18"/>
+        <TextBlock Text="{DynamicResource pipeline.diameter}" Margin="0,0,0,6"/><controls:InputTextBox x:Name="DiameterInput" Value="{Binding PipeDiameter}" DataType="Decimal" Minimum="4" Maximum="28" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+        <TextBlock Text="{DynamicResource pipeline.fill}" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding FillPercent}" DataType="Decimal" Minimum="0" Maximum="100" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+       </StackPanel></ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="MotionTab" Header="{DynamicResource cdsp.tab.motion}" Style="{DynamicResource PreviewInspectorTabStyle}">
+       <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="2,14,8,8">
+        <StackPanel Style="{DynamicResource PipelineProcessPanelStyle}">
+         <TextBlock Text="{Binding SelectedHardware.Definition.Title}" FontSize="{DynamicResource Size16}" FontWeight="SemiBold" Margin="0,0,0,12"/>
+         <TextBlock Text="{Binding SelectedHardware.StateText}" Style="{DynamicResource PipelineStateTextStyle}" Margin="0,0,0,12"/>
+         <TextBlock Margin="0,0,0,6"><Run Text="{DynamicResource hw.reading}"/><Run Text=" · "/><Run Text="{Binding SelectedHardware.Unit, Mode=OneWay}"/></TextBlock>
+         <controls:InputTextBox x:Name="ReadingInput" Value="{Binding SelectedHardware.Reading}" DataType="Decimal" Minimum="{Binding SelectedHardware.Definition.Minimum}" Maximum="{Binding SelectedHardware.Definition.Maximum}" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+         <TextBlock Text="{DynamicResource hw.target}" Margin="0,0,0,6"/>
+         <controls:InputTextBox Value="{Binding SelectedHardware.Target}" DataType="Decimal" Minimum="{Binding SelectedHardware.Definition.Minimum}" Maximum="{Binding SelectedHardware.Definition.Maximum}" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+         <StackPanel Style="{DynamicResource PipelineHeaterPanelStyle}">
+          <TextBlock Text="{DynamicResource pipeline.power}" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding PowerPercent}" DataType="Decimal" Minimum="0" Maximum="100" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
+         </StackPanel>
+         <UniformGrid Columns="2">
+          <Button x:Name="ActiveButton" Content="{Binding SelectedHardware.ActiveText}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Active}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+          <Button Content="{DynamicResource cdsp.stop}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+          <Button x:Name="FaultButton" Content="{DynamicResource hw.state.fault}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Fault}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+          <Button Content="{DynamicResource cdsp.unknown_valve}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+         </UniformGrid>
+        </StackPanel>
+        <StackPanel Style="{DynamicResource PreviewValvePanelStyle}">
+         <Button Content="{DynamicResource cdsp.open_valve}" Command="{Binding ValveCommand}" CommandParameter="open" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+         <Button x:Name="CloseValveButton" Content="{DynamicResource cdsp.close_valve}" Command="{Binding ValveCommand}" CommandParameter="close" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+         <Button Content="{DynamicResource cdsp.unknown_valve}" Command="{Binding ValveCommand}" CommandParameter="unknown" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+        </StackPanel>
+        <TextBlock Text="{DynamicResource pipeline.local_note}" TextWrapping="Wrap" Style="{DynamicResource PreviewMutedTextStyle}" Margin="0,16,0,0"/>
+       </StackPanel></ScrollViewer>
+      </TabItem>
+     </TabControl>
+    </Grid>
+   </Border>
+  </Grid>
+ </Grid>
+</UserControl>
