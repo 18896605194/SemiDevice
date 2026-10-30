@@ -301,7 +301,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>设备推送：三维图、轴页签、气缸表各取各的。</summary>
-    private void OnDeviceDataReceived(ChamberDeviceDataDto dto)
+    protected virtual void OnDeviceDataReceived(ChamberDeviceDataDto dto)
     {
         Devices.Update(dto);
         SyncAxes(dto);

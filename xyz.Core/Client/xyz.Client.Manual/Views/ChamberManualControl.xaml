@@ -41,7 +41,11 @@
                     BorderBrush="{DynamicResource DarkBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6">
-                    <threeD:ChamberScene Devices="{Binding Devices}" Wafer="{Binding Model.Wafer}" />
+                    <Grid>
+                        <threeD:ChamberScene Devices="{Binding Devices}" Wafer="{Binding Model.Wafer}" Style="{DynamicResource ChamberDefaultSceneStyle}" />
+                        <ContentControl Content="{Binding}" ContentTemplate="{Binding SceneTemplate, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Style="{DynamicResource ChamberCustomSceneStyle}" />
+                    </Grid>
                 </Border>
 
                 <!--  轴页签：一根轴一个（照 machine.xml 的先后，名字照 machine.xml），右边"&gt;"切下一根  -->

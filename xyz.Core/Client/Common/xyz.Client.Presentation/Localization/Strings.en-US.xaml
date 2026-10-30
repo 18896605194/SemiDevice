@@ -101,6 +101,7 @@
     <sys:String x:Key="robot.direction.west">West</sys:String>
 
     <sys:String x:Key="chamber.recipe_required">{0}: enter a recipe name before starting the process</sys:String>
+    <sys:String x:Key="chamber.layout_invalid">Cannot read the chamber layout for {0}: {1}</sys:String>
     <sys:String x:Key="chamber.device_not_found">{0} has no part {1}</sys:String>
     <sys:String x:Key="chamber.device_command_rejected">{0} {1} was not sent (PLC offline, IO point not configured, or axis not homed / not enabled / busy)</sys:String>
     <sys:String x:Key="chamber.device_action_failed">{0} {1} did not finish (timeout or device error)</sys:String>

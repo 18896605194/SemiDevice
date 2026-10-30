@@ -10,12 +10,35 @@ namespace xyz.Client.Manual.Views;
 /// </summary>
 public partial class ChamberManualControl : UserControl
 {
+    /// <summary>机型页面提供的 ViewModel；它的生命周期和 Init 由机型的 DI 注册统一管理。</summary>
+    public ChamberManualViewModel? ViewModel
+    {
+        get => (ChamberManualViewModel?)GetValue(ViewModelProperty);
+        set => SetValue(ViewModelProperty, value);
+    }
+    public static readonly DependencyProperty ViewModelProperty = DependencyProperty.Register(nameof(ViewModel),
+        typeof(ChamberManualViewModel), typeof(ChamberManualControl), new PropertyMetadata(null, (sender, args) =>
+        {
+            var control = (ChamberManualControl)sender;
+            control.Root.DataContext = args.NewValue;
+        }));
+
+    /// <summary>机型的腔体图模板；为空时使用平台默认图。</summary>
+    public DataTemplate? SceneTemplate
+    {
+        get => (DataTemplate?)GetValue(SceneTemplateProperty);
+        set => SetValue(SceneTemplateProperty, value);
+    }
+    public static readonly DependencyProperty SceneTemplateProperty = DependencyProperty.Register(nameof(SceneTemplate),
+        typeof(DataTemplate), typeof(ChamberManualControl), new PropertyMetadata(null));
     public static readonly DependencyProperty ModuleNameProperty =
         DependencyProperty.Register(nameof(ModuleName), typeof(string), typeof(ChamberManualControl),
             new PropertyMetadata(string.Empty, OnModuleNameChanged));
 
     public ChamberManualControl()
     {
+        Resources.MergedDictionaries.Add(new ResourceDictionary
+        { Source = new Uri("pack://application:,,,/xyz.Client.Presentation;component/Styles/ChamberSceneHostStyles.xaml") });
         InitializeComponent();
     }
 
@@ -34,6 +57,7 @@ public partial class ChamberManualControl : UserControl
         {
             return;
         }
+        if (control.ViewModel is not null) return;
 
         // 只把 DataContext 挂在内容根节点上，不动控件自身的 DataContext：
         // 否则外层 <xxx ModuleName="{Binding}" /> 的绑定会因为 DataContext 变化二次求值，

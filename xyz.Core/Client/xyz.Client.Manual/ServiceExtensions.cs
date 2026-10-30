@@ -16,6 +16,7 @@ public static class ServiceExtensions
     /// </summary>
     public static IServiceCollection AddXyzChamberManual(this IServiceCollection services, string module)
     {
+        services.AddSingleton(new ChamberManualPageRegistration(module));
         services.AddKeyedSingleton<UserControl>($"Manual.{module}",
             (_, _) => new ChamberManualControl { ModuleName = module });
 

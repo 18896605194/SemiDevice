@@ -100,4 +100,8 @@ public interface IChamberService
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetStateAsync(RpcRequest request);
+
+    /// <summary>按 Module 读取 ToolBuilder 布局；空布局时按实际设备生成默认排列。</summary>
+    [OperationContract]
+    Task<RpcResponse> GetLayoutAsync(RpcRequest request);
 }

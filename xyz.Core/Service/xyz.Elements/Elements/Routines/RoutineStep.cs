@@ -50,9 +50,14 @@ public abstract class RoutineStep
     }
 
     /// <summary>
-    /// 这一步做了多久，ms
+    /// 这一步做了多久，ms；一直在走，做完以后还会接着涨
     /// </summary>
     public long ElapsedMs => (long)Stopwatch.GetElapsedTime(_startedAt).TotalMilliseconds;
+
+    /// <summary>
+    /// 这一步做完时用了多久，ms；还没做完为 null
+    /// </summary>
+    public long? DoneMs { get; private set; }
 
     /// <summary>
     /// 在等什么（超时、失败时写进原因），比如"Chamber.Chamber1.Arm2.Lift"；没在等为空
@@ -99,6 +104,14 @@ public abstract class RoutineStep
     internal void Begin()
     {
         _startedAt = Stopwatch.GetTimestamp();
+    }
+
+    /// <summary>
+    /// 这一步做完时定格用时：ElapsedMs 还会接着涨，做成、失败的日志要列明细靠它
+    /// </summary>
+    internal void Done()
+    {
+        DoneMs = ElapsedMs;
     }
 
     /// <summary>

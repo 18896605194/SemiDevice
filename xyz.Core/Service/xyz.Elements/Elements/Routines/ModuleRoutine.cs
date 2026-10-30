@@ -33,11 +33,6 @@ public class ModuleRoutine
     protected ILogSource LogOwner => _logOwner;
 
     /// <summary>
-    /// 做完的每一步各用了多久（ms），按先后；做成、失败、中止时写进日志
-    /// </summary>
-    private readonly List<long> _durations = [];
-
-    /// <summary>
     /// 发指令的步骤默认用的通道
     /// </summary>
     private readonly ICommDriver? _driver;
@@ -61,14 +56,14 @@ public class ModuleRoutine
     private bool _completionDeferred;
 
     /// <summary>
-    /// 走到第几步（从 0 数）
+    /// 走到第几步（从 0 数）；只在持 RoutineGate 的扫描线程里改
     /// </summary>
-    private volatile int _index;
+    private int _index;
 
     /// <summary>
-    /// 这一步的 Run 做过了没有
+    /// 这一步的 Run 做过了没有；只在持 RoutineGate 的扫描线程里改
     /// </summary>
-    private volatile bool _entered;
+    private bool _entered;
 
     /// <summary>
     /// 第一次推的时刻（Stopwatch 时间戳）；还没推为 -1
@@ -465,9 +460,8 @@ public class ModuleRoutine
                 return;
             }
 
-            long used = step.ElapsedMs;
-            _durations.Add(used);
-            LogHelper.Debug(_logOwner, $"{Name} {_index + 1}/{_steps.Count} {step.Name}：做完 {used} ms");
+            step.Done();
+            LogHelper.Debug(_logOwner, $"{Name} {_index + 1}/{_steps.Count} {step.Name}：做完 {step.DoneMs} ms");
             _entered = false;
             _index++;
         }
@@ -651,20 +645,29 @@ public class ModuleRoutine
     /// </summary>
     private string DoneSoFar()
     {
-        if (_durations.Count == 0)
+        string done = DoneSteps();
+        if (done.Length == 0)
         {
             return string.Empty;
         }
 
-        return $"；前面做完：{DoneSteps()}";
+        return $"；前面做完：{done}";
     }
 
+    /// <summary>
+    /// 已经做完的几步和各自用时；走到还没做完的那一步就停
+    /// </summary>
     private string DoneSteps()
     {
         var parts = new List<string>();
-        for (int i = 0; i < _durations.Count && i < _steps.Count; i++)
+        foreach (var step in _steps)
         {
-            parts.Add($"{_steps[i].Name} {_durations[i]}");
+            if (step.DoneMs is null)
+            {
+                break;
+            }
+
+            parts.Add($"{step.Name} {step.DoneMs}");
         }
 
         return string.Join(" / ", parts);

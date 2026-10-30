@@ -1975,6 +1975,1610 @@ private static RpcResponse Save(IDataChartService service, IReadOnlyList<string>
 
 </section>
 
+
+<section class="module" id="dev" data-title="接设备（串口 / 网口）">
+
+<section class="chapter" id="d1">
+<h2>一、总览</h2>
+
+<section class="topic" id="d1-1">
+<h3>1.1 五层，平台占四层半</h3>
+<p>一台设备从物理线路到业务代码，中间是五层。<b>平台包了下面四层，机型只写最上面一层半。</b></p>
+<table>
+<tr><th>#</th><th>层</th><th>关键类</th><th>工程</th><th>归谁</th></tr>
+<tr><td>1</td><td>字节传输</td><td><code>ICommunication</code>、<code>SerialPortBase</code>→<code>SerialCommunication</code>、<code>TcpBase</code>→<code>TcpCommunication</code>、<code>CommunicationFactory</code></td><td>xyz.Drivers</td><td>平台</td></tr>
+<tr><td>2</td><td>帧</td><td><code>IFrameCodec</code>、<code>IFrameLink</code> / <code>LinkStep</code>、<code>IFrameCommunication</code>、<code>FrameCommunication</code></td><td>xyz.Drivers</td><td>平台定接口，<b>机型实现解码器</b></td></tr>
+<tr><td>3</td><td>指令</td><td><code>DeviceCommand</code>、<code>DeviceCommand&lt;TMessage&gt;</code>、<code>DeviceDriver</code></td><td>xyz.Drivers</td><td>平台定基类，<b>机型写每条指令</b></td></tr>
+<tr><td>4</td><td>元件</td><td><code>ICommDriver</code>、<code>CommDriverElement</code>、<code>SerialDriverElement</code>、<code>TcpDriverElement</code>、<code>DriverReconnector</code></td><td>xyz.Elements</td><td>平台</td></tr>
+<tr><td>5</td><td>设备 / 模块</td><td><code>RfidReaderElement</code>、<code>StatusQueryLoop</code>、<code>CommandStep</code> + 能力接口</td><td>xyz.Elements / xyz.Modules</td><td>平台给复用件，<b>机型给品牌类</b></td></tr>
+</table>
+<p>一句话：<b>平台管"怎么把一串字节可靠地送到设备、把回复找对主人"，机型管"这家设备的字节长什么样"。</b></p>
+</section>
+
+<section class="topic" id="d1-2">
+<h3>1.2 串口和网口的分界只有一处</h3>
+<p>整条链路上，<b>只有第 1 层分串口网口</b>，第 2 层往上完全共用。分界点是这个抽象方法（<code>CommDriverElement.CreateTransport</code>）：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/CommDriverElement.cs"><figcaption>通道元件父类留的唯一的口子</figcaption><script type="text/plain">
+    /// <summary>
+    /// 字节传输：串口通道建串口、网口通道建网口
+    /// </summary>
+    protected abstract ICommunication CreateTransport();
+</script></figure>
+<p>两个子类各实现一句（<code>SerialDriverElement.CreateTransport</code> 和 <code>TcpDriverElement.CreateTransport</code>）：</p>
+<pre>// SerialDriverElement.cs
+return CommunicationFactory.CreateSerial(PortName, BaudRate, Parity, DataBits, StopBits);
+
+// TcpDriverElement.cs
+return CommunicationFactory.CreateTcp(Host, NetPort);</pre>
+<p>所以同一台设备换接法、同一套品牌代码跑两种接口，都不用动代码——这一节后面都在讲这件事是怎么做到的。</p>
+</section>
+</section>
+
+<section class="chapter" id="d2">
+<h2>二、平台：字节传输层</h2>
+
+<section class="topic" id="d2-1">
+<h3>2.1 ICommunication：只认 byte[]</h3>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/ICommunication.cs"><figcaption>整个接口就六个成员，对协议零认知</figcaption><script type="text/plain">
+public interface ICommunication : IDisposable
+{
+    bool IsConnected { get; }
+
+    void Connect();
+
+    void Close();
+
+    void Send(byte[] data);
+
+    byte[] Receive();
+}
+</script></figure>
+</section>
+
+<section class="topic" id="d2-2">
+<h3>2.2 串口：SerialPortBase / SerialCommunication</h3>
+<p><code>SerialPortBase</code> 包的是 <code>System.IO.Ports.SerialPort</code>，对外给 <code>PortName</code>、<code>BaudRate</code>、<code>Parity</code>、<code>DataBits</code>、<code>StopBits</code>，另外还留了 <code>Handshake</code>、<code>DtrEnable</code>、<code>RtsEnable</code> 三个硬件流控属性（现在没用上，有些老设备要）。<code>SerialPortBase.Create</code> 只配参数、不连接，默认读写超时各 1000 ms。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/Serial/SerialPortBase.cs"><figcaption>收：读超时原样往上抛，不关端口</figcaption><script type="text/plain">
+    public virtual byte[] Receive()
+    {
+        var port = Port;
+        var buffer = new byte[ReceiveBufferSize];
+        int count;
+        try
+        {
+            count = port.Read(buffer, 0, buffer.Length);
+        }
+        catch (IOException)
+        {
+            Close();
+            throw;
+        }
+
+        // 接收超时直接向上传递，不关闭串口，也不调用解析方法。
+        Array.Resize(ref buffer, count);
+        if (count > 0)
+        {
+            ParseReceivedData(buffer);
+        }
+
+        return buffer;
+    }
+</script></figure>
+<p>具体类 <code>SerialCommunication</code> 只有一个空方法：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/Serial/SerialCommunication.cs"><figcaption>整个类</figcaption><script type="text/plain">
+/// <summary>
+/// 串口传输的具体实现。帧解析交给上层通道轮询处理，ParseReceivedData 无操作。
+/// </summary>
+public class SerialCommunication : SerialPortBase
+{
+    protected override void ParseReceivedData(byte[] data)
+    {
+    }
+}
+</script></figure>
+<p>这个空实现说明一件事：<b>拆帧故意没放在传输层</b>，留给上面的解码器，所以传输层永远不用关心协议。</p>
+</section>
+
+<section class="topic" id="d2-3">
+<h3>2.3 网口：TcpBase / TcpCommunication</h3>
+<p><code>TcpBase</code> 里是 <code>TcpClient</code>，<code>NoDelay = true</code>（小帧不攒包），读写超时同样默认 1000 ms。具体类 <code>TcpCommunication</code> 跟串口那个一样，只有一个空的 <code>ParseReceivedData</code>。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/Tcp/TcpBase.cs"><figcaption>收：超时不算断线，对端正常关闭返回空</figcaption><script type="text/plain">
+        try
+        {
+            count = stream.Read(buffer, 0, buffer.Length);
+        }
+        catch (IOException exception) when (IsTimeout(exception))
+        {
+            // 没有数据不等于断线；允许下一次继续接收。
+            throw new TimeoutException("TCP 接收数据超时。", exception);
+        }
+        catch (IOException)
+        {
+            Close();
+            throw;
+        }
+
+        if (count == 0)
+        {
+            Close();
+            return [];
+        }
+</script></figure>
+</section>
+
+<section class="topic" id="d2-4">
+<h3>2.4 CommunicationFactory：具体类只在这里出现</h3>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/CommunicationFactory.cs"><figcaption>两个静态方法，全框架只有这一个文件认识 SerialCommunication / TcpCommunication</figcaption><script type="text/plain">
+/// <summary>
+/// 建传输：拿到的只是 ICommunication，串口/网口的具体类只在这里出现（串口通道、网口通道各调各的）。
+/// </summary>
+public static class CommunicationFactory
+{
+    public static ICommunication CreateSerial(string portName, int baudRate, string parity, int dataBits, string stopBits)
+    {
+        return new SerialCommunication().Create(portName, baudRate, parity, dataBits, stopBits);
+    }
+
+    public static ICommunication CreateTcp(string host, int port)
+    {
+        return new TcpCommunication().Create(host, port);
+    }
+}
+</script></figure>
+</section>
+
+<section class="topic" id="d2-5">
+<h3>2.5 两种传输的语义差别</h3>
+<p>排查现场问题全靠这张表：</p>
+<table>
+<tr><th></th><th>串口</th><th>网口</th></tr>
+<tr><td><code>Connect()</code></td><td>打开端口。<b>设备没上电也会成功</b></td><td>TCP 握手。设备不在直接抛</td></tr>
+<tr><td><code>IsConnected</code></td><td><code>SerialPort.IsOpen</code></td><td><code>TcpClient.Connected</code>（最近一次 IO 的状态）</td></tr>
+<tr><td><code>Receive()</code> 空闲</td><td>抛 <code>TimeoutException</code>，不关端口</td><td>抛 <code>TimeoutException</code>，不关连接</td></tr>
+<tr><td><code>Receive()</code> 对端正常关闭</td><td>没这回事</td><td>返回 0 字节 → <code>Close()</code> → 返回空数组</td></tr>
+<tr><td><code>Receive()</code> IO 故障</td><td><code>Close()</code> 后抛</td><td><code>Close()</code> 后抛</td></tr>
+<tr><td>断线怎么被发现</td><td>发或收抛异常时</td><td>连不上、对端关闭、IO 异常</td></tr>
+</table>
+<p>第一行是最容易踩的：<b>串口"连上了"只代表端口打开了</b>，设备没上电照样算连上，要等发东西失败才知道。这也是 <code>DriverReconnector</code> 里"连上以后要连着满一个间隔才算恢复"那条规则的由来（5.4）。</p>
+</section>
+</section>
+
+<section class="chapter" id="d3">
+<h2>三、平台：帧层</h2>
+
+<section class="topic" id="d3-1">
+<h3>3.1 IFrameCodec：机型要实现的第一样</h3>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/IFrameCodec.cs"><figcaption>四个成员，字节 ↔ 报文全在这</figcaption><script type="text/plain">
+/// <summary>
+/// 品牌的解码器：发的时候包壳，收的时候拆帧、解成品牌自己的报文对象；自带接收缓冲，一条通道一个实例
+/// </summary>
+public interface IFrameCodec
+{
+    /// <summary>
+    /// 帧文本用的编码：文本协议用 ASCII，二进制协议用 Latin1（字节过字符串一一对应、不丢）
+    /// </summary>
+    Encoding Encoding { get; }
+
+    /// <summary>
+    /// 包壳：给一段帧体加上协议的头尾（握手用的控制字符这类不用包的原样返回）
+    /// </summary>
+    string Wrap(string body);
+
+    /// <summary>
+    /// 拆帧：接上收到的这一段，拆出已经收齐的帧（去掉壳），没收齐的留着等下一段
+    /// </summary>
+    IEnumerable<string> Extract(string chunk);
+
+    /// <summary>
+    /// 解报文：一帧解成品牌自己的报文对象，认不出来的返回 null（丢掉）；指令拿到的都是这里解好的报文
+    /// </summary>
+    object? Decode(string frame);
+}
+</script></figure>
+<ul>
+<li><b>一条通道一个实例</b>：<code>IFrameCodec.Extract</code> 要靠上一段剩下的半帧，两条通道共用一个实例会把字节搅在一起。</li>
+<li><b>二进制协议把 <code>Encoding</code> 写成 <code>Encoding.Latin1</code></b>：0x00–0xFF 跟 U+0000–U+00FF 一一对应，字节过字符串管道不丢。整条链路内部是用 <code>string</code> 传帧的，这是代价最小的做法。</li>
+<li><code>IFrameCodec.Decode</code> 认不出来返回 null，通道记一行"解不出来，丢掉"，不抛异常。</li>
+</ul>
+</section>
+
+<section class="topic" id="d3-2">
+<h3>3.2 IFrameLink / LinkStep：要握手的协议</h3>
+<p>有些老设备不能直接发数据，要先问一声（ENQ → EOT → 数据 → ACK）。这种协议不用在每条指令里写握手，把 <code>IFrameLink</code> 一起实现在解码器上，通道照它收发。<b>可选</b>，没有握手的协议不实现。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/IFrameLink.cs"><figcaption>三个方法，和收到一条以后怎么办</figcaption><script type="text/plain">
+public interface IFrameLink
+{
+    /// <summary>
+    /// 一条指令要发了：返回现在就发出去的帧（比如先只发问询，数据等对方答应了再发）
+    /// </summary>
+    IReadOnlyList<string> Start(string frame);
+
+    /// <summary>
+    /// 收到一条报文：链路自己的（握手、回执）在这里处理掉，回要马上发给对方的帧，和这条报文还要不要交给指令
+    /// </summary>
+    LinkStep Receive(object message);
+
+    /// <summary>
+    /// 连接开了或关了：握手做到一半的作废
+    /// </summary>
+    void Reset();
+}
+@@
+public sealed class LinkStep
+{
+    /// <summary>不是链路的事：原样交给指令</summary>
+    public static readonly LinkStep PassOn = new();
+
+    /// <summary>要马上回给对方的帧（握手应答、回执、轮到发的数据块）</summary>
+    public IReadOnlyList<string> Replies { get; init; } = [];
+
+    /// <summary>链路自己处理完了，不再交给指令</summary>
+    public bool Consumed { get; init; }
+
+    /// <summary>对方拒收在途指令的原因（比如回了 NAK），在途指令按它落失败；没拒收为 null</summary>
+    public string? Rejected { get; init; }
+}
+</script></figure>
+<p><code>LinkStep.Rejected</code> 这一项很实用：对方回 NAK 就让在途指令立刻落失败，不用白等超时。</p>
+</section>
+
+<section class="topic" id="d3-3">
+<h3>3.3 FrameCommunication：接收泵和 PumpSession</h3>
+<p><code>FrameCommunication</code> 把传输和解码器粘在一起，对上只有一个事件 <code>MessageReceived(帧原文, 解好的报文)</code> 和 <code>Open</code> / <code>Close</code> / <code>Send(帧体)</code>（接口是 <code>IFrameCommunication</code>）。</p>
+<p>接收是一条 <code>LongRunning</code> 线程的死循环。麻烦在于：<b>断线重连时，旧泵可能正卡在 <code>Receive()</code> 里，等它醒过来新连接已经起来了。</b>如果用一个全局"在收"标志，旧泵退出时会把新连接一起关掉。所以每次 <code>FrameCommunication.Open</code> 新建一个 <code>PumpSession</code>，泵只认自己那一轮：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/FrameCommunication.cs"><figcaption>一轮接收泵的停止标记，和为什么不能用全局标志</figcaption><script type="text/plain">
+    /// <summary>
+    /// 当前这一轮接收泵；没打开或已关为 null。每打开一次起一轮新的，关的时候只停当前这一轮。
+    /// 不用一个全局"在收"标志：断线重连时旧泵可能在新连接起来以后才醒（卡在收包上），
+    /// 它退出时只能停自己那一轮，不能把新的一轮也停了。
+    /// </summary>
+    private PumpSession? _session;
+
+    /// <summary>一轮接收泵的停止标记。</summary>
+    private sealed class PumpSession
+    {
+        public volatile bool IsStopped;
+    }
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Communication/FrameCommunication.cs"><figcaption>泵的一拍：空闲继续、故障只停自己这一轮、拆帧解码往上交</figcaption><script type="text/plain">
+    private void PumpLoop(PumpSession session)
+    {
+        while (!session.IsStopped)
+        {
+            byte[] data;
+            try
+            {
+                data = _transport.Receive();
+            }
+            catch (TimeoutException)
+            {
+                // 轮询超时：正常空闲，继续。
+                continue;
+            }
+            catch
+            {
+                // 传输故障：这一轮泵退出（只停自己），由上层重新 Open 起新的一轮。
+                session.IsStopped = true;
+                return;
+            }
+
+            // 收的时候这一轮已经被关了：这批数据不归它（可能已经是新连接的），丢掉退出。
+            if (session.IsStopped)
+            {
+                return;
+            }
+@@
+            foreach (string frame in _codec.Extract(_encoding.GetString(data)))
+            {
+                object? message = null;
+                try
+                {
+                    message = _codec.Decode(frame);
+                }
+                catch
+                {
+                    // 解码抛了当解不出来：原文照样往上交（通道记成"解不出来"），不拖垮接收泵。
+                }
+
+                try
+                {
+                    MessageReceived?.Invoke(frame, message);
+                }
+                catch
+                {
+                    // 订阅方的异常不拖垮接收泵。
+                }
+            }
+        }
+    }
+</script></figure>
+<ul>
+<li>发的那一头 <code>FrameCommunication.Send</code> 用 <code>_sendGate</code> 串行化，多线程调安全。</li>
+<li>解码器抛异常、订阅方抛异常，<b>两种都不会弄死泵</b>。</li>
+</ul>
+</section>
+</section>
+
+<section class="chapter" id="d4">
+<h2>四、平台：指令层</h2>
+
+<section class="topic" id="d4-1">
+<h3>4.1 DeviceCommand：一条指令一个对象</h3>
+<p>机型要实现三个成员：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Device/DeviceCommand.cs"><figcaption>平台只认这三样</figcaption><script type="text/plain">
+    /// <summary>
+    /// 在途键：同一个键同一时间只能有一条在途（回复靠名字对号的协议，同名指令不能并发）
+    /// </summary>
+    public abstract string Key { get; }
+
+    /// <summary>
+    /// 组帧：要发出去的帧体，不带壳（壳由解码器包）
+    /// </summary>
+    public abstract string BuildFrame();
+
+    /// <summary>
+    /// 收到一条报文：是自己的就取值、判做没做完，返回 true；不是自己的返回 false（通道的解析线程上调）
+    /// </summary>
+    public abstract bool Accept(object message);
+</script></figure>
+<p>平台给的：<code>IsCompleted</code> / <code>IsSuccess</code> / <code>Error</code> / <code>IsInFlight</code> / <code>IsPolling</code>，<code>DeviceCommand.Complete</code>、<code>DeviceCommand.Fail</code>、内部的 <code>DeviceCommand.Abandon</code>，还有一个 <code>DeviceCommand.WaitReply</code>（阻塞版，注释写明只给工具和诊断用，<b>扫描线程里别碰</b>）。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Device/DeviceCommand.cs"><figcaption>终态只能落一次：回复和作废可能从两条线程同时来</figcaption><script type="text/plain">
+    /// <summary>
+    /// 落终态：已经做完的不改（回复和作废可能从两条线程同时来，先到的算）
+    /// </summary>
+    private void Finish(bool success, string error)
+    {
+        lock (_gate)
+        {
+            if (_isCompleted)
+            {
+                return;
+            }
+
+            _error = error;
+            _isSuccess = success;
+            _isCompleted = true;
+        }
+
+        _done.Set();
+    }
+</script></figure>
+</section>
+
+<section class="topic" id="d4-2">
+<h3>4.2 DeviceCommand&lt;TMessage&gt;：品牌指令的父类</h3>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Device/DeviceCommandOfT.cs"><figcaption>把 Accept 封死成类型判断，机型只写 Handle</figcaption><script type="text/plain">
+public abstract class DeviceCommand<TMessage> : DeviceCommand where TMessage : class
+{
+    /// <summary>
+    /// 不是本品牌的报文一律不认，是的交给 Handle
+    /// </summary>
+    public sealed override bool Accept(object message)
+    {
+        if (message is TMessage typed)
+        {
+            return Handle(typed);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 收到一条本品牌的报文：比是不是自己的，是就取值、判做没做完（Complete / Fail），返回 true
+    /// </summary>
+    protected abstract bool Handle(TMessage message);
+}
+</script></figure>
+<p>所有品牌指令都继承它，拿到的就是自家解码器解好的报文，不用再判类型。</p>
+</section>
+
+<section class="topic" id="d4-3">
+<h3>4.3 DeviceDriver：平台干活最多的类</h3>
+<p>它帮你管五件事，一件一件看。</p>
+<p><b>① 在途表</b>（<code>Dictionary&lt;string, DeviceCommand&gt;</code>，按 Key）。<code>DeviceDriver.Send</code> 要过三道闸：没连上拒、这条已在途拒、同 Key 的前一条还没做完拒。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Device/DeviceDriver.cs"><figcaption>发一条：占住在途位、进发送队列；没发出去要把位子让回来</figcaption><script type="text/plain">
+    public bool Send(DeviceCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        lock (_gate)
+        {
+            if (!IsConnected || command.IsInFlight)
+            {
+                return false;
+            }
+
+            if (_inflight.TryGetValue(command.Key, out var previous) && !previous.IsCompleted)
+            {
+                return false;
+            }
+@@
+            _inflight[command.Key] = command;
+            command.IsInFlight = true;
+        }
+
+        if (SendFrames(command.BuildFrame(), command.IsPolling))
+        {
+            return true;
+        }
+
+        // 发送队列已经收了（正在关、正在重连）：这条没发出去，占的在途位让出来
+        Abandon(command, "PortClosed");
+        return false;
+    }
+</script></figure>
+<p><b>② 发送队列</b>（<code>Channel&lt;string&gt;</code> + 一个 <code>SendAsync</code> 任务）：调用方永远不会阻塞在写串口上。写失败时只收自己这一轮——跟接收泵一个道理：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Device/DeviceDriver.cs"><figcaption>DeviceDriver.SendAsync：旧任务不能关掉新连接</figcaption><script type="text/plain">
+            catch
+            {
+                // 通讯故障：收掉这一轮连接退出，由上层（通道元件）重连。
+                // 只收自己这一轮：重连以后才醒过来的旧发送任务不能把新连接关了。
+                if (ReferenceEquals(_txChannel?.Reader, reader))
+                {
+                    Close();
+                }
+
+                break;
+            }
+</script></figure>
+<p><b>③ 解析队列</b>（<code>Channel&lt;Received&gt;</code> + 一个 <code>RouteAsync</code> 任务）：接收泵只管入队就走。<code>DeviceDriver.Route</code> 的顺序是——解不出来的记一行丢掉 → 先给链路层（握手自己消化，<code>Rejected</code> 就 <code>AbandonAll</code>）→ 挨个问在途指令 <code>Accept</code> → 谁都不认就当设备主动上报：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Drivers/Device/DeviceDriver.cs"><figcaption>派给在途指令，谁认归谁；没人认的当上报</figcaption><script type="text/plain">
+        DeviceCommand? owner = null;
+        foreach (var command in commands)
+        {
+            if (command.Accept(message))
+            {
+                owner = command;
+            }
+        }
+
+        if (owner is not null && owner.IsPolling)
+        {
+            LogHelper.InfoLoop(_source, LogHelper.Received, received.Frame);
+        }
+        else
+        {
+            LogHelper.Comm(_source, LogHelper.Received, received.Frame);
+        }
+
+        RemoveCompleted();
+        if (owner is null)
+        {
+            RaiseReported(message);
+        }
+</script></figure>
+<p><b>④ 收发原文记日志</b>，记在通道元件名下。带 <code>IsPolling</code> 的进轮询文件（<code>LogHelper.InfoLoop</code>），其余进主日志（<code>LogHelper.Comm</code>）。这就是为什么定时查状态必须走 <code>StatusQueryLoop</code>——它会给指令打这个标记，否则主日志被刷满。</p>
+<p><b>⑤ 清场</b>：<code>DeviceDriver.Abandon</code>（一条）/ <code>DeviceDriver.AbandonAll</code>（全部）。<code>DeviceDriver.Close</code> 里必调 <code>AbandonAll("PortClosed")</code>，注释写了理由：旧连接上的回复不会再来了，不作废的话同名指令再也发不出去。</p>
+</section>
+</section>
+
+<section class="chapter" id="d5">
+<h2>五、平台：元件层</h2>
+
+<section class="topic" id="d5-1">
+<h3>5.1 ICommDriver：模块只认这个接口</h3>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Interfaces/ICommDriver.cs"><figcaption>不认识任何品牌，也没有固定动作</figcaption><script type="text/plain">
+public interface ICommDriver
+{
+    /// <summary>启用了没有：设备只用启用的那条通道（串口、网口都配上时选一条）</summary>
+    bool IsEnable { get; }
+
+    /// <summary>连上了没有</summary>
+    bool IsConnected { get; }
+
+    /// <summary>设备主动上报的报文（没有在途指令认的），在解析线程上回调</summary>
+    event Action<object>? Reported;
+
+    /// <summary>用哪家的解码器：所属模块开机时交给它，要在通道打开之前</summary>
+    void UseCodec(IFrameCodec codec);
+
+    /// <summary>发一条指令；没连上、同键指令还在途就被拒（false）</summary>
+    bool Send(DeviceCommand command);
+
+    /// <summary>作废一条在途指令（回复丢了、等超时了），同键指令能再发</summary>
+    void Abandon(DeviceCommand command, string reason);
+
+    /// <summary>作废全部在途指令</summary>
+    void AbandonAll(string reason);
+
+    /// <summary>关连接，不再重连</summary>
+    void Close();
+}
+</script></figure>
+<p>模块、设备元件只拿这个接口，<b>代码里见不到"串口"和"网口"</b>。</p>
+</section>
+
+<section class="topic" id="d5-2">
+<h3>5.2 CommDriverElement：通道元件的公共部分</h3>
+<table>
+<tr><th>装的东西</th><th>内容</th></tr>
+<tr><td>装机参数</td><td><code>IsEnable</code>（串口网口都配上时选一条）</td></tr>
+<tr><td>EC</td><td><code>ReconnectIntervalMs</code>（隔多久重连一次）、<code>ReconnectMaxCount</code>（最多几次，0 = 不自动重连）</td></tr>
+<tr><td>报警</td><td><code>ReconnectFailedAlarm</code>，带 Description 和 Solution</td></tr>
+<tr><td>找通道</td><td><code>CommDriverElement.FindIn</code>（静态）</td></tr>
+<tr><td>交解码器</td><td><code>CommDriverElement.UseCodec</code></td></tr>
+<tr><td>开机 / 关闭</td><td><code>CommDriverElement.InitElement</code>、<code>CommDriverElement.Close</code></td></tr>
+<tr><td>每拍</td><td><code>CommDriverElement.OnScan</code>（重连）</td></tr>
+<tr><td>复位</td><td><code>CommDriverElement.Reset</code>（次数清零、马上重连，再清自己的报警）</td></tr>
+<tr><td>给子类的口子</td><td><code>CreateTransport</code>（抽象）、<code>CreateCommunication</code>（virtual，冒烟换假通道用）</td></tr>
+</table>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/CommDriverElement.cs"><figcaption>CommDriverElement.FindIn：只认直接子节点，启用了两条直接抛</figcaption><script type="text/plain">
+    public static ICommDriver? FindIn(ElementBase owner)
+    {
+        ICommDriver? found = null;
+        foreach (var child in owner.Children)
+        {
+            if (child is ICommDriver driver && driver.IsEnable)
+            {
+                if (found is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"machine.xml 节点 {owner.FullPath} 下面启用了两条设备通道，一个设备只能启用一条（串口、网口都配上时用 IsEnable 选一条）。");
+                }
+
+                found = driver;
+            }
+        }
+
+        return found;
+    }
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/CommDriverElement.cs"><figcaption>CommDriverElement.InitElement：没交解码器就抛；连没连上都交给后面的重连管</figcaption><script type="text/plain">
+    public override bool InitElement()
+    {
+        bool childrenInitialized = base.InitElement();
+        if (!IsEnable)
+        {
+            return childrenInitialized;
+        }
+
+        var driver = _driver;
+        if (driver is null)
+        {
+            var codec = _codec;
+            if (codec is null)
+            {
+                throw new InvalidOperationException($"{FullPath} 没有解码器：挂它的设备要在开机时交给它（UseCodec）。");
+            }
+
+            driver = new DeviceDriver(CreateCommunication(codec), codec as IFrameLink, this);
+            driver.Reported += OnDriverReported;
+            _driver = driver;
+        }
+
+        _reconnector.Enable();
+        bool opened = driver.Open();
+        return opened && childrenInitialized;
+    }
+</script></figure>
+<p>注意 <code>codec as IFrameLink</code> 这一句：解码器顺带实现了握手就自动接上，没实现就是 null，链路层整段跳过。</p>
+</section>
+
+<section class="topic" id="d5-3">
+<h3>5.3 SerialDriverElement / TcpDriverElement</h3>
+<p>两个子类加起来不到 70 行，差别只有装机参数和建什么传输。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/SerialDriverElement.cs"><figcaption>串口通道元件的全部内容</figcaption><script type="text/plain">
+[Element(description: "设备通道：串口（参数只有串口的；跟网口通道都配上时用 IsEnable 选一条）")]
+public class SerialDriverElement : CommDriverElement
+{
+    #region Machine
+
+    [Machine("COM", "Driver", "串口名称，如 COM2")]
+    public string PortName { get; set; } = "COM";
+
+    [Machine("9600", "Driver", "波特率")]
+    public int BaudRate { get; set; } = 9600;
+
+    [Machine("None", "Driver", "校验位：None / Odd / Even / Mark / Space")]
+    public string Parity { get; set; } = "None";
+
+    [Machine("8", "Driver", "数据位")]
+    public int DataBits { get; set; } = 8;
+
+    [Machine("One", "Driver", "停止位：One / OnePointFive / Two")]
+    public string StopBits { get; set; } = "One";
+
+    #endregion
+
+    /// <summary>
+    /// 字节传输：按上面的参数建串口
+    /// </summary>
+    protected override ICommunication CreateTransport()
+    {
+        return CommunicationFactory.CreateSerial(PortName, BaudRate, Parity, DataBits, StopBits);
+    }
+}
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/TcpDriverElement.cs"><figcaption>网口通道元件的全部内容</figcaption><script type="text/plain">
+[Element(description: "设备通道：网口（TCP 客户端，参数只有网口的；跟串口通道都配上时用 IsEnable 选一条）")]
+public class TcpDriverElement : CommDriverElement
+{
+    #region Machine
+
+    [Machine("127.0.0.1", "Driver", "设备的 IP")]
+    public string Host { get; set; } = "127.0.0.1";
+
+    [Machine("0", "Driver", "设备的端口")]
+    public int NetPort { get; set; }
+
+    #endregion
+
+    /// <summary>
+    /// 字节传输：按上面的 IP、端口建网口
+    /// </summary>
+    protected override ICommunication CreateTransport()
+    {
+        return CommunicationFactory.CreateTcp(Host, NetPort);
+    }
+}
+</script></figure>
+</section>
+
+<section class="topic" id="d5-4">
+<h3>5.4 DriverReconnector：断线重连</h3>
+<p>internal 类，PLC / LoadPort / RFID / 机械手共用一套。通道元件每拍调 <code>DriverReconnector.Check</code>，人工复位调 <code>DriverReconnector.Rearm</code>。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/CommDriverElement.cs"><figcaption>CommDriverElement.OnScan：断了后台重开，到次数停下报警</figcaption><script type="text/plain">
+    protected override void OnScan()
+    {
+        if (_driver is null)
+        {
+            return;
+        }
+
+        bool gaveUp = _reconnector.Check(this, _driver.IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
+        {
+            _driver.Close();
+            _driver.Open();
+        });
+        if (gaveUp)
+        {
+            RaiseAlarm(ReconnectFailedAlarm);
+        }
+    }
+</script></figure>
+<p>几个设计细节，看注释就明白为什么：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/DriverReconnector.cs"><figcaption>类头注释把规则写全了</figcaption><script type="text/plain">
+/// <summary>
+/// 断线重连（PLC、LoadPort、RFID、机械手驱动元件共用）：元件初始化过才管（装机停用、没打开过的不管），连着就什么都不做。
+/// 断开那一刻记一次告警，之后每隔给定的间隔在后台重开一次，最多重开给定的次数；还连不上就停下（Check 返回 true，元件拿它报警），
+/// 人工复位时 Rearm 从头再来。连上以后连着满一个间隔才算恢复（记一次、次数清零）——串口这类打开就算连上的，设备不在要等发东西失败才断，
+/// 连上一下又断的照样算一次重连，不然次数一直清零、永远停不下来。中间重连不上不再记日志，免得刷屏。
+/// 由所属元件的扫描线程每拍调 Check。重开放在后台做：网口连不上时 Connect 要卡好几秒，不能卡扫描线程；同一时间只有一次重开在跑。
+/// </summary>
+</script></figure>
+<ul>
+<li><b>重开在后台任务里做</b>：网口连不上时 <code>Connect</code> 要卡好几秒，不能卡扫描线程；同一时间只有一次重开在跑。</li>
+<li><b>断开只在第一拍记一次告警</b>，中间连不上不记，免得刷屏。</li>
+<li><b>连上要连着满一个间隔才算恢复</b>：对应 2.5 那条"串口打开就算连上"。</li>
+</ul>
+</section>
+
+<section class="topic" id="d5-5">
+<h3>5.5 平台给的三个复用件</h3>
+<p><b>① <code>RfidReaderElement&lt;TReadCommand&gt;</code></b>：读码的非阻塞步进机，实现 <code>ICarrierIdReader</code>。装机参数 <code>IdStart</code> / <code>IdLength</code>，EC <code>ReadCarrierIdTimeout</code>。<code>RfidReaderElement.StartReadCarrierId</code> 发了就返回，<code>RfidReaderElement.OnScan</code> 里推进，<code>RfidReaderElement.GetCarrierIdResult</code> 取走就清。机型只填三个抽象方法：<code>CreateCodec</code>、<code>CreateReadCommand</code>、<code>CarrierIdOf</code>。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/RfidReaderElement.cs"><figcaption>RfidReaderElement.ScanRead：出结果，或者超时作废</figcaption><script type="text/plain">
+            if (command.IsCompleted)
+            {
+                _result = ToResult(command);
+                _reading = null;
+                _watch.Reset();
+                return;
+            }
+
+            int timeout = ReadCarrierIdTimeout;
+            if (_watch.ElapsedMilliseconds < timeout)
+            {
+                return;
+            }
+
+            // 超时一定要让出在途位，不然这条一直占着，之后再也读不了
+            _driver?.Abandon(command, "Timeout");
+            _result = HandleResult<string>.Fail($"读码超时（{timeout}ms）");
+            _reading = null;
+            _watch.Reset();
+            LogHelper.Warn(this, $"读码超时（{timeout}ms）");
+</script></figure>
+<p><b>② <code>StatusQueryLoop</code></b>：状态轮询的节奏器。一圈一圈查、同时只有一条在途、超时作废接着查下一条、一圈查完离这圈开始满一个周期再开下一圈。模块给它一个 <code>Func&lt;IEnumerable&lt;DeviceCommand&gt;&gt;</code>（每圈重新取一次），<code>yield return</code> 一条 = 替我发出去、等它回来或超时。<code>StatusQueryLoop.Scan</code> 返回 <code>StatusQueryEvent</code>（None / TimedOut / Disconnected），查到的值由模块自己在 <code>QueryDataLoop</code> 里写。它发的指令自动带 <code>IsPolling</code>。</p>
+<p><b>③ <code>CommandStep</code></b>：<code>ModuleRoutine</code> 里的一步 = 发一条指令等设备回。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/CommandStep.cs"><figcaption>CommandStep.Check：设备回错、结果不能用、超时，各自的错误码</figcaption><script type="text/plain">
+        if (command.IsCompleted)
+        {
+            if (!command.IsSuccess)
+            {
+                Fail(ErrorCodes.DeviceFailed, $"设备回错：{command.Error}", Routine.Name, command.Error);
+                return false;
+            }
+
+            var check = _onSuccess;
+            if (check is not null)
+            {
+                var handled = check(command);
+                if (!handled.IsSuccess)
+                {
+                    Fail(handled.ErrorMessage, $"设备做完了，但结果不能用：{handled.ErrorMessage}", handled.Args.ToArray());
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        int timeout = _timeoutMs();
+        if (ElapsedMs > timeout)
+        {
+            // 回复丢了这条就一直占着在途位：先作废让出来，复位、回零以后同一条指令才发得出去
+            _driver?.Abandon(command, "Timeout");
+            Fail(ErrorCodes.Timeout, $"{timeout} ms 设备没回", Routine.Name, timeout.ToString(CultureInfo.InvariantCulture));
+        }
+</script></figure>
+<p><code>CommandStep.Waiting</code> 对外报"在等设备回 CLOAD"，界面上能看见动作卡在哪一步；<code>CommandStep.OnAborted</code> 在动作被中止时作废在途这条。</p>
+</section>
+</section>
+
+<section class="chapter" id="d6">
+<h2>六、机型：35021 现在接了什么</h2>
+
+<section class="topic" id="d6-1">
+<h3>6.1 三套设备，六件套的形状完全一样</h3>
+<table>
+<tr><th></th><th>富创得 LoadPort（LP300）</th><th>富创得 RFID（RFT-200S）</th><th>锐进机械手</th></tr>
+<tr><td>目录</td><td><code>Drivers\Fcd\</code></td><td><code>Drivers\Fcd\Rfid\</code></td><td><code>Drivers\Reje\</code></td></tr>
+<tr><td>协议常量</td><td><code>FcdProtocol</code></td><td><code>FcdRfidProtocol</code></td><td><code>RejeProtocol</code></td></tr>
+<tr><td>报文类</td><td><code>FcdMessage</code></td><td><code>FcdRfidMessage</code></td><td><code>RejeMessage</code></td></tr>
+<tr><td>解码器</td><td><code>FcdCodec</code></td><td><code>FcdRfidCodec</code>（兼 <code>IFrameLink</code>）</td><td><code>RejeCodec</code></td></tr>
+<tr><td>指令基类</td><td><code>FcdCommand</code></td><td><code>FcdRfidCommand</code></td><td><code>RejeCommand</code></td></tr>
+<tr><td>指令</td><td>10 条（Load / Unload / Clamp / Unclamp / Home / Map / GetMap / GetState / Reset / Abort）</td><td>3 条（ReadCarrierId / GetStatus / GetVersion）</td><td>13 条（Pick / Place / Home / PowerOn / SetSpeed / QueryXxx…）</td></tr>
+<tr><td>设备元件</td><td><code>LoadPortModule</code></td><td><code>FcdRfidReader</code></td><td><code>RobotModule</code></td></tr>
+</table>
+<p>接第四家设备，照这六件套再来一遍就行，不用发明新结构。</p>
+</section>
+
+<section class="topic" id="d6-2">
+<h3>6.2 解码器：三家完全不同，平台一点不关心</h3>
+<p><code>FcdCodec</code> 是文本协议：<code>s00</code> + 体 + <code>;</code> + CR，按 CR 拆帧，解成"类型:名字/数据"。</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/FcdCodec.cs"><figcaption>包壳和拆帧，一共二十几行</figcaption><script type="text/plain">
+    private const string FramePrefix = "s00";  // SOH('s') + ADR("00")
+    private const char FrameEnd = ';';
+    private const char FrameDel = '\r';
+@@
+    public string Wrap(string body)
+    {
+        return FramePrefix + body + FrameEnd + FrameDel;
+    }
+
+    /// <summary>
+    /// 拆帧：按 CR 切，去掉 B 类外壳
+    /// </summary>
+    public IEnumerable<string> Extract(string chunk)
+    {
+        _rxBuffer.Append(chunk);
+
+        string buffered = _rxBuffer.ToString();
+        var frames = new List<string>();
+        int index = buffered.IndexOf(FrameDel);
+        while (index >= 0)
+        {
+            string frame = buffered[..index];
+            buffered = buffered[(index + 1)..];
+            if (!string.IsNullOrWhiteSpace(frame))
+            {
+                frames.Add(StripFrame(frame));
+            }
+
+            index = buffered.IndexOf(FrameDel);
+        }
+
+        _rxBuffer.Clear();
+        _rxBuffer.Append(buffered);
+        return frames;
+    }
+</script></figure>
+<p><code>FcdRfidCodec</code> 是另一个极端：二进制 <code>[LEN][MSG_ID+DATA][CHK_HI][CHK_LO]</code>，还带双向握手，所以它同时实现 <code>IFrameCodec</code> 和 <code>IFrameLink</code>，内部有"控制字节相位 / 收块相位"和 2 秒的相位兜底。<b>这是目前最复杂的一个解码器，可以当天花板看</b>——再难的协议也就这样了。</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Rfid/FcdRfidCodec.cs"><figcaption>二进制 + 握手：拆帧要按相位走</figcaption><script type="text/plain">
+    /// <summary>
+    /// 拆帧：两种相位靠收到的字节自己定——读头发来 ENQ 之后必定跟一块，收完回到控制字节相位
+    /// </summary>
+    public IEnumerable<string> Extract(string chunk)
+    {
+        _rxBuffer.AddRange(FcdRfidProtocol.Binary.GetBytes(chunk));
+
+        var frames = new List<string>();
+        while (_rxBuffer.Count > 0)
+        {
+            if (!_expectBlock)
+            {
+                // 控制字节相位：单字节成帧。读头的 ENQ 意味着它马上要发一块过来
+                byte control = _rxBuffer[0];
+                _rxBuffer.RemoveAt(0);
+                if (control == FcdRfidProtocol.Enq)
+                {
+                    _expectBlock = true;
+                    _blockPhaseTick = Environment.TickCount;
+                }
+
+                frames.Add(FcdRfidProtocol.Binary.GetString(new[] { control }));
+                continue;
+            }
+@@
+            if (unchecked(Environment.TickCount - _blockPhaseTick) > BlockPhaseTimeoutMs)
+            {
+                // 相位失效：把已收的原样交出去（校验必然不过，链路回 NAK），退回控制字节相位重新同步
+                frames.Add(Take(_rxBuffer.Count));
+                _expectBlock = false;
+                continue;
+            }
+
+            break;
+        }
+
+        return frames;
+    }
+</script></figure>
+</section>
+
+<section class="topic" id="d6-3">
+<h3>6.3 指令：一条典型的动作指令</h3>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Commands/FcdLoadCommand.cs"><figcaption>FcdLoadCommand：先 ACK 受理、再 INF 做完；ABS / NAK 落失败</figcaption><script type="text/plain">
+public sealed class FcdLoadCommand : FcdCommand
+{
+    protected override string Name => "CLOAD";
+
+    public override string BuildFrame()
+    {
+        return $"{FcdProtocol.Move}:CLOAD";
+    }
+
+    protected override bool Handle(FcdMessage message)
+    {
+        if (!string.Equals(message.Name, Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        switch (message.Type)
+        {
+            case FcdProtocol.Ack:
+                // 只是受理了，等 INF
+                return true;
+
+            case FcdProtocol.Inf:
+                // 门开好了；回执里带的槽图不用
+                Complete();
+                return true;
+
+            case FcdProtocol.Abs:
+            case FcdProtocol.Nak:
+                Fail($"{message.Type}:{Name}/{message.Data}");
+                return true;
+
+            default:
+                return false;
+        }
+    }
+}
+</script></figure>
+<p>查询类的则是数据随 ACK 回、ACK 就收尾，比如 <code>FcdGetStateCommand</code> 把 64 字符状态串解成 <code>LoadPortStatus</code>（<code>FcdGetStateCommand.ReadState</code>），长度不够就 <code>Fail</code>。</p>
+</section>
+
+<section class="topic" id="d6-4">
+<h3>6.4 Key 策略：两种，按设备脾气选</h3>
+<table>
+<tr><th>设备</th><th>Key</th><th>为什么</th></tr>
+<tr><td>LP300（<code>FcdCommand.Key</code>）</td><td><code>=> Name</code>，即指令名</td><td>能同时受理多条，回复里带指令名，一条指令一个键</td></tr>
+<tr><td>RFT-200S（<code>FcdRfidCommand.Key</code>）</td><td><code>=> "FcdRfid"</code> 写死</td><td>握手是单事务，一次只认一条，所有指令共用一个键</td></tr>
+</table>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Commands/FcdCommand.cs"><figcaption>LP300：在途键 = 指令名</figcaption><script type="text/plain">
+public abstract class FcdCommand : DeviceCommand<FcdMessage>
+{
+    /// <summary>
+    /// 在途键 = 指令名
+    /// </summary>
+    public override string Key => Name;
+
+    /// <summary>
+    /// 指令名（CLOAD、STATE 这类），回复按它对号
+    /// </summary>
+    protected abstract string Name { get; }
+}
+</script></figure>
+<p>选错的后果：该并发的串成一条（慢），不该并发的串台（回复认错主人）。</p>
+</section>
+
+<section class="topic" id="d6-5">
+<h3>6.5 模块怎么把这些接起来</h3>
+<p>平台的 <code>BaseLoadPortModule</code> 要求机型填一个 <code>CreateCodec</code>，开机时它自己做三件事——认通道、交解码器、订主动上报，然后才让基类去初始化子元件（通道在它自己的初始化里连）：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>BaseLoadPortModule.InitElement 里的设备通道那一段</figcaption><script type="text/plain">
+        // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报
+        var driver = CommDriverElement.FindIn(this);
+        if (driver is not null)
+        {
+            _codec ??= CreateCodec();
+            driver.UseCodec(_codec);
+            driver.Reported -= OnReport;
+            driver.Reported += OnReport;
+            _driver = driver;
+        }
+</script></figure>
+<p>读头走的是同一套（<code>RfidReaderElement.InitElement</code>），只是没挂 <code>Reported</code>，而且没挂通道直接抛：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/RfidReaderElement.cs"><figcaption>读头开机：认通道、交解码器</figcaption><script type="text/plain">
+    public override bool InitElement()
+    {
+        var driver = CommDriverElement.FindIn(this);
+        if (driver is null)
+        {
+            throw new InvalidOperationException($"读头 {FullPath} 的 machine.xml 节点下没有启用的通道（串口 SerialDriverElement 或网口 TcpDriverElement，IsEnable=True）。");
+        }
+
+        _codec ??= CreateCodec();
+        driver.UseCodec(_codec);
+        _driver = driver;
+        return base.InitElement();
+    }
+</script></figure>
+<p>LoadPort 认读头是<b>按接口</b>不是按类名——<code>BaseLoadPortModule.InitElement</code> 里一句 <code>FindChild&lt;ICarrierIdReader&gt;()</code>。所以换品牌、换成扫码枪，模块代码一个字不改。</p>
+</section>
+
+<section class="topic" id="d6-6">
+<h3>6.6 机型代码里没有"串口"和"网口"</h3>
+<p>这三套品牌代码，从解码器到指令到设备元件，<b>没有任何一处出现串口或网口</b>——它们只认 <code>ICommDriver</code>。所以同一套品牌代码串口网口通吃，换接法只改 machine.xml。</p>
+</section>
+</section>
+
+<section class="chapter" id="d7">
+<h2>七、串口和网口，差别到底在哪</h2>
+
+<section class="topic" id="d7-1">
+<h3>7.1 代码上只差两个类</h3>
+<table>
+<tr><th></th><th>串口</th><th>网口</th></tr>
+<tr><td>machine.xml Type</td><td><code>xyz.Elements.Elements.SerialDriverElement</code></td><td><code>xyz.Elements.Elements.TcpDriverElement</code></td></tr>
+<tr><td>装机参数</td><td>PortName / BaudRate / Parity / DataBits / StopBits</td><td>Host / NetPort</td></tr>
+<tr><td>底下建什么</td><td><code>CommunicationFactory.CreateSerial</code></td><td><code>CommunicationFactory.CreateTcp</code></td></tr>
+<tr><td>解码器、指令、设备元件</td><td colspan="2" style="text-align:center">一样</td></tr>
+<tr><td>在途表、发送 / 解析队列、收发日志</td><td colspan="2" style="text-align:center">一样</td></tr>
+<tr><td>重连、报警、复位、两个 EC</td><td colspan="2" style="text-align:center">一样</td></tr>
+<tr><td>拆帧</td><td colspan="2" style="text-align:center">一样，都靠解码器自己缓冲（TCP 半包粘包更常见）</td></tr>
+</table>
+</section>
+
+<section class="topic" id="d7-2">
+<h3>7.2 配置上：两条都配，开关选一条</h3>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Config/machine.xml"><figcaption>LoadPort1 现在就是这样：串口开着，网口留着</figcaption><script type="text/plain">
+			<Setting Name="Serial" Type="xyz.Elements.Elements.SerialDriverElement">
+				<Value Name="IsEnable" Value="True" />
+				<Value Name="PortName" Value="COM2" />
+				<Value Name="BaudRate" Value="9600" />
+				<Value Name="Parity" Value="None" />
+				<Value Name="DataBits" Value="8" />
+				<Value Name="StopBits" Value="One" />
+			</Setting>
+			<Setting Name="Tcp" Type="xyz.Elements.Elements.TcpDriverElement">
+				<Value Name="IsEnable" Value="False" />
+				<Value Name="Host" Value="192.168.1.100" />
+				<Value Name="NetPort" Value="4004" />
+			</Setting>
+</script></figure>
+<p>现场换接法只对调两个 <code>IsEnable</code>，<b>代码零行、重编都不用</b>。两条都启用开机直接抛（<code>CommDriverElement.FindIn</code>）。</p>
+</section>
+</section>
+
+<section class="chapter" id="d8">
+<h2>八、照着做：接一把串口扫码枪</h2>
+
+<section class="topic" id="d8-1">
+<h3>8.1 动手前先把这些问清楚</h3>
+<p>没有这张表的答案就别开始写代码——写到一半会发现帧格式猜错了，全部返工。向设备厂家要协议手册，照着填：</p>
+<table>
+<tr><th>要问的</th><th>影响哪一步</th><th>本节的例子</th></tr>
+<tr><td>接法：串口还是网口</td><td>machine.xml 挂哪个通道节点</td><td>串口</td></tr>
+<tr><td>串口参数 / IP 端口</td><td>通道节点的装机参数</td><td>COM7、115200、None、8、One</td></tr>
+<tr><td>文本协议还是二进制</td><td>解码器的 <code>Encoding</code>（ASCII / Latin1）</td><td>文本，ASCII</td></tr>
+<tr><td>一帧怎么开始、怎么结束</td><td>解码器的 <code>Wrap</code> / <code>Extract</code></td><td>没有头，回车结尾</td></tr>
+<tr><td>有没有校验和</td><td><code>Wrap</code> 里加、<code>Decode</code> 里验</td><td>没有</td></tr>
+<tr><td>发之前要不要握手（ENQ/EOT 这类）</td><td>要的话解码器还要实现 <code>IFrameLink</code></td><td>不用</td></tr>
+<tr><td>一条指令的回复是一步还是两步（先受理、再做完）</td><td>指令 <code>Handle</code> 里什么时候 <code>Complete</code></td><td>一步，回条码就是做完</td></tr>
+<tr><td>能不能同时发多条、回复里带不带指令名</td><td>指令的 <code>Key</code> 怎么取（6.4）</td><td>一次一条，共用一个键</td></tr>
+<tr><td>出错回什么</td><td>指令 <code>Handle</code> 里 <code>Fail</code> 的原因串</td><td><code>ERRxx</code></td></tr>
+<tr><td>设备会不会自己吐数据（不问自答）</td><td>要不要订 <code>ICommDriver.Reported</code>（8.14）</td><td>不会，问一条答一条</td></tr>
+<tr><td>一条指令多久该回</td><td>超时 EC 给多少</td><td>读码 5 秒</td></tr>
+</table>
+<p>本节假设的协议：<b>ASCII，一行一帧、回车结尾；主机发 <code>TRG</code> 触发一次，设备回条码，读不到回 <code>ERRxx</code>。</b></p>
+</section>
+
+<section class="topic" id="d8-2">
+<h3>8.2 文件放哪、要新建什么</h3>
+<p>全部新建在机型工程下面，<b>平台一个字不改</b>：</p>
+<pre>xyz.35021\Service\xyz.35021.Module\Drivers\ScanGun\
+    ScanGunProtocol.cs                     协议常量
+    ScanGunMessage.cs                      报文类
+    ScanGunCodec.cs                        解码器
+    ScanGunReader.cs                       设备元件
+    Commands\
+        ScanGunReadCommand.cs              读码指令</pre>
+<table>
+<tr><th>步</th><th>文件</th><th>写什么</th><th>照着仓库里的谁抄</th></tr>
+<tr><td>1</td><td><code>ScanGunProtocol.cs</code></td><td>协议常量</td><td><a class="ref" data-f="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/FcdProtocol.cs">FcdProtocol.cs</a></td></tr>
+<tr><td>2</td><td><code>ScanGunMessage.cs</code></td><td>解好的一条报文</td><td><a class="ref" data-f="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/FcdMessage.cs">FcdMessage.cs</a></td></tr>
+<tr><td>3</td><td><code>ScanGunCodec.cs</code></td><td><code>Encoding</code> / <code>Wrap</code> / <code>Extract</code> / <code>Decode</code></td><td><a class="ref" data-f="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/FcdCodec.cs">FcdCodec.cs</a></td></tr>
+<tr><td>4</td><td><code>Commands\ScanGunReadCommand.cs</code></td><td><code>Key</code> / <code>BuildFrame</code> / <code>Handle</code></td><td><a class="ref" data-f="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Rfid/Commands/FcdReadCarrierIdCommand.cs">FcdReadCarrierIdCommand.cs</a></td></tr>
+<tr><td>5</td><td><code>ScanGunReader.cs</code></td><td><code>[Element]</code> + 三个方法</td><td><a class="ref" data-f="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Rfid/FcdRfidReader.cs">FcdRfidReader.cs</a></td></tr>
+<tr><td>6</td><td><code>Config\machine.xml</code></td><td>设备节点 + 通道子节点</td><td>现有 RFID 节点（8.8）</td></tr>
+</table>
+<ul>
+<li><b>命名空间照目录</b>：<code>xyz._35021.Module.Drivers.ScanGun</code>，指令在 <code>…Drivers.ScanGun.Commands</code>。machine.xml 的 Type 要写类的全名，写错开机就抛（9.1）。</li>
+<li><b>csproj 不用改</b>：SDK 风格工程，新建的 .cs 自动参与编译。</li>
+<li>仓库的硬规矩照 <code>.claude\skills\xyz-framework\SKILL.md</code>（传统 switch、if 大括号单独一行、不写三元、注释分三行），下面的示例代码都是按规矩写的，可以直接抄。</li>
+</ul>
+</section>
+
+<section class="topic" id="d8-3">
+<h3>8.3 第一、二个文件：协议常量和报文类</h3>
+<pre>// ScanGunProtocol.cs
+namespace xyz._35021.Module.Drivers.ScanGun;
+
+/// &lt;summary&gt;
+/// 扫码枪协议：触发指令、错误前缀、帧尾
+/// &lt;/summary&gt;
+public static class ScanGunProtocol
+{
+    /// &lt;summary&gt;
+    /// 触发一次扫码
+    /// &lt;/summary&gt;
+    public const string Trigger = "TRG";
+
+    /// &lt;summary&gt;
+    /// 错误回复的前缀，后面跟两位错误号
+    /// &lt;/summary&gt;
+    public const string Error = "ERR";
+
+    /// &lt;summary&gt;
+    /// 帧尾：回车
+    /// &lt;/summary&gt;
+    public const char FrameEnd = '\r';
+}</pre>
+<pre>// ScanGunMessage.cs
+namespace xyz._35021.Module.Drivers.ScanGun;
+
+/// &lt;summary&gt;
+/// 扫码枪的一条回复（解码器解好的）：条码，或者 ERRxx
+/// &lt;/summary&gt;
+public sealed class ScanGunMessage
+{
+    /// &lt;summary&gt;
+    /// 是不是错误回复
+    /// &lt;/summary&gt;
+    public bool IsError { get; init; }
+
+    /// &lt;summary&gt;
+    /// 这一行的内容：条码，或者错误串
+    /// &lt;/summary&gt;
+    public string Text { get; init; } = string.Empty;
+}</pre>
+</section>
+
+<section class="topic" id="d8-4">
+<h3>8.4 第三个文件：解码器</h3>
+<p>解码器只管"字节怎么变成一条条报文"，不碰业务。<b>拆帧一定要自带缓冲</b>——串口、网口都可能一次只收到半行。</p>
+<pre>// ScanGunCodec.cs
+using System.Text;
+using xyz.Drivers.Communication;
+
+namespace xyz._35021.Module.Drivers.ScanGun;
+
+/// &lt;summary&gt;
+/// 扫码枪解码器：一行一帧、回车结尾；自带缓冲，收上来多少接多少，收齐一行交一帧
+/// &lt;/summary&gt;
+public sealed class ScanGunCodec : IFrameCodec
+{
+    private readonly StringBuilder _rxBuffer = new();
+
+    /// &lt;summary&gt;
+    /// 文本协议，ASCII
+    /// &lt;/summary&gt;
+    public Encoding Encoding => Encoding.ASCII;
+
+    /// &lt;summary&gt;
+    /// 包壳：帧体后面加回车
+    /// &lt;/summary&gt;
+    public string Wrap(string body)
+    {
+        return body + ScanGunProtocol.FrameEnd;
+    }
+
+    /// &lt;summary&gt;
+    /// 拆帧：按回车切，最后那半行留着等下一段
+    /// &lt;/summary&gt;
+    public IEnumerable&lt;string&gt; Extract(string chunk)
+    {
+        _rxBuffer.Append(chunk);
+
+        string buffered = _rxBuffer.ToString();
+        var frames = new List&lt;string&gt;();
+        int index = buffered.IndexOf(ScanGunProtocol.FrameEnd);
+        while (index &gt;= 0)
+        {
+            string frame = buffered[..index].Trim('\n');
+            buffered = buffered[(index + 1)..];
+            if (frame.Length &gt; 0)
+            {
+                frames.Add(frame);
+            }
+
+            index = buffered.IndexOf(ScanGunProtocol.FrameEnd);
+        }
+
+        _rxBuffer.Clear();
+        _rxBuffer.Append(buffered);
+        return frames;
+    }
+
+    /// &lt;summary&gt;
+    /// 解报文：一行就是一条，ERR 开头是设备回的错
+    /// &lt;/summary&gt;
+    public object? Decode(string frame)
+    {
+        return new ScanGunMessage
+        {
+            IsError = frame.StartsWith(ScanGunProtocol.Error, StringComparison.Ordinal),
+            Text = frame,
+        };
+    }
+}</pre>
+<ul>
+<li>二进制协议把 <code>Encoding</code> 换成 <code>Encoding.Latin1</code>，缓冲用 <code>List&lt;byte&gt;</code>，校验在 <code>Wrap</code> 里加、<code>Decode</code> 里验，整体形状照 <code>FcdRfidCodec</code>。</li>
+<li>认不出来的帧 <code>Decode</code> 返回 null，通道记一行"解不出来，丢掉"，不要在这里抛异常。</li>
+</ul>
+</section>
+
+<section class="topic" id="d8-5">
+<h3>8.5 第四个文件：指令</h3>
+<pre>// Commands\ScanGunReadCommand.cs
+using xyz.Drivers.Device;
+
+namespace xyz._35021.Module.Drivers.ScanGun.Commands;
+
+/// &lt;summary&gt;
+/// 触发一次扫码：发 TRG，设备回条码或 ERRxx
+/// &lt;/summary&gt;
+public sealed class ScanGunReadCommand : DeviceCommand&lt;ScanGunMessage&gt;
+{
+    /// &lt;summary&gt;
+    /// 在途键：这把枪一次只认一条，所有指令共用一个键
+    /// &lt;/summary&gt;
+    public override string Key => "ScanGun";
+
+    /// &lt;summary&gt;
+    /// 读到的条码
+    /// &lt;/summary&gt;
+    public string Code { get; private set; } = string.Empty;
+
+    /// &lt;summary&gt;
+    /// 组帧：壳（回车）由解码器包
+    /// &lt;/summary&gt;
+    public override string BuildFrame()
+    {
+        return ScanGunProtocol.Trigger;
+    }
+
+    /// &lt;summary&gt;
+    /// 收到一条：ERR 落失败，其余当条码落成功
+    /// &lt;/summary&gt;
+    protected override bool Handle(ScanGunMessage message)
+    {
+        if (message.IsError)
+        {
+            Fail(message.Text);
+            return true;
+        }
+
+        Code = message.Text;
+        Complete();
+        return true;
+    }
+}</pre>
+<ul>
+<li><b>每条指令都必须走到 <code>Complete</code> 或 <code>Fail</code></b>，否则它永远占着在途位，同 Key 的指令再也发不出去（只能等调用方超时 <code>Abandon</code>）。</li>
+<li>回复分两步的设备（先 ACK 受理、再 INF 做完），收 ACK 时 <code>return true</code> 但不落终态，收 INF 才 <code>Complete</code>——照 <code>FcdLoadCommand</code>（6.3）。</li>
+<li>不是自己的报文 <code>return false</code>，平台会接着问别的在途指令。</li>
+</ul>
+</section>
+
+<section class="topic" id="d8-6">
+<h3>8.6 第五个文件：设备元件</h3>
+<p>扫的是载具号，读码流程平台已经写好了（5.5），机型类只填三个方法：</p>
+<pre>// ScanGunReader.cs
+using xyz._35021.Module.Drivers.ScanGun.Commands;
+using xyz.Drivers.Communication;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+
+namespace xyz._35021.Module.Drivers.ScanGun;
+
+/// &lt;summary&gt;
+/// 扫码枪：读码流程、超时、通道、重连都是平台的，这里只给解码器和读码指令
+/// &lt;/summary&gt;
+[Element(description: "扫码枪（读载具号），下面挂一个通道节点")]
+public class ScanGunReader : RfidReaderElement&lt;ScanGunReadCommand&gt;
+{
+    protected override IFrameCodec CreateCodec()
+    {
+        return new ScanGunCodec();
+    }
+
+    protected override ScanGunReadCommand CreateReadCommand()
+    {
+        return new ScanGunReadCommand();
+    }
+
+    protected override string CarrierIdOf(ScanGunReadCommand command)
+    {
+        return command.Code;
+    }
+}</pre>
+<p>跟仓库里真在跑的富创得读头一模一样的形状：</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Rfid/FcdRfidReader.cs"><figcaption>整个品牌读头类就这么长</figcaption><script type="text/plain">
+[Element(description: "富创得 RFID 读头（RFT-200S），下面挂一个 Driver 通道")]
+public class FcdRfidReader : RfidReaderElement<FcdReadCarrierIdCommand>
+{
+    protected override IFrameCodec CreateCodec()
+    {
+        return new FcdRfidCodec();
+    }
+
+    protected override FcdReadCarrierIdCommand CreateReadCommand()
+    {
+        return new FcdReadCarrierIdCommand(IdStart, IdLength);
+    }
+
+    protected override string CarrierIdOf(FcdReadCarrierIdCommand command)
+    {
+        return command.CarrierId;
+    }
+}
+</script></figure>
+<ul>
+<li><b><code>[Element]</code> 一定要标</b>，不然 machine.xml 按 Type 找不到它（9.1 第一条）。</li>
+<li>这个基类是按 RFID 读头写的，扫码枪继承它会多出 <code>IdStart</code> / <code>IdLength</code> 两个用不上的装机参数（不配就是默认值）。嫌别扭有两条路：机型工程里自己写一个元件（骨架见 8.14），或者把这两个参数从基类挪到 <code>FcdRfidReader</code> 上——后者是平台的一处小整理。</li>
+<li>扫的不是载具号（片号、工件号这类），就别继承它，自己定一个能力接口，由用它的模块按接口找（9.1 之后的 10.1 表里那一行）。</li>
+</ul>
+</section>
+
+<section class="topic" id="d8-7">
+<h3>8.7 要不要加 EC 和报警</h3>
+<p>继承 <code>RfidReaderElement</code> 的话，读码超时 EC（<code>ReadCarrierIdTimeout</code>）、通道的两个重连 EC、重连失败报警都已经有了，<b>不用再加</b>。要加自己的，照平台通道元件的写法：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Drivers/CommDriverElement.cs"><figcaption>装机参数、EC、报警各长什么样</figcaption><script type="text/plain">
+    [Machine("True", "Driver", "启用这条通道：一个设备下面串口、网口都配上时只能启用一条（换接法就对调两边的开关）；没启用的不连、不重连")]
+    public bool IsEnable { get; set; } = true;
+@@
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "5000", description: "通讯断开后隔多久重连一次")]
+    public int ReconnectIntervalMs
+    {
+        get { return GetEcInt(nameof(ReconnectIntervalMs)); }
+        set { SetEcInt(nameof(ReconnectIntervalMs), value); }
+    }
+@@
+    [Alarm("设备通讯断开，已停止重连", AlarmCategory.IrrecoverableError,
+        AlarmLevel = AlarmLevel.Light,
+        Description = "通讯断开后按 EC ReconnectMaxCount 重连了几次都没连上，已停止重连，这一路指令都发不出去",
+        Solution = "检查线缆、设备电源和通讯配置（machine.xml 里这个通道节点的串口 / IP / 端口）；好了以后复位，复位会重新开始连")]
+    public string ReconnectFailedAlarm = nameof(ReconnectFailedAlarm);
+</script></figure>
+<table>
+<tr><th>参数放哪</th><th>什么时候用</th></tr>
+<tr><td><code>[Machine]</code>（machine.xml）</td><td>装机就定、现场不改：串口号、IP、标签偏移</td></tr>
+<tr><td><code>[VariableMark(VariableType.EC…)]</code>（ec.xml）</td><td>现场要在线调：超时、重连间隔</td></tr>
+<tr><td><code>[Alarm]</code></td><td>要让操作工看见并处理的异常；Description 写清后果，Solution 写清怎么办</td></tr>
+</table>
+<p>报警用 <code>RaiseAlarm(字段名)</code> 抛，复位时平台会清掉本元件的报警。详细清单见 <code>.claude\skills\xyz-framework\SKILL.md</code> 指的 backend.md §2。</p>
+</section>
+
+<section class="topic" id="d8-8">
+<h3>8.8 machine.xml：改源码那一份</h3>
+<p>两份 machine.xml 的关系要先搞清楚，不然改了半天不生效：</p>
+<table>
+<tr><th>哪一份</th><th>路径</th><th>谁改</th></tr>
+<tr><td>源码（跟代码一起进 git）</td><td><code>xyz.35021\Service\xyz.35021.Module\Config\machine.xml</code></td><td><b>开发改这一份</b></td></tr>
+<tr><td>运行目录（宿主真读的）</td><td><code>xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0\Config\machine.xml</code></td><td>现场 / ToolBuilder 改这一份</td></tr>
+</table>
+<p>机型工程编译完会自动把源码那份拷到运行目录，<b>但只在源文件更新时才拷</b>——现场在运行目录改过的不会被编译冲掉（见机型 csproj 的 <code>DeployMachineToHost</code>）。</p>
+<p>在 LoadPort1 节点下面加扫码枪（照现有 RFID 节点的层级）：</p>
+<pre>&lt;Setting Name="ScanGun" Type="xyz._35021.Module.Drivers.ScanGun.ScanGunReader"&gt;
+    &lt;Setting Name="Serial" Type="xyz.Elements.Elements.SerialDriverElement"&gt;
+        &lt;Value Name="IsEnable" Value="True" /&gt;
+        &lt;Value Name="PortName" Value="COM7" /&gt;
+        &lt;Value Name="BaudRate" Value="115200" /&gt;
+        &lt;Value Name="Parity" Value="None" /&gt;
+        &lt;Value Name="DataBits" Value="8" /&gt;
+        &lt;Value Name="StopBits" Value="One" /&gt;
+    &lt;/Setting&gt;
+&lt;/Setting&gt;</pre>
+<ul>
+<li><b>通道必须是设备节点的直接子节点</b>：<code>CommDriverElement.FindIn</code> 只看 <code>Children</code>，不往下找孙子。</li>
+<li><b>挂在哪决定谁带着它扫描</b>：子元件没有自己的线程，跟着起线程的那个根元件扫（2.2 谁起线程：IsRun）。挂在 LoadPort1 下面就是 LoadPort1 那条线程推它的读码和重连。要是这台设备谁也不属于，得挂一个 <code>IsRun="true"</code> 的根节点，<b>否则它的 <code>OnScan</code> 永远不跑</b>，码发出去没人收结果。</li>
+<li>也可以串口、网口两条都配上，用 <code>IsEnable</code> 选一条（7.2）。</li>
+</ul>
+</section>
+
+<section class="topic" id="d8-9">
+<h3>8.9 编译、部署、跑起来</h3>
+<ol>
+<li><b>先关掉宿主和客户端</b>（在跑的话 DLL 拷不进去，编译会失败）。</li>
+<li>编译机型工程 <code>xyz.35021.Module</code>（或整个 <code>xyz.Framework.sln</code>）。编译完它的 csproj 自动做三件事：
+<table>
+<tr><th>Target</th><th>把什么拷到哪</th></tr>
+<tr><td><code>DeployToHost</code></td><td>机型 DLL / pdb → 宿主 <code>bin\Debug\net10.0\Modules\35021</code>；IO 点表 → 宿主 <code>Config\IO</code></td></tr>
+<tr><td><code>DeployMachineToHost</code></td><td>源码 <code>Config\machine.xml</code> → 宿主 <code>Config\machine.xml</code>（源文件更新时才拷）</td></tr>
+<tr><td><code>DeployChamberLayoutsToHost</code></td><td>腔体布局 → 宿主 <code>Config\ChamberLayouts</code></td></tr>
+</table>
+<b>所以后端这边不用手跑部署脚本，F5 跑的就是刚改的代码和 machine.xml。</b></li>
+<li>要同时更新客户端那边的机型 DLL（加了界面才需要）：<code>powershell -ExecutionPolicy Bypass -File .\tools\deploy-module.ps1 -Module 35021</code>（<code>-Target Client</code> / <code>Service</code> / <code>All</code>）。</li>
+<li>起宿主 <code>xyz.GrpcHost</code>。它旁边的 <code>Paths.json</code> 指向 <code>./Config</code>，machine.xml 就在那里（1.2 找到 machine.xml）。</li>
+</ol>
+</section>
+
+<section class="topic" id="d8-10">
+<h3>8.10 怎么确认接上了</h3>
+<p>按顺序看三处，一处一处往下：</p>
+<table>
+<tr><th>看哪</th><th>正常是什么样</th><th>不正常说明什么</th></tr>
+<tr><td>宿主控制台 / 主日志 <code>Log\xyz-日期.log</code> 开机那一段</td><td>没有异常，元件树装起来了</td><td>抛"未找到元件类"、"没有启用的通道"等 → 9.1 对照表</td></tr>
+<tr><td>主日志里这台设备名下有没有"通讯断开"</td><td>没有这行 = 连上了</td><td>有 "通讯断开，每 5000 ms 重连一次、最多 10 次…" → 线路 / 串口号 / IP 端口不对</td></tr>
+<tr><td>触发一次读码后的收发原文</td><td>先一行"发"带 <code>TRG</code>，再一行"收"带条码（行里有时间、级别、元件的两层名字、方向和帧原文）</td><td>只有"发"没有"收" → 波特率 / 校验位 / 帧尾不对，或设备没使能；有"收"但带"解不出来，丢掉" → <code>Decode</code> 返回了 null</td></tr>
+</table>
+<ul>
+<li>主日志是 <code>Log\xyz-日期.log</code>，状态轮询的收发原文在 <code>Log\poll-日期.log</code>（4.3 第④条）。</li>
+<li>日志一律走 <code>LogHelper</code>，自己写元件时别用 <code>Console</code> 或 <code>ILogger</code>。</li>
+</ul>
+</section>
+
+<section class="topic" id="d8-11">
+<h3>8.11 接进去以后，谁来调它</h3>
+<p>这是新人最容易漏的一步：元件接进树里<b>不等于</b>有人用它。</p>
+<table>
+<tr><th>情况</th><th>谁调</th><th>你要写代码吗</th></tr>
+<tr><td>挂在 LoadPort 下面读载具号</td><td><code>CarrierElement</code>：它在载具到位后调 <code>StartReadCarrierId</code>，之后每拍 <code>GetCarrierIdResult</code> 取结果</td><td><b>不用</b>，接口对上就自动用起来</td></tr>
+<tr><td>自己新加的设备（扫别的东西）</td><td>用它的那个模块：开机时 <code>FindChild&lt;你的接口&gt;()</code> 取一次存字段，在 <code>OnScan</code> 或动作步骤里调</td><td>要写，但只写调用那几行</td></tr>
+<tr><td>整台设备就是一个模块</td><td>模块自己：<code>StatusQueryLoop</code> 查状态、<code>ModuleRoutine</code> 里 <code>CommandStep</code> 发动作</td><td>要写模块</td></tr>
+</table>
+<p>LoadPort 认读头是<b>按接口</b>不是按类名——<code>BaseLoadPortModule.InitElement</code> 里一句 <code>FindChild&lt;ICarrierIdReader&gt;()</code>，所以换品牌、换成扫码枪，模块代码一个字不改。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Interfaces/ICarrierIdReader.cs"><figcaption>读码器的能力接口：自己写元件时要实现的就是这四样</figcaption><script type="text/plain">
+public interface ICarrierIdReader
+{
+    /// <summary>读码超时（EC）</summary>
+    int ReadCarrierIdTimeout { get; }
+
+    /// <summary>读码</summary>
+    bool StartReadCarrierId();
+
+    /// <summary>读码结果</summary>
+    HandleResult<string>? GetCarrierIdResult();
+
+    /// <summary>关连接，不再重连</summary>
+    void Close();
+}
+</script></figure>
+</section>
+
+<section class="topic" id="d8-12">
+<h3>8.12 扫一次码，四条线程接力</h3>
+<table>
+<tr><th>第几步</th><th>在哪条线程</th><th>干什么</th></tr>
+<tr><td>1</td><td>模块扫描线程</td><td><code>RfidReaderElement.StartReadCarrierId</code>：建一条指令、<code>Send</code>、马上返回</td></tr>
+<tr><td>2</td><td>同上</td><td><code>DeviceDriver.Send</code> 按 Key 占住在途位，帧进发送队列，记一行"发 TRG"</td></tr>
+<tr><td>3</td><td>发送任务</td><td><code>DeviceDriver.SendAsync</code> 取帧 → <code>IFrameCodec.Wrap</code> 包壳 → 写串口</td></tr>
+<tr><td>4</td><td>接收泵线程</td><td><code>FrameCommunication.PumpLoop</code>：读字节 → <code>Extract</code> 拆帧 → <code>Decode</code> 解报文 → 进接收队列</td></tr>
+<tr><td>5</td><td>解析任务</td><td><code>DeviceDriver.Route</code>：先给链路层，再挨个问在途指令 <code>Accept</code>，记一行"收"，都不认的当上报</td></tr>
+<tr><td>6</td><td>同上</td><td>指令 <code>Handle</code> 取出条码、<code>Complete()</code></td></tr>
+<tr><td>7</td><td>模块扫描线程</td><td><code>RfidReaderElement.ScanRead</code> 看见 <code>IsCompleted</code> 出结果；没回就比超时，超时 <code>Abandon</code></td></tr>
+</table>
+<p><b>扫描线程从头到尾没有一处在等</b>：发了就走，下一拍再看回来没有（呼应 2.7 扫描线程里不等待）。所以你写的 <code>Handle</code> 是在解析线程上跑的，<b>里面不能干慢活</b>。</p>
+</section>
+
+<section class="topic" id="d8-13">
+<h3>8.13 换成网口</h3>
+<p>同一把枪换网口：machine.xml 子节点换成 <code>TcpDriverElement</code>、填 Host / NetPort，<b>代码一行不改、重编都不用</b>（只改了运行目录那份的话连编译都省了）。</p>
+<pre>&lt;Setting Name="ScanGun" Type="xyz._35021.Module.Drivers.ScanGun.ScanGunReader"&gt;
+    &lt;Setting Name="Tcp" Type="xyz.Elements.Elements.TcpDriverElement"&gt;
+        &lt;Value Name="IsEnable" Value="True" /&gt;
+        &lt;Value Name="Host" Value="192.168.1.120" /&gt;
+        &lt;Value Name="NetPort" Value="4001" /&gt;
+    &lt;/Setting&gt;
+&lt;/Setting&gt;</pre>
+<p>换一家网口枪、协议也不一样：只改 8.4、8.5 两个文件（解码器和指令），通道、在途表、日志、重连、超时一概不动。网口拆帧的写法跟串口完全一样——TCP 本来就没有"一包"，一次扫到的码可能分两次到、两次的也可能粘在一起，这正是 <code>Extract</code> 自带缓冲的原因。</p>
+</section>
+
+<section class="topic" id="d8-14">
+<h3>8.14 设备不问自答怎么接</h3>
+<p>有些扫码枪是硬件触发或者自由扫描，不等你问就把码推上来。这种报文没有在途指令认领，<code>DeviceDriver.Route</code> 把它当"设备主动上报"丢给 <code>Reported</code>。接法还是不动平台，在机型工程写个元件订上它：</p>
+<pre>using xyz.Drivers.Communication;
+using xyz.Elements.Attributes;
+using xyz.Elements.Elements;
+using xyz.Elements.Interfaces;
+
+namespace xyz._35021.Module.Drivers.ScanGun;
+
+/// &lt;summary&gt;
+/// 自己吐码的扫码枪：不发指令，设备扫到就推一条上来
+/// &lt;/summary&gt;
+[Element(description: "扫码枪（设备主动上报），下面挂一个通道节点")]
+public class ReportingScanGunReader : ElementBase, ICarrierIdReader
+{
+    private ICommDriver? _driver;
+    private IFrameCodec? _codec;
+    private volatile string _code = string.Empty;
+
+    /// &lt;summary&gt;
+    /// 元件初始化（开机）：认下面的通道、交解码器、挂上报，再由基类初始化子元件
+    /// &lt;/summary&gt;
+    public override bool InitElement()
+    {
+        var driver = CommDriverElement.FindIn(this);
+        if (driver is null)
+        {
+            throw new InvalidOperationException($"扫码枪 {FullPath} 下面没有启用的通道节点。");
+        }
+
+        _codec ??= new ScanGunCodec();
+        driver.UseCodec(_codec);
+        driver.Reported -= OnReport;
+        driver.Reported += OnReport;
+        _driver = driver;
+        return base.InitElement();
+    }
+
+    /// &lt;summary&gt;
+    /// 设备推上来一条（解析线程上回调）：存下最近一次扫到的码
+    /// &lt;/summary&gt;
+    private void OnReport(object message)
+    {
+        var scan = message as ScanGunMessage;
+        if (scan is null || scan.IsError)
+        {
+            return;
+        }
+
+        _code = scan.Text;
+    }
+}</pre>
+<ul>
+<li><code>ICarrierIdReader</code> 剩下四个成员照 <code>RfidReaderElement</code> 写（接口全文见 8.11）：这种枪没东西可发，<code>StartReadCarrierId</code> 直接返回 true，<code>GetCarrierIdResult</code> 把存下的码交出去、取走就清。</li>
+<li><b>交解码器一定要在 <code>base.InitElement()</code> 之前</b>：通道是在它自己的初始化里连的，顺序反了会抛"没有解码器"。</li>
+<li><b>先摘后挂</b>（<code>-=</code> 再 <code>+=</code>）：元件初始化可能重入，不这样会挂两份、一条报文处理两次。</li>
+</ul>
+</section>
+</section>
+
+<section class="chapter" id="d9">
+<h2>九、出错了怎么查</h2>
+
+<section class="topic" id="d9-1">
+<h3>9.1 开机就抛：异常原文对照表</h3>
+<table>
+<tr><th>异常原文（搜日志能搜到）</th><th>原因</th><th>怎么改</th></tr>
+<tr><td>machine.xml 节点 X 的 Type "Y" 未找到元件类（程序集未加载或未标记 [Element]）。</td><td>Type 写错，或机型 DLL 没部署进 <code>Modules\35021</code>，或元件类忘了标 <code>[Element]</code></td><td>核对类全名（命名空间 + 类名）；关掉宿主重编机型工程；补 <code>[Element]</code></td></tr>
+<tr><td>读头 X 的 machine.xml 节点下没有启用的通道（串口 SerialDriverElement 或网口 TcpDriverElement，IsEnable=True）。</td><td>设备节点下面没挂通道子节点，或两条都 <code>IsEnable="False"</code></td><td>加通道子节点，把要用的那条置 True</td></tr>
+<tr><td>machine.xml 节点 X 下面启用了两条设备通道，一个设备只能启用一条…</td><td>串口、网口都写了 True</td><td>只留一条 True</td></tr>
+<tr><td>X 没有解码器：挂它的设备要在开机时交给它（UseCodec）。</td><td>设备元件没调 <code>UseCodec</code>，或者在 <code>base.InitElement()</code> 之后才调</td><td>先 <code>UseCodec</code> 再 <code>base.InitElement()</code></td></tr>
+<tr><td>X 已经按别的解码器打开过，不能再换。</td><td>同一条通道被两个设备各交了一个解码器；或者重入初始化时每次都 new 一个新解码器</td><td>一条通道只给一个设备用；解码器用 <code>_codec ??= CreateCodec()</code> 存字段</td></tr>
+<tr><td>（日志 ERROR，不抛）machine.xml 节点 X 的参数 Y 不认识：…</td><td>参数名写错，或这个参数已经删了</td><td>照元件上 <code>[Machine]</code> 属性的名字改；这一条不生效、留默认值，开机照常</td></tr>
+<tr><td>（抛）值转不了类型</td><td><code>bool</code> 写成 yes、数字写成空串这类</td><td>改成 True / False、合法数字</td></tr>
+</table>
+</section>
+
+<section class="topic" id="d9-2">
+<h3>9.2 跑起来了但不通：按这个顺序查</h3>
+<ol>
+<li><b>连上了没？</b> 主日志有没有"通讯断开，每 X ms 重连一次…"。有就是没连上：串口核 COM 号、有没有被别的程序占用（仿真器、串口助手）；网口先 ping、再 telnet 端口。连上会记一行"通讯恢复"。</li>
+<li><b>发出去了没？</b> 主日志有没有"发"那一行。没有说明 <code>DeviceDriver.Send</code> 被拒——没连上，或者同 Key 的上一条还在途没落终态（<code>Handle</code> 里漏了 <code>Complete</code> / <code>Fail</code>）。</li>
+<li><b>设备回了没？</b> 有没有"收"那一行。发了没收到：波特率 / 校验位 / 停止位不对，帧尾不对（<code>Wrap</code> 包错），设备那边没使能这条指令。</li>
+<li><b>收到了但没人认？</b> 日志里是"（解不出来，丢掉）"就是 <code>Decode</code> 返回了 null；能解出来但指令没认（<code>Handle</code> 一直 <code>return false</code>），平台会把它当设备主动上报，这时候查对号规则（名字比对、消息 ID 比对）。</li>
+<li><b>老是超时？</b> 三种可能：<code>Key</code> 选错（该一条一个键的用了共用键，前一条占着位）、<code>Handle</code> 里忘了落终态、超时 EC 给太短。</li>
+</ol>
+<p>动作里的那一步失败时，错误码能直接定位：<code>CommandRejected</code>（指令被拒：没连上或同一条还在途）、<code>DeviceFailed</code>（设备回错，后面带设备给的原因）、<code>Timeout</code>（多少 ms 设备没回）——见 <code>CommandStep</code>（5.5）。</p>
+</section>
+
+<section class="topic" id="d9-3">
+<h3>9.3 日志在哪、怎么看</h3>
+<table>
+<tr><th>文件</th><th>里面有什么</th></tr>
+<tr><td>宿主运行目录 <code>Log\xyz-日期.log</code></td><td>主日志：开机、连接断开恢复、报警、非轮询的收发原文</td></tr>
+<tr><td>宿主运行目录 <code>Log\poll-日期.log</code></td><td>状态轮询（<code>StatusQueryLoop</code> 发的、带 <code>IsPolling</code> 的）收发原文，单独放免得刷主日志</td></tr>
+</table>
+<ul>
+<li>收发原文记在<b>通道元件</b>名下，日志行里有元件的两层名字，所以多台设备不会混。</li>
+<li>方向只有两个字："发" / "收"（<code>LogHelper.Sent</code> / <code>LogHelper.Received</code>）。</li>
+<li>日志按 <code>KeepDays</code> 自动清，别手工删正在写的那份。</li>
+</ul>
+</section>
+
+<section class="topic" id="d9-4">
+<h3>9.4 写之前先扫一眼仓库规矩</h3>
+<p>接设备这一块常踩的几条（全部在 <code>.claude\skills\xyz-framework\SKILL.md</code>）：</p>
+<ul>
+<li><code>switch</code> 只写传统写法：<code>case</code> + <code>return</code> / <code>break</code>，不写 switch 表达式，<code>case</code> 里不写 <code>or</code> / <code>when</code>。</li>
+<li><code>if</code> 的大括号单独一行，单行也要带大括号；不写三元 <code>a ? b : c</code>。</li>
+<li>不写 <code>x is { } y</code> 这类花括号模式匹配，先取变量再显式判空。</li>
+<li>注释 <code>/// &lt;summary&gt;</code> 换行写一句短话再 <code>/// &lt;/summary&gt;</code>，不写成单行。</li>
+<li>日志一律 <code>LogHelper</code>，不用 <code>Console</code> / <code>ILogger</code> / 直接 NLog。</li>
+<li>找元件一律按接口（<code>FindChild&lt;T&gt;()</code> / IoC），不写 <code>X.Current</code> 这种静态口子。</li>
+</ul>
+</section>
+</section>
+
+<section class="chapter" id="d10">
+<h2>十、要不要动平台</h2>
+
+<section class="topic" id="d10-1">
+<h3>10.1 一张表</h3>
+<table>
+<tr><th>要做的事</th><th>动不动平台</th><th>要写什么</th></tr>
+<tr><td>换一家同类设备（RFID、LoadPort、机械手、对准器）</td><td><b>不动</b></td><td>机型工程六件套；machine.xml 改 Type</td></tr>
+<tr><td>加一种平台没有的小设备（扫码枪就是）</td><td><b>不动</b></td><td>机型工程写元件；几个机型都要了再把基类 / 接口提进平台</td></tr>
+<tr><td>同一台设备串口改网口</td><td><b>不动</b></td><td>machine.xml 两个 <code>IsEnable</code> 对调，代码零行</td></tr>
+<tr><td>协议要链路层握手（ENQ / EOT / ACK）</td><td><b>不动</b></td><td>解码器顺带实现 <code>IFrameLink</code></td></tr>
+<tr><td>设备自己吐数据、推事件</td><td><b>不动</b></td><td>订 <code>ICommDriver.Reported</code>（8.14）</td></tr>
+<tr><td>要定时查设备状态</td><td><b>不动</b></td><td>模块里用 <code>StatusQueryLoop</code>，一圈查什么自己给</td></tr>
+<tr><td>串口服务器（网口转串口盒子）</td><td><b>不动</b></td><td>装虚拟串口驱动当串口用，或直接用网口通道连它端口</td></tr>
+<tr><td>读到的是新语义（片号、工件号），要给调度 / Job / EAP 用</td><td>加一个接口文件</td><td>平台加一个能力接口（像 <code>ICarrierIdReader</code>），模块 <code>FindChild&lt;T&gt;()</code> 按接口找</td></tr>
+<tr><td><b>设备反过来连我们</b>（我们当 TCP 服务端监听）</td><td><b>要动</b></td><td>一个服务端 <code>ICommunication</code> 实现 + 一个 <code>TcpServerDriverElement</code>（照 <code>TcpDriverElement</code> 抄）</td></tr>
+<tr><td><b>UDP</b></td><td><b>要动</b></td><td>同上，一个 UDP 的 <code>ICommunication</code> + 一个通道元件</td></tr>
+</table>
+<p>要动的那两种，<b>上面三层（解码器、指令、设备元件）照样原样不动</b>——它们只认 <code>ICommDriver</code>，不知道底下是串口、网口还是别的。</p>
+</section>
+
+<section class="topic" id="d10-2">
+<h3>10.2 七个会踩的坑</h3>
+<ol>
+<li><b>通道必须是设备节点的直接子节点</b> —— <code>CommDriverElement.FindIn</code> 不递归，隔一层就找不到。</li>
+<li><b>先 <code>UseCodec</code> 再 <code>base.InitElement()</code></b> —— 顺序反了通道连的时候没解码器，开机抛。</li>
+<li><b>超时必须 <code>Abandon</code></b> —— 否则那条永远占着在途位，同 Key 的指令再也发不出去。平台写好的 <code>RfidReaderElement</code>、<code>CommandStep</code>、<code>StatusQueryLoop</code> 都做了这件事，自己写流程别漏。</li>
+<li><b>一条通道一个解码器实例</b> —— 它自带拆帧缓冲，共用会把两边字节搅在一起。</li>
+<li><b>定时查状态走 <code>StatusQueryLoop</code></b> —— 自己起定时器的话收发原文全进主日志，刷屏。</li>
+<li><b>设备元件要挂在 <code>IsRun="true"</code> 的根元件下面</b> —— 子元件没有自己的线程，否则 <code>OnScan</code> 永不执行。</li>
+<li><b>解析线程上的回调里不干慢活</b>（<code>Handle</code>、<code>Reported</code>）—— 取个值就返回。</li>
+</ol>
+</section>
+
+<section class="topic" id="d10-3">
+<h3>10.3 不接硬件怎么验</h3>
+<p>派生一个通道子类重写 <code>CreateTransport</code> 返回假设备，再派生一个读头子类暴露 <code>ScanOnce()</code> 顶替扫描线程。收发、在途表、握手、日志全是生产代码，只有最底下那层是假的：</p>
+<figure class="code" data-file="tools/RfidSmoke/Program.cs"><figcaption>冒烟里的两个子类</figcaption><script type="text/plain">
+    /// <summary>
+    /// 机型读头类的冒烟版：只多一个推扫描的口子，读码流程、解码器、指令都是生产代码
+    /// </summary>
+    internal sealed class SmokeRfidReader : FcdRfidReader
+    {
+        /// <summary>
+        /// 顶替所属 LoadPort 的扫描线程推一拍
+        /// </summary>
+        public void Tick()
+        {
+            ScanOnce();
+        }
+    }
+
+    /// <summary>
+    /// 平台通道的冒烟版：只把串口换成假读头，收发、在途表、握手都是生产代码
+    /// </summary>
+    internal sealed class SmokeChannel(FakeFcdReader device) : CommDriverElement
+    {
+        protected override ICommunication CreateTransport()
+        {
+            return device;
+        }
+    }
+</script></figure>
+<p>假设备 <code>FakeFcdReader</code> 按真实时序应答，还留了四个故障开关：<code>SwallowResult</code>（不回结果验超时）、<code>RejectCommand</code>（回 NAK 验拒收）、<code>CorruptChecksum</code>（坏校验和验重发）、<code>ErrorCode</code>（回错误块验失败原因）。接了新设备就照这个样子加一份自己的冒烟。</p>
+<table>
+<tr><th>想看什么</th><th>怎么做</th></tr>
+<tr><td>协议、解码器、双向握手、在途位与超时、主动上报（不连硬件）</td><td><code>dotnet run --project tools\RfidSmoke</code></td></tr>
+<tr><td>真串口对接</td><td>com0com 建一对虚拟口，一头给程序、一头给仿真器</td></tr>
+<tr><td>收发原文</td><td>宿主运行目录 <code>Log\</code>：平常的在主日志，状态轮询的在 poll 文件</td></tr>
+</table>
+</section>
+</section>
+
+</section>
 </main>
 
 <script>

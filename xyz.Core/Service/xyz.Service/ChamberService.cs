@@ -14,7 +14,7 @@ namespace xyz.Service;
 /// <summary>
 /// 腔体操作服务
 /// </summary>
-public class ChamberService : BaseService, IChamberService
+public partial class ChamberService : BaseService, IChamberService
 {
     private readonly IRecipeElement? _recipes;
     private readonly ILedgerManager? _wafers;

@@ -1,6 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
 using xyz.Client.DataModels.ViewModels;
+using xyz.Client.Manual;
+using xyz.Client.Presentation.Controls.ThreeD;
+using ProjectChamberViewModel = xyz._35021.Client.Manual.ViewModels.ChamberManualViewModel;
 
 using xyz._35021.Client.Manual.ViewModels;
 using xyz._35021.Client.Manual.Views;
@@ -27,9 +30,19 @@ public static class ServiceExtensions
 
         services.AddKeyedSingleton<UserControl, RobotManualView>("Manual.Robot");
 
-        // Transfer 调度界面：搬运地图 + 机械手状态与手动取放片。
-
-
+        // 项目可在此注册 IChamberVisualProvider；已提供的种类优先，剩余种类使用平台控件。
+        foreach (var provider in ChamberVisualProviderLoader.FromAssembly(typeof(Presentation.Controls.ChamberView).Assembly))
+            services.AddSingleton<IChamberVisualProvider>(provider);
+        services.AddSingleton(sp => new ChamberVisualCatalog(sp.GetServices<IChamberVisualProvider>()));
+        var chambers = services.Select(d => d.ImplementationInstance).OfType<ChamberManualPageRegistration>().ToArray();
+        foreach (var chamber in chambers)
+        {
+            string module = chamber.Module;
+            services.AddKeyedSingleton<ProjectChamberViewModel>(module,
+                (sp, _) => new ProjectChamberViewModel(module, sp.GetRequiredService<ChamberVisualCatalog>()));
+            services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredKeyedService<ProjectChamberViewModel>(module));
+            services.AddKeyedSingleton<UserControl>($"Manual.{module}", (_, _) => new ChamberManualView(module));
+        }
         return services;
     }
 }

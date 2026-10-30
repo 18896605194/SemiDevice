@@ -3,6 +3,8 @@
 
 public static class ErrorCodes
 {
+    /// <summary>腔体布局无法读取。Args: [模块名, 原因]</summary>
+    public const string ChamberLayoutInvalid = "chamber.layout_invalid";
     #region 请求
 
     /// <summary>

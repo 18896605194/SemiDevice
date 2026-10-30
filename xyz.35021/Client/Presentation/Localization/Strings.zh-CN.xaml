@@ -5,6 +5,10 @@
          框架提供的功能（菜单名、LoadPort 手动、Transfer 等）的文字在平台语言包里，不在这里放。
          壳加载本机型后按当前界面语言合并（模块的 PresentationAssembly 指向本程序集）。 -->
 
+    <sys:String x:Key="m35021.chamber.default_view">默认视角</sys:String>
+    <sys:String x:Key="m35021.chamber.top_view">俯视</sys:String>
+    <sys:String x:Key="m35021.chamber.reload_layout">重新加载布局</sys:String>
+    <sys:String x:Key="m35021.chamber.layout_failed">腔体布局加载失败，保留当前排列：{0}</sys:String>
     <!-- IO 菜单下按模块分的二级项。模块名跟 machine.xml 一致，中英文都不翻译，现场好对照 -->
     <sys:String x:Key="menu.Io.LoadPort1">LoadPort1</sys:String>
     <sys:String x:Key="menu.Io.LoadPort2">LoadPort2</sys:String>

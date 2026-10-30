@@ -102,6 +102,7 @@
     <sys:String x:Key="robot.direction.west">西</sys:String>
 
     <sys:String x:Key="chamber.recipe_required">{0} 起工艺要先填配方名</sys:String>
+    <sys:String x:Key="chamber.layout_invalid">{0} 的腔体布局无法读取：{1}</sys:String>
     <sys:String x:Key="chamber.device_not_found">{0} 下没有设备 {1}</sys:String>
     <sys:String x:Key="chamber.device_command_rejected">{0} {1} 指令没发出去（PLC 没连上、IO 点没配，或轴没回零 / 没使能 / 正忙）</sys:String>
     <sys:String x:Key="chamber.device_action_failed">{0} {1} 没做成（到位超时或设备报错）</sys:String>

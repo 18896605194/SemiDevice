@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD">
+ <Style x:Key="ChamberDefaultSceneStyle" TargetType="threeD:ChamberScene">
+  <Setter Property="Visibility" Value="Collapsed"/>
+  <Style.Triggers><DataTrigger Binding="{Binding SceneTemplate, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
+ </Style>
+ <Style x:Key="ChamberCustomSceneStyle" TargetType="ContentControl">
+  <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Stretch"/>
+  <Style.Triggers><Trigger Property="ContentTemplate" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers>
+ </Style>
+</ResourceDictionary>
