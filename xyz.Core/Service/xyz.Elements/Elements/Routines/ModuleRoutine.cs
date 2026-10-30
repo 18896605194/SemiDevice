@@ -382,6 +382,12 @@ public class ModuleRoutine
         return Append(step);
     }
 
+    /// <summary>
+    /// 增加一个步骤
+    /// </summary>
+    /// <param name="step"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
     private ModuleRoutine Append(RoutineStep step)
     {
         if (_startedAt >= 0)

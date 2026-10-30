@@ -30,7 +30,7 @@ public class LoadPortModule : BaseLoadPortModule, IWaferMap
     /// </summary>
     protected override void AddLoadSteps(ModuleRoutine load)
     {
-        load.Command("开门", () => new FcdLoadCommand());
+        load.Command("Load", () => new FcdLoadCommand());
     }
 
     /// <summary>
@@ -38,7 +38,7 @@ public class LoadPortModule : BaseLoadPortModule, IWaferMap
     /// </summary>
     protected override void AddUnloadSteps(ModuleRoutine unload)
     {
-        unload.Command("关门", () => new FcdUnloadCommand());
+        unload.Command("UnLoad", () => new FcdUnloadCommand());
     }
 
     /// <summary>

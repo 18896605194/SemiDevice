@@ -15,7 +15,7 @@
     <!-- 契约层（错误码、Job 的 DTO）：模块动作 ModuleOperation 和设备侧给 EAP 的接口（Interfaces）挪到元件层后要用到；
          xyz.Shared 只引用 xyz.Tools，不会回头引用元件层，不成环。 -->
     <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
-    <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.221" />
     <!-- TwinCAT.Ads 的传递依赖 Microsoft.Extensions.Logging.Abstractions / Configuration / Configuration.Binder（10.0 这一档）：
          DLL 走 Libs 本地引用，NuGet 不知道它依赖谁。原来在这里手动列，2026-10-25 为 xyz.Secs（EDA）引了 ASP.NET Core 框架（见下面），
          框架引用会传到引用元件层的控制台冒烟里，这几个框架自带，手动列的就删了（留着还原报 NU1510）。 -->

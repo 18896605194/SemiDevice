@@ -992,7 +992,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private void AddOwnMapStages(ModuleRoutine routine, Func<WaferMapResult, HandleResult> check)
     {
-        ClearMapResult();
+        ClearMapResult(); //claer 结果
         int before = routine.StepCount;
         AddMapSteps(routine);
         bool canMap = routine.StepCount > before;
