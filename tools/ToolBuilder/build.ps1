@@ -3,12 +3,12 @@ $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 try
 {
-    dotnet publish .\ToolBuilder\ToolBuilder.csproj -c Release --no-self-contained -o .\app-v12
+    dotnet publish .\ToolBuilder\ToolBuilder.csproj -c Release --no-self-contained -o .\app-v13
     if ($LASTEXITCODE -ne 0)
     {
         throw 'ToolBuilder publish failed.'
     }
-    Write-Host "Ready: $PSScriptRoot\app-v12\ToolBuilder.exe"
+    Write-Host "Ready: $PSScriptRoot\app-v13\ToolBuilder.exe"
 }
 finally
 {

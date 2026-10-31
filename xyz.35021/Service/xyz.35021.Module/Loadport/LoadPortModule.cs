@@ -18,7 +18,7 @@ namespace xyz._35021.Module.Loadport;
 [Element(description: "35021 LoadPort 模块（富创得 LP300）")]
 public class LoadPortModule : BaseLoadPortModule, IWaferMap
 {
-    protected override IFrameCodec CreateCodec()
+    public override IFrameCodec CreateCodec()
     {
         return new FcdCodec();
     }
@@ -101,7 +101,7 @@ public class LoadPortModule : BaseLoadPortModule, IWaferMap
     /// <summary>
     /// 一圈就一条 GET:STATE，查到的写进 Status
     /// </summary>
-    protected override IEnumerable<DeviceCommand> QueryDataLoop()
+    public override IEnumerable<DeviceCommand> QueryDataLoop()
     {
         var state = new FcdGetStateCommand();
         yield return state;
@@ -114,7 +114,7 @@ public class LoadPortModule : BaseLoadPortModule, IWaferMap
     /// <summary>
     /// FCD 的主动事件：INF:PODON 放上、INF:PODOF 拿走（在位走设备上报时用）
     /// </summary>
-    protected override void OnReport(object message)
+    public override void OnReport(object message)
     {
         if (message is FcdMessage fcd && fcd.Type == FcdProtocol.Inf)
         {

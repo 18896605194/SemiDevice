@@ -5,8 +5,8 @@ namespace xyz.Modules.StateMachines;
 
 public static class RobotStateTable
 {
-    public static IReadOnlyDictionary< (int? State, RobotAction Action), (int ExecutingState, int SuccessState)> Transitions { get; } =
-        new Dictionary<(int? State, RobotAction Action), (int ExecutingState, int SuccessState)>
+    public static IReadOnlyDictionary< (int? State, string Action), (int ExecutingState, int SuccessState)> Transitions { get; } =
+        new Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)>
         {
             // (当前状态, 动作) = (执行状态, 成功状态)
             [(ModuleState.NotInit, RobotAction.Home)] = (RobotState.Homing, ModuleState.Idle),
@@ -41,9 +41,4 @@ public static class RobotStateTable
             // null 表示任意当前状态。急停可顶替在途动作；打断后位置不可信，回 NotInit 需重新 Home。
             [(null, RobotAction.Abort)] = (ModuleState.Aborting, ModuleState.NotInit)
         };
-
-    public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
-    {
-        return Transitions.ToDictionary(kv => (kv.Key.State, kv.Key.Action.ToString()),kv => kv.Value);
-    }
 }

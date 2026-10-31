@@ -5,8 +5,8 @@ namespace xyz.Modules.StateMachines;
 
 public static class SystemStateTable
 {
-    public static IReadOnlyDictionary<(int? State, SystemAction Action), (int ExecutingState, int SuccessState)> Transitions { get; } =
-        new Dictionary<(int? State, SystemAction Action), (int ExecutingState, int SuccessState)>
+    public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> Transitions { get; } =
+        new Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)>
         {
             // (当前状态, 动作) = (执行状态, 成功状态)
             // 全部初始化：做成了进空闲（Manual）
@@ -31,9 +31,4 @@ public static class SystemStateTable
             [(SystemState.Returning, SystemAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle),
             [(ModuleState.Error, SystemAction.Abort)] = (ModuleState.Aborting, ModuleState.Error),
         };
-
-    public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
-    {
-        return Transitions.ToDictionary(kv => (kv.Key.State, kv.Key.Action.ToString()), kv => kv.Value);
-    }
 }

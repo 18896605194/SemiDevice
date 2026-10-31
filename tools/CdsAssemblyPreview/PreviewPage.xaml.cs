@@ -44,6 +44,7 @@ public partial class PreviewPage : UserControl
     }
     public string PrepareSave()
     {
+        Scene.PointerUp();
         if (Keyboard.FocusedElement is InputTextBox input && IsAncestorOf(input) && !input.Commit()) throw new System.IO.InvalidDataException(xyz.Client.Presentation.Localization.L10n.Get("cdsp.parameters.invalid"));
         return ViewModel.PrepareSave();
     }
@@ -95,9 +96,25 @@ public partial class PreviewPage : UserControl
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (TryUndoRedo(e.Key, Keyboard.Modifiers, e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
         if (_embedded && e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { SaveRequested?.Invoke(); e.Handled = true; return; }
         if (TryDeleteSelection(e.Key, Keyboard.Modifiers, e.OriginalSource as DependencyObject)) { e.Handled = true; return; }
         if (TryMoveSelection(e.Key, Keyboard.Modifiers, e.OriginalSource as DependencyObject)) e.Handled = true;
+    }
+    internal bool TryUndoRedo(Key key, ModifierKeys modifiers, DependencyObject? source)
+    {
+        bool undo = key == Key.Z && modifiers == ModifierKeys.Control;
+        bool redo = key == Key.Y && modifiers == ModifierKeys.Control || key == Key.Z && modifiers == (ModifierKeys.Control | ModifierKeys.Shift);
+        if (!undo && !redo) return false;
+        for (var current = source; current is not null; current = current is Visual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current))
+        {
+            if (current == XamlPreview) break;
+            if (current is TextBoxBase or PasswordBox or ComboBox { IsEditable: true }) return false;
+        }
+        Scene.PointerUp();
+        var command = undo ? ViewModel.UndoCommand : ViewModel.RedoCommand;
+        if (command.CanExecute(null)) command.Execute(null);
+        return true;
     }
     internal bool TryDeleteSelection(Key key, ModifierKeys modifiers, DependencyObject? source)
     {

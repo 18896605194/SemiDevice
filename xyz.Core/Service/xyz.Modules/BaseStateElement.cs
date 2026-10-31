@@ -5,6 +5,7 @@ using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
 using xyz.Elements.Enums;
 using xyz.Elements.Interfaces;
+using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
@@ -39,38 +40,26 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
 
     #region 状态迁移表
 
-    private readonly Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> _transitions = new();
+    /// <summary>
+    /// 这个模块的状态迁移规则：平台的默认表在各模块基类的构造里装，机型在 AddTransitions 里加自己的
+    /// </summary>
+    protected StateTable States { get; }
 
-    protected void RegisterTransitions(
-        IEnumerable<KeyValuePair<(int? State, string Action), (int ExecutingState, int SuccessState)>> entries)
+    /// <summary>
+    /// 元件初始化：部件、子元件都认完以后，给机型一次往状态表里加自己那几行的机会
+    /// </summary>
+    public override bool InitElement()
     {
-        _transitions.Clear();
-        foreach (var entry in entries)
-        {
-            _transitions[entry.Key] = entry.Value;
-        }
+        bool succeeded = base.InitElement();
+        AddTransitions();
+        return succeeded;
     }
 
     /// <summary>
-    /// 单条追加/覆盖迁移（机型在注册的默认表上定制用）。
+    /// 机型往平台的默认表上加自己的动作（在里面调 States.Add）：这时候名字、machine.xml 参数、认好的部件都在了
     /// </summary>
-    protected void AddTransition(
-        (int? State, string Action) key, (int ExecutingState, int SuccessState) transition)
+    protected virtual void AddTransitions()
     {
-        _transitions[key] = transition;
-    }
-
-    /// <summary>
-    /// 动作发起前查表：先按当前状态精确匹配，未命中再查 null 通配；都不中返回 false（状态不允许）。
-    /// </summary>
-    protected bool TryGetTransition(int state, string action, out (int ExecutingState, int SuccessState) transition)
-    {
-        if (_transitions.TryGetValue((state, action), out transition))
-        {
-            return true;
-        }
-
-        return _transitions.TryGetValue((null, action), out transition);
     }
 
     #endregion
@@ -125,11 +114,6 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
         }
     }
 
-    /// <summary>
-    /// 急停动作名：三类模块的动作枚举里急停都叫 Abort，只有它能顶替在途动作。
-    /// </summary>
-    private const string AbortAction = "Abort";
-
     private (int ExecutingState, int SuccessState) _transition;
 
     /// <summary>
@@ -165,18 +149,15 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
     /// <typeparam name="TAction"></typeparam>
     /// <param name="action"></param>
     /// <returns></returns>
-    protected HandleResult? CheckState<TAction>(TAction action)
-        where TAction : struct, Enum
+    protected HandleResult? CheckState(string action)
     {
         lock (RoutineGate)
         {
-            string name = action.ToString();
-
             #region 能不能动作
 
             // 急停只看模块能不能用（停用、驱动没装好），不看设备连没连上：没连上也要能把在途的动作顶掉，免得它一直等到超时
             HandleResult? unavailable;
-            if (name == AbortAction)
+            if (action == ModuleAction.Abort)
             {
                 unavailable = CheckEnabled();
             }
@@ -195,7 +176,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
             #region 状态表允不允许
 
             int state = State;
-            if (!TryGetTransition(state, name, out _))
+            if (!TryGetTransition(state, action, out _))
             {
                 return HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
             }
@@ -205,7 +186,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
             #region 有没有正在做的动作（急停可以顶替，不查）
 
             var current = _routine;
-            if (current is not null && !current.IsTerminal && name != AbortAction)
+            if (current is not null && !current.IsTerminal && action != ModuleAction.Abort)
             {
                 return HandleResult.Fail(ErrorCodes.ModuleBusy, Name);
             }
@@ -235,19 +216,17 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
     /// <param name="action"></param>
     /// <param name="routine"></param>
     /// <returns></returns>
-    protected HandleResult<ModuleRoutine> Begin<TAction>(TAction action, ModuleRoutine routine)
-        where TAction : struct, Enum
+    protected HandleResult<ModuleRoutine> Begin(string action, ModuleRoutine routine)
     {
         lock (RoutineGate)
         {
-            string name = action.ToString();
-            if (!TryGetTransition(State, name, out var transition))  //查询状态表
+            if (!TryGetTransition(State, action, out var transition))  //查询状态表
             {
                 return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
             }
 
             int from = State;
-            if (Begin(routine, transition.ExecutingState, transition.SuccessState, name == AbortAction) is null)  //真正挂上动作
+            if (Begin(routine, transition.ExecutingState, transition.SuccessState, action == ModuleAction.Abort) is null)  //真正挂上动作
             {
                 return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
             }
@@ -260,9 +239,9 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
     }
 
     /// <summary>
-    /// 现在挂着的动作是用哪个枚举值发起的；没挂为 null。机型用自己的动作枚举发起时这里是机型的值，平台据此不替它收尾
+    /// 现在挂着的动作名；没挂为 null。机型自己加的动作名平台的 switch 认不出，收尾由机型自己做
     /// </summary>
-    protected object? CurrentAction { get; private set; }
+    protected string? CurrentAction { get; private set; }
 
     /// <summary>
     /// 发起当前这个动作时模块在哪个状态（复位、中止的收尾按它判）

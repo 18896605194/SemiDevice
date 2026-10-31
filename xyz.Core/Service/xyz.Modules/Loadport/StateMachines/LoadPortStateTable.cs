@@ -8,8 +8,8 @@ namespace xyz.Modules.StateMachines;
 /// </summary>
 public static class LoadPortStateTable
 {
-    public static IReadOnlyDictionary<(int? State, LoadPortAction Action),(int ExecutingState, int SuccessState)> Transitions { get; } =
-        new Dictionary<(int? State, LoadPortAction Action), (int ExecutingState, int SuccessState)>
+    public static IReadOnlyDictionary<(int? State, string Action),(int ExecutingState, int SuccessState)> Transitions { get; } =
+        new Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)>
         {
             // (当前状态, 动作) = (执行状态, 成功状态)
             [(ModuleState.Idle, LoadPortAction.Load)] = (LoadPortState.Loading, LoadPortState.Loaded),
@@ -39,9 +39,4 @@ public static class LoadPortStateTable
 
             [(null, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.NotInit)
         };
-
-    public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
-    {
-        return Transitions.ToDictionary(kv => (kv.Key.State, kv.Key.Action.ToString()),kv => kv.Value);
-    }
 }

@@ -110,8 +110,10 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 11. 删功能要删干净：界面、逻辑、语言包、样式、DTO 字段、测试一起删，不留没人用的代码。
 12. **后端记日志一律走 `LogHelper`**（用户 2026-10-25 定）：不写 `Console.WriteLine`、`ILogger`、`LogManager.GetLogger`；元件里写 `LogHelper.Info(this, …)`（两层名字：模块、部件），
     不是元件的写固定名字（`LogHelper.HostModule`）；第三方库自己的日志不转、不记（2026-10-27 用户定），它们抛出来的错由调用的地方 catch 了用 LogHelper 记。客户端照旧 `ClientLog`。见 backend.md §9。
-13. **定时查设备状态一律写在模块的 `QueryDataLoop` 里，交给 `StatusQueryLoop` 发**（2026-10-26）：别在扫描里自己定时 `Send`——它发的指令打 `IsPolling`，
-    通道才知道把收发原文记到轮询文件，不然会刷满主日志。
+13. **定时查设备状态一律写在模块的 `QueryDataLoop` 里，由通道自己转圈**（2026-10-26 定，2026-10-31 挪到通道）：模块实现 `ICommOwner`（给解码器）+ `ICommModule`
+    （`QueryDataLoop` 查什么、`ClearQueriedStatus` 断线清什么、`OnDisconnected`、`OnReport`），开机 `CommDriverElement.FindIn(this)` 找到通道后 `driver.Attach(this)`；
+    转圈的节奏（`StatusQueryLoop`）、两个 EC（`QueryStatusIntervalMs` / `QueryDataTimeOut`）都在通道元件上，模块**不写也不调**轮询循环。
+    别在扫描里自己定时 `Send`——通道发的查询打 `IsPolling`，收发原文才记到轮询文件，不然会刷满主日志。见 decisions.md「状态轮询挪进通道」。
 14. **时间换算、值换算用 `xyz.Common` 的 `DateTimeHelper`、`ValueHelper`**（用户 2026-10-26 定）：各文件里不写私有的换算小方法（本机时间 ↔ UTC 毫秒、`double?` → `float?`、
     字符串按类型转值这类），缺的加进这两个类；前后端都用的帮助类放 `xyz.Tools`。见 decisions.md「后端帮助类」。
 

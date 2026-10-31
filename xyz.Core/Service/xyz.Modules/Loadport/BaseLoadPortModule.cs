@@ -17,7 +17,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
+public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort, ICommOwner, ICommModule
 {
     #region SV 
 
@@ -51,22 +51,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #endregion
 
     #region EC
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
-        @default: "3000", description: "设备状态查询超时")]
-    public int QueryDataTimeOut
-    {
-        get { return GetEcInt(nameof(QueryDataTimeOut)); }
-        set { SetEcInt(nameof(QueryDataTimeOut), value); }
-    }
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
-        @default: "1000", description: "设备状态查询周期")]
-    public int QueryStatusIntervalMs
-    {
-        get { return GetEcInt(nameof(QueryStatusIntervalMs)); }
-        set { SetEcInt(nameof(QueryStatusIntervalMs), value); }
-    }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
         @default: "30000", description: "Load 动作超时（开门、自己扫片、取槽图每条各按它算；等机械手扫片不算）")]
@@ -209,11 +193,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     public ICommDriver? _driver { get; private set; }
 
-    /// <summary>
-    /// 这台 LoadPort 的解码器：开机时建一次交给通道
-    /// </summary>
-    private IFrameCodec? _codec;
-
     public ICarrierIdReader? _rfid { get; private set; }
 
     public ICarrier _carrier { get; private set; } = null!;
@@ -252,7 +231,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     protected BaseLoadPortModule()
     {
-        RegisterTransitions(LoadPortStateTable.ToModuleTable());
+        RegisterTransitions(LoadPortStateTable.Transitions);
     }
 
     protected override int StandbyState => LoadPortState.Loaded;
@@ -316,14 +295,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         #region 设备通道
 
-        // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报
+        // 通道打开之前把自己交给它（解码器、轮询、主动上报都从这儿接上）；要在 base.InitElement() 之前，通道是在它自己的初始化里连的
         var driver = CommDriverElement.FindIn(this);
         if (driver is not null)
         {
-            _codec ??= CreateCodec();
-            driver.UseCodec(_codec);
-            driver.Reported -= OnReport;
-            driver.Reported += OnReport;
+            driver.Attach(this);
             _driver = driver;
         }
         else
@@ -409,7 +385,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 设备主动上报（没有在途指令认的报文，在通道的解析线程上调）：项目的 LoadPort 类认自己品牌的报文，放上 / 拿走交给 SetDeviceReportedPlaced
     /// </summary>
-    protected virtual void OnReport(object message)
+    public virtual void OnReport(object message)
     {
     }
 
@@ -428,50 +404,29 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
-    #region 设备状态查询
-
-    private StatusQueryLoop? _queries;
+    #region 设备状态查询（节奏在通道，这里只给查什么、清什么）
 
     /// <summary>
-    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryDataLoop 给。
-    /// 查到的值由 QueryDataLoop 自己写进 Status，这里只处理出事的：没连上、查询超时都把状态清空——查到之前在位保持原判断（载具只认查到的）
-    /// </summary>
-    private void LoopQueryStatus()
-    {
-        var driver = _driver;
-        if (!IsEnable || driver is null)
-        {
-            return;
-        }
-
-        _queries ??= new StatusQueryLoop(this);
-        var happened = _queries.Scan(driver, QueryDataLoop, QueryStatusIntervalMs, QueryDataTimeOut);
-        if (happened == StatusQueryEvent.TimedOut)
-        {
-            Status = null;
-            return;
-        }
-
-        if (happened == StatusQueryEvent.Disconnected)
-        {
-            Status = null;
-            OnDisconnected();
-        }
-    }
-
-    /// <summary>
-    /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 平台替它发出去、等它回来（或超时作废）再往下走；
+    /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 通道替它发出去、等它回来（或超时作废）再往下走；
     /// 查到的设备状态写进 Status。默认不查（全靠设备主动推的品牌）
     /// </summary>
-    protected virtual IEnumerable<DeviceCommand> QueryDataLoop()
+    public virtual IEnumerable<DeviceCommand> QueryDataLoop()
     {
         yield break;
     }
 
     /// <summary>
+    /// 没连上、查询超时：把查到的状态清空——查到之前在位保持原判断（载具只认查到的）
+    /// </summary>
+    public void ClearQueriedStatus()
+    {
+        Status = null;
+    }
+
+    /// <summary>
     /// 连接刚断（断开那一拍调一次，扫描线程）：跟着连接走的东西在这里清掉，连上以后重来
     /// </summary>
-    protected virtual void OnDisconnected()
+    public virtual void OnDisconnected()
     {
     }
 
@@ -1105,9 +1060,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected abstract void AddAbortSteps(ModuleRoutine abort);
 
     /// <summary>
-    /// 这台 LoadPort 的解码器（拆帧、解报文），开机时交给通道
+    /// 这台 LoadPort 的解码器（拆帧、解报文），通道开机前跟它要
     /// </summary>
-    protected abstract IFrameCodec CreateCodec();
+    public abstract IFrameCodec CreateCodec();
 
     #endregion
 
@@ -1355,9 +1310,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     {
         RaiseActionFailedAlarm(routine);
 
-        // 是不是平台自己建的那个动作；机型拿自己的动作枚举发起的动作对不上，收尾由机型重写这个方法做（先调 base）
-        bool platform = CurrentAction is LoadPortAction;
-
         //动作失败
         if (!routine.IsSuccess)
         {
@@ -1370,12 +1322,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        if (CurrentAction is not LoadPortAction done)
-        {
-            return;
-        }
-
-        switch (done)
+        // 机型自己加的动作名这里一条都对不上，收尾由机型重写这个方法做（先调 base）
+        switch (CurrentAction)
         {
             case LoadPortAction.Load:
                 EnqueueE87(callback => callback.LoadCompleted(this));
@@ -1553,7 +1501,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     protected override void OnScan()
     {
-        LoopQueryStatus(); //Loadport 数据轮训
         _carrier.Sense(Status?.IsPresent, Status?.IsPlaced); //盒子到哦没有
         StepE84(); //E84的推进
         CheckDeviceAlarm();  //检查报警
@@ -1775,15 +1722,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        // 超时：机型自己加的动作对不上平台的超时报警，报动作失败（要报自己那条就重写这个方法）
-        if (CurrentAction is not LoadPortAction timedOut)
-        {
-            RaiseAlarm(ControlledStopAlarm);
-            return;
-        }
-
-        // 超时：哪个动作超时就报哪一条
-        switch (timedOut)
+        // 超时：哪个动作超时就报哪一条；机型自己加的动作名一条都对不上，走 default 报动作失败（要报自己那条就重写这个方法）
+        switch (CurrentAction)
         {
             case LoadPortAction.Load:
                 RaiseAlarm(LoadTimeoutAlarm);

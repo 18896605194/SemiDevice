@@ -22,17 +22,14 @@ public class ChamberState : TransferModuleState
 }
 
 /// <summary>
-/// 腔体的动作（状态表、动作入口按它查）
+/// 腔体的动作名（状态表、动作入口按它查）；公共动作继承自 <see cref="ModuleAction"/>
 /// </summary>
-public enum ChamberAction
+public class ChamberAction : ModuleAction
 {
-    Home,
-    Process,
-    Reset,
-    Abort,
+    public const string Process = "Process";
 
     /// <summary>
     /// 手动页的设备动作（轴回零 / 移动 / 步进 / 点动 / 复位，气缸升 / 降）
     /// </summary>
-    Manual,
+    public const string Manual = "Manual";
 }

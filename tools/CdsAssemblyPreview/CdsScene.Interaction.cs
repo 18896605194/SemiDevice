@@ -14,6 +14,7 @@ public partial class CdsScene
     internal bool PointerDown(Point point, int clickCount = 1)
     {
         if (_model is null) return false;
+        PointerUp();
         _model.ClearAlignmentGuide();
         _dragId = null; _dragPipeId = null; _dragBend = -1;
         if (_model.ConnectMode)
@@ -52,12 +53,12 @@ public partial class CdsScene
     {
         if (_dragId is null && _dragPipeId is null) return;
         if (!_dragging && (point - _pressedAt).Length < 4) return;
-        _dragging = true;
+        if (!_dragging) { _model?.BeginGesture(); _dragging = true; }
         if (_dragId is not null) _model?.Move(_dragId, point - _dragOffset);
         if (_dragPipeId is not null && _dragBend >= 0) _model?.MovePipeBend(_dragPipeId, _dragBend, point);
         else if (_dragPipeId is not null) _model?.MovePipe(_dragPipeId, point - _dragOffset);
     }
-    internal void PointerUp() { _dragId = null; _dragPipeId = null; _dragBend = -1; _dragging = false; if (Stage.IsMouseCaptured) Stage.ReleaseMouseCapture(); _model?.ClearAlignmentGuide(); }
+    internal void PointerUp() { _dragId = null; _dragPipeId = null; _dragBend = -1; _dragging = false; if (Stage.IsMouseCaptured) Stage.ReleaseMouseCapture(); _model?.EndGesture(); _model?.ClearAlignmentGuide(); }
     internal IInputElement? HitAt(Point point) => Stage.InputHitTest(point);
 
     private static Rect Bounds(CdsNode n) => new System.Windows.Media.RotateTransform(n.Angle,
@@ -81,5 +82,5 @@ public partial class CdsScene
     private void OnDown(object sender, MouseButtonEventArgs e) { if (PointerDown(e.GetPosition(Stage), e.ClickCount)) { FocusEditor(); e.Handled = true; } }
     private void OnMove(object sender, MouseEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) PointerMove(e.GetPosition(Stage)); }
     private void OnUp(object sender, MouseButtonEventArgs e) => PointerUp();
-    private void OnLostCapture(object sender, MouseEventArgs e) { if (!Stage.IsMouseCaptured) { _dragId = null; _dragPipeId = null; _dragBend = -1; _dragging = false; _model?.ClearAlignmentGuide(); } }
+    private void OnLostCapture(object sender, MouseEventArgs e) { if (!Stage.IsMouseCaptured) PointerUp(); }
 }

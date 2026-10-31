@@ -12,7 +12,7 @@ namespace xyz.Elements.Elements;
 /// <summary>
 /// RFID 读头：管读码流程和读码超时，指令经下面挂的 Driver 通道发；用哪家的解码器、读码发哪条指令由项目里的读头类给
 /// </summary>
-public abstract class RfidReaderElement<TReadCommand> : ElementBase, ICarrierIdReader where TReadCommand : DeviceCommand
+public abstract class RfidReaderElement<TReadCommand> : ElementBase, ICarrierIdReader, ICommOwner where TReadCommand : DeviceCommand
 {
     #region Machine
 
@@ -39,7 +39,6 @@ public abstract class RfidReaderElement<TReadCommand> : ElementBase, ICarrierIdR
     #region 通道
 
     private ICommDriver? _driver;
-    private IFrameCodec? _codec;
 
     /// <summary>
     /// 下面挂的通道连上了没有
@@ -60,8 +59,7 @@ public abstract class RfidReaderElement<TReadCommand> : ElementBase, ICarrierIdR
             throw new InvalidOperationException($"读头 {FullPath} 的 machine.xml 节点下没有启用的通道（串口 SerialDriverElement 或网口 TcpDriverElement，IsEnable=True）。");
         }
 
-        _codec ??= CreateCodec();
-        driver.UseCodec(_codec);
+        driver.Attach(this);
         _driver = driver;
         return base.InitElement();
     }
@@ -204,9 +202,9 @@ public abstract class RfidReaderElement<TReadCommand> : ElementBase, ICarrierIdR
     #region 项目里的读头类填
 
     /// <summary>
-    /// 这家读头的解码器
+    /// 这家读头的解码器（通道开机前跟它要）
     /// </summary>
-    protected abstract IFrameCodec CreateCodec();
+    public abstract IFrameCodec CreateCodec();
 
     /// <summary>
     /// 读码发哪条指令（吃 IdStart / IdLength）

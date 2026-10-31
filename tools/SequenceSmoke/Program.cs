@@ -506,7 +506,7 @@ sealed class ProbePort : BaseLoadPortModule
     }
 
     // 没挂通道：动作入口一律回"停用或驱动没装好"，设备那几条用不上，一条都不加
-    protected override IFrameCodec CreateCodec() => throw new NotSupportedException("探针端口不连设备");
+    public override IFrameCodec CreateCodec() => throw new NotSupportedException("探针端口不连设备");
 
     protected override void AddLoadSteps(ModuleRoutine load)
     {

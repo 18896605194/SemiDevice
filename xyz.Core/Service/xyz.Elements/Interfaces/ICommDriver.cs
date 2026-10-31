@@ -1,5 +1,4 @@
-﻿using xyz.Drivers.Communication;
-using xyz.Drivers.Device;
+﻿using xyz.Drivers.Device;
 
 namespace xyz.Elements.Interfaces;
 
@@ -24,9 +23,10 @@ public interface ICommDriver
     event Action<object>? Reported;
 
     /// <summary>
-    /// 用哪家的解码器：所属模块开机时交给它，要在通道打开之前
+    /// 挂它的元件开机时把自己交过来（要在通道打开之前）：通道照它要解码器；
+    /// 它还实现了 ICommModule 的话，通道替它轮询状态、把主动上报转给它
     /// </summary>
-    void UseCodec(IFrameCodec codec);
+    void Attach(ICommOwner owner);
 
     /// <summary>
     /// 发一条指令；没连上、同键指令还在途就被拒（false）

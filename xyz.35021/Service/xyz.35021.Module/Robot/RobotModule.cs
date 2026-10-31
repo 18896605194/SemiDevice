@@ -20,7 +20,7 @@ public class RobotModule : BaseRobotModule
     /// </summary>
     private bool _waferEventSubscribed;
 
-    protected override IFrameCodec CreateCodec()
+    public override IFrameCodec CreateCodec()
     {
         return new RejeCodec();
     }
@@ -90,7 +90,7 @@ public class RobotModule : BaseRobotModule
     /// <summary>
     /// 一圈：没订上先订手指在位推送，再查报错、伺服、速度、每根轴的坐标（按 machine.xml 轴节点的先后）
     /// </summary>
-    protected override IEnumerable<DeviceCommand> QueryDataLoop()
+    public override IEnumerable<DeviceCommand> QueryDataLoop()
     {
         // 手指在位推送：machine.xml 开着又还没订上，每圈开头订一次，订上为止
         if (WaferEventEnabled && !_waferEventSubscribed)
@@ -135,7 +135,7 @@ public class RobotModule : BaseRobotModule
     /// <summary>
     /// 连接断了：在位推送的订阅跟着连接走，连上以后重订
     /// </summary>
-    protected override void OnDisconnected()
+    public override void OnDisconnected()
     {
         _waferEventSubscribed = false;
     }
@@ -143,7 +143,7 @@ public class RobotModule : BaseRobotModule
     /// <summary>
     /// 锐洁的主动推送：手指在位变化、报错（成功码的 Error 帧是迟到的"没有报错"，不算）
     /// </summary>
-    protected override void OnReport(object message)
+    public override void OnReport(object message)
     {
         if (message is RejeMessage reje)
         {

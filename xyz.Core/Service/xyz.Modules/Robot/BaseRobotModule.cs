@@ -19,7 +19,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseRobotModule : BaseModule, IRobot, IMode
+public abstract class BaseRobotModule : BaseModule, IRobot, IMode, ICommOwner, ICommModule
 {
     /// <summary>
     /// 模块类型：机械手
@@ -99,22 +99,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #region EC 
 
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
-        @default: "3000", description: "设备状态查询超时")]
-    public int QueryDataTimeOut
-    {
-        get { return GetEcInt(nameof(QueryDataTimeOut)); }
-        set { SetEcInt(nameof(QueryDataTimeOut), value); }
-    }
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
-        @default: "1000", description: "设备状态查询周期（一圈：报错、伺服、速度、各轴坐标）")]
-    public int QueryStatusIntervalMs
-    {
-        get { return GetEcInt(nameof(QueryStatusIntervalMs)); }
-        set { SetEcInt(nameof(QueryStatusIntervalMs), value); }
-    }
-
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
         @default: "60000", description: "Home 动作超时（全轴回原点）")]
     public int HomeTimeout
@@ -187,11 +171,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// 设备通道（machine.xml 里本模块下启用的那条：串口或网口）：项目的机械手类用它发指令
     /// </summary>
     public ICommDriver? _driver { get; private set; }
-
-    /// <summary>
-    /// 这台机械手的解码器：开机时建一次交给通道
-    /// </summary>
-    private IFrameCodec? _codec;
 
     public IReadOnlyList<IRobotAxis> Axes { get; private set; } = Array.Empty<IRobotAxis>();
     public IReadOnlyList<IRobotArm> Arms { get; private set; } = Array.Empty<IRobotArm>();
@@ -362,7 +341,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     protected BaseRobotModule()
     {
-        RegisterTransitions(RobotStateTable.ToModuleTable());
+        RegisterTransitions(RobotStateTable.Transitions);
     }
 
     #region 元件初始化与驱动连接
@@ -423,14 +402,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
         #region 设备通道
 
-        // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有在位主动推送
+        // 通道打开之前把自己交给它（解码器、轮询、主动上报都从这儿接上）；要在 base.InitElement() 之前，通道是在它自己的初始化里连的
         var driver = CommDriverElement.FindIn(this);
         if (driver is not null)
         {
-            _codec ??= CreateCodec();
-            driver.UseCodec(_codec);
-            driver.Reported -= OnReport;
-            driver.Reported += OnReport;
+            driver.Attach(this);
             _driver = driver;
         }
         else
@@ -494,7 +470,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 设备主动上报（没有在途指令认的报文，在通道的解析线程上调）：项目的机械手类认自己品牌的报文，手指在位交给 NoteArmPresence、报错写 DeviceError
     /// </summary>
-    protected virtual void OnReport(object message)
+    public virtual void OnReport(object message)
     {
     }
 
@@ -515,41 +491,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #endregion
 
-    #region 设备状态查询
-
-    private StatusQueryLoop? _queries;
+    #region 设备状态查询（节奏在通道，这里只给查什么、清什么）
 
     /// <summary>
-    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryDataLoop 给。
-    /// 查到的值由 QueryDataLoop 自己写，这里只处理出事的：没连上、查询超时都把查到的状态清空（跟 LoadPort 一样，界面显示"不知道"，下一圈查到再填）
+    /// 没连上、查询超时：查到的状态全清掉（伺服、速度、报错、各轴坐标），界面显示"不知道"，下一圈查到再填
     /// </summary>
-    private void LoopQueryStatus()
-    {
-        var driver = _driver;
-        if (!IsEnable || driver is null)
-        {
-            return;
-        }
-
-        _queries ??= new StatusQueryLoop(this);
-        var happened = _queries.Scan(driver, QueryDataLoop, QueryStatusIntervalMs, QueryDataTimeOut);
-        if (happened == StatusQueryEvent.TimedOut)
-        {
-            ClearQueriedStatus();
-            return;
-        }
-
-        if (happened == StatusQueryEvent.Disconnected)
-        {
-            ClearQueriedStatus();
-            OnDisconnected();
-        }
-    }
-
-    /// <summary>
-    /// 查到的状态全清掉：伺服、速度、报错、各轴坐标
-    /// </summary>
-    private void ClearQueriedStatus()
+    public void ClearQueriedStatus()
     {
         IsServoOn = null;
         Speed = null;
@@ -561,10 +508,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 平台替它发出去、等它回来（或超时作废）再往下走；
+    /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 通道替它发出去、等它回来（或超时作废）再往下走；
     /// 没做成的那一项这圈不写（看指令的 IsSuccess）。默认不查（全靠设备主动推的品牌）
     /// </summary>
-    protected virtual IEnumerable<DeviceCommand> QueryDataLoop()
+    public virtual IEnumerable<DeviceCommand> QueryDataLoop()
     {
         yield break;
     }
@@ -572,7 +519,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 连接刚断（断开那一拍调一次，扫描线程）：跟着连接走的东西（比如推送订阅）在这里清掉，连上以后重来
     /// </summary>
-    protected virtual void OnDisconnected()
+    public virtual void OnDisconnected()
     {
     }
 
@@ -937,7 +884,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// 挂上取 / 放片，同时记下去了哪个站点（推给界面画机械手朝向）和这一趟的意图（做完按它记账；没做完时界面画这只手伸出）。
     /// 挂动作和记意图在同一把锁里：否则扫描线程可能在意图记上之前就把动作走完了，这一趟就不记账。
     /// </summary>
-    private HandleResult<ModuleRoutine> StartTransfer(RobotAction action, int arm, string station, int slot)
+    private HandleResult<ModuleRoutine> StartTransfer(string action, int arm, string station, int slot)
     {
         if (!TryGetTeachPoint(station, out var config))
         {
@@ -1003,7 +950,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 设备那几条后面再加上"等手指持片反馈对上""记账"两步再挂上：机型只给设备那几条，持片校验和记账平台加，记账通过才向搬运管理确认成功
     /// </summary>
-    private HandleResult<ModuleRoutine> StartWithLedger(RobotAction action, ModuleRoutine transfer, TransferIntent intent, ITeachPoint config)
+    private HandleResult<ModuleRoutine> StartWithLedger(string action, ModuleRoutine transfer, TransferIntent intent, ITeachPoint config)
     {
         var armElement = FindArm(intent.Arm);
         if (armElement is not null && armElement.IsWaferCheckEnabled)
@@ -1146,7 +1093,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 缩臂要对得上伸进去的那一趟：同样是取片（或放片）、同一只手、同一个站、同一槽
     /// </summary>
-    private HandleResult? CheckExtended(RobotAction action, int arm, string station, int slot)
+    private HandleResult? CheckExtended(string action, int arm, string station, int slot)
     {
         var intent = _transferIntent;
         if (intent is null || intent.Action != action || intent.Arm != arm || intent.Slot != slot
@@ -1161,7 +1108,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 挂上伸臂：伸臂不动账（片还在原处），这一趟的意图记下来留给缩臂；机械手类没给伸臂动作就拒
     /// </summary>
-    private HandleResult<ModuleRoutine> StartExtend(RobotAction action, int arm, string station, int slot)
+    private HandleResult<ModuleRoutine> StartExtend(string action, int arm, string station, int slot)
     {
         if (!TryGetTeachPoint(station, out var config))
         {
@@ -1207,7 +1154,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 挂上缩臂：按伸臂时记下的那一趟查持片、记账；机械手类没给缩臂动作就拒（手还伸着，等人工）
     /// </summary>
-    private HandleResult<ModuleRoutine> StartRetract(RobotAction action, TransferIntent intent)
+    private HandleResult<ModuleRoutine> StartRetract(string action, TransferIntent intent)
     {
         if (!TryGetTeachPoint(intent.Station, out var config))
         {
@@ -1487,9 +1434,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     protected abstract void AddAbortSteps(ModuleRoutine abort);
 
     /// <summary>
-    /// 这台机械手的解码器（拆帧、解报文），开机时交给通道
+    /// 这台机械手的解码器（拆帧、解报文），通道开机前跟它要
     /// </summary>
-    protected abstract IFrameCodec CreateCodec();
+    public abstract IFrameCodec CreateCodec();
 
     #endregion
 
@@ -1672,7 +1619,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     protected override void OnScan()
     {
-        LoopQueryStatus(); //设备状态轮询
         CheckDeviceAlarm(); //检查报警
         PublishState(); //推送状态
     }
@@ -1700,7 +1646,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #region 晶圆账
 
-    private sealed record TransferIntent(RobotAction Action, int Arm, string Station, int Slot, Guid? ExpectedWaferId);
+    private sealed record TransferIntent(string Action, int Arm, string Station, int Slot, Guid? ExpectedWaferId);
 
     private TransferIntent? _transferIntent;
 

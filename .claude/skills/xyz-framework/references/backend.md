@@ -262,10 +262,10 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   机械手伸到位停下后调 `HandoffPick` / `HandoffPlace` 中途交接（比如降、升顶针），站点重写 `HandoffPickCore` / `HandoffPlaceCore`，默认被拒，见 decisions.md「分段取放」；
   在位传感器：元件初始化认下面叫 `WaferSensor` 的 DI（`IDiSensor`），`CheckWaferSensors()`（`ITransferStation` 上）machine.xml 配了才跟晶圆账比——看到有片 = 账上这个站有片，
   读不到也算对不上（`station.wafer_sensor_*` [站点]），没配回 null；传感器配法不一样的站点重写它。全部回片开始前用，见 decisions.md「全部回片」）、
-  `BaseLoadPortModule`（通道找直接挂的、启用的那条（`CommDriverElement.FindIn`），RFID / E84 按接口找；`InitElement` 里先登记晶圆账槽位、把机型给的解码器交给通道（`UseCodec`）、
-  挂通道的上报（`OnReport`），再由基类把子元件（通道、读头、E84）各自初始化——
+  `BaseLoadPortModule`（通道找直接挂的、启用的那条（`CommDriverElement.FindIn`），RFID / E84 按接口找；`InitElement` 里先登记晶圆账槽位、把自己交给通道（`driver.Attach(this)`，
+  解码器、轮询、主动上报都从这儿接上；要在 `base.InitElement()` 之前，通道是在它自己的初始化里连的），再由基类把子元件（通道、读头、E84）各自初始化——
   连接、E84 输出回初始写在它们自己的 `InitElement` 里，端口不点名；RFID、通道这一次没连上也照样往下走，
-  返回 false 只为开机日志看得到，之后由通道元件按间隔重连；`InitModule()` = `Home()`；**状态查询的节奏在平台**（`StatusQueryLoop`）：一圈查什么由机型 `QueryDataLoop` 给
+  返回 false 只为开机日志看得到，之后由通道元件按间隔重连；`InitModule()` = `Home()`；**状态查询的节奏在通道**（通道 `OnScan` 里的 `StatusQueryLoop`）：一圈查什么由机型 `QueryDataLoop` 给
   （35021 一圈一条 GET:STATE，回来写 `Status`），按 EC `QueryStatusIntervalMs`（默认 1000 ms）开下一圈，超过 EC `QueryDataTimeOut` 没回就作废这一条、Status 清空、接着查（机械手同样：超时、断线把伺服、速度、报错、各轴坐标清空，2026-10-26 用户定"跟 LoadPort 一样"），
   超时 / 恢复各记一次日志；**载具交给子元件 `CarrierElement`**（machine.xml 每个 LoadPort 下必配一个 `Carrier` 节点，缺了开机抛 `InvalidOperationException`；`ILoadPort.Carrier` 是它的 `ICarrier` 口，读码、槽图认定状态、取放状态、E87 载具上报都在它里面，见 decisions.md「LoadPort 的载具收进 CarrierElement」）：**在位二选一**（Carrier 的 machine.xml `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位（端口每拍用 `Carrier.Sense` 喂进去），
   都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（端口的 `SetDeviceReportedPlaced` 转给 `Carrier.SetDeviceReportedPlaced`，机型有别的上报路子也调它），只在扫描线程判边沿，
@@ -279,7 +279,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   E84 子元件 machine.xml `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitElement` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 machine.xml 节点：X/Z/Theta 用 `RobotAxisElement`、Arm 用 `RobotArmElement`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，machine.xml `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成元件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询的节奏（`StatusQueryLoop`，扫描线程，跟 LoadPort 一样同一时间一条在途；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调通道 `Abandon` 作废那一条、查到的伺服 / 速度 / 报错 / 各轴坐标清空（跟 LoadPort 一样，2026-10-26）；断线这一圈作废、同样清空、调 `OnDisconnected`）和每拍状态发布在平台；一圈查什么、什么顺序、回来写到哪由机型从上往下写在 `QueryDataLoop` 里（`yield return` 一条 = 发出去等它回来；35021 锐洁：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标，machine.xml `WaferEventEnabled` 关掉不订阅，断线清订阅标志下一圈重订），主动推送机型 `OnReport` 认（手指在位交 `NoteArmPresence`、报错写 `DeviceError`）；机型必须填 `CreateCodec` 和 `AddHome/Pick/Place/PowerOn/PowerOff/Reset/AbortSteps`（一般一条指令一个 `Command` 步骤；取放后面"等持片反馈对上""记账"两步平台加）；示教点表（2026-10-24，见 decisions.md「机械手示教点」）：机械手下 `Size12` / `Size8` 两个分组（一种晶圆尺寸一组，整机现在几寸用哪张，没配的那种尺寸是空表、到不了），下面一个站点一个示教点元件 `TeachPointElement`（节点名 = 站点名；machine.xml Number、Y、Direction、PickArms / PlaceArms：从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；机械手元件初始化时按 `ITeachPoint` 收子元件、按挂在哪一组分成两张表（挂在两组以外、同组重名开机抛，一个都没有记错误日志），对外 `TeachPoints` / `TeachPointsOf(size)` / `TryGetTeachPoint`；推送的示教点表（`TeachPointDto`）还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
+  `BaseRobotModule`（轴与手指是 machine.xml 节点：X/Z/Theta 用 `RobotAxisElement`、Arm 用 `RobotArmElement`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，machine.xml `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成元件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询的节奏在通道（通道 `OnScan` 里的 `StatusQueryLoop`，扫描线程，跟 LoadPort 一样同一时间一条在途；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调通道 `Abandon` 作废那一条、查到的伺服 / 速度 / 报错 / 各轴坐标清空（跟 LoadPort 一样，2026-10-26）；断线这一圈作废、同样清空、调 `OnDisconnected`）和每拍状态发布在平台；一圈查什么、什么顺序、回来写到哪由机型从上往下写在 `QueryDataLoop` 里（`yield return` 一条 = 发出去等它回来；35021 锐洁：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标，machine.xml `WaferEventEnabled` 关掉不订阅，断线清订阅标志下一圈重订），主动推送机型 `OnReport` 认（手指在位交 `NoteArmPresence`、报错写 `DeviceError`）；机型必须填 `CreateCodec` 和 `AddHome/Pick/Place/PowerOn/PowerOff/Reset/AbortSteps`（一般一条指令一个 `Command` 步骤；取放后面"等持片反馈对上""记账"两步平台加）；示教点表（2026-10-24，见 decisions.md「机械手示教点」）：机械手下 `Size12` / `Size8` 两个分组（一种晶圆尺寸一组，整机现在几寸用哪张，没配的那种尺寸是空表、到不了），下面一个站点一个示教点元件 `TeachPointElement`（节点名 = 站点名；machine.xml Number、Y、Direction、PickArms / PlaceArms：从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；机械手元件初始化时按 `ITeachPoint` 收子元件、按挂在哪一组分成两张表（挂在两组以外、同组重名开机抛，一个都没有记错误日志），对外 `TeachPoints` / `TeachPointsOf(size)` / `TryGetTeachPoint`；推送的示教点表（`TeachPointDto`）还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
   分段取放（可选能力 `ITransferRobotStep : ITransferRobot`）的四个方法 `ExtendPick / RetractPick / ExtendPlace / RetractPlace` 也写在这里，但基类不声明接口：
   能分段的机械手类在类上声明它、重写 `AddExtend/RetractPick/PlaceSteps` 加设备那几条（默认一条没有 → `robot.handoff_unsupported`）；伸臂做完停在
   `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账；
@@ -533,11 +533,15 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   共用的在抽象基类 `CommDriverElement`：machine.xml `IsEnable`、EC 重连、报警、收发；子类只给 `CreateTransport()`（建串口 / 网口）。基类不能直接配在 machine.xml 里。
   一个设备下面串口、网口可以都配上，用 `IsEnable` 选一条：`CommDriverElement.FindIn(owner)` 只认直接挂的、启用的那条（启用两条开机抛，一条没启用返回 null、各设备照没挂通道处理），
   没启用的不建不连、不重连；同一台设备换接法（协议一样）只对调两边的 `IsEnable`，代码不动。
-  用哪家的解码器由所属设备开机时 `UseCodec` 交给启用的那条（打开之前）；只认直接挂的，所以读头挂在 LoadPort 下面、自己再挂一条也不会认错。动作的 `Command` 步骤（`Elements\Routines\CommandStep`）发一条指令等设备回：
+  所属设备开机时（打开之前）把自己交给启用的那条：`driver.Attach(this)`，通道跟它要解码器（`ICommOwner.CreateCodec`）；它还实现了 `ICommModule` 的话，通道再替它轮询状态、把主动上报转给它的 `OnReport`。
+  一条通道只能挂一个主，换个主开机就抛。只认直接挂的，所以读头挂在 LoadPort 下面、自己再挂一条也不会认错。动作的 `Command` 步骤（`Elements\Routines\CommandStep`）发一条指令等设备回：
   每条从进这一步算超时，`UseTimeout` 换后面几条的超时；设备回错 `device_failed`、超时 `timeout`（先作废那条）、发不出去 `command_rejected`，被中止作废在途那条（见 §3「动作 = ModuleRoutine」）。
   `Elements\Drivers\RfidReaderElement<读码指令>`：读码流程和读码超时，读头类给 `CreateCodec`、`CreateReadCommand`、`CarrierIdOf`。
-  `Elements\Drivers\StatusQueryLoop`（2026-10-26 从模块层挪下来，元件层的设备也能用）：状态轮询的节奏，一圈查什么由模块的 `QueryDataLoop()` 用 `yield return 指令` 给，回来了在 yield 后面取值写状态；
-  `Scan` 回的是这一拍出了什么事（`StatusQueryEvent`：None / TimedOut / Disconnected），查到的值不从这里出来。**定时查状态一律写在 `QueryDataLoop` 里交给它**，别自己在扫描里定时 `Send`：
+  `Elements\Drivers\StatusQueryLoop`（2026-10-26 从模块层挪下来）：状态轮询的节奏，一圈查什么由模块的 `QueryDataLoop()` 用 `yield return 指令` 给，回来了在 yield 后面取值写状态；
+  `Scan` 回的是这一拍出了什么事（`StatusQueryEvent`：None / TimedOut / Disconnected），查到的值不从这里出来。
+  **2026-10-31 起转圈的人是通道**：`CommDriverElement.OnScan` 先重连、再 `LoopQueryStatus()`——它建 `StatusQueryLoop`、按自己身上的两个 EC（`QueryStatusIntervalMs` / `QueryDataTimeOut`）
+  调模块的 `QueryDataLoop`，超时和断线调模块的 `ClearQueriedStatus()`、断线再调 `OnDisconnected()`。通道是设备的子元件、扫描时排在设备自己之前，所以模块这一拍读到的就是刚查回来的值。
+  模块里没有轮询代码，加新设备类型漏不掉（对准器以前就是抄 LoadPort 抄漏了整套轮询）。**定时查状态一律写在 `QueryDataLoop` 里**，别自己在扫描里定时 `Send`：
   它发之前给指令设 `DeviceCommand.IsPolling = true`（全仓只有这一处设），通道看这个标记把收发原文记到轮询文件。
   **收发原文在通道（`DeviceDriver`）里记**（帧体、不带壳，控制字符写成 `<CR>`、`<0x02>`）：放进发送队列记"发"，回复按认领它的指令记"收"；`IsPolling` 的进轮询文件 `poll-日期.log`（`LogHelper.InfoLoop`），
   别的进主日志（`LogHelper.Comm`）：动作指令、握手帧、没人认的（设备主动发来的）、解不出来的（写明"解不出来，丢掉"）。日志来源是建通道的串口 / 网口元件（`new DeviceDriver(帧通讯, 链路层, this)`）。

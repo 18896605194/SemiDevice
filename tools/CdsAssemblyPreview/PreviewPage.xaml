@@ -68,6 +68,8 @@
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="2,10,4,4">
          <WrapPanel x:Name="EditingActions" Margin="0,0,0,8">
+          <Button x:Name="UndoButton" Content="{DynamicResource cdsp.undo}" ToolTip="{DynamicResource cdsp.undo_tip}" Command="{Binding UndoCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,6,6"/>
+          <Button x:Name="RedoButton" Content="{DynamicResource cdsp.redo}" ToolTip="{DynamicResource cdsp.redo_tip}" Command="{Binding RedoCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,0,6"/>
           <Button Content="{DynamicResource cdsp.select_mode}" Command="{Binding SelectModeCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,6,6"/>
           <CheckBox Content="{DynamicResource cdsp.connect}" IsChecked="{Binding ConnectMode}" VerticalAlignment="Center" Margin="4,0,0,6"/>
           <Button Content="{DynamicResource cdsp.add_interface}" Command="{Binding AddInterfaceCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,0,6,6"/>

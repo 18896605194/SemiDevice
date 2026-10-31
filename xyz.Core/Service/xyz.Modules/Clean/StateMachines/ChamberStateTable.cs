@@ -8,8 +8,8 @@ namespace xyz.Modules.StateMachines;
 /// </summary>
 public static class ChamberStateTable
 {
-    public static IReadOnlyDictionary<(int? State, ChamberAction Action),(int ExecutingState, int SuccessState)> Transitions { get; } =
-        new Dictionary<(int? State, ChamberAction Action), (int ExecutingState, int SuccessState)>
+    public static IReadOnlyDictionary<(int? State, string Action),(int ExecutingState, int SuccessState)> Transitions { get; } =
+        new Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)>
         {
             // (当前状态, 动作) = (执行状态, 成功状态)
             [(ModuleState.NotInit, ChamberAction.Home)] = (ChamberState.Homing, ModuleState.Idle),
@@ -41,9 +41,4 @@ public static class ChamberStateTable
             // null 表示任意当前状态。
             [(null, ChamberAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle),
         };
-
-    public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
-    {
-        return Transitions.ToDictionary(kv => (kv.Key.State, kv.Key.Action.ToString()), kv => kv.Value);
-    }
 }

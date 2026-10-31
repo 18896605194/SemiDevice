@@ -21,7 +21,7 @@ public class SystemModule : BaseStateElement, ISystemModule
 {
     public SystemModule()
     {
-        RegisterTransitions(SystemStateTable.ToModuleTable());
+        RegisterTransitions(SystemStateTable.Transitions);
     }
 
     #region Machine
@@ -323,9 +323,9 @@ public class SystemModule : BaseStateElement, ISystemModule
     /// 检查都过了，挂上动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态。
     /// </summary>
     /// <summary>当场切的动作（Auto / Manual）：不挂动作，直接落状态表的成功态。调用方已在锁里查过状态。</summary>
-    private void SwitchTo(SystemAction action)
+    private void SwitchTo(string action)
     {
-        if (TryGetTransition(State, action.ToString(), out var transition))
+        if (TryGetTransition(State, action, out var transition))
         {
             State = transition.SuccessState;
             LogHelper.Info(this, $"{action}");

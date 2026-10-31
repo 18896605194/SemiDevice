@@ -95,6 +95,7 @@ public sealed partial class PreviewViewModel
     }
     private void SelectionChanged()
     {
+        RememberHistorySelection();
         BuildParameters();
         SyncEditors();
         foreach (string property in new[] { nameof(IsTankSelected), nameof(IsValveSelected), nameof(IsNodeSelected), nameof(IsPipeSelected), nameof(HasSelection), nameof(IsSensorSelected), nameof(IsHardwareSelected), nameof(SelectedHardware), nameof(IsHeaterSelected), nameof(HasMotion), nameof(SensorStateText),
@@ -112,7 +113,6 @@ public sealed partial class PreviewViewModel
         string? selectedPipe = SelectedPipe?.Id;
         var removedPipes = Layout.Pipes.Where(p => p.Id == selectedPipe || terminal is not null &&
             (CdsLayoutComposer.Owner(p.From) == terminal || CdsLayoutComposer.Owner(p.To) == terminal)).Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
-        Selected = null; SelectedPipeId = "";
         if (terminal is not null && _startPort is not null && CdsLayoutComposer.Owner(_startPort) == terminal) _startPort = null;
         Layout.Pipes.RemoveAll(p => removedPipes.Contains(p.Id));
         foreach (var pipe in PipeItems.Where(p => removedPipes.Contains(p.Id)).ToArray()) PipeItems.Remove(pipe);
@@ -121,6 +121,7 @@ public sealed partial class PreviewViewModel
             Layout.Nodes.RemoveAll(n => n.Id == terminal);
             foreach (var item in Components.Where(n => n.Id == terminal).ToArray()) Components.Remove(item);
         }
+        Selected = null; SelectedPipeId = "";
         ClearAlignmentGuide(); LayoutSource = L10n.Get("cdsp.layout.edited");
         Status = L10n.Get(terminal is null ? "cdsp.deleted.pipe" : "cdsp.deleted.interface", removedPipes.Count);
         Changed();

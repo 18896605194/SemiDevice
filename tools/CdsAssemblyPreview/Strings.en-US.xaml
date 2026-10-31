@@ -116,4 +116,10 @@
  <sys:String x:Key="cdsp.source.export">Export XAML</sys:String>
  <sys:String x:Key="cdsp.source.filter">CDS view (*.xaml)|*.xaml</sys:String>
  <sys:String x:Key="cdsp.source.wrong_module">This XAML belongs to a different fluid module. Select the matching installation node first.</sys:String>
+ <sys:String x:Key="cdsp.undo">Undo</sys:String>
+ <sys:String x:Key="cdsp.redo">Redo</sys:String>
+ <sys:String x:Key="cdsp.undo_tip">Undo layout edit (Ctrl+Z)</sys:String>
+ <sys:String x:Key="cdsp.redo_tip">Redo layout edit (Ctrl+Y / Ctrl+Shift+Z)</sys:String>
+ <sys:String x:Key="cdsp.undo.done">Layout edit undone.</sys:String>
+ <sys:String x:Key="cdsp.redo.done">Layout edit redone.</sys:String>
 </ResourceDictionary>

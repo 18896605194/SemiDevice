@@ -73,6 +73,8 @@ public sealed partial class PreviewViewModel : BaseViewModel
     public IRelayCommand ExampleCommand { get; }
     public IRelayCommand ResetCommand { get; }
     public IRelayCommand ClearPipesCommand { get; }
+    public IRelayCommand UndoCommand { get; }
+    public IRelayCommand RedoCommand { get; }
     public IRelayCommand FillCommand { get; }
     public IRelayCommand SupplyCommand { get; }
     public IRelayCommand DrainCommand { get; }
@@ -104,6 +106,8 @@ public sealed partial class PreviewViewModel : BaseViewModel
         _machinePath = machinePath is null ? "" : Path.GetFullPath(machinePath); _moduleRoot = moduleRoot;
         ExampleCommand = new RelayCommand(DoExample); ResetCommand = new RelayCommand(DoReset);
         ClearPipesCommand = new RelayCommand(DoClearPipes);
+        UndoCommand = new RelayCommand(DoUndo, () => _history.Count > 1);
+        RedoCommand = new RelayCommand(DoRedo, () => _redo.Count > 0);
         FillCommand = new RelayCommand(() => DoSimulate("fill")); SupplyCommand = new RelayCommand(() => DoSimulate("supply"));
         DrainCommand = new RelayCommand(() => DoSimulate("drain")); StopCommand = new RelayCommand(() => DoSimulate("idle"));
         OpenValveCommand = new RelayCommand(() => DoSetValve(true), () => IsValveSelected); CloseValveCommand = new RelayCommand(() => DoSetValve(false), () => IsValveSelected);
@@ -162,7 +166,7 @@ public sealed partial class PreviewViewModel : BaseViewModel
             demo.PropertyChanged += (_, _) => SceneChanged?.Invoke(); HardwareStates[device.Path] = demo;
         }
         foreach (string name in new[] { nameof(Snapshot), nameof(TankCount), nameof(ValveCount), nameof(SensorCount) }) OnPropertyChanged(name);
-        ApplyLayout(composed);
+        ResetHistory(); ApplyLayout(composed);
     }
     private void DoHardwareState(HardwareState state)
     {
@@ -192,16 +196,27 @@ public sealed partial class PreviewViewModel : BaseViewModel
     {
         ApplyLayout(null); LayoutSource = L10n.Get("cdsp.layout.empty"); Status = L10n.Get("cdsp.empty.note");
     }
-    private void DoClearPipes() { SelectedPipeId = ""; Layout.Pipes.Clear(); PipeItems.Clear(); _startPort = null; Changed(); Status = L10n.Get("cdsp.empty.note"); }
+    private void DoClearPipes() { Layout.Pipes.Clear(); PipeItems.Clear(); SelectedPipeId = ""; _startPort = null; Changed(); Status = L10n.Get("cdsp.empty.note"); }
     public void ApplyLayout(CdsLayout? saved)
     {
         var layout = CdsLayoutComposer.Compose(Snapshot, saved); // 成功验证后再替换。
-        Selected = null; SelectedPipeId = "";
-        Layout = layout; Components.Clear(); PipeItems.Clear();
-        VerticalGuideX = null;
-        foreach (var node in layout.Nodes) Components.Add(node);
-        foreach (var pipe in layout.Pipes) PipeItems.Add(pipe);
-        Selected = Components.FirstOrDefault(); _startPort = null; Changed();
+        EndGesture(); ReplaceLayout(layout, layout.Nodes.FirstOrDefault()?.Id, "");
+    }
+    private void ReplaceLayout(CdsLayout layout, string? nodeId, string pipeId)
+    {
+        _replacingLayout = true;
+        try
+        {
+            Selected = null; SelectedPipeId = "";
+            Layout = layout; Components.Clear(); PipeItems.Clear();
+            VerticalGuideX = null; _startPort = null;
+            foreach (var node in layout.Nodes) Components.Add(node);
+            foreach (var pipe in layout.Pipes) PipeItems.Add(pipe);
+            if (layout.Pipes.Any(p => p.Id == pipeId)) SelectedPipeId = pipeId;
+            else Selected = Components.FirstOrDefault(n => n.Id == nodeId);
+            SelectionChanged(); Changed();
+        }
+        finally { _replacingLayout = false; }
     }
     public void Select(string id) => Selected = Components.SingleOrDefault(n => n.Id == id);
     public void Move(string id, Point position)
@@ -272,5 +287,5 @@ public sealed partial class PreviewViewModel : BaseViewModel
         catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or System.Xml.XmlException)
         { Status = L10n.Get("cdsp.failed", ex.Message); }
     }
-    private void Changed() { OnPropertyChanged(nameof(PipeCount)); SceneChanged?.Invoke(); LayoutChanged?.Invoke(); }
+    private void Changed() { RecordHistory(); OnPropertyChanged(nameof(PipeCount)); SceneChanged?.Invoke(); LayoutChanged?.Invoke(); }
 }

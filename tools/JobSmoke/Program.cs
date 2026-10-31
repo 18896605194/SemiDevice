@@ -2924,7 +2924,7 @@ class SmokeRobot : BaseRobotModule
 
     public void Tick() => ScanOnce();
 
-    protected override IFrameCodec CreateCodec() => new SmokeCodec();
+    public override IFrameCodec CreateCodec() => new SmokeCodec();
 
     protected override void AddHomeSteps(ModuleRoutine home) => home.Add(new SmokeMotion("Home", 1));
 
@@ -2983,7 +2983,7 @@ sealed class SmokeJobAligner : BaseAlignerModule
 
     public void Tick() => ScanOnce();
 
-    protected override IFrameCodec CreateCodec() => new SmokeCodec();
+    public override IFrameCodec CreateCodec() => new SmokeCodec();
 
     protected override void AddHomeSteps(ModuleRoutine home) => home.Command("回零", () => new SmokeCommand("Home"));
 
@@ -3018,7 +3018,7 @@ sealed class SmokeChannel : ElementBase, ICommDriver
 
     public event Action<object>? Reported;
 
-    public void UseCodec(IFrameCodec codec)
+    public void Attach(ICommOwner owner)
     {
     }
 
@@ -3214,7 +3214,7 @@ sealed class SmokePort : BaseLoadPortModule
         return base.PrepareTransfer2Core(context);
     }
 
-    protected override IFrameCodec CreateCodec() => new SmokeCodec();
+    public override IFrameCodec CreateCodec() => new SmokeCodec();
 
     protected override void AddLoadSteps(ModuleRoutine load)
     {

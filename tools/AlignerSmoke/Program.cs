@@ -298,7 +298,7 @@ sealed class SmokeAligner : BaseAlignerModule
         ScanOnce();
     }
 
-    protected override IFrameCodec CreateCodec()
+    public override IFrameCodec CreateCodec()
     {
         return new SmokeAlignerCodec();
     }
@@ -407,9 +407,9 @@ sealed class FakeAlignerDriver : ElementBase, ICommDriver
 
     public event Action<object>? Reported;
 
-    public void UseCodec(IFrameCodec codec)
+    public void Attach(ICommOwner owner)
     {
-        Codec = codec;
+        Codec = owner.CreateCodec();
     }
 
     public bool Send(DeviceCommand command)

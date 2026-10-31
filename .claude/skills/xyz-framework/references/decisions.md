@@ -1429,7 +1429,7 @@
   3. "平台就提供一个指令下发的通道，和指令解析的通道"；"报文解析只留到最终的对比，不可能直接返回二进制来让我解析"——解码器把字节解成本品牌的报文对象，指令里只比对、取值。
   4. "有的指令只回复 ack，有的先回 ack 之后还要回复 inf，这种都在项目里面的自己指令里面自己解决"——完成规则写在每条指令里，通道不管。
   5. "固定动作一个都不要……一个指令就是一个 command，我们用的指令模式"——通道上没有 Home / Pick 这类方法，模块 new 指令交给通道发。
-  6. 参数（查询周期、超时这些 EC）留在模块里。
+  6. 参数（查询周期、超时这些 EC）留在模块里。（2026-10-31 作废：`QueryStatusIntervalMs` / `QueryDataTimeOut` 挪到通道元件上了，见「状态轮询挪进通道」。）
   7. 模块里通道的引用叫 `_driver`（"`_driver?.Close();` 肯定是这种命名，不是 `Driver?.Close();`"）。
   8. **每条指令必须自己实现 `Handle`**（同日，用户看 `FcdLoadCommand` 问"怎么只有创建发送的指令，没有解析的呢"，然后"必须实现，把品牌基类里那份删掉"、"都要这样设计"）：
      品牌基类（`FcdCommand`、`RejeCommand`、`FcdRfidCommand`）只放在途键、指令名 / 下发体、组帧，不写 `Handle`，原来的 `CompleteOnAck` / `ReadData`、`Echoes` / `FailureEchoes` /
@@ -1857,3 +1857,30 @@
   Sequence 86、WaferLedger 211、EventBus 34、LogPipeline 20、ElementScan）；HsmsSmoke 挂在「断开后应自动重连」，没改过的 HEAD 检出到临时目录也连挂 3 次，跟这次无关、没修。
   真宿主 + LogPipelineSmoke 客户端模式：客户端先起、宿主 6 秒后才起，客户端自己连上，顶栏日志拿到宿主开始监听之前写的日志（11 条，只能靠收到日志设置后补拉）；宿主先起也一样；
   宿主日志没有"开机推送出错"。客户端界面没真开（界面样子没改）。
+
+## 状态轮询挪进通道（2026-10-31，用户从"框架里哪些能用模板方法再封一层"问起，看完三版方案后："能理解了就这样做吧"）
+- **起因**：排查发现带通讯驱动的三个模块基类（`BaseLoadPortModule`、`BaseRobotModule`、`BaseAlignerModule`）把"接通道"那段抄了三份（连注释都一样），
+  `LoopQueryStatus()` 抄了两份（逐字相同），两个 EC（`QueryStatusIntervalMs` / `QueryDataTimeOut`）抄了两份；读头 `RfidReaderElement` 是第四份"接通道"。
+  对准器是 10-22 加的，接通道那段跟 LoadPort 一字不差，却把整套轮询抄漏了（没有 `LoopQueryStatus`、没有 `OnDisconnected`、两个 EC 都没有）——这就是要解决的问题。
+- **否掉的两版**：① 做一个 `BaseCommModule` 基类——继承树不允许（机械手挂 `BaseModule`，LoadPort、对准器挂 `BaseTransferStationModule`），
+  硬插一层会让腔体、buffer、CDS 的 ec.xml 和设置页上都多出两个用不上的参数；② 做一个组合小类 `CommModulePart` 让三个模块各持一个字段——
+  模块还得记得在 `OnScan` 里调 `_comm.Scan(...)`，忘了照样编译通过、轮询不跑，只是把"漏 70 行"降成"漏 1 行"，没解决抄漏。
+- **覆盖了 10-23 的一条**：「品牌驱动：平台只给通道」第 6 条是"参数（查询周期、超时这些 EC）留在模块里"。这次把这两个 EC 挪到了通道上，
+  用户 10-31 看过改后代码（明确写了"两个 EC，跟已有的 ReconnectIntervalMs 并排"）后说"能理解了就这样做吧"，以这条为准。
+- **定下来的做法**：轮询归通道自己。`CommDriverElement.OnScan` 先重连、再 `LoopQueryStatus()`；两个 EC 挪到通道上（跟 `ReconnectIntervalMs` 并排，本来就是通讯参数）。
+  通道是设备的子元件，`ElementBase.ScanOnce` 先扫完子元件再扫自己，所以轮询排在模块这一拍之前、同一个线程，模块读到的是刚查回来的值（以前要等下一拍）。
+- **两个接口**（按"能力接口不继承别的接口、要的类直接多实现"拆开）：`ICommOwner`（`CreateCodec`，挂了通道的都实现，含读头）、
+  `ICommModule`（`QueryDataLoop` / `ClearQueriedStatus` / `OnDisconnected` / `OnReport`，还要通道替它轮询、收上报的才实现）。
+  `ICommDriver.UseCodec(codec)` 换成 `Attach(ICommOwner owner)`：通道跟 owner 要解码器，是 `ICommModule` 就再挂上报、记下来轮询；
+  一条通道只能挂一个主（换主抛），同一个主反复 Attach 不报（开机可重入）。
+- **模块侧剩什么**：`driver.Attach(this)` 一行（要在 `base.InitElement()` 之前，通道在它自己的初始化里连）+ 实现那几个接口方法。
+  三个基类里的 `LoopQueryStatus`、`_queries`、`_codec`、两个 EC 全删；`OnScan` 里不再调轮询。机型工程（`LoadPortModule`、`RobotModule`）只把几个 `protected override` 改成 `public override`，别的一字没动。
+- **故意不做**：没给 `ICommModule` 留默认空实现——对准器就得明明白白写三个空方法，让"我不查状态"是个显式决定，而不是看不出来的遗漏；
+  也没顺手给对准器加轮询指令（接真机时再填）。
+- **没挂通道照样开机**（没改）：`ProbePort` 这种探针口、`RoutineWaitSmoke`「一条都没启用：当成没挂通道」都靠它，`Attach` 不抛，记错误日志、`CanBeginAction` 拦住动作。
+  （排查时一度想统一成抛，查到这两处证据后放弃。）
+- **ec.xml 的 key 路径变了**：`LoadPort.LoadPort1` → `LoadPort.LoadPort1.Driver`。查不到会回退 `[VariableMark]` 的 `Default`，起得来；
+  现场调过这两个值的升级后会回到默认值。本机运行目录的 ec.xml 里六处都还是默认值（3000 / 1000），没人调过。
+- **验证**：整个 sln Debug 0 错误（`IoIndexSmoke` 单独编 0 错误）；25 个逻辑冒烟全过——RoutineWait 1431（原来 1427，新增 4 条：通道自己发状态查询、同一个主 Attach 两次不报、换主开机就报）、
+  Job 800、Eap 580、Chamber 270、WaferLedger 211、ProcessRecipe 181、Cds 161、DataCenter 127、Account 109、Sequence 86、Eda 84、Rfid 71、GemCollector 58、Aligner 51、Ai 43、ProjectChamber 39、
+  OpcUa 35、EventBus 34、FluidPipe 32、Buffer 30、Hsms 26、Alarm 22、LogPipeline 20、ElementScan / IoIndex 过。没真跑宿主和客户端（界面没动）。

@@ -20,7 +20,7 @@
 腔体编辑页源码在 `ToolBuilder.ChamberLayout`，作为 ToolBuilder 内部控件加载。验证在输入配置的副本上进行：
 
 ```powershell
-.\app-v12\ToolBuilder.exe --chamber-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\chamber ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
+.\app-v13\ToolBuilder.exe --chamber-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\chamber ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
 ```
 
 检查元件独立性、模拟动作、树与画布同步、多层 Bowl、配置增删及改名、切换腔体、统一保存、外部冲突、失败回滚、另存为与重新加载，并生成真实 WPF 截图。
@@ -33,6 +33,7 @@
 - 泵、加热器及其他硬件采用类型适配；只有配置中确实存在并能识别的组件才显示。泵和管路加热器在 CDS 内使用同一三维模型的固定正交正视图。漏液始终作为普通 DI 信号灯，与 HH、LL 一样显示。
 - 首次打开没有管线。装机阀组不能说明实际管路数量和连接关系；由用户勾选「连接管路」后点选两个端口定义连线。已有布局中的显式管线继续保留，同水平或垂直接口直接连接直管。
 - 所有图元支持鼠标拖动、方向键微调（Shift 每次 10 单位）、坐标和尺寸调整；管线跟随组件端口，支持管径、壁厚、颜色、透明度、液芯、流速、拐点等参数。拖动时保留接口和垂直对齐吸附。
+- 「安装布局」提供撤销、重做，快捷键为 Ctrl+Z、Ctrl+Y（也支持 Ctrl+Shift+Z）。一次鼠标拖动只算一步，组件、管段及拐点移动、显示参数、接口及连接增删、清空/重置和打开 XAML 均可恢复；删除接口时关联管路一起恢复。每个药液模块独立保留最多 100 步，保存后仍能撤销，修改标记随当前布局与保存点的差异更新。模拟反馈、选中和缩放不计入历史；输入框保留文本自身的快捷键。装机清单变更时建立新历史基线，布局撤销不会回退真实装机组件。
 - 新增外部接口后自动选中，可点「删除所选」或在画布按 Delete 删除；接口连接的管路一起删除，也可单独删除管路。此入口不能删除装机硬件，输入参数时 Delete 保留文本编辑行为。
 - 右侧沿用安装布局、显示参数、模拟动作三个页签。阀门可独立开关及显示未知反馈，DI 可独立触发/未触发/未知，Tank 可模拟液位和动作。没有固定的补液、排液等管路文字。
 - 进入「模拟动作」立即隐藏管路选中高亮、辅助虚线、拐点和组件选框，保留当前操作对象与模拟反馈；返回布局或显示参数页恢复编辑辅助。进入模拟页同时取消尚未完成的端口连接。
@@ -51,7 +52,7 @@
 
 集成验证：
 ```powershell
-.\app-v12\ToolBuilder.exe --layout-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\layout
+.\app-v13\ToolBuilder.exe --layout-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\layout
 ```
 验证在独立目录副本中进行，覆盖真实装机清单、独立阀门与DI、拖动/方向键、管路参数、装机增删改名、多药液模块、保存加载、另存为、外部冲突、旧版布局迁移及真实 WPF 截图；不会修改输入 machine.xml。
 
@@ -59,7 +60,7 @@
 
 ## 启动与选择文件
 
-双击 `Start-ToolBuilder.cmd` 或 `app-v12\ToolBuilder.exe`。需要 Windows 和 .NET 10 Desktop Runtime；开发构建需要 .NET 10 SDK。以下命令从仓库的 tools/ToolBuilder 目录执行。
+双击 `Start-ToolBuilder.cmd` 或 `app-v13\ToolBuilder.exe`。需要 Windows 和 .NET 10 Desktop Runtime；开发构建需要 .NET 10 SDK。以下命令从仓库的 tools/ToolBuilder 目录执行。
 
 1. 点击「打开 machine.xml…」，选择任意位置的 `machine.xml`。该文件所在目录就是配置目录。
 2. 未记录元件来源或记录已失效时，自动查找 machine.xml 同目录、上级部署目录、所属源码项目的最新编译输出，以及当前框架后端宿主的依赖目录；有效的手动来源优先保留。找不到时，点击顶部或添加元件窗口里的「元件来源…」，在弹出的窗口选择目录或 DLL，可以添加多个来源。目录读取本层 DLL 和 `Modules` 下的 DLL；选 DLL 时，其同目录 DLL 用于解析依赖。源码目录必须先编译成 DLL。
@@ -117,7 +118,7 @@ machine.xml 装配参数通常需要重启后端生效；运行中可调的 EC �
 
 ## 构建与验证
 
-执行 `build.ps1` 发布到 `app-v12`。开发机需要 .NET 10 SDK；发布为依赖运行时的版本。
+执行 `build.ps1` 发布到 `app-v13`。开发机需要 .NET 10 SDK；发布为依赖运行时的版本。
 
 核心功能验证：
 
@@ -128,9 +129,9 @@ dotnet run --project .\ToolBuilder.Smoke -c Release -- ..\..\xyz.35021\Service\x
 界面验证与截图（输入 machine.xml 只读，记录也不持久化）：
 
 ```powershell
-.\app-v12\ToolBuilder.exe --preview ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\preview.png ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
+.\app-v13\ToolBuilder.exe --preview ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\preview.png ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
 ```
 
 成功日志包括元件数量、上下文页面切换、元件选择窗口、Robot1 下新元件创建和保存重读验证；生成参数页、Robot1 自身参数页、示教点参数页（.teach-point.png）、配方字段页和数据源窗口、添加元件及添加分组窗口截图。核心验证使用专属临时目录进行读写，覆盖备份、外部修改冲突和现有配置往返验证，不修改输入 machine.xml。
 
-当前启动脚本指向 app-v12，发布目录为本机生成，不纳入版本库。新测试：app-v12\ToolBuilder.exe --config-test <machine.xml> <输出目录>，覆盖根节点真实添加入口、自动发现元件、布尔下拉写入与保存重读。
+当前启动脚本指向 app-v13，发布目录为本机生成，不纳入版本库。新测试：app-v13\ToolBuilder.exe --config-test <machine.xml> <输出目录>，覆盖根节点真实添加入口、自动发现元件、布尔下拉写入与保存重读。

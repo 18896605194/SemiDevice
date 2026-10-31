@@ -26,18 +26,26 @@ public class RobotState : ModuleState
     public const int Mapping = 230;
 }
 
-public enum RobotAction
+/// <summary>
+/// 机械手的动作名（状态表、动作入口按它查）；公共动作继承自 <see cref="ModuleAction"/>
+/// </summary>
+public class RobotAction : ModuleAction
 {
-    Home,
-    Reset,
-    Abort,
-    Pick,
-    Place,
-    PowerOn,
-    PowerOff,
-    ExtendPick,
-    RetractPick,
-    ExtendPlace,
-    RetractPlace,
-    Map
+    public const string Pick = "Pick";
+
+    public const string Place = "Place";
+
+    public const string PowerOn = "PowerOn";
+
+    public const string PowerOff = "PowerOff";
+
+    public const string ExtendPick = "ExtendPick";
+
+    public const string RetractPick = "RetractPick";
+
+    public const string ExtendPlace = "ExtendPlace";
+
+    public const string RetractPlace = "RetractPlace";
+
+    public const string Map = "Map";
 }

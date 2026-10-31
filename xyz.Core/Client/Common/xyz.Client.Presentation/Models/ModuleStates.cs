@@ -12,6 +12,19 @@ namespace xyz.Client.Presentation.Models;
 public static class ModuleStates
 {
     /// <summary>
+    /// 挂上来的机型状态码表：平台认不出的码挨个问它们
+    /// </summary>
+    private static readonly List<IMachineModuleStates> Machines = [];
+
+    /// <summary>
+    /// 挂上一个机型自己的状态码表（机型客户端模块注册时调）
+    /// </summary>
+    public static void AddMachine(IMachineModuleStates machine)
+    {
+        Machines.Add(machine);
+    }
+
+    /// <summary>
     /// 按模块种类查状态字（顶栏模块行这类各种模块混在一起显示的地方用）
     /// </summary>
     public static string TextOf(StationKind kind, int state)
@@ -27,7 +40,7 @@ public static class ModuleStates
             case StationKind.Aligner:
                 return AlignerText(state);
             default:
-                return OtherText(state);
+                return OtherText(kind, state);
         }
     }
 
@@ -47,7 +60,7 @@ public static class ModuleStates
             case StationKind.Aligner:
                 return AlignerTone(state);
             default:
-                return OtherTone(state);
+                return OtherTone(kind, state);
         }
     }
 
@@ -73,7 +86,7 @@ public static class ModuleStates
             case 160:
                 return L10n.Get("module.state.mapping");
             default:
-                return CommonText(state);
+                return CommonText(StationKind.LoadPort, state);
         }
     }
 
@@ -91,7 +104,7 @@ public static class ModuleStates
             case 160:
                 return ModuleStateTone.Busy;
             default:
-                return CommonTone(state);
+                return CommonTone(StationKind.LoadPort, state);
         }
     }
 
@@ -109,7 +122,7 @@ public static class ModuleStates
             case 120:
                 return L10n.Get("module.state.manual");
             default:
-                return CommonText(state);
+                return CommonText(StationKind.Chamber, state);
         }
     }
 
@@ -122,7 +135,7 @@ public static class ModuleStates
             case 120:
                 return ModuleStateTone.Busy;
             default:
-                return CommonTone(state);
+                return CommonTone(StationKind.Chamber, state);
         }
     }
 
@@ -147,7 +160,7 @@ public static class ModuleStates
             case 230:
                 return L10n.Get("module.state.mapping");
             default:
-                return CommonText(state);
+                return CommonText(StationKind.Robot, state);
         }
     }
 
@@ -164,7 +177,7 @@ public static class ModuleStates
             case 230:
                 return ModuleStateTone.Busy;
             default:
-                return CommonTone(state);
+                return CommonTone(StationKind.Robot, state);
         }
     }
 
@@ -185,7 +198,7 @@ public static class ModuleStates
             case 120:
                 return L10n.Get("module.state.returning");
             default:
-                return CommonText(state);
+                return CommonText(StationKind.Other, state);
         }
     }
 
@@ -202,7 +215,7 @@ public static class ModuleStates
             case 120:
                 return ModuleStateTone.Busy;
             default:
-                return CommonTone(state);
+                return CommonTone(StationKind.Other, state);
         }
     }
 
@@ -226,7 +239,7 @@ public static class ModuleStates
             case 110:
                 return L10n.Get("module.state.aligning");
             default:
-                return CommonText(state);
+                return CommonText(StationKind.Aligner, state);
         }
     }
 
@@ -238,27 +251,28 @@ public static class ModuleStates
             case 110:
                 return ModuleStateTone.Busy;
             default:
-                return CommonTone(state);
+                return CommonTone(StationKind.Aligner, state);
         }
     }
 
     /// <summary>
-    /// 其他模块（Buffer、供液这类）：只认通用状态和传片环。
+    /// 其他模块（Buffer、供液这类）：只认通用状态和传片环，剩下的交给机型
     /// </summary>
-    public static string OtherText(int state)
+    public static string OtherText(StationKind kind, int state)
     {
-        return CommonText(state);
+        return CommonText(kind, state);
     }
 
-    public static ModuleStateTone OtherTone(int state)
+    public static ModuleStateTone OtherTone(StationKind kind, int state)
     {
-        return CommonTone(state);
+        return CommonTone(kind, state);
     }
 
     /// <summary>
     /// 各模块共用的码：初始化、空闲、中止、报错，以及传片环（搬运前、待搬运、搬运中、搬运完成）。
+    /// 平台这几个都不是，再问机型自己加的码
     /// </summary>
-    private static string CommonText(int state)
+    private static string CommonText(StationKind kind, int state)
     {
         switch (state)
         {
@@ -281,11 +295,22 @@ public static class ModuleStates
             case 80:
                 return L10n.Get("module.state.transfer_complete");
             default:
-                return L10n.Get("module.state.unknown", state);
+                break;
         }
+
+        foreach (var machine in Machines)
+        {
+            string? text = machine.TextOf(kind, state);
+            if (text is not null)
+            {
+                return text;
+            }
+        }
+
+        return L10n.Get("module.state.unknown", state);
     }
 
-    private static ModuleStateTone CommonTone(int state)
+    private static ModuleStateTone CommonTone(StationKind kind, int state)
     {
         switch (state)
         {
@@ -302,7 +327,18 @@ public static class ModuleStates
             case 80:
                 return ModuleStateTone.Busy;
             default:
-                return ModuleStateTone.Inactive;
+                break;
         }
+
+        foreach (var machine in Machines)
+        {
+            var tone = machine.ToneOf(kind, state);
+            if (tone is not null)
+            {
+                return tone.Value;
+            }
+        }
+
+        return ModuleStateTone.Inactive;
     }
 }

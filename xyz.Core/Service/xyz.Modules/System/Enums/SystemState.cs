@@ -19,13 +19,18 @@ public class SystemState : ModuleState
 }
 
 /// <summary>
-/// 整机动作。整机停止叫 Abort（界面上是 Stop）：模块基类只认这个名字能顶替在途动作（停得下初始化、回片）。
+/// 整机的动作名。整机不是模块，没有回零、复位，所以不继承 <see cref="ModuleAction"/>；
+/// 整机停止叫 Abort（界面上是 Stop）：模块基类只认这个名字能顶替在途动作（停得下初始化、回片）。
 /// </summary>
-public enum SystemAction
+public class SystemAction
 {
-    Init,
-    Auto,
-    Manual,
-    ReturnAll,
-    Abort,
+    public const string Init = "Init";
+
+    public const string Auto = "Auto";
+
+    public const string Manual = "Manual";
+
+    public const string ReturnAll = "ReturnAll";
+
+    public const string Abort = ModuleAction.Abort;
 }

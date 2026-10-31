@@ -11,7 +11,7 @@ namespace xyz._35021.Module.Drivers.Fcd.Rfid;
 [Element(description: "富创得 RFID 读头（RFT-200S），下面挂一个 Driver 通道")]
 public class FcdRfidReader : RfidReaderElement<FcdReadCarrierIdCommand>
 {
-    protected override IFrameCodec CreateCodec()
+    public override IFrameCodec CreateCodec()
     {
         return new FcdRfidCodec();
     }

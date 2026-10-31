@@ -11,12 +11,9 @@ public class AlignerState : TransferModuleState
 }
 
 /// <summary>
-/// 对准器的动作
+/// 对准器的动作名（状态表、动作入口按它查）；公共动作继承自 <see cref="ModuleAction"/>
 /// </summary>
-public enum AlignerAction
+public class AlignerAction : ModuleAction
 {
-    Home,
-    Align,
-    Reset,
-    Abort,
+    public const string Align = "Align";
 }

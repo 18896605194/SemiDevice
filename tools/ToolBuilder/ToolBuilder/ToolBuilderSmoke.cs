@@ -84,6 +84,7 @@ internal static partial class ToolBuilderSmoke
         Check(File.Exists(layoutPath) && CdsLayout.Parse(File.ReadAllText(layoutPath)).Nodes.Count == 18 && CdsLayout.Parse(File.ReadAllText(layoutPath)).Pipes[0].Diameter == 20,
             "顶部统一保存machine.xml和包含独立组件的Version2布局");
         Check(!vm.HasLayoutChanges && !vm.Title.EndsWith("*"), "统一保存清除未保存标记");
+        await HistoryChecks(vm, session, machine, Check, Pump, name => Screenshot(name));
         string diagramPath = Path.ChangeExtension(layoutPath, ".xaml");
         Check(File.Exists(diagramPath) && CdsDiagramXaml.ReadLayout(File.ReadAllText(diagramPath)).Nodes.Count == 18, "顶部统一保存同时写入CDS显示XAML");
         byte[] originalDiagram = File.ReadAllBytes(diagramPath), originalMachine = File.ReadAllBytes(machine), originalLayout = File.ReadAllBytes(layoutPath);
@@ -111,6 +112,7 @@ internal static partial class ToolBuilderSmoke
         var leakXml = new XElement("Setting", new XAttribute("Name", "LeakTray"), new XAttribute("Type", "xyz.Elements.Elements.DiSensorElement"));
         var leakNode = new NodeModel(leakXml, module); module.Element.Add(leakXml); module.Children.Add(leakNode); await Pump();
         Check(model.SensorCount == 11 && model.Components.Any(n => n.Component == "LeakTray" && n.Kind == "Sensor"), "未保存的独立漏液DI立即生成普通信号灯");
+        Check(!model.UndoCommand.CanExecute(null) && !model.RedoCommand.CanExecute(null), "装机新增DI后旧布局历史失效，不能撤销掉实际装机组件");
         var leak = model.Components.Single(n => n.Component == "LeakTray"); model.Select(leak.Id); model.SensorOnCommand.Execute(null);
         Check(model.FindSensor("LeakTray")?.IsActive == true, "独立漏液DI使用与HH、LL相同的触发模拟");
         Check(editor.Scene.Overlay.Children.OfType<Viewbox>().Select(v => v.Child).OfType<xyz.Client.Presentation.Controls.SignalLamp>().Any(l => l.Text == "LeakTray" && l.IsActive == true),
@@ -134,6 +136,10 @@ internal static partial class ToolBuilderSmoke
         vm.SelectNode(clone); await Pump(); var other = vm.CurrentCdsLayout!;
         Check(!ReferenceEquals(other.Editor, editor) && other.Editor.ViewModel.Snapshot.ComponentRoot == "CDS.DIW", "不同药液模块具有独立编辑会话");
         other.Editor.ViewModel.Select(other.Editor.ViewModel.Components.First(n => n.Kind == "Tank").Id); other.Editor.ViewModel.PositionX += 50;
+        string otherLayout = other.Editor.ViewModel.Layout.ToXml(); other.Editor.ViewModel.UndoCommand.Execute(null);
+        Check(other.Editor.ViewModel.Layout.ToXml() != otherLayout && !model.UndoCommand.CanExecute(null), "另一个药液模块撤销时不会操作原模块布局");
+        other.Editor.ViewModel.RedoCommand.Execute(null);
+        Check(other.Editor.ViewModel.Layout.ToXml() == otherLayout, "各药液模块分别保留自己的重做历史");
         vm.SelectNode(module); await Pump();
         Check(ReferenceEquals(vm.CurrentCdsLayout, session) && model.Layout.Nodes.Single(n => n.Id == id).X == placedX, "切换药液模块保留各自位置，不互相覆盖");
         // 保存两份会话，验证统一保存能同时处理多个模块。

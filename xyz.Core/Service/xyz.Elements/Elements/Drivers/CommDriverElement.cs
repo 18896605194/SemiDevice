@@ -37,6 +37,22 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
         set { SetEcInt(nameof(ReconnectMaxCount), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "3000", description: "设备状态查询超时")]
+    public int QueryDataTimeOut
+    {
+        get { return GetEcInt(nameof(QueryDataTimeOut)); }
+        set { SetEcInt(nameof(QueryDataTimeOut), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "1000", description: "设备状态查询周期")]
+    public int QueryStatusIntervalMs
+    {
+        get { return GetEcInt(nameof(QueryStatusIntervalMs)); }
+        set { SetEcInt(nameof(QueryStatusIntervalMs), value); }
+    }
+
     #endregion
 
     #region Alarm
@@ -54,6 +70,21 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
     private readonly DriverReconnector _reconnector = new();
     private IFrameCodec? _codec;
     private DeviceDriver? _driver;
+
+    /// <summary>
+    /// 挂它的那个元件（模块或读头），开机 Attach 时交过来
+    /// </summary>
+    private ICommOwner? _owner;
+
+    /// <summary>
+    /// 挂它的元件要轮询的话就是它，不轮询的（读头）是 null
+    /// </summary>
+    private ICommModule? _module;
+
+    /// <summary>
+    /// 状态轮询的节奏，头一次轮询时建
+    /// </summary>
+    private StatusQueryLoop? _queries;
 
     public bool IsConnected
     {
@@ -89,17 +120,36 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
     }
 
     /// <summary>
-    /// 用哪家的解码器：所属设备开机时交给它（在打开之前）；已经打开了就不能再换成别的
+    /// 挂它的元件开机时调（在打开之前，可重入）：拿它的解码器；它要轮询的话，通道以后照它查、把主动上报转给它
     /// </summary>
-    public void UseCodec(IFrameCodec codec)
+    public void Attach(ICommOwner owner)
     {
-        ArgumentNullException.ThrowIfNull(codec);
-        if (_driver is not null && !ReferenceEquals(_codec, codec))
+        ArgumentNullException.ThrowIfNull(owner);
+        if (_owner is not null && !ReferenceEquals(_owner, owner))
         {
-            throw new InvalidOperationException($"{FullPath} 已经按别的解码器打开过，不能再换。");
+            throw new InvalidOperationException($"{FullPath} 已经交给 {_owner.GetType().Name} 用了，一条通道只能挂一个主。");
         }
 
-        _codec = codec;
+        // 解码器只要一次：开机可重入，重入时不另建，免得跟已经打开的连接对不上
+        if (_codec is null)
+        {
+            var codec = owner.CreateCodec();
+            ArgumentNullException.ThrowIfNull(codec);
+            _codec = codec;
+        }
+
+        _owner = owner;
+
+        // 要轮询、要收主动上报的才挂；读头这种只要解码器的不挂。先摘后挂：开机可重入，只挂一份
+        var module = owner as ICommModule;
+        if (module is null)
+        {
+            return;
+        }
+
+        Reported -= module.OnReport;
+        Reported += module.OnReport;
+        _module = module;
     }
 
     /// <summary>
@@ -119,7 +169,7 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
             var codec = _codec;
             if (codec is null)
             {
-                throw new InvalidOperationException($"{FullPath} 没有解码器：挂它的设备要在开机时交给它（UseCodec）。");
+                throw new InvalidOperationException($"{FullPath} 没有解码器：挂它的设备要在开机时把自己交给它（Attach）。");
             }
 
             driver = new DeviceDriver(CreateCommunication(codec), codec as IFrameLink, this);
@@ -142,7 +192,7 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
     }
 
     /// <summary>
-    /// 扫描（所属设备的扫描线程带着跑）：断了按间隔在后台重连——先关（作废旧连接上的在途指令）再开；重连满 EC 次数还连不上就停下、报警。
+    /// 扫描（所属设备的扫描线程带着跑，排在所属设备自己这一拍之前）：先断线重连，再替挂它的模块轮询一拍状态。
     /// 没启用的没建通道，什么都不做
     /// </summary>
     protected override void OnScan()
@@ -152,6 +202,7 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
             return;
         }
 
+        // 断了按间隔在后台重连——先关（作废旧连接上的在途指令）再开；重连满 EC 次数还连不上就停下、报警
         bool gaveUp = _reconnector.Check(this, _driver.IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
         {
             _driver.Close();
@@ -160,6 +211,34 @@ public abstract class CommDriverElement : ElementBase, ICommDriver
         if (gaveUp)
         {
             RaiseAlarm(ReconnectFailedAlarm);
+        }
+
+        LoopQueryStatus();
+    }
+
+    /// <summary>
+    /// 状态轮询这一拍：一圈查什么、查到写哪由挂它的模块给，这里只管节奏和出事时通知它清状态
+    /// </summary>
+    private void LoopQueryStatus()
+    {
+        var module = _module;
+        if (module is null)
+        {
+            return;
+        }
+
+        _queries ??= new StatusQueryLoop(this);
+        var happened = _queries.Scan(this, module.QueryDataLoop, QueryStatusIntervalMs, QueryDataTimeOut);
+        if (happened == StatusQueryEvent.TimedOut)
+        {
+            module.ClearQueriedStatus();
+            return;
+        }
+
+        if (happened == StatusQueryEvent.Disconnected)
+        {
+            module.ClearQueriedStatus();
+            module.OnDisconnected();
         }
     }
 

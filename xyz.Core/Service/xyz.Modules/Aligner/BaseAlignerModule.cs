@@ -6,6 +6,7 @@ using xyz.Elements.Enums;
 using xyz.Elements.Interfaces;
 using xyz.Elements.Models;
 using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
@@ -17,7 +18,7 @@ namespace xyz.Modules;
 /// <summary>
 /// 对准器模块基类：一个槽，片放上来自己对准，对好了才让机械手取走
 /// </summary>
-public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
+public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner, ICommOwner, ICommModule
 {
     #region SV
 
@@ -91,11 +92,6 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// </summary>
     public ICommDriver? _driver { get; private set; }
 
-    /// <summary>
-    /// 这台对准器的解码器：开机时建一次交给通道
-    /// </summary>
-    private IFrameCodec? _codec;
-
     private ILedgerManager? _ledger;
 
     /// <summary>
@@ -120,7 +116,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
     protected BaseAlignerModule()
     {
-        RegisterTransitions(AlignerStateTable.ToModuleTable());
+        RegisterTransitions(AlignerStateTable.Transitions);
     }
 
     #region 元件初始化
@@ -141,10 +137,8 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
             throw new InvalidOperationException($"对准器 {Name} 的 machine.xml 节点下没有启用的设备通道（串口 SerialDriverElement 或网口 TcpDriverElement，IsEnable=True）。");
         }
 
-        _codec ??= CreateCodec();
-        driver.UseCodec(_codec);
-        driver.Reported -= OnReport;
-        driver.Reported += OnReport;
+        // 通道打开之前把自己交给它（解码器、轮询、主动上报都从这儿接上）；要在 base.InitElement() 之前，通道是在它自己的初始化里连的
+        driver.Attach(this);
         _driver = driver;
         _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLocation(Name, SlotCount);
@@ -366,14 +360,36 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     protected abstract void AddAbortSteps(ModuleRoutine abort);
 
     /// <summary>
-    /// 这台对准器的解码器（拆帧、解报文），开机时交给通道
+    /// 这台对准器的解码器（拆帧、解报文），通道开机前跟它要
     /// </summary>
-    protected abstract IFrameCodec CreateCodec();
+    public abstract IFrameCodec CreateCodec();
 
     /// <summary>
     /// 设备主动上报（没有在途指令认的报文，在通道的解析线程上调）；默认不管
     /// </summary>
-    protected virtual void OnReport(object message)
+    public virtual void OnReport(object message)
+    {
+    }
+
+    /// <summary>
+    /// 一圈查什么：对准器暂时不查状态（动作做完就知道结果），接真机要查的话在项目的对准器类里重写
+    /// </summary>
+    public virtual IEnumerable<DeviceCommand> QueryDataLoop()
+    {
+        yield break;
+    }
+
+    /// <summary>
+    /// 没连上、查询超时要清的状态：不查就没有，空着
+    /// </summary>
+    public virtual void ClearQueriedStatus()
+    {
+    }
+
+    /// <summary>
+    /// 连接刚断（断开那一拍调一次，扫描线程）：跟着连接走的东西在这里清掉，连上以后重来
+    /// </summary>
+    public virtual void OnDisconnected()
     {
     }
 
@@ -433,21 +449,14 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     {
         RaiseActionFailedAlarm(routine);
 
-        // 是不是平台自己建的那个动作；机型拿自己的动作枚举发起的动作对不上，收尾由机型重写这个方法做（先调 base）
-        bool platform = CurrentAction is AlignerAction;
-
         if (!routine.IsSuccess)
         {
             _driver?.AbandonAll("Abandoned");
             return;
         }
 
-        if (!platform)
-        {
-            return;
-        }
-
-        if (CurrentAction is AlignerAction.Home or AlignerAction.Align)
+        // 机型自己加的动作名这里对不上，收尾由机型重写这个方法做（先调 base）
+        if (CurrentAction == AlignerAction.Home || CurrentAction == AlignerAction.Align)
         {
             _alignedWafer = _aligningWafer;
         }

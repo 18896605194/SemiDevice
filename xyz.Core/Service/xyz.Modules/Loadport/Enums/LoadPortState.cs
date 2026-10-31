@@ -20,15 +20,19 @@ public class LoadPortState : TransferModuleState
     public const int Mapping = 160;
 }
 
-public enum LoadPortAction
+/// <summary>
+/// LoadPort 的动作名（状态表、动作入口按它查）；公共动作继承自 <see cref="ModuleAction"/>
+/// </summary>
+public class LoadPortAction : ModuleAction
 {
-    Load,
-    Unload,
-    Home,
-    Reset,
-    Abort,
-    Clamp,
-    Unclamp,
-    Map
+    public const string Load = "Load";
+
+    public const string Unload = "Unload";
+
+    public const string Clamp = "Clamp";
+
+    public const string Unclamp = "Unclamp";
+
+    public const string Map = "Map";
 }
 
