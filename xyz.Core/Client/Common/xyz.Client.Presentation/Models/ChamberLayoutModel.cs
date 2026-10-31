@@ -12,6 +12,13 @@ public sealed class ChamberLayoutModel
     public string ChamberType { get; init; } = string.Empty;
     public List<ChamberPartLayout> Parts { get; } = [];
 
+    public string ToXml() => new XElement("ChamberLayout", new XAttribute("Version", "3"), new XAttribute("Units", "Logical"),
+        new XAttribute("ComponentRoot", ComponentRoot), new XAttribute("ChamberType", ChamberType), Parts.Select(p => new XElement(p.Kind,
+            new XAttribute("Id", p.Id), new XAttribute("Component", p.Component), new XAttribute("ParentId", p.ParentId),
+            new XAttribute("X", p.X), new XAttribute("Y", p.Y), new XAttribute("Z", p.Z), new XAttribute("Yaw", p.Yaw),
+            new XAttribute("HomeAngle", p.HomeAngle), new XAttribute("AutoLength", p.AutoLength),
+            p.Sizes.Select(s => new XElement("Size", new XAttribute("Key", s.Key), new XAttribute("Value", s.Value)))))).ToString();
+
     public static ChamberLayoutModel Parse(string xml)
     {
         using var reader = XmlReader.Create(new StringReader(xml), new XmlReaderSettings

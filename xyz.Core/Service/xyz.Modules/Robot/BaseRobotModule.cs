@@ -740,17 +740,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 检查都过了，挂上设备动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态。
     /// </summary>
-    private HandleResult<ModuleRoutine> Started(RobotAction action, ModuleRoutine routine)
-    {
-        var started = Begin(action, routine);
-        if (started is null)
-        {
-            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
-        }
-
-        return HandleResult<ModuleRoutine>.Success(started);
-    }
-
     #region Home
 
     /// <summary>
@@ -766,7 +755,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(rejected);
             }
 
-            return Started(RobotAction.Home, CreateHomeRoutine());
+            return Begin(RobotAction.Home, CreateHomeRoutine());
         }
     }
 
@@ -1023,7 +1012,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
 
         transfer.Do("记账", () => CommitTransferLedger(intent) ?? HandleResult.Success());
-        var started = Started(action, transfer);
+        var started = Begin(action, transfer);
         if (started.IsSuccess)
         {
             _currentTeachPoint = config;
@@ -1205,7 +1194,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return Rejected(HandleResult.Fail(ErrorCodes.RobotHandoffUnsupported, Name));
         }
 
-        var started = Started(action, extend);
+        var started = Begin(action, extend);
         if (started.IsSuccess)
         {
             _currentTeachPoint = config;
@@ -1328,7 +1317,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 _mapResults.Remove(station);
             }
 
-            var started = Started(RobotAction.Map, map);
+            var started = Begin(RobotAction.Map, map);
             if (started.IsSuccess)
             {
                 _currentTeachPoint = config;
@@ -1413,7 +1402,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
             var powerOn = new ModuleRoutine(this, "PowerOn", _driver, () => PowerTimeout);
             AddPowerOnSteps(powerOn);
-            return Started(RobotAction.PowerOn, powerOn);
+            return Begin(RobotAction.PowerOn, powerOn);
         }
     }
 
@@ -1429,7 +1418,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
             var powerOff = new ModuleRoutine(this, "PowerOff", _driver, () => PowerTimeout);
             AddPowerOffSteps(powerOff);
-            return Started(RobotAction.PowerOff, powerOff);
+            return Begin(RobotAction.PowerOff, powerOff);
         }
     }
 
@@ -1463,7 +1452,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
             var reset = new ModuleRoutine(this, "Reset", _driver, () => ResetTimeout);
             AddResetSteps(reset);
-            return Started(RobotAction.Reset, reset);
+            return Begin(RobotAction.Reset, reset);
         }
     }
 
@@ -1483,7 +1472,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
             var abort = new ModuleRoutine(this, "Abort", _driver, () => AbortTimeout);
             AddAbortSteps(abort);
-            return Started(RobotAction.Abort, abort);
+            return Begin(RobotAction.Abort, abort);
         }
     }
 

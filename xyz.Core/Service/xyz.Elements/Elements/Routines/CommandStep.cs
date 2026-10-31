@@ -47,7 +47,7 @@ internal sealed class CommandStep : RoutineStep
         }
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
         var command = _create();
         if (_driver is null || !_driver.Send(command))

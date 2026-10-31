@@ -62,7 +62,7 @@ Check(!grouped.Threads.Keys.Intersect(running.Threads.Keys).Any(), "separate roo
 Parallel.For(0, 20, _ =>
 {
     ElementLoader.StartScanning(roots);
-    running.Start();
+    running.StartScan();
 });
 Thread.Sleep(200);
 Check(running.Threads.Count == 1 && grouped.Threads.Count == 1 && child.Threads.Count == 1,
@@ -76,7 +76,7 @@ Check(scansInOneSecond >= 55, $"roots scan about every 10 ms: {scansInOneSecond}
 
 // 退出（2026-10-27）：StopAll 先停根元件的扫描、等手上这一拍扫完，再倒着收尾；收尾的时候扫描已经停了，之后也不再扫
 var slow = new SlowScanProbe();
-slow.Start();
+slow.StartScan();
 Check(SpinWait.SpinUntil(() => slow.InScan, 3000), "a slow root is in the middle of a scan");
 ElementLoader.StopAll([.. roots, slow]);
 Check(!slow.InScan, "StopAll waits for the scan in progress to finish");
@@ -88,7 +88,7 @@ Check(new ScanProbe[] { running, child, sharedChild, grouped, slow }.All(probe =
 
 // 在自己的扫描里停自己：不等自己（等就卡住了），这一拍扫完循环自己出来
 var selfStop = new SelfStoppingScanProbe();
-selfStop.Start();
+selfStop.StartScan();
 Check(SpinWait.SpinUntil(() => selfStop.Returned, 1000), "a root stopping its own scan from inside a scan returns at once");
 Thread.Sleep(100);
 Check(selfStop.Count == 1, "after stopping itself the root scans no more");

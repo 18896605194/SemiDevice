@@ -5,6 +5,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using xyz.Client.Presentation.Controls;
 using xyz.Tools;
+using Microsoft.Win32;
+using System.IO;
+using xyz.Client.Presentation.Localization;
 
 namespace CdsAssemblyPreview;
 
@@ -19,6 +22,7 @@ public partial class PreviewPage : UserControl
         InitializeComponent();
         DataContext = IocHelper.GetRequiredService<PreviewViewModel>();
         var model = (PreviewViewModel)DataContext;
+        model.LayoutChanged += RefreshXamlPreview;
         model.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(PreviewViewModel.Selected) && model.Selected is { } node)
@@ -43,6 +47,49 @@ public partial class PreviewPage : UserControl
         if (Keyboard.FocusedElement is InputTextBox input && IsAncestorOf(input) && !input.Commit()) throw new System.IO.InvalidDataException(xyz.Client.Presentation.Localization.L10n.Get("cdsp.parameters.invalid"));
         return ViewModel.PrepareSave();
     }
+    public string PrepareXamlExport() => CdsDiagramXaml.Export(CdsLayout.Parse(PrepareSave()));
+    public void ShowXaml(bool show)
+    {
+        PrepareSave(); Scene.PointerUp();
+        XamlPreview.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        Scene.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        if (show) RefreshXamlPreview();
+    }
+    public void OpenXaml(string xaml)
+    {
+        PrepareSave();
+        var layout = CdsDiagramXaml.ReadLayout(xaml);
+        if (layout.ComponentRoot != ViewModel.Snapshot.ComponentRoot) throw new InvalidDataException(L10n.Get("cdsp.source.wrong_module"));
+        Scene.PointerUp(); ViewModel.ApplyLayout(layout); RefreshXamlPreview();
+    }
+    public async Task ExportXamlAsync(string path)
+    {
+        if (!string.Equals(Path.GetExtension(path), ".xaml", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException(L10n.Get("cdsp.source.filter"));
+        string xaml = PrepareXamlExport(), temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try { await File.WriteAllTextAsync(temporary, xaml); File.Move(temporary, path, true); }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+    private void RefreshXamlPreview()
+    {
+        if (XamlPreview.Visibility != Visibility.Visible) return;
+        try { XamlPreview.Text = CdsDiagramXaml.Export(ViewModel.Layout); }
+        catch (Exception ex) { XamlPreview.Text = ex.Message; }
+    }
+    private void OnShowCanvas(object sender, RoutedEventArgs e) { try { ShowXaml(false); } catch (Exception ex) { ShowXamlError(ex); } }
+    private void OnShowXaml(object sender, RoutedEventArgs e) { try { ShowXaml(true); } catch (Exception ex) { ShowXamlError(ex); } }
+    private async void OnOpenXaml(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = L10n.Get("cdsp.source.filter") };
+        if (dialog.ShowDialog() != true) return;
+        try { OpenXaml(await File.ReadAllTextAsync(dialog.FileName)); } catch (Exception ex) { ShowXamlError(ex); }
+    }
+    private async void OnExportXaml(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog { Filter = L10n.Get("cdsp.source.filter"), DefaultExt = ".xaml", AddExtension = true, FileName = ViewModel.Snapshot.ComponentRoot + ".xaml" };
+        if (dialog.ShowDialog() != true) return;
+        try { await ExportXamlAsync(dialog.FileName); } catch (Exception ex) { ShowXamlError(ex); }
+    }
+    private void ShowXamlError(Exception ex) => MessageBox.Show(Window.GetWindow(this), ex.Message, L10n.Get("cdsp.title"), MessageBoxButton.OK, MessageBoxImage.Error);
     public void PauseAnimation() => Visibility = Visibility.Hidden;
     internal static bool CommitEditor(InputTextBox input) => input.Commit() && (input.DataContext is not CdsTextParameter parameter || parameter.Error.Length == 0);
 

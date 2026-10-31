@@ -3,7 +3,7 @@ using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using xyz.Client.Presentation.Controls.ThreeD;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
 /// <summary>与平台硬件共用基类和材质反馈的泵预览。原点在底座中心，Y向上。</summary>
 public sealed class PumpPreviewVisual3D : HardwareVisual3D

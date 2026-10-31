@@ -14,7 +14,7 @@ internal sealed class DoStep : RoutineStep
         _run = run;
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
         var result = _run();
         if (!result.IsSuccess)

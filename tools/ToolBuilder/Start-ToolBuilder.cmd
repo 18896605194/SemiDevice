@@ -1,2 +1,2 @@
 @echo off
-start "ToolBuilder" "%~dp0app-v8\ToolBuilder.exe" %*
+start "ToolBuilder" "%~dp0app-v12\ToolBuilder.exe" %*

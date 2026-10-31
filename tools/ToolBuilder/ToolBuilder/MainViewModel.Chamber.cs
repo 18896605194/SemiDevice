@@ -6,6 +6,7 @@ using System.Xml.Linq;
 using ChamberLayoutEditor;
 using ToolBuilder.Core;
 using xyz.Client.Presentation.Controls.ThreeD;
+using xyz.Client.Presentation.Models;
 
 namespace ToolBuilder;
 
@@ -48,7 +49,7 @@ public sealed partial class MainViewModel
     {
         var files = new Dictionary<string, FileWrite>(StringComparer.OrdinalIgnoreCase);
         string folder = Path.GetDirectoryName(ChamberLayoutPath(machinePath, "placeholder"))!;
-        if (Directory.Exists(folder)) foreach (string path in Directory.EnumerateFiles(folder, "*.xml"))
+        if (Directory.Exists(folder)) foreach (string path in Directory.EnumerateFiles(folder).Where(p => Path.GetExtension(p) is ".xml" or ".xaml"))
         {
             byte[] bytes = File.ReadAllBytes(path); files[path] = new(path, bytes, SHA256.HashData(bytes));
         }
@@ -172,11 +173,11 @@ public sealed partial class MainViewModel
             catch (Exception ex) { Issues.Add(new("错误", record.Root, ex.Message)); }
         }
     }
-    private List<(ChamberRecord Record, FileWrite Write)> PrepareChamberWrites(string target)
+    private List<(ChamberRecord Record, FileWrite Write, FileWrite DiagramWrite)> PrepareChamberWrites(string target)
     {
         RefreshChamberLayouts(); CaptureChamberLayouts();
         if (ChamberLayoutError.Length > 0) throw new InvalidDataException(ChamberLayoutError);
-        var writes = new List<(ChamberRecord, FileWrite)>();
+        var writes = new List<(ChamberRecord, FileWrite, FileWrite)>();
         foreach (var record in _chamberLayouts.Values)
         {
             if (!record.Node.Ancestors().Contains(_document!.Xml.Root!))
@@ -185,8 +186,12 @@ public sealed partial class MainViewModel
                 continue;
             }
             string path = ChamberLayoutPath(target, record.Root);
-            writes.Add((record, new FileWrite(path, Encoding.UTF8.GetBytes(ChamberLayoutDocument.Parse(record.Xml).ToXml()),
-                string.Equals(path, record.Path, StringComparison.OrdinalIgnoreCase) ? record.Fingerprint : null)));
+            string xml = ChamberLayoutDocument.Parse(record.Xml).ToXml();
+            string diagramPath = Path.ChangeExtension(path, ".xaml");
+            writes.Add((record, new FileWrite(path, Encoding.UTF8.GetBytes(xml),
+                string.Equals(path, record.Path, StringComparison.OrdinalIgnoreCase) ? record.Fingerprint : null),
+                new FileWrite(diagramPath, Encoding.UTF8.GetBytes(ChamberDiagramXaml.Export(ChamberLayoutModel.Parse(xml), ChamberEditor.VisualCatalog)),
+                    string.Equals(diagramPath, record.DiagramPath, StringComparison.OrdinalIgnoreCase) ? record.DiagramFingerprint : null)));
         }
         return writes;
     }
@@ -202,12 +207,13 @@ public sealed partial class MainViewModel
             writes.Add(new(destination, original.Content, null));
         }
     }
-    private void AcceptChamberWrites(IEnumerable<(ChamberRecord Record, FileWrite Write)> writes, bool moving, IReadOnlyList<FileWrite> allWrites)
+    private void AcceptChamberWrites(IEnumerable<(ChamberRecord Record, FileWrite Write, FileWrite DiagramWrite)> writes, bool moving, IReadOnlyList<FileWrite> allWrites)
     {
         if (moving) _chamberFiles.Clear();
-        foreach (var (record, write) in writes)
+        foreach (var (record, write, diagram) in writes)
         {
             record.Path = write.Path; record.Fingerprint = SHA256.HashData(write.Content); record.SavedXml = record.Xml;
+            record.DiagramPath = diagram.Path; record.DiagramFingerprint = SHA256.HashData(diagram.Content);
             _chamberFiles[write.Path] = write with { ExpectedHash = record.Fingerprint };
         }
         string folder = Path.GetDirectoryName(ChamberLayoutPath(allWrites[0].Path, "placeholder"))! + Path.DirectorySeparatorChar;
@@ -223,12 +229,16 @@ public sealed partial class MainViewModel
         public string SavedXml { get; set; }
         public string Path { get; set; }
         public byte[]? Fingerprint { get; set; }
+        public string DiagramPath { get; set; }
+        public byte[]? DiagramFingerprint { get; set; }
         public bool Accessed { get; set; }
-        public bool IsDirty => Xml != SavedXml || Accessed && Fingerprint is null;
+        public bool IsDirty => Xml != SavedXml || Accessed && (Fingerprint is null || DiagramFingerprint is null);
         private Dictionary<XElement, string> _bindings;
         public ChamberRecord(XElement node, ChamberLayoutDocument configuration, string path, byte[]? bytes)
         {
             Node = node; Root = configuration.ComponentRoot; Path = path;
+            DiagramPath = System.IO.Path.ChangeExtension(path, ".xaml");
+            DiagramFingerprint = File.Exists(DiagramPath) ? SHA256.HashData(File.ReadAllBytes(DiagramPath)) : null;
             var previous = bytes is null ? configuration : ChamberLayoutDocument.Parse(Encoding.UTF8.GetString(bytes));
             SavedXml = previous.ToXml(); Xml = configuration.WithLayout(previous).ToXml();
             Fingerprint = bytes is null ? null : SHA256.HashData(bytes); _bindings = Bindings();

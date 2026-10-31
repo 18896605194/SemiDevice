@@ -64,7 +64,7 @@ internal sealed class StationGrabStep : RoutineStep
         }
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
     }
 

@@ -1,7 +1,7 @@
 # CDS 组件与管路预览（工具原型）
 
-只改工具代码，未接入正式项目导航，未修改平台、35021 项目或后端协议。编辑源码已通过 `ToolBuilder.CdsLayout` 内部控件库接入 ToolBuilder 的「CDS 布局」Tab；本项目保留独立预览宿主和显示验证入口。
-直接复用平台 `TankVisual3D`、`FluidRouteVisual3D`、`SignalLamp`；当前平台没有独立的阀门显示件，原型的 `ValveSymbol` 暂放工具目录。
+编辑源码通过 `ToolBuilder.CdsLayout` 内部控件库接入 ToolBuilder 的「CDS 布局」Tab；本项目保留独立预览宿主和显示验证入口。已支持与腔体一致的普通 UserControl XAML 查看、打开和导出，见 [CDS XAML 使用说明](CDS-XAML.md)。未修改后台协议或 35021 项目页面。
+直接复用平台 `TankVisual3D`、`FluidRouteVisual3D`、`SignalLamp`。阀门、泵、加热器和其他可复用显示件已移至公共前端 `xyz.Client.Presentation/Controls/Fluid`，命名空间为 `xyz.Client.Presentation.Controls.Fluid`，导出的界面不引用工具程序集。
 
 装机配置决定槽、阀门和液位信号的清单。每个阀门绑定自己的完整组件路径，布局不能增加装机硬件。
 预览启动时管路数为零：阀组不能说明真实管路数量、串并联关系及走向。
@@ -30,7 +30,7 @@ Tank、阀门、Sensor、外部接口和管路均可独立选中，右侧采用�
 所有状态都是工具本地模拟，不连接 PLC/RPC，不构造设备元件，不写 IO。
 
 工具布局采用 Version=2，在旧版槽/管路 XML 的基础上增加独立 `Valve`、`Sensor` 图元及显示参数；旧版 Version=1 布局仍可读取，缺少的装机组件会自动生成默认位置。支持独立 AI、类型适配的硬件图元与正视管口。
-Version=2 已接入 ToolBuilder 的 CDS 编辑页，正式项目运行时尚未接入该布局。
+Version=2 用于 ToolBuilder 继续编辑；同名 XAML 用于项目普通界面和 MVVM 绑定。正式项目 CDS 页面尚未接入，工具未创建新的后台读取接口。
 未来新增组件时，组件清单仍来自装机配置，增加对应显示适配及连接口定义，管路仍由布局描述。
 
 ## 基础硬件控件库
@@ -47,7 +47,7 @@ Version=2 已接入 ToolBuilder 的 CDS 编辑页，正式项目运行时尚未�
 
 点击卡片后在右侧修改读数、显示单位、目标值及正常/运行、停止、故障、未知状态。泵、搅拌器及加热器具有运行动画；隐藏页签后停止动画。未知读数显示“—”，真实零值显示“0”。右侧预览支持拖动、方向键、宽高和旋转调整。数值及范围均为演示数据，修改单位仅改变显示文字。
 
-`Hardware/HardwareVisual.cs` 是工具内独立 WPF 显示控件：
+公共前端 `Controls/Fluid/HardwareVisual.cs` 是独立 WPF 显示控件：
 
 | 属性 | 用途 |
 | --- | --- |
@@ -60,14 +60,14 @@ Version=2 已接入 ToolBuilder 的 CDS 编辑页，正式项目运行时尚未�
 | `IsSelected` | 选中状态；原生 Tank 使用其选中高亮 |
 
 ```xml
-<local:HardwareVisual Kind="FlowMeter"
+<fluid:HardwareVisual Kind="FlowMeter"
     Reading="{Binding Flow}" Unit="L/min" State="{Binding VisualState}" />
-<local:HardwareVisual Kind="InlineHeater"
+<fluid:HardwareVisual Kind="InlineHeater"
     Reading="{Binding Temperature}" Target="{Binding TemperatureTarget}"
     Unit="°C" State="{Binding HeaterVisualState}" />
 ```
 
-槽体复用平台 `TankVisual3D`，开关阀复用工具已有 `ValveSymbol`。离心泵、管路加热器使用继承平台 `HardwareVisual3D` 的工具内三维显示件；漏液直接复用平台 `SignalLamp`，与 HH、LL 的 DI 显示方式相同，未单独绘制漏液硬件。其余外观为工具内原创矢量绘制，缩放后保持清晰。外观不执行开阀、启泵或加热命令；未来接入仍由项目通过现有接口把反馈值绑定到显示属性。新增后端类型时再增加装机到外观的适配，不能凭控件库清单推断已安装硬件。
+槽体复用平台 `TankVisual3D`，开关阀使用公共 `ValveSymbol`。离心泵、管路加热器使用继承 `HardwareVisual3D` 的三维显示件；漏液直接复用平台 `SignalLamp`，与 HH、LL 的 DI 显示方式相同。其余外观为公共控件的矢量绘制。显示件不执行开阀、启泵或加热命令，由项目现有接口把反馈值绑定到依赖属性；不能凭控件库清单推断已安装硬件。
 
 ## 泵与加热器三维预览
 
@@ -77,9 +77,9 @@ Version=2 已接入 ToolBuilder 的 CDS 编辑页，正式项目运行时尚未�
 - 加热器：当前温度、目标温度和输出百分比独立绑定，可模拟加热、停止、故障及未知；加热芯随输出显示热态。
 - 漏液：仅显示 DI 触发、未触发、未知三态，与旁边的 HH、LL 使用同一 `SignalLamp`。触发显示报警红，未知保留 `null`。
 
-工具内 `Hardware/ThreeD/PumpPreviewVisual3D.cs` 提供 `IsRunning`、`Speed`、`ShowInternals` 依赖属性；`HeaterPreviewVisual3D.cs` 提供 `IsHeating`、`PowerFraction`、`Temperature`、`TargetTemperature`、`ShowInternals` 依赖属性。两者复用平台基类的材质、选中及故障属性，由 `ProcessHardwareScene` 承担相机交互和动画生命周期，页面隐藏后停止动画。
+公共前端 `Controls/Fluid/PumpPreviewVisual3D.cs` 提供 `IsRunning`、`Speed`、`ShowInternals` 依赖属性；`HeaterPreviewVisual3D.cs` 提供 `IsHeating`、`PowerFraction`、`Temperature`、`TargetTemperature`、`ShowInternals` 依赖属性。两者复用平台基类的材质、选中及故障属性，由 `ProcessHardwareScene` 承担相机交互和动画生命周期，页面隐藏后停止动画。
 
-启动时增加 `--process-preview` 直接进入该页。所有数据仍为本地演示，既不写装机配置，也不向 CDS 布局增加组件。这些显示件目前仅在工具目录中，尚未接入正式项目。
+启动时增加 `--process-preview` 直接进入该页。所有数据仍为本地演示，既不写装机配置，也不向 CDS 布局增加组件。显示控件可由项目直接引用公共前端程序集。
 
 ## CDS 管路上的 2D 组合预览
 

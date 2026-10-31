@@ -43,7 +43,7 @@ static class StartupDoWrites
         var io = new ConfiguredIo { StartupDo = " do12 = FALSE ; Do13=true;;DO99=true; ", PointTableDirectory = tables };
         io.Load();
         io.InitElement();
-        io.Start();
+        io.StartScan();
 
         // IO 元件开机准备时就取好了 PLC，之后再还原不影响它。
         Thread.Sleep(1500);

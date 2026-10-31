@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Presentation.Models;
 using xyz.Tools;
 
 namespace ChamberLayoutEditor;
@@ -15,6 +16,7 @@ public partial class ChamberEditorPage : UserControl
     private bool _embedded;
     public ChamberEditorViewModel ViewModel => (ChamberEditorViewModel)DataContext;
     public bool HasUnsavedChanges => ViewModel.HasUnsavedChanges;
+    public xyz.Client.Presentation.Controls.ThreeD.ChamberVisualCatalog VisualCatalog => Scene.VisualCatalog;
     public event Action? DocumentChanged;
     public event Action? SaveRequested;
 
@@ -28,6 +30,8 @@ public partial class ChamberEditorPage : UserControl
             .First(item => (string)item.Tag == preset.ToString());
         ViewModel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ViewModel.IsDirty)) DocumentChanged?.Invoke(); };
         ViewModel.PlacementChanged += () => DocumentChanged?.Invoke();
+        ViewModel.PlacementChanged += RefreshXamlPreview;
+        ViewModel.DocumentChanged += RefreshXamlPreview;
         PreviewKeyDown += OnKeyDown;
         Focusable = true;
     }
@@ -51,6 +55,45 @@ public partial class ChamberEditorPage : UserControl
         _path = null; FileStatus.Text = path;
     }
     public string PrepareSave() { Scene.FinishGesture(); return ViewModel.PrepareSave(); }
+    public string PrepareXamlExport() => ChamberDiagramXaml.Export(ChamberLayoutModel.Parse(PrepareSave()), VisualCatalog);
+    public void ShowXaml(bool show)
+    {
+        Scene.FinishGesture(); XamlPreview.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        Scene.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        if (show) RefreshXamlPreview();
+    }
+    public void OpenXaml(string xaml)
+    {
+        Scene.FinishGesture(); ViewModel.ImportXaml(xaml); RefreshXamlPreview();
+    }
+    public async Task ExportXamlAsync(string path)
+    {
+        string xaml = PrepareXamlExport();
+        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try { await File.WriteAllTextAsync(temporary, xaml); File.Move(temporary, path, true); }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+    private void RefreshXamlPreview()
+    {
+        if (XamlPreview.Visibility != Visibility.Visible) return;
+        try { XamlPreview.Text = ViewModel.HasConfiguration ? ChamberDiagramXaml.Export(ChamberLayoutModel.Parse(ViewModel.Document!.ToXml()), VisualCatalog) : ""; }
+        catch (Exception ex) { XamlPreview.Text = ex.Message; }
+    }
+    private void OnShowCanvas(object sender, RoutedEventArgs e) => ShowXaml(false);
+    private void OnShowXaml(object sender, RoutedEventArgs e) => ShowXaml(true);
+    private async void OnExportXaml(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog { Filter = L10n.Get("chambereditor.xaml_filter"), DefaultExt = ".xaml", AddExtension = true,
+            FileName = ViewModel.Document?.ComponentRoot + ".xaml" };
+        if (dialog.ShowDialog() != true) return;
+        try { await ExportXamlAsync(dialog.FileName); } catch (Exception ex) { ShowError(ex); }
+    }
+    private async void OnOpenXaml(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = L10n.Get("chambereditor.xaml_filter") };
+        if (dialog.ShowDialog() != true) return;
+        try { OpenXaml(await File.ReadAllTextAsync(dialog.FileName)); } catch (Exception ex) { ShowError(ex); }
+    }
     public void AcceptSave(string path)
     {
         _path = path;

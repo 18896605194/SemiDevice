@@ -2,6 +2,12 @@
  xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
  <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}"/><Setter Property="FontSize" Value="{DynamicResource Size13}"/></Style>
  <Style TargetType="CheckBox"><Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}"/></Style>
+ <Style x:Key="CdsXamlPreviewStyle" TargetType="TextBox">
+  <Setter Property="FontFamily" Value="Consolas"/><Setter Property="FontSize" Value="{DynamicResource Size14}"/>
+  <Setter Property="Padding" Value="12"/><Setter Property="BorderThickness" Value="0"/>
+  <Setter Property="Background" Value="{DynamicResource DarkControlBackground}"/>
+  <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}"/>
+ </Style>
  <Style x:Key="PreviewCardStyle" TargetType="Border">
   <Setter Property="Background" Value="{DynamicResource DarkSurfaceBackground}"/><Setter Property="BorderBrush" Value="{DynamicResource DarkBorderBrush}"/>
   <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/>

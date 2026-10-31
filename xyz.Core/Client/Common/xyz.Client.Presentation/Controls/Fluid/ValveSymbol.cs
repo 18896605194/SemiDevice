@@ -4,9 +4,9 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
-/// <summary>工具内的独立阀门显示件。开关动画仅表示模拟状态，不持有 DO 或设备命令。</summary>
+/// <summary>独立阀门显示控件。开关动画仅表示模拟状态，不持有 DO 或设备命令。</summary>
 public sealed class ValveSymbol : Viewbox
 {
     private readonly System.Windows.Shapes.Path _body;
@@ -34,6 +34,7 @@ public sealed class ValveSymbol : Viewbox
         _indicator = new Ellipse { Width = 7, Height = 7, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
         grid.Children.Add(_body); grid.Children.Add(_channel); grid.Children.Add(stem); grid.Children.Add(_gate); grid.Children.Add(_indicator);
         Child = grid;
+        IsVisibleChanged += (_, _) => { if (!IsVisible) BeginAnimation(OpeningProperty, null); };
         Apply(null);
     }
 

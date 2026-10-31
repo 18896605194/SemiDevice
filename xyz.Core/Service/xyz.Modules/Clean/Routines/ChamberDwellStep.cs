@@ -91,7 +91,7 @@ internal sealed class ChamberDwellStep : RoutineStep
         }
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
         _started = true;
     }

@@ -3,7 +3,7 @@ using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using xyz.Client.Presentation.Controls.ThreeD;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
 /// <summary>管路加热器预览，与平台硬件共用金属灰、动作高亮和故障反馈。</summary>
 public sealed class HeaterPreviewVisual3D : HardwareVisual3D

@@ -2816,7 +2816,7 @@ sealed class SmokeMotion : RoutineStep
         _fail = fail;
     }
 
-    protected override void Run()
+    protected override void Send()
     {
     }
 

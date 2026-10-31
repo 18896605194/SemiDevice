@@ -926,7 +926,7 @@ public class TransferManager : ElementBase, ITransferManager
         {
             if (!routine.IsTerminal && IsEnable)
             {
-                routine.Scan();
+                routine.Step();
             }
 
             if (routine.ReadyToFinish)
@@ -1118,7 +1118,7 @@ public class TransferManager : ElementBase, ITransferManager
 
             if (!routine.IsTerminal && IsEnable)
             {
-                routine.Scan();
+                routine.Step();
             }
 
             if (routine.ReadyToFinish)

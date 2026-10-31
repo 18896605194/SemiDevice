@@ -1,0 +1,524 @@
+<ResourceDictionary
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation">
+  <threeD:ChamberDiagramBindingSource
+    x:Key="ChamberState" />
+  <threeD:ChamberBaseVisual3D
+    x:Key="Visual0"
+    Width="4.6"
+    Thickness="0.12"
+    Length="5.8" />
+  <threeD:DoorVisual3D
+    x:Key="Visual1"
+    Width="2.2"
+    Height="0.58"
+    IsOpen="{Binding Data[Door].IsRaised, Source={StaticResource ChamberState}, Mode=OneWay}"
+    IsUnknown="{Binding Data[Door].IsUnknown, Source={StaticResource ChamberState}, Mode=OneWay}" />
+  <threeD:BowlVisual3D
+    x:Key="Visual2"
+    Radius="1.59"
+    IsRaised="{Binding Data[Bowl1].IsRaised, Source={StaticResource ChamberState}, Mode=OneWay}"
+    IsUnknown="{Binding Data[Bowl1].IsUnknown, Source={StaticResource ChamberState}, Mode=OneWay}" />
+  <threeD:DiskVisual3D
+    x:Key="Visual3"
+    Radius="1.32"
+    Thickness="0.045"
+    SpindleHeight="0.32"
+    IsMoving="{Binding Data[SpinMotor].IsMoving, Source={StaticResource ChamberState}, Mode=OneWay}"
+    IsError="{Binding Data[SpinMotor].IsError, Source={StaticResource ChamberState}, Mode=OneWay}"
+    IsDiskVisible="true"
+    RotationSpeed="{Binding Data[SpinMotor].RotationSpeed, Source={StaticResource ChamberState}, Mode=OneWay}"
+    RotateClockwise="{Binding Data[SpinMotor].RotateClockwise, Source={StaticResource ChamberState}, Mode=OneWay}"
+    Data="{Binding Wafer, Source={StaticResource ChamberState}, Mode=OneWay}" />
+  <threeD:LiftVisual3D
+    x:Key="Visual5"
+    IsRaised="{Binding Data[Arm1.Lift].IsRaised, Source={StaticResource ChamberState}, Mode=OneWay}"
+    IsUnknown="{Binding Data[Arm1.Lift].IsUnknown, Source={StaticResource ChamberState}, Mode=OneWay}" />
+  <threeD:FluidPipeVisual3D
+    x:Key="Visual6"
+    Length="4.380499458989133"
+    StreamLength="0.8571428571428572"
+    IsFlowing="{Binding Data[Arm1.Nozzle_DIW].IsFlowing, Source={StaticResource ChamberState}, Mode=OneWay}" />
+  <threeD:FluidPipeVisual3D
+    x:Key="Visual7"
+    Length="4.380499458989133"
+    StreamLength="0.8571428571428572"
+    IsFlowing="{Binding Data[Arm1.Nozzle_SC1].IsFlowing, Source={StaticResource ChamberState}, Mode=OneWay}" />
+  <threeD:HomeCupVisual3D
+    x:Key="Visual8"
+    Radius="0.32"
+    Height="0.655" />
+  <threeD:ArmVisual3D
+    x:Key="Visual4"
+    IsMoving="{Binding Data[Arm1].IsMoving, Source={StaticResource ChamberState}, Mode=OneWay}"
+    IsError="{Binding Data[Arm1].IsError, Source={StaticResource ChamberState}, Mode=OneWay}"
+    Length="4.380499458989133"
+    Width="0.23"
+    Thickness="0.085"
+    PivotRadius="0.28500000000000003"
+    Angle="{Binding Data[Arm1].Angle, Source={StaticResource ChamberState}, Mode=OneWay}">
+    <threeD:ArmVisual3D.Transform>
+      <Transform3DGroup>
+        <RotateTransform3D>
+          <RotateTransform3D.Rotation>
+            <AxisAngleRotation3D
+              Axis="0,1,0"
+              Angle="-90" />
+          </RotateTransform3D.Rotation>
+        </RotateTransform3D>
+        <ScaleTransform3D
+          ScaleX="1"
+          ScaleY="1"
+          ScaleZ="1" />
+        <TranslateTransform3D
+          OffsetX="0"
+          OffsetY="{Binding MountHeight, Source={StaticResource Visual5}, Mode=OneWay}"
+          OffsetZ="0" />
+        <ScaleTransform3D
+          ScaleX="1"
+          ScaleY="1"
+          ScaleZ="1" />
+        <TranslateTransform3D
+          OffsetX="0"
+          OffsetY="0"
+          OffsetZ="0" />
+        <TranslateTransform3D
+          OffsetX="0"
+          OffsetY="0.1275"
+          OffsetZ="0" />
+      </Transform3DGroup>
+    </threeD:ArmVisual3D.Transform>
+    <threeD:ArmVisual3D.Attachments>
+      <threeD:ChamberDiagramPart3D
+        Id="Arm1.Nozzle_DIW"
+        Component="Arm1.Nozzle_DIW"
+        ParentId="Arm1"
+        X="0"
+        Y="0.07"
+        Z="-0.0525"
+        Yaw="0"
+        HomeAngle="-90"
+        AutoLength="true"
+        Kind="Nozzle"
+        Visual="{StaticResource Visual6}">
+        <threeD:ChamberDiagramPart3D.Sizes>
+          <threeD:ChamberDiagramSize
+            Key="LengthScale"
+            Value="1" />
+          <threeD:ChamberDiagramSize
+            Key="Length"
+            Value="2.31625" />
+          <threeD:ChamberDiagramSize
+            Key="DiameterScale"
+            Value="1" />
+          <threeD:ChamberDiagramSize
+            Key="StreamLength"
+            Value="0.6" />
+        </threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramPart3D.Transform>
+          <Transform3DGroup>
+            <ScaleTransform3D
+              ScaleX="1"
+              ScaleY="1"
+              ScaleZ="1" />
+            <RotateTransform3D>
+              <RotateTransform3D.Rotation>
+                <AxisAngleRotation3D
+                  Axis="0,1,0"
+                  Angle="0" />
+              </RotateTransform3D.Rotation>
+            </RotateTransform3D>
+            <TranslateTransform3D
+              OffsetX="0"
+              OffsetY="0.10000000000000002"
+              OffsetZ="-0.075" />
+          </Transform3DGroup>
+        </threeD:ChamberDiagramPart3D.Transform>
+      </threeD:ChamberDiagramPart3D>
+      <threeD:ChamberDiagramPart3D
+        Id="Arm1.Nozzle_SC1"
+        Component="Arm1.Nozzle_SC1"
+        ParentId="Arm1"
+        X="0"
+        Y="0.07"
+        Z="0.0525"
+        Yaw="0"
+        HomeAngle="-90"
+        AutoLength="true"
+        Kind="Nozzle"
+        Visual="{StaticResource Visual7}">
+        <threeD:ChamberDiagramPart3D.Sizes>
+          <threeD:ChamberDiagramSize
+            Key="LengthScale"
+            Value="1" />
+          <threeD:ChamberDiagramSize
+            Key="Length"
+            Value="2.31625" />
+          <threeD:ChamberDiagramSize
+            Key="DiameterScale"
+            Value="1" />
+          <threeD:ChamberDiagramSize
+            Key="StreamLength"
+            Value="0.6" />
+        </threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramPart3D.Transform>
+          <Transform3DGroup>
+            <ScaleTransform3D
+              ScaleX="1"
+              ScaleY="1"
+              ScaleZ="1" />
+            <RotateTransform3D>
+              <RotateTransform3D.Rotation>
+                <AxisAngleRotation3D
+                  Axis="0,1,0"
+                  Angle="0" />
+              </RotateTransform3D.Rotation>
+            </RotateTransform3D>
+            <TranslateTransform3D
+              OffsetX="0"
+              OffsetY="0.10000000000000002"
+              OffsetZ="0.075" />
+          </Transform3DGroup>
+        </threeD:ChamberDiagramPart3D.Transform>
+      </threeD:ChamberDiagramPart3D>
+    </threeD:ArmVisual3D.Attachments>
+  </threeD:ArmVisual3D>
+  <threeD:ChamberDiagramRoot3D
+    x:Key="ChamberWorld"
+    ComponentRoot="Chamber.Chamber1"
+    ChamberType="A">
+    <ModelVisual3D>
+      <ModelVisual3D.Content>
+        <Model3DGroup>
+          <AmbientLight
+            Color="#808080" />
+          <DirectionalLight
+            Color="White"
+            Direction="-1,-3,-2" />
+        </Model3DGroup>
+      </ModelVisual3D.Content>
+    </ModelVisual3D>
+    <threeD:ChamberDiagramPart3D
+      Id="$base"
+      Component=""
+      ParentId=""
+      X="0"
+      Y="0"
+      Z="0"
+      Yaw="0"
+      HomeAngle="-90"
+      AutoLength="true"
+      Kind="Base"
+      Visual="{StaticResource Visual0}">
+      <threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramSize
+          Key="Length"
+          Value="5.8" />
+        <threeD:ChamberDiagramSize
+          Key="Width"
+          Value="4.6" />
+        <threeD:ChamberDiagramSize
+          Key="Thickness"
+          Value="0.12" />
+      </threeD:ChamberDiagramPart3D.Sizes>
+      <threeD:ChamberDiagramPart3D.Transform>
+        <Transform3DGroup>
+          <ScaleTransform3D
+            ScaleX="1"
+            ScaleY="1"
+            ScaleZ="1" />
+          <RotateTransform3D>
+            <RotateTransform3D.Rotation>
+              <AxisAngleRotation3D
+                Axis="0,1,0"
+                Angle="0" />
+            </RotateTransform3D.Rotation>
+          </RotateTransform3D>
+          <TranslateTransform3D
+            OffsetX="0"
+            OffsetY="0"
+            OffsetZ="0" />
+        </Transform3DGroup>
+      </threeD:ChamberDiagramPart3D.Transform>
+    </threeD:ChamberDiagramPart3D>
+    <threeD:ChamberDiagramPart3D
+      Id="Door"
+      Component="Door"
+      ParentId=""
+      X="0"
+      Y="0"
+      Z="2.42"
+      Yaw="0"
+      HomeAngle="-90"
+      AutoLength="true"
+      Kind="Door"
+      Visual="{StaticResource Visual1}">
+      <threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramSize
+          Key="Width"
+          Value="2.2" />
+        <threeD:ChamberDiagramSize
+          Key="Height"
+          Value="0.58" />
+        <threeD:ChamberDiagramSize
+          Key="DepthScale"
+          Value="1" />
+      </threeD:ChamberDiagramPart3D.Sizes>
+      <threeD:ChamberDiagramPart3D.Transform>
+        <Transform3DGroup>
+          <ScaleTransform3D
+            ScaleX="1"
+            ScaleY="1"
+            ScaleZ="1" />
+          <RotateTransform3D>
+            <RotateTransform3D.Rotation>
+              <AxisAngleRotation3D
+                Axis="0,1,0"
+                Angle="0" />
+            </RotateTransform3D.Rotation>
+          </RotateTransform3D>
+          <TranslateTransform3D
+            OffsetX="0"
+            OffsetY="0"
+            OffsetZ="2.42" />
+        </Transform3DGroup>
+      </threeD:ChamberDiagramPart3D.Transform>
+    </threeD:ChamberDiagramPart3D>
+    <threeD:ChamberDiagramPart3D
+      Id="Bowl1"
+      Component="Bowl1"
+      ParentId=""
+      X="0"
+      Y="0"
+      Z="0"
+      Yaw="0"
+      HomeAngle="-90"
+      AutoLength="true"
+      Kind="Bowl"
+      Visual="{StaticResource Visual2}">
+      <threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramSize
+          Key="Radius"
+          Value="1.59" />
+        <threeD:ChamberDiagramSize
+          Key="HeightScale"
+          Value="1" />
+      </threeD:ChamberDiagramPart3D.Sizes>
+      <threeD:ChamberDiagramPart3D.Transform>
+        <Transform3DGroup>
+          <ScaleTransform3D
+            ScaleX="1"
+            ScaleY="1"
+            ScaleZ="1" />
+          <RotateTransform3D>
+            <RotateTransform3D.Rotation>
+              <AxisAngleRotation3D
+                Axis="0,1,0"
+                Angle="0" />
+            </RotateTransform3D.Rotation>
+          </RotateTransform3D>
+          <TranslateTransform3D
+            OffsetX="0"
+            OffsetY="0"
+            OffsetZ="0" />
+        </Transform3DGroup>
+      </threeD:ChamberDiagramPart3D.Transform>
+    </threeD:ChamberDiagramPart3D>
+    <threeD:ChamberDiagramPart3D
+      Id="SpinMotor"
+      Component="SpinMotor"
+      ParentId=""
+      X="0"
+      Y="0.32"
+      Z="0"
+      Yaw="0"
+      HomeAngle="-90"
+      AutoLength="true"
+      Kind="Disk"
+      Visual="{StaticResource Visual3}">
+      <threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramSize
+          Key="Radius"
+          Value="1.32" />
+        <threeD:ChamberDiagramSize
+          Key="Thickness"
+          Value="0.045" />
+        <threeD:ChamberDiagramSize
+          Key="SpindleHeight"
+          Value="0.32" />
+      </threeD:ChamberDiagramPart3D.Sizes>
+      <threeD:ChamberDiagramPart3D.Transform>
+        <Transform3DGroup>
+          <ScaleTransform3D
+            ScaleX="1"
+            ScaleY="1"
+            ScaleZ="1" />
+          <RotateTransform3D>
+            <RotateTransform3D.Rotation>
+              <AxisAngleRotation3D
+                Axis="0,1,0"
+                Angle="0" />
+            </RotateTransform3D.Rotation>
+          </RotateTransform3D>
+          <TranslateTransform3D
+            OffsetX="0"
+            OffsetY="0.32"
+            OffsetZ="0" />
+        </Transform3DGroup>
+      </threeD:ChamberDiagramPart3D.Transform>
+    </threeD:ChamberDiagramPart3D>
+    <threeD:ChamberDiagramPart3D
+      Id="Arm1"
+      Component="Arm1"
+      ParentId=""
+      X="2.8"
+      Y="0"
+      Z="-1.25"
+      Yaw="0"
+      HomeAngle="-90"
+      AutoLength="true"
+      Kind="Arm"
+      Visual="{StaticResource Visual4}">
+      <threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramSize
+          Key="ArmLength"
+          Value="2.31625" />
+        <threeD:ChamberDiagramSize
+          Key="ArmWidth"
+          Value="0.161" />
+        <threeD:ChamberDiagramSize
+          Key="ArmThickness"
+          Value="0.0595" />
+        <threeD:ChamberDiagramSize
+          Key="PivotRadius"
+          Value="0.1995" />
+      </threeD:ChamberDiagramPart3D.Sizes>
+      <threeD:ChamberDiagramPart3D.Transform>
+        <Transform3DGroup>
+          <ScaleTransform3D
+            ScaleX="0.7"
+            ScaleY="0.7"
+            ScaleZ="0.7" />
+          <RotateTransform3D>
+            <RotateTransform3D.Rotation>
+              <AxisAngleRotation3D
+                Axis="0,1,0"
+                Angle="0" />
+            </RotateTransform3D.Rotation>
+          </RotateTransform3D>
+          <TranslateTransform3D
+            OffsetX="2.8"
+            OffsetY="0"
+            OffsetZ="-1.25" />
+        </Transform3DGroup>
+      </threeD:ChamberDiagramPart3D.Transform>
+      <threeD:ChamberDiagramPart3D
+        Id="Arm1.Lift"
+        Component="Arm1.Lift"
+        ParentId="Arm1"
+        X="0"
+        Y="0"
+        Z="0"
+        Yaw="0"
+        HomeAngle="-90"
+        AutoLength="true"
+        Kind="Lift"
+        Visual="{StaticResource Visual5}">
+        <threeD:ChamberDiagramPart3D.Sizes>
+          <threeD:ChamberDiagramSize
+            Key="WidthScale"
+            Value="1" />
+          <threeD:ChamberDiagramSize
+            Key="HeightScale"
+            Value="1" />
+        </threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramPart3D.Transform>
+          <Transform3DGroup>
+            <ScaleTransform3D
+              ScaleX="1"
+              ScaleY="1"
+              ScaleZ="1" />
+            <RotateTransform3D>
+              <RotateTransform3D.Rotation>
+                <AxisAngleRotation3D
+                  Axis="0,1,0"
+                  Angle="0" />
+              </RotateTransform3D.Rotation>
+            </RotateTransform3D>
+            <TranslateTransform3D
+              OffsetX="0"
+              OffsetY="0"
+              OffsetZ="0" />
+          </Transform3DGroup>
+        </threeD:ChamberDiagramPart3D.Transform>
+      </threeD:ChamberDiagramPart3D>
+      <threeD:ChamberDiagramPart3D
+        Id="Arm1.$cup"
+        Component=""
+        ParentId="Arm1"
+        X="0"
+        Y="0"
+        Z="0"
+        Yaw="0"
+        HomeAngle="-90"
+        AutoLength="true"
+        Kind="HomeCup"
+        Visual="{StaticResource Visual8}">
+        <threeD:ChamberDiagramPart3D.Sizes>
+          <threeD:ChamberDiagramSize
+            Key="Radius"
+            Value="0.224" />
+          <threeD:ChamberDiagramSize
+            Key="Height"
+            Value="0.4585" />
+        </threeD:ChamberDiagramPart3D.Sizes>
+        <threeD:ChamberDiagramPart3D.Transform>
+          <Transform3DGroup>
+            <ScaleTransform3D
+              ScaleX="1"
+              ScaleY="1"
+              ScaleZ="1" />
+            <RotateTransform3D>
+              <RotateTransform3D.Rotation>
+                <AxisAngleRotation3D
+                  Axis="0,1,0"
+                  Angle="0" />
+              </RotateTransform3D.Rotation>
+            </RotateTransform3D>
+            <Transform3DGroup>
+              <ScaleTransform3D
+                ScaleX="1"
+                ScaleY="1"
+                ScaleZ="1" />
+              <TranslateTransform3D
+                OffsetX="0"
+                OffsetY="{Binding MountHeight, Source={StaticResource Visual5}, Mode=OneWay}"
+                OffsetZ="0" />
+              <ScaleTransform3D
+                ScaleX="1"
+                ScaleY="1"
+                ScaleZ="1" />
+              <TranslateTransform3D
+                OffsetX="0"
+                OffsetY="0"
+                OffsetZ="0" />
+              <TranslateTransform3D
+                OffsetX="0"
+                OffsetY="0"
+                OffsetZ="0" />
+            </Transform3DGroup>
+            <TranslateTransform3D
+              OffsetX="2.682282320558877E-16"
+              OffsetY="0"
+              OffsetZ="4.380499458989133" />
+            <TranslateTransform3D
+              OffsetX="0"
+              OffsetY="0"
+              OffsetZ="0" />
+          </Transform3DGroup>
+        </threeD:ChamberDiagramPart3D.Transform>
+      </threeD:ChamberDiagramPart3D>
+    </threeD:ChamberDiagramPart3D>
+  </threeD:ChamberDiagramRoot3D>
+</ResourceDictionary>

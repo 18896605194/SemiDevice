@@ -53,7 +53,7 @@ internal sealed class AwaitDeviceStep : RoutineStep
         }
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
     }
 

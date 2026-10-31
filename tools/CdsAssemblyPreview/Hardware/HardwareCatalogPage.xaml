@@ -1,6 +1,6 @@
 <UserControl x:Class="CdsAssemblyPreview.HardwareCatalogPage"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+ xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:fluid="clr-namespace:xyz.Client.Presentation.Controls.Fluid;assembly=xyz.Client.Presentation" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
  <Grid Margin="22" Background="{DynamicResource DarkWindowBackground}">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <Grid Margin="0,0,0,18">
@@ -30,7 +30,7 @@
        <StackPanel><Grid Margin="0,0,0,5"><TextBlock Text="{Binding Definition.Title}" FontSize="{DynamicResource Size16}" FontWeight="SemiBold" Margin="0,0,32,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Definition.Title}"/>
         <TextBlock Text="{Binding Definition.Tag}" HorizontalAlignment="Right" Foreground="{DynamicResource DarkDisabledText}" FontSize="{DynamicResource Size12}"/></Grid>
         <TextBlock Text="{Binding Definition.GroupTitle}" Style="{DynamicResource PreviewMutedTextStyle}" FontSize="{DynamicResource Size12}"/>
-        <local:HardwareVisual Width="216" Height="138" Kind="{Binding Definition.Kind}" State="{Binding State}" Reading="{Binding Reading}" Target="{Binding Target}" Unit="{Binding Unit}" IsSelected="{Binding IsSelected}"/>
+        <fluid:HardwareVisual Width="216" Height="138" Kind="{Binding Definition.Kind}" State="{Binding State}" Reading="{Binding Reading}" Target="{Binding Target}" Unit="{Binding Unit}" IsSelected="{Binding IsSelected}"/>
         <TextBlock Text="{Binding StateText}" Style="{DynamicResource HardwareStateTextStyle}" HorizontalAlignment="Center"/>
        </StackPanel>
       </Button>
@@ -44,10 +44,10 @@
      <Border Grid.Row="1" Style="{DynamicResource PreviewCardStyle}" Background="{DynamicResource DarkWindowBackground}">
       <Viewbox Stretch="Uniform"><Canvas x:Name="DemoStage" Width="280" Height="220" Background="Transparent" ClipToBounds="True" Focusable="True"
           PreviewMouseLeftButtonDown="OnDemoDown" MouseMove="OnDemoMove" PreviewMouseLeftButtonUp="OnDemoUp" LostMouseCapture="OnDemoLostCapture">
-       <local:HardwareVisual x:Name="DemoVisual" Canvas.Left="{Binding Selected.X}" Canvas.Top="{Binding Selected.Y}" Width="{Binding Selected.SymbolWidth}" Height="{Binding Selected.SymbolHeight}"
+       <fluid:HardwareVisual x:Name="DemoVisual" Canvas.Left="{Binding Selected.X}" Canvas.Top="{Binding Selected.Y}" Width="{Binding Selected.SymbolWidth}" Height="{Binding Selected.SymbolHeight}"
            Kind="{Binding Selected.Definition.Kind}" State="{Binding Selected.State}" Reading="{Binding Selected.Reading}" Target="{Binding Selected.Target}" Unit="{Binding Selected.Unit}" IsSelected="True" RenderTransformOrigin="0.5,0.5">
-        <local:HardwareVisual.RenderTransform><RotateTransform Angle="{Binding Selected.Angle}"/></local:HardwareVisual.RenderTransform>
-       </local:HardwareVisual>
+        <fluid:HardwareVisual.RenderTransform><RotateTransform Angle="{Binding Selected.Angle}"/></fluid:HardwareVisual.RenderTransform>
+       </fluid:HardwareVisual>
       </Canvas></Viewbox>
      </Border>
      <TextBlock Grid.Row="2" Text="{DynamicResource hw.move_tip}" Style="{DynamicResource PreviewMutedTextStyle}" FontSize="{DynamicResource Size12}" Margin="0,8,0,10" TextWrapping="Wrap"/>
@@ -66,10 +66,10 @@
         </StackPanel>
         <TextBlock Text="{Binding Selected.StateText}" Style="{DynamicResource HardwareSelectedStateTextStyle}" Margin="0,0,0,10"/>
         <UniformGrid Columns="2">
-         <Button x:Name="ActiveButton" Content="{Binding Selected.ActiveText}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Active}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-         <Button Content="{Binding Selected.StopText}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-         <Button x:Name="FaultButton" Content="{DynamicResource hw.state.fault}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Fault}" Style="{DynamicResource HardwareFaultButtonStyle}"/>
-         <Button x:Name="UnknownButton" Content="{DynamicResource hw.state.unknown}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+         <Button x:Name="ActiveButton" Content="{Binding Selected.ActiveText}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Active}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+         <Button Content="{Binding Selected.StopText}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+         <Button x:Name="FaultButton" Content="{DynamicResource hw.state.fault}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Fault}" Style="{DynamicResource HardwareFaultButtonStyle}"/>
+         <Button x:Name="UnknownButton" Content="{DynamicResource hw.state.unknown}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
         </UniformGrid>
         <Button Content="{DynamicResource hw.reset}" Command="{Binding ResetCommand}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0,10,0,0"/>
        </StackPanel></ScrollViewer>

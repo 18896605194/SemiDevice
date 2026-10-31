@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
 /// <summary>原创的简化硬件外观；几何和动画均为显示用途。</summary>
 internal sealed class FluidHardwareDrawing : FrameworkElement
@@ -27,13 +27,13 @@ internal sealed class FluidHardwareDrawing : FrameworkElement
         IsHitTestVisible = false;
         _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(60) };
         _timer.Tick += (_, _) => { _phase = (_phase + 14) % 360; InvalidateVisual(); };
-        Loaded += (_, _) => Refresh(); Unloaded += (_, _) => _timer.Stop(); IsVisibleChanged += (_, _) => Refresh();
+        IsVisibleChanged += (_, _) => Refresh();
     }
     public void Refresh()
     {
         bool animated = Kind is FluidHardwareKind.CentrifugalPump or FluidHardwareKind.DiaphragmPump or FluidHardwareKind.MeteringPump
             or FluidHardwareKind.Mixer or FluidHardwareKind.InlineHeater or FluidHardwareKind.ImmersionHeater;
-        if (IsVisible && IsLoaded && State == HardwareState.Active && animated) _timer.Start(); else _timer.Stop();
+        if (IsVisible && State == HardwareState.Active && animated) _timer.Start(); else _timer.Stop();
         InvalidateVisual();
     }
     protected override void OnRender(DrawingContext dc)

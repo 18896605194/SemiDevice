@@ -4,14 +4,6 @@ using xyz.Client.Presentation.Localization;
 
 namespace CdsAssemblyPreview;
 
-public enum FluidHardwareKind
-{
-    Tank, CentrifugalPump, DiaphragmPump, MeteringPump, Mixer,
-    InlineHeater, ImmersionHeater, HeatExchanger,
-    OnOffValve, ManualValve, ProportionalValve, ThreeWayValve, CheckValve, PressureRegulator, ReliefValve,
-    Filter, PulseDamper, FlowMeter, PressureGauge, TemperatureSensor, LevelSensor, ConductivitySensor, PhSensor, LeakSensor
-}
-public enum HardwareState { Unknown, Stopped, Active, Fault }
 public enum HardwareRole { Actuator, Valve, Monitor, Passive }
 
 public sealed record HardwareDefinition(FluidHardwareKind Kind, string Group, HardwareRole Role, string Tag, string DefaultUnit,

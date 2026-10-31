@@ -39,7 +39,7 @@ internal sealed class SystemInitStep : RoutineStep
         }
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
         foreach (var module in _modules)
         {

@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../ToolBuilder/ToolBuilder.CdsLayout/ToolBuilder.CdsLayout.csproj" />
+    <Compile Include="FluidControls.cs" />
     <Compile Include="**/Program*.cs" Exclude="obj/**;bin/**" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <None Update="Example.xml" CopyToOutputDirectory="PreserveNewest" />

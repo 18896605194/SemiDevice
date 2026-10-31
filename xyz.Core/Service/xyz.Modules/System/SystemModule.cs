@@ -128,7 +128,7 @@ public class SystemModule : BaseStateElement, ISystemModule
                 init.Add(new SystemInitStep("其余模块初始化", others));
             }
 
-            var started = Started(SystemAction.Init, init);
+            var started = Begin(SystemAction.Init, init);
             if (started.IsSuccess)
             {
                 _initRoutine = init;
@@ -224,7 +224,7 @@ public class SystemModule : BaseStateElement, ISystemModule
                 return Rejected(rejected);
             }
 
-            return Started(SystemAction.ReturnAll, routine);
+            return Begin(SystemAction.ReturnAll, routine);
         }
     }
 
@@ -280,7 +280,7 @@ public class SystemModule : BaseStateElement, ISystemModule
             }
 
             wait = new SystemStopStep("等各模块停下", inFlight, _transfers);
-            started = Started(SystemAction.Abort, new ModuleRoutine(this, "Abort").Add(wait));
+            started = Begin(SystemAction.Abort, new ModuleRoutine(this, "Abort").Add(wait));
             if (!started.IsSuccess)
             {
                 return started;
@@ -322,18 +322,6 @@ public class SystemModule : BaseStateElement, ISystemModule
     /// <summary>
     /// 检查都过了，挂上动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态。
     /// </summary>
-    private HandleResult<ModuleRoutine> Started(SystemAction action, ModuleRoutine routine)
-    {
-        var started = Begin(action, routine);
-        if (started is null)
-        {
-            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
-        }
-
-        LogHelper.Info(this, $"开始 {action}");
-        return HandleResult<ModuleRoutine>.Success(started);
-    }
-
     /// <summary>当场切的动作（Auto / Manual）：不挂动作，直接落状态表的成功态。调用方已在锁里查过状态。</summary>
     private void SwitchTo(SystemAction action)
     {

@@ -171,7 +171,7 @@ public abstract class TransferExecution : ModuleRoutine
     protected void AddPrepareStep(string name, ITransferStation station, Func<ModuleRoutine?> prepare, int phase)
     {
         string number = phase.ToString(CultureInfo.InvariantCulture);
-        Start(name, () => Prepared(station, prepare(), number),
+        Child(name, () => Prepared(station, prepare(), number),
             (step, routine) => step.Fail(ErrorCodes.StationPrepareFailed, $"{station.Name} 第 {number} 步准备失败：{routine.Reason}", station.Name, number));
     }
 
@@ -206,7 +206,7 @@ public abstract class TransferExecution : ModuleRoutine
 
         if (!handoff)
         {
-            Start(name, () => BeginMotion(station, context, arm, slot, pick, null), (step, routine) => ReportMotionFailure(step, station, pick, routine));
+            Child(name, () => BeginMotion(station, context, arm, slot, pick, null), (step, routine) => ReportMotionFailure(step, station, pick, routine));
             MarkMotion();
             return;
         }
@@ -218,12 +218,12 @@ public abstract class TransferExecution : ModuleRoutine
             return;
         }
 
-        Start($"{name}：伸臂", () => BeginMotion(station, context, arm, slot, pick, stepRobot), (step, routine) => ReportMotionFailure(step, station, pick, routine));
+        Child($"{name}：伸臂", () => BeginMotion(station, context, arm, slot, pick, stepRobot), (step, routine) => ReportMotionFailure(step, station, pick, routine));
         MarkMotion();
-        Start($"{name}：{station.Name} 交接", () => BeginHandoff(station, context, pick),
+        Child($"{name}：{station.Name} 交接", () => BeginHandoff(station, context, pick),
             (step, routine) => StopAtHandoff(step, ErrorCodes.StationHandoffFailed, $"{station.Name} 中途交接没做成：{routine.Reason}", station.Name));
         MarkMotion();
-        Start($"{name}：缩臂", () => BeginRetract(stepRobot, station, arm, slot, pick), (step, routine) => ReportMotionFailure(step, station, pick, routine));
+        Child($"{name}：缩臂", () => BeginRetract(stepRobot, station, arm, slot, pick), (step, routine) => ReportMotionFailure(step, station, pick, routine));
         MarkMotion();
     }
 

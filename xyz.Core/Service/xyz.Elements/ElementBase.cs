@@ -209,7 +209,7 @@ public abstract class ElementBase : ILogSource
 
     #region 开启、停止轮询 间隔10ms
 
-    public void Start()
+    public void StartScan()
     {
         if (Interlocked.CompareExchange(ref _scanStarted, 1, 0) != 0)
         {

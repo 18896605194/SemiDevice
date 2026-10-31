@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
 public enum HardwareViewMode { ThreeD, Front2D }
 

@@ -111,4 +111,9 @@
   <sys:String x:Key="cdsp.zoom.in">Zoom in</sys:String>
   <sys:String x:Key="cdsp.zoom.fit">Fit to window</sys:String>
   <sys:String x:Key="cdsp.zoom.tip">Canvas zoom (10%–400%). Use the wheel to zoom and scrollbars to navigate.</sys:String>
+ <sys:String x:Key="cdsp.source.canvas">Canvas</sys:String>
+ <sys:String x:Key="cdsp.source.open">Open XAML</sys:String>
+ <sys:String x:Key="cdsp.source.export">Export XAML</sys:String>
+ <sys:String x:Key="cdsp.source.filter">CDS view (*.xaml)|*.xaml</sys:String>
+ <sys:String x:Key="cdsp.source.wrong_module">This XAML belongs to a different fluid module. Select the matching installation node first.</sys:String>
 </ResourceDictionary>

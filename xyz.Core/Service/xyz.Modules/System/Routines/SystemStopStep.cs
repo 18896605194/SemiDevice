@@ -56,7 +56,7 @@ internal sealed class SystemStopStep : RoutineStep
         _issued = true;
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
     }
 

@@ -39,7 +39,7 @@ public abstract class HardwareVisual3D : ModelVisual3D
     /// </summary>
     protected virtual void OnIsErrorChanged() { }
 
-    private static void NotifySceneConnection(DependencyObject node)
+    internal static void NotifySceneConnection(DependencyObject node)
     {
         if (node is HardwareVisual3D hardware)
         {

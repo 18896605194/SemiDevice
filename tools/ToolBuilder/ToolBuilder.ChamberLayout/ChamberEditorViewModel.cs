@@ -5,6 +5,7 @@ using System.Xml.Linq;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Presentation.Models;
 
 namespace ChamberLayoutEditor;
 
@@ -280,6 +281,15 @@ public sealed class ChamberEditorViewModel : BaseViewModel
         if (Document is null) throw new InvalidDataException(L10n.Get("chambereditor.machine_required"));
         Document.Validate();
         return Document.ToXml();
+    }
+
+    public void ImportXaml(string xaml)
+    {
+        EndDrag();
+        var imported = ChamberLayoutDocument.Parse(ChamberDiagramXaml.ReadLayout(xaml).ToXml());
+        if (Document is null || imported.ComponentRoot != Document.ComponentRoot)
+            throw new InvalidDataException(L10n.Get("chambereditor.layout_chamber_mismatch", imported.ComponentRoot));
+        Replace(Document.WithLayout(imported)); Commit();
     }
 
     private void Replace(ChamberLayoutDocument document)

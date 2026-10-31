@@ -898,6 +898,651 @@ public interface IRoutineHost
 
 </section>
 
+<section class="chapter" id="b3">
+<h2>三、动作 ModuleRoutine</h2>
+
+<section class="topic" id="b3-1">
+<h3>3.1 动作是什么</h3>
+<p>设备上"点一下按钮让它干件事"——开门、回零、取片、跑工艺——在这套框架里统一叫<b>动作</b>。</p>
+<p>一个动作 = <b>一串有名字的步骤</b> + <b>一个状态</b>。35021 的 LoadPort 装载（Load）建出来是 4 步：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>Load 这个动作真正建出来的步骤表</figcaption><script type="text/plain">
+Load
+  ├ 1「Load」     发 MOV:CLOAD 开门，等设备回
+  ├ 2「扫片」     发 MAPDO，等设备回
+  ├ 3「取槽图」   发 GET:MAPDT，把槽图存下来
+  └ 4「用槽图」   核槽数、落晶圆账
+</script></figure>
+<p><b>它自己不会跑</b>，要靠模块的扫描线程每 10 ms 推一格（第二章 2.5）。为什么不写成 <code>await 开门(); await 扫片();</code> 那种直观写法：扫描线程一等就卡住整棵树，这棵树上还挂着别的设备。</p>
+<p>做成这个形状，换来三件事：</p>
+<ul>
+<li><b>出事知道停在第几步</b>——日志里直接是 <code>失败在 3/4 取槽图</code>，不用加日志重现</li>
+<li><b>急停能按步收场</b>——正在等的那条指令会被作废，否则复位之后同一条指令发不出去</li>
+<li><b>换品牌只改机型层</b>——平台定骨架、机型填品牌指令</li>
+</ul>
+</section>
+
+<section class="topic" id="b3-2">
+<h3>3.2 涉及哪些类</h3>
+<table>
+<tr><th>类</th><th>干什么</th></tr>
+<tr><td><b><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs">ModuleRoutine</a></b></td><td>一个动作。持有步骤表、走到第几步、最后的结果</td></tr>
+<tr><td><b><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/RoutineStep.cs">RoutineStep</a></b></td><td>一步的基类。要实现的只有两个方法：<code>Send</code> 发、<code>Check</code> 判</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/CommandStep.cs">CommandStep</a></td><td>发一条驱动指令、等设备回</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/DoStep.cs">DoStep</a></td><td>当场做一下（检查、记账）</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/UntilStep.cs">UntilStep</a></td><td>等一个条件成立</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/DeviceStep.cs">DeviceStep</a></td><td>一组设备同时动</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/AwaitDeviceStep.cs">AwaitDeviceStep</a></td><td>只等设备，指令是别处发的</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/ChildRoutineStep.cs">ChildRoutineStep</a></td><td>起别的模块的动作，等它收完尾</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/CustomStep.cs">CustomStep</a></td><td>自己写的 run / check</td></tr>
+<tr><td><b><a class="ref" data-f="xyz.Core/Service/xyz.Modules/BaseStateElement.cs">BaseStateElement</a></b></td><td>模块基类：状态迁移表、挂动作、每拍推动作</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/DeviceActions.cs">DeviceActions</a></td><td>给设备发不带参数的动作（升／降、开／关阀、回零、停）</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutineExtensions.cs">ModuleRoutineExtensions</a></td><td>一个 <code>Wait</code> 扩展：手动、同步调用方等结果用</td></tr>
+</table>
+<p>中间 7 个步骤类是 <code>internal sealed</code> 的，<b>不用也不能自己 new</b>——<code>ModuleRoutine</code> 上有对应的方法帮你建（3.4）。</p>
+</section>
+
+<section class="topic" id="b3-3">
+<h3>3.3 ModuleRoutine：一个动作</h3>
+<p><b>建一个</b>：两个构造，发不发驱动指令选一个。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs"><figcaption>不发指令的用上面那个，要加 Command 步骤的用下面那个</figcaption><script type="text/plain">
+    /// <summary>
+    /// 建一个动作：owner 是做这个动作的模块（日志记在它名下），name 是动作名（日志、错误码参数用）
+    /// </summary>
+    public ModuleRoutine(ILogSource owner, string name)
+@@
+    /// <summary>
+    /// 建一个发指令的动作：后面加的 Command 步骤经这个通道发、按这个超时等（UseTimeout 能换后面几步的超时）
+    /// </summary>
+    public ModuleRoutine(ILogSource owner, string name, ICommDriver? driver, Func<int> commandTimeoutMs)
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>实际这么建</figcaption><script type="text/plain">
+        var load = new ModuleRoutine(this, "Load", _driver, () => LoadTimeout);
+</script></figure>
+<ul>
+<li><code>owner</code> 传 <code>this</code>（模块自己），日志里的模块名、<code>Module</code> 属性都从它来。</li>
+<li><code>name</code> 是动作名，<b>日志和错误码参数都用它</b>。</li>
+<li><code>commandTimeoutMs</code> 传的是 <code>Func&lt;int&gt;</code>、不是数值——<b>每拍现读，EC 改了下一拍就按新值算</b>，正在跑的动作也跟着变。</li>
+</ul>
+<p><b>看结果</b>（调用方读的几个属性）：</p>
+<table>
+<tr><th>成员</th><th>是什么</th></tr>
+<tr><td><code>State</code></td><td><code>Running</code> / <code>Completed</code> / <code>Failed</code> / <code>Aborted</code></td></tr>
+<tr><td><code>IsTerminal</code></td><td>停下来了没有（做成、失败、被中止都算）</td></tr>
+<tr><td><code>IsSuccess</code></td><td>做成了没有</td></tr>
+<tr><td><code>IsSettled</code></td><td><b>收完尾了没有</b>——比 <code>IsTerminal</code> 晚一点，要等挂着它的模块落完状态、跑完回调</td></tr>
+<tr><td><code>Code</code> / <code>ErrorArgs</code></td><td>错误码和参数，<b>给界面查语言包</b></td></tr>
+<tr><td><code>Reason</code></td><td>失败原因，<b>只进日志</b>，不给界面</td></tr>
+</table>
+<p><b>看进度</b>：<code>StepCount</code>（共几步）、<code>StepNumber</code>（现在第几步，从 1 数）、<code>StepName</code>、<code>CurrentStep</code>。这四个就是"停在 3/4 取槽图"的来源，也是工艺进度条的依据。</p>
+<p><b>推进和结束</b>：</p>
+<table>
+<tr><th>方法</th><th>谁调</th></tr>
+<tr><td><code>Step()</code></td><td><b>只有挂着它的模块那条扫描线程</b>，每拍一次</td></tr>
+<tr><td><code>AbortByHost(原因)</code></td><td>别的线程打断（急停顶替、调度撤单）</td></tr>
+<tr><td><code>WaitReply(超时)</code></td><td><b>RPC 线程</b>阻塞等结果；扫描线程里绝对不能用</td></tr>
+<tr><td><code>Done(owner, name)</code></td><td>静态方法，建一个"已经做完"的空动作（站点不用准备、模块没设备要初始化时返回它）</td></tr>
+</table>
+</section>
+
+<section class="topic" id="b3-4">
+<h3>3.4 加步骤：十一个方法</h3>
+<p>全都返回 <code>this</code>，所以能串着写。</p>
+<table>
+<tr><th>写什么</th><th>建出来的类</th><th>什么时候用</th></tr>
+<tr><td><code>Command(名, 建指令, 结果检查?)</code></td><td><code>CommandStep</code></td><td>发一条驱动指令</td></tr>
+<tr><td><code>Do(名, 做一下)</code></td><td><code>DoStep</code></td><td>当场做完的事：检查、记账</td></tr>
+<tr><td><code>Until(名, 条件, 超时, 超时报什么)</code></td><td><code>UntilStep</code></td><td>等一个条件成立</td></tr>
+<tr><td><code>Devices(名, 设备们, 动作)</code></td><td><code>DeviceStep</code></td><td>一组设备同时发同一个动作</td></tr>
+<tr><td><code>Devices(名, 一个设备, 动作)</code></td><td><code>DeviceStep</code></td><td>一个设备；<b>设备为 null 这步不加</b></td></tr>
+<tr><td><code>Devices(名, orders)</code></td><td><code>DeviceStep</code></td><td>几个设备各发各的</td></tr>
+<tr><td><code>Await(名, 设备们, 动作)</code></td><td><code>AwaitDeviceStep</code></td><td>只等，指令别处已经发了</td></tr>
+<tr><td><code>AwaitSent(名, 设备, 动作, 超时)</code></td><td><code>AwaitDeviceStep</code></td><td>只等，而且设备回 Idle 算被中止</td></tr>
+<tr><td><code>Child(名, 起别家动作, 收尾?)</code></td><td><code>ChildRoutineStep</code></td><td>起别的模块的动作</td></tr>
+<tr><td><code>Add(名, run, check)</code></td><td><code>CustomStep</code></td><td>自己写两个委托</td></tr>
+<tr><td><code>Add(步骤对象)</code></td><td>你自己的类</td><td>这一步要记自己的状态</td></tr>
+</table>
+<p>两个配套的：<code>LimitTo(超时, 错误码)</code> 给<b>整个动作</b>设上限，超了在当前这一步判失败；<code>UseTimeout(超时)</code> 换掉之后加的 <code>Command</code> 的超时（回零后接着对准时用）。</p>
+<p>加步骤有两道闸：<b>开始走之后不能再加</b>、<b>一个步骤对象只能加进一个动作</b>，犯了当场抛。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs"><figcaption>所有加步骤的方法最后都走这里</figcaption><script type="text/plain">
+    private ModuleRoutine Append(RoutineStep step)
+    {
+        if (_startedAt >= 0)
+        {
+            throw new InvalidOperationException($"{Module} {Name} 已经开始走了，不能再加步骤");
+        }
+
+        step.Attach(this);
+        _steps.Add(step);
+        return this;
+    }
+</script></figure>
+</section>
+
+<section class="topic" id="b3-5">
+<h3>3.5 RoutineStep：一步</h3>
+<p>自己写一个步骤类时，要实现的只有两个方法：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/RoutineStep.cs"><figcaption>Send 发完就走、不等；等是 Check 的事</figcaption><script type="text/plain">
+    /// <summary>
+    /// 进这一步时做一次：发指令、起别家的动作；出错调 Fail
+    /// </summary>
+    protected internal abstract void Send();
+
+    /// <summary>
+    /// 之后每拍判一次：true = 这一步做完；出错调 Fail
+    /// </summary>
+    protected internal abstract bool Check();
+</script></figure>
+<p><b>可选重写的三个</b>：</p>
+<table>
+<tr><th>成员</th><th>默认</th><th>什么时候重写</th></tr>
+<tr><td><code>OnAborted(原因)</code></td><td>空</td><td>动作被中止时收场：作废在途指令、中止子动作</td></tr>
+<tr><td><code>Waiting</code></td><td>空串</td><td><b>在等什么</b>，写进超时和失败的日志，比如 <code>"设备回 CLOAD"</code></td></tr>
+<tr><td><code>IsSettled</code></td><td><code>true</code></td><td>手上捏着别家动作的步骤重写它</td></tr>
+</table>
+<p><b>能用的</b>：<code>Name</code>、<code>Routine</code>（属于哪个动作）、<code>ElapsedMs</code>、<code>DoneMs</code>、<code>Fail(码, 原因, 参数…)</code>（判这步失败，整个动作停在这儿）。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/RoutineStep.cs"><figcaption>两个时间分开，是因为日志要列"每一步各花了多久"</figcaption><script type="text/plain">
+    /// <summary>
+    /// 这一步做了多久，ms；一直在走，做完以后还会接着涨
+    /// </summary>
+    public long ElapsedMs => (long)Stopwatch.GetElapsedTime(_startedAt).TotalMilliseconds;
+
+    /// <summary>
+    /// 这一步做完时用了多久，ms；还没做完为 null
+    /// </summary>
+    public long? DoneMs { get; private set; }
+</script></figure>
+<p><code>Attach</code> / <code>Begin</code> / <code>Done</code> 是 <code>internal</code>，只有 <code>ModuleRoutine</code> 调，写步骤的人碰不到。</p>
+</section>
+
+<section class="topic" id="b3-6">
+<h3>3.6 七种步骤，各自怎么用</h3>
+<p><b>Command —— 发一条驱动指令。</b>最常用的一种。</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>机型填品牌指令，一行</figcaption><script type="text/plain">
+    /// <summary>
+    /// 装载开门：CLOAD（只开门，不扫片）
+    /// </summary>
+    protected override void AddLoadSteps(ModuleRoutine load)
+    {
+        load.Command("Load", () => new FcdLoadCommand());
+    }
+</script></figure>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>带结果检查的：设备做完了，还要把回来的数据取走</figcaption><script type="text/plain">
+    protected override void AddMapSteps(ModuleRoutine map)
+    {
+        map.Command("扫片", () => new FcdMapCommand())
+            .Command("取槽图", () => new FcdGetMapCommand(), command =>
+            {
+                SaveMapResult(command.SlotMap, command.Raw);
+                return HandleResult.Success();
+            });
+    }
+</script></figure>
+<ul>
+<li><b>指令传的是工厂函数</b>（<code>() =&gt; new ...</code>），轮到这一步才 new——指令对象带"在途"状态，提前建好万一走不到这步就废了。</li>
+<li>第三个参数管的是"<b>设备做完了，但结果不能用</b>"（槽数对不上），跟"设备回错"是两个错误码。</li>
+<li>超时会<b>先作废在途指令再判失败</b>：</li>
+</ul>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/CommandStep.cs"><figcaption>不作废这一条，它一直占着在途位，复位之后同名指令发不出去</figcaption><script type="text/plain">
+        int timeout = _timeoutMs();
+        if (ElapsedMs > timeout)
+        {
+            // 回复丢了这条就一直占着在途位：先作废让出来，复位、回零以后同一条指令才发得出去
+            _driver?.Abandon(command, "Timeout");
+            Fail(ErrorCodes.Timeout, $"{timeout} ms 设备没回", Routine.Name, timeout.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return false;
+</script></figure>
+
+<p><b>Do —— 当场做一下。</b><code>Check()</code> 恒真，所以只占一拍。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Robot/BaseRobotModule.cs"><figcaption>机械手取放的最后一步：记晶圆账</figcaption><script type="text/plain">
+        transfer.Do("记账", () => CommitTransferLedger(intent) ?? HandleResult.Success());
+</script></figure>
+
+<p><b>Until —— 等条件成立。</b><code>Send()</code> 是空的，全靠每拍轮询。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Robot/BaseRobotModule.cs"><figcaption>取完该有片、放完该没片；超时报什么由委托当场算</figcaption><script type="text/plain">
+        transfer.Until($"Arm{arm} 持片反馈对上", () => sensorArm.HasWafer == expectWafer, () => sensorArm.WaferSensorTimeoutMs,
+            () => SensorMismatch(sensorArm.HasWafer, arm));
+</script></figure>
+<p><b>超时配 0 = 不等</b>，判一次不成立就失败——用来做"必须当场成立"的检查。</p>
+
+<p><b>Devices —— 一组设备同时动。</b>腔体这种"一堆气缸、阀、轴"的模块用它。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/BaseChamberModule.cs"><figcaption>腔体回零：五步，每步一组设备；machine.xml 没配的那一步直接不加</figcaption><script type="text/plain">
+    protected virtual void AddHomeSteps(ModuleRoutine home)
+    {
+        home.Devices("关喷嘴", Nozzles, ChamberDeviceAction.ValveOff);
+        home.Devices("卡盘停转", SpinMotor, ChamberDeviceAction.Stop);
+        home.Devices("Lift 升", Lifts, ChamberDeviceAction.Up);
+        home.Devices("轴回零", Axes, ChamberDeviceAction.Home);
+        home.Devices("Bowl 降", Bowls, ChamberDeviceAction.Down);
+    }
+</script></figure>
+<ul>
+<li><b>一口气全发、一起等</b>：8 个喷嘴是并行关的，不是一个一个关。</li>
+<li><b>设备为 null 或空集合，这一步直接不加</b>——没配 Bowl，回零就是 4 步，日志里 <code>共 4 步</code> 是真的，不是"5 步跳过 1 步"。</li>
+<li>设备回到 <code>Idle</code> 判成<b>被中止</b>（发过指令就该是 <code>Running</code>，回 Idle 只能是别人把它停了）。</li>
+</ul>
+<p>几个设备要发不一样的指令时用 <code>DeviceOrder</code>：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/BaseChamberModule.cs"><figcaption>卡盘要转到具体位置、门只是开——两条不一样，但要同时发、一起等</figcaption><script type="text/plain">
+        var spin = SpinMotor;
+        if (spin is not null)
+        {
+            orders.Add(new DeviceOrder(spin, ChamberDeviceAction.Move, () => spin.MoveTo(spin.TransferPosition)));
+        }
+
+        var door = Door;
+        if (door is not null)
+        {
+            orders.Add(new DeviceOrder(door, ChamberDeviceAction.Up, door.Open));
+        }
+
+        prepare.Devices("卡盘转到取放位、开门", orders);
+</script></figure>
+<p>不带参数的那种怎么发，由 <a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Routines/DeviceActions.cs">DeviceActions.Send</a> 按接口分派。注意关阀那一支<b>先按喷嘴认</b>：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/DeviceActions.cs"><figcaption>认得出喷嘴就走 Stop（顺带清流量设定），认不出才退回普通阀</figcaption><script type="text/plain">
+            case ChamberDeviceAction.ValveOff:
+                // 喷嘴关阀走 Stop：machine.xml 配了的还把流量清零
+                if (device is INozzle nozzle)
+                {
+                    return nozzle.Stop();
+                }
+
+                if (device is IValve closing)
+                {
+                    return closing.Close();
+                }
+
+                return false;
+</script></figure>
+
+<p><b>Await / AwaitSent —— 只等不发。</b>指令是别处发的。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/BaseChamberModule.cs"><figcaption>复位、中止：元件在入口那一刻已经发了指令，动作只负责等齐</figcaption><script type="text/plain">
+        reset.Await("等轴复位", Axes, ChamberDeviceAction.Reset);
+@@
+        abort.Await("等轴停下", Axes, ChamberDeviceAction.Stop);
+</script></figure>
+<table>
+<tr><th></th><th><code>Await</code></th><th><code>AwaitSent</code></th></tr>
+<tr><td>设备回 <code>Idle</code></td><td>算做完（它本来可能就没在动）</td><td><b>判被中止</b>（指令是刚发的，不该回 Idle）</td></tr>
+<tr><td>超时</td><td>靠整个动作的上限</td><td>自己带一个</td></tr>
+<tr><td>用在哪</td><td>复位、中止</td><td>手动页点单个设备</td></tr>
+</table>
+
+<p><b>Child —— 起别家的动作。</b>模块之间协作的唯一方式。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>LoadPort 自己没有扫片传感器时，叫机械手来扫</figcaption><script type="text/plain">
+    private void AddMapStages(ModuleRoutine routine, Func<WaferMapResult, HandleResult> check)
+    {
+        var robot = _mapRobot;
+        if (robot is not null)
+        {
+            routine.Child($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
+            return;
+        }
+
+        if (this is IWaferMap)
+        {
+            AddOwnMapStages(routine, check);
+        }
+    }
+</script></figure>
+<ul>
+<li><b>错误码原样透传</b>：机械手维护中拒了，界面显示的是"机械手维护中"，不是笼统的"LoadPort 扫片失败"——排查直接指到正主。</li>
+<li><b>等的是 <code>IsSettled</code> 不是 <code>IsTerminal</code></b>：子动作到终态 ≠ 收完尾，还要等子模块落完状态、跑完回调。</li>
+<li>父动作被中止时，<code>OnAborted</code> 把中止<b>往子动作传</b>：<code>_child?.AbortByHost(reason);</code></li>
+</ul>
+
+<p><b>Add —— 自己写。</b>两个重载：传两个委托，或者传一个自己的步骤类。<b>这一步要记自己的状态就用对象版</b>——现在有四个：<a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Transfer/StationGrabStep.cs">StationGrabStep</a>（搬运抢站点）、<a class="ref" data-f="xyz.Core/Service/xyz.Modules/Clean/Routines/ChamberDwellStep.cs">ChamberDwellStep</a>（腔体浸泡计时）、<a class="ref" data-f="xyz.Core/Service/xyz.Modules/System/Routines/SystemInitStep.cs">SystemInitStep</a> 和 <a class="ref" data-f="xyz.Core/Service/xyz.Modules/System/Routines/SystemStopStep.cs">SystemStopStep</a>（整机全部初始化 / 全部停止）。</p>
+</section>
+
+<section class="topic" id="b3-7">
+<h3>3.7 怎么发起一个动作</h3>
+<p>三步，都在模块里，而且<b>查和挂必须在同一把锁里</b>。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>查 → 建 → 挂，几微秒就返回，这时一条指令都还没发</figcaption><script type="text/plain">
+    public HandleResult<ModuleRoutine> Load()
+    {
+        lock (RoutineGate)
+        {
+            var rejected = CheckLoad();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Begin(LoadPortAction.Load, CreateLoadRoutine());
+        }
+    }
+</script></figure>
+<p>三道检查按"先便宜后贵"排，任一条不过就带着原因回去：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>状态 → 资源 → 互锁</figcaption><script type="text/plain">
+    private HandleResult? CheckLoad()
+    {
+        return CheckState(LoadPortAction.Load) ?? CheckLoadResource() ?? LoadInterlock();
+    }
+</script></figure>
+<p>其中 <code>CheckState</code>（在 <a class="ref" data-f="xyz.Core/Service/xyz.Modules/BaseStateElement.cs">BaseStateElement</a>）查三样：模块停没停用、状态迁移表允不允许、有没有动作正在做（急停例外，它可以顶替）。</p>
+<p><b><code>Begin</code> 是发起动作的唯一入口</b>，它做四件事：查状态迁移表 → 挂上去 → 落执行态 → 记下 <code>CurrentAction</code> 和 <code>FromState</code> 并打一条"开始 Load"。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>挂上那一刻 _routine = routine，所有权就交给扫描线程了</figcaption><script type="text/plain">
+    protected HandleResult<ModuleRoutine> Begin<TAction>(TAction action, ModuleRoutine routine)
+        where TAction : struct, Enum
+    {
+        lock (RoutineGate)
+        {
+            string name = action.ToString();
+            if (!TryGetTransition(State, name, out var transition))  //查询状态表
+            {
+                return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+            }
+
+            int from = State;
+            if (Begin(routine, transition.ExecutingState, transition.SuccessState, name == AbortAction) is null)  //真正挂上动作
+            {
+                return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+            }
+
+            CurrentAction = action;
+            FromState = from;
+            LogHelper.Info(this, $"开始 {action}");
+            return HandleResult<ModuleRoutine>.Success(routine);
+        }
+    }
+</script></figure>
+<p><b>平台定骨架、机型填指令</b>，靠的是中间留的一个 <code>abstract</code>：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>平台这边：骨架写死，开门那几条交给机型</figcaption><script type="text/plain">
+    protected virtual ModuleRoutine CreateLoadRoutine()
+    {
+        var load = new ModuleRoutine(this, "Load", _driver, () => LoadTimeout);
+        AddLoadSteps(load);
+        AddMapStages(load, TakeSlotMap);
+        return load;
+    }
+
+    /// <summary>
+    /// 装载开门那几条（不扫片）：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC LoadTimeout）
+    /// </summary>
+    protected abstract void AddLoadSteps(ModuleRoutine load);
+</script></figure>
+<p>换品牌就重写这几个 <code>AddXxxSteps</code>，骨架一行不动。</p>
+</section>
+
+<section class="topic" id="b3-8">
+<h3>3.8 怎么执行：一拍走一格</h3>
+<p>入口挂在模块的每一拍上（第二章 2.5：框架先调 <code>IRoutineHost.StepRoutine()</code>，再调元件自己的 <code>OnScan()</code>）。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>没挂动作就空转；推完看是不是终态，是就收尾</figcaption><script type="text/plain">
+    public void StepRoutine()
+    {
+        lock (RoutineGate)
+        {
+            var routine = _routine;
+            if (routine is null)
+            {
+                return;
+            }
+
+            //动作扫描
+            routine.Step();
+
+            if (routine.IsTerminal)
+            {
+                CompleteRoutine(routine);
+            }
+        }
+    }
+</script></figure>
+<p>真正走格子的循环，<b>只有两个变量在动</b>：<code>_index</code>（走到第几步）、<code>_entered</code>（这一步的 <code>Send</code> 调过没有）。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs"><figcaption>没发就发、发过就判；判没好就走人，判好了挪一格接着来</figcaption><script type="text/plain">
+        while (_index < _steps.Count)
+        {
+            var step = _steps[_index];
+            if (!_entered)
+            {
+                _entered = true;
+                step.Begin();
+                step.Send();
+            }
+
+            // Send 里判了失败就不再判；判了没好就等下一拍；判的时候判了失败也停
+            if (IsTerminal || !step.Check())
+            {
+                return;
+            }
+@@
+            step.Done();
+            LogHelper.Debug(_logOwner, $"{Name} {_index + 1}/{_steps.Count} {step.Name}：做完 {step.DoneMs} ms");
+            _entered = false;
+            _index++;
+        }
+
+        Complete();
+</script></figure>
+<p>按拍走一遍 Load（开门 1200 ms、扫片 1840 ms）：</p>
+<table>
+<tr><th>拍</th><th>进来时 <code>_index</code> / <code>_entered</code></th><th>这一拍做了什么</th></tr>
+<tr><td>1</td><td><code>0</code> / <code>false</code></td><td>打一条"共 4 步"；第 1 步 <code>Send()</code> 发 MOV:CLOAD；<code>Check()</code> 没好 → return</td></tr>
+<tr><td>2～120</td><td><code>0</code> / <code>true</code></td><td>跳过 <code>Send()</code>；<code>Check()</code> 没好 → return</td></tr>
+<tr><td>121</td><td><code>0</code> → <code>1</code></td><td><code>Check()</code> 好了 → <code>Done()</code>、打"1/4 Load 做完 1200 ms"<br><b>同一拍接着</b>：第 2 步 <code>Send()</code> 发 MAPDO → <code>Check()</code> 没好 → return</td></tr>
+<tr><td>…</td><td></td><td></td></tr>
+<tr><td>321</td><td><code>3</code> → <code>4</code></td><td>第 4 步「用槽图」是 <code>DoStep</code>，<code>Send()</code> 落账、<code>Check()</code> 恒真 → while 越界 → <code>Complete()</code></td></tr>
+</table>
+<ul>
+<li><code>_entered</code> 的唯一作用：<b>让 <code>Send()</code> 一辈子只调一次</b>。没有它，每拍都会重发一遍开门指令。</li>
+<li><b><code>while</code> 不 return</b>：一步做完，<b>同一拍接着把下一步发出去</b>。所以几个 <code>Do</code> 连在一起时一拍就全走完，日志里时间戳会一样。</li>
+<li>整个动作的上限（<code>LimitTo</code>）排在步骤循环<b>之前</b>每拍查一次，超了就不再发新指令。</li>
+<li>整个 <code>Step()</code> 外面包着 try/catch：步骤里抛异常，动作判 <code>module.routine_faulted</code> 失败，不会把扫描线程带走。</li>
+</ul>
+</section>
+
+<section class="topic" id="b3-9">
+<h3>3.9 三种结局</h3>
+<table>
+<tr><th>结局</th><th>怎么来的</th><th><code>Code</code></th></tr>
+<tr><td><b>Completed</b></td><td>所有步骤走完，<code>Complete()</code></td><td>空</td></tr>
+<tr><td><b>Failed</b></td><td>某一步 <code>Fail(...)</code>、整个动作超时、步骤里抛异常</td><td>那一步给的 / <code>module.routine_faulted</code></td></tr>
+<tr><td><b>Aborted</b></td><td>别的线程 <code>AbortByHost(...)</code>（急停顶替、调度撤单）</td><td><code>module.action_aborted</code></td></tr>
+</table>
+<p>三条都走同一道闸，<b>先到的算</b>——扫描线程正判失败时，RPC 线程可能同时来中止：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs"><figcaption>注意这是另一把锁 _terminalGate，不是 RoutineGate</figcaption><script type="text/plain">
+    private bool TrySetTerminal(RoutineState state, string reason, string code, IReadOnlyList<string> args)
+    {
+        lock (_terminalGate)
+        {
+            if (IsTerminal)
+            {
+                return false;
+            }
+@@
+            return true;
+        }
+    }
+</script></figure>
+<p>中止时<b>正在走的那一步要收场</b>，这一下必不可少：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/CommandStep.cs"><figcaption>不作废在途指令，急停之后同一条指令发不出去</figcaption><script type="text/plain">
+    protected internal override void OnAborted(string reason)
+    {
+        var command = _command;
+        if (command is not null && !command.IsCompleted)
+        {
+            _driver?.Abandon(command, "Aborted");
+        }
+    }
+</script></figure>
+<p>模块那边的收尾，顺序是定死的：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>后两步放在 finally 里：回调里抛异常，模块也不会永远"忙着"、RPC 也不会吊到超时</figcaption><script type="text/plain">
+    private void CompleteRoutine(ModuleRoutine routine)
+    {
+        try
+        {
+            // 先落状态：成功走迁移表的成功态，失败/被打断落 Error。回调里看到的已经是终态。
+            if (routine.IsSuccess)
+            {
+                State = _transition.SuccessState;
+            }
+            else
+            {
+                State = ModuleState.Error;
+            }
+
+            OnRoutineCompleted(routine);   // 回调里还读得到 CurrentAction、FromState
+        }
+        finally
+        {
+            _routine = null;
+            CurrentAction = null;
+            routine.NotifyCompletion();   // 唤醒等结果的
+        }
+    }
+</script></figure>
+<p>最后那句 <code>NotifyCompletion()</code> 就是 <code>IsSettled</code> 变真的时刻。挂动作时调过 <code>DeferCompletion()</code>，所以动作到终态那一瞬间<b>先不唤醒</b>等结果的人，等这里状态落好才放行——否则 RPC 已经回去了，界面读到的模块状态还是旧的。</p>
+</section>
+
+<section class="topic" id="b3-10">
+<h3>3.10 日志：出事就看这一行</h3>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs"><figcaption>做成</figcaption><script type="text/plain">
+Load 开始：共 4 步（Load / 扫片 / 取槽图 / 用槽图）
+Load 1/4 Load：做完 1200 ms
+Load 2/4 扫片：做完 1840 ms
+Load 做完 4210 ms（Load 1200 / 扫片 1840 / 取槽图 160 / 用槽图 8）
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Routines/ModuleRoutine.cs"><figcaption>失败和中止</figcaption><script type="text/plain">
+Load 失败在 3/4 取槽图：设备回错：NAK（这一步 2000 ms，在等 设备回 MAPDT）；前面做完：Load 1200 / 扫片 1840
+
+Load 中止在 2/4 扫片：急停；前面做完：Load 1200
+</script></figure>
+<table>
+<tr><th>这一段</th><th>哪来的</th></tr>
+<tr><td><code>3/4 取槽图</code></td><td><code>StepNumber</code> / <code>StepCount</code> / <code>StepName</code></td></tr>
+<tr><td><code>这一步 2000 ms，在等 设备回 MAPDT</code></td><td><code>step.ElapsedMs</code> + <code>step.Waiting</code>（步骤自己报的）</td></tr>
+<tr><td><code>前面做完：Load 1200 / 扫片 1840</code></td><td>每一步的 <code>step.DoneMs</code></td></tr>
+</table>
+<p><b>排查就看这一行：哪一步、在等什么、前面花了多久。</b>顺带能看出一件事：步骤名就是日志里那几个字，<code>Load 1/4 Load</code> 读着绕——名字要让人一眼知道这一步在干嘛（"开门"比"Load"强）。</p>
+</section>
+
+<section class="topic" id="b3-11">
+<h3>3.11 例子：从零加一个动作</h3>
+<p>给 LoadPort 加一个"吹扫"，三步。</p>
+<p><b>① 动作枚举加一项</b>，状态迁移表加一行（<code>Idle + Purge →</code> 执行态 <code>Purging</code>、成功态 <code>Idle</code>）。</p>
+<p><b>② 写指令类</b>（机型层；富创得协议是两段式，ACK 只是受理、INF 才算做完）。</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Commands/FcdLoadCommand.cs"><figcaption>照着现成的 FcdLoadCommand 写</figcaption><script type="text/plain">
+public sealed class FcdPurgeCommand : FcdCommand
+{
+    protected override string Name => "PURGE";
+
+    public override string BuildFrame()
+    {
+        return $"{FcdProtocol.Move}:PURGE";
+    }
+
+    protected override bool Handle(FcdMessage message)
+    {
+        if (!string.Equals(message.Name, Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        switch (message.Type)
+        {
+            case FcdProtocol.Ack:
+                // 只是受理了，等 INF
+                return true;
+
+            case FcdProtocol.Inf:
+                Complete();
+                return true;
+
+            case FcdProtocol.Abs:
+            case FcdProtocol.Nak:
+                Fail($"{message.Type}:{Name}/{message.Data}");
+                return true;
+
+            default:
+                return false;
+        }
+    }
+}
+</script></figure>
+<p><b>③ 建动作 + 挂上</b>（LoadPort 模块里，跟 Load 一个样子）。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>查 → 建 → 挂</figcaption><script type="text/plain">
+    public HandleResult<ModuleRoutine> Purge()
+    {
+        lock (RoutineGate)
+        {
+            var rejected = CheckState(LoadPortAction.Purge) ?? PurgeInterlock();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            var purge = new ModuleRoutine(this, "Purge", _driver, () => PurgeTimeout);
+            purge.Command("吹扫", () => new FcdPurgeCommand())
+                 .Until("等气压回落", () => Pressure < PurgeDonePressure, () => PurgeFallTimeout,
+                     () => HandleResult.Fail(ErrorCodes.Timeout, Name))
+                 .Do("记一笔", () =>
+                 {
+                     _purgeCount++;
+                     return HandleResult.Success();
+                 });
+
+            return Begin(LoadPortAction.Purge, purge);
+        }
+    }
+</script></figure>
+<p><b>④ 服务层开个口子</b>。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Service/LoadPortService.cs"><figcaption>找模块 → 调入口 → 等结果 → 翻成回包，RunRoutine 一句全包了</figcaption><script type="text/plain">
+    public Task<RpcResponse> PurgeAsync(RpcRequest request)
+    {
+        if (!request.TryGet<string>(RpcParams.Module, out var module))
+        {
+            return InvalidRequest();
+        }
+
+        var port = FindModule<ILoadPort>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        return RunRoutine(port.Purge(), port.PurgeTimeout);
+    }
+</script></figure>
+<p>完了。<code>_index</code>、<code>_entered</code>、<code>TrySetTerminal</code>、<code>DeferCompletion</code>、两把锁——<b>一个都不用知道</b>。</p>
+</section>
+
+<section class="topic" id="b3-12">
+<h3>3.12 写动作的几条规矩</h3>
+<table>
+<tr><th>规矩</th><th>为什么</th></tr>
+<tr><td><b>步骤之间传数据用局部变量</b></td><td>别绕元件字段。两个 lambda 捕获同一个局部变量，类型安全，也不用记得先清上次的值</td></tr>
+<tr><td><b>超时一律传 <code>Func&lt;int&gt;</code></b></td><td>传数值的话 EC 改了不生效</td></tr>
+<tr><td><b><code>Send()</code> 里只发不等</b></td><td>等是 <code>Check()</code> 的事；在这儿等就卡住整棵树</td></tr>
+<tr><td><b>设备可能没配就用 <code>Devices</code></b></td><td>它自己会跳过，不用写 if，步数也还是真的</td></tr>
+<tr><td><b>跨模块一律用 <code>Child</code></b></td><td>直接调别的模块的方法，错误码和中止都接不上</td></tr>
+<tr><td><b>步骤名起得像人话</b></td><td>它就是日志里那几个字，也是界面进度条上那几个字</td></tr>
+</table>
+<p>步骤间传数据的写法：</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>局部变量被两个 lambda 一起捕获，跟 async 写法差的只是 await 两个字</figcaption><script type="text/plain">
+SlotMap? map = null;
+
+load.Command("取槽图", () => new FcdGetMapCommand(), command =>
+     {
+         map = command.SlotMap;
+         return HandleResult.Success();
+     })
+    .Do("用槽图", () => TakeSlotMap(map!));
+</script></figure>
+</section>
+
+<section class="topic" id="b3-13">
+<h3>3.13 现在的边界（没改）</h3>
+<table>
+<tr><th>#</th><th>现状</th><th>影响</th><th>要改的话</th></tr>
+<tr><td>1</td><td>一个模块同时只能挂一个动作（<code>_routine</code> 是单个字段）</td><td>腔体跑工艺时不能并行做别的；今天够用，多片腔体以后可能要改</td><td>排队该在任务层做，不是模块层</td></tr>
+<tr><td>2</td><td><code>Step()</code> 只能在挂它的模块那条扫描线程调，靠注释约束</td><td>没有代码层面的检查，写错了是数据竞争、还不报错</td><td>加线程号断言（只在 Debug 下）</td></tr>
+<tr><td>3</td><td>步骤加完就不能改</td><td>不支持"按上一步的结果决定后面几步"</td><td>现在靠 <code>Child</code> 套子动作绕开，够用</td></tr>
+<tr><td>4</td><td><b>动作做完就扔，没有履历</b></td><td>想查"今天 Chamber1 做了多少次工艺、每次多久、失败几次"只能翻文本日志</td><td>数据全现成（<code>Module</code> / <code>Name</code> / <code>Code</code> / <code>StepNumber</code> / 每步 <code>DoneMs</code>），差一步落库</td></tr>
+</table>
+</section>
+
+</section>
+
 
 </section>
 

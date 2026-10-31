@@ -91,7 +91,7 @@ public sealed partial class MainViewModel
         string folder = Path.GetDirectoryName(CdsLayoutViewModel.LayoutPath(machinePath, "placeholder"))!;
         if (Directory.Exists(folder))
         {
-            foreach (string path in Directory.EnumerateFiles(folder, "*.xml"))
+            foreach (string path in Directory.EnumerateFiles(folder).Where(p => Path.GetExtension(p) is ".xml" or ".xaml"))
             {
                 byte[] bytes = File.ReadAllBytes(path);
                 files[path] = new FileWrite(path, bytes, SHA256.HashData(bytes));
@@ -165,7 +165,7 @@ public sealed partial class MainViewModel
         target = Path.GetFullPath(target);
         bool moving = !string.Equals(target, _document.FilePath, StringComparison.OrdinalIgnoreCase);
         var machineWrite = _document.PrepareWrite(target);
-        var layouts = new List<(CdsLayoutViewModel Layout, FileWrite Write)>();
+        var layouts = new List<(CdsLayoutViewModel Layout, FileWrite Write, FileWrite DiagramWrite)>();
         foreach (var pair in _layouts)
         {
             if (!pair.Key.Ancestors().Contains(_document.Xml.Root!))
@@ -176,12 +176,13 @@ public sealed partial class MainViewModel
                 }
                 continue;
             }
-            layouts.Add((pair.Value, pair.Value.PrepareWrite(target)));
+            layouts.Add((pair.Value, pair.Value.PrepareWrite(target), pair.Value.PrepareDiagramWrite(target)));
         }
         var writes = new List<FileWrite> { machineWrite };
         writes.AddRange(layouts.Select(item => item.Write));
+        writes.AddRange(layouts.Select(item => item.DiagramWrite));
         var chamberWrites = PrepareChamberWrites(target);
-        writes.AddRange(chamberWrites.Select(item => item.Write));
+        foreach (var item in chamberWrites) { writes.Add(item.Write); writes.Add(item.DiagramWrite); }
         if (moving)
         {
             AppendUnopenedChamberWrites(writes, target);
@@ -206,7 +207,7 @@ public sealed partial class MainViewModel
         _document.AcceptSave(machineWrite);
         foreach (var item in layouts)
         {
-            item.Layout.AcceptSave(item.Write);
+            item.Layout.AcceptSave(item.Write, item.DiagramWrite);
         }
         if (moving)
         {

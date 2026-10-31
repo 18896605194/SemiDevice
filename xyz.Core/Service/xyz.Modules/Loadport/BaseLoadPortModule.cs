@@ -945,7 +945,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         var robot = _mapRobot;
         if (robot is not null)
         {
-            routine.Start($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
+            routine.Child($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
             return;
         }
 

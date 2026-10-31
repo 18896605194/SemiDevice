@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using xyz.Common.Log;
 using xyz.Elements;
 using xyz.Elements.Attributes;
 using xyz.Elements.Elements;
@@ -97,7 +98,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
     /// 挂上一个动作（一次一个：已有在途的就拒，replace=true 顶替并把旧的打断）
     /// 挂载后由本模块扫描线程每周期自动步进，模块无需为此重写 OnScan。
     /// </summary>
-    protected bool Run(ModuleRoutine routine, bool replace = false)
+    protected bool Attach(ModuleRoutine routine, bool replace = false)
     {
         lock (RoutineGate)
         {
@@ -281,7 +282,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
                 return null;
             }
 
-            if (!Run(routine, replace))
+            if (!Attach(routine, replace))
             {
                 return null;
             }
@@ -306,7 +307,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
             }
 
             //动作扫描
-            routine.Scan();
+            routine.Step();
 
             if (routine.IsTerminal)
             {

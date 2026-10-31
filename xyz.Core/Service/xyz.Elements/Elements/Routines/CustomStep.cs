@@ -14,7 +14,7 @@ internal sealed class CustomStep : RoutineStep
         _check = check;
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
         _run?.Invoke(this);
     }

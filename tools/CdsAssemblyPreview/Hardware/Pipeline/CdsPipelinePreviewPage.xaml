@@ -1,6 +1,6 @@
 <UserControl x:Class="CdsAssemblyPreview.CdsPipelinePreviewPage"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+ xmlns:local="clr-namespace:CdsAssemblyPreview" xmlns:fluid="clr-namespace:xyz.Client.Presentation.Controls.Fluid;assembly=xyz.Client.Presentation" xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
  <Grid Margin="22" Background="{DynamicResource DarkWindowBackground}">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <StackPanel Margin="0,0,0,18">
@@ -65,10 +65,10 @@
           <TextBlock Text="{DynamicResource pipeline.power}" Margin="0,0,0,6"/><controls:InputTextBox Value="{Binding PowerPercent}" DataType="Decimal" Minimum="0" Maximum="100" Style="{DynamicResource ToolbarTextBoxStyle}" Margin="0,0,0,12"/>
          </StackPanel>
          <UniformGrid Columns="2">
-          <Button x:Name="ActiveButton" Content="{Binding SelectedHardware.ActiveText}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Active}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-          <Button Content="{DynamicResource cdsp.stop}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-          <Button x:Name="FaultButton" Content="{DynamicResource hw.state.fault}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Fault}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
-          <Button Content="{DynamicResource cdsp.unknown_valve}" Command="{Binding StateCommand}" CommandParameter="{x:Static local:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+          <Button x:Name="ActiveButton" Content="{Binding SelectedHardware.ActiveText}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Active}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+          <Button Content="{DynamicResource cdsp.stop}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Stopped}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+          <Button x:Name="FaultButton" Content="{DynamicResource hw.state.fault}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Fault}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
+          <Button Content="{DynamicResource cdsp.unknown_valve}" Command="{Binding StateCommand}" CommandParameter="{x:Static fluid:HardwareState.Unknown}" Style="{DynamicResource ToolbarOutlinedButtonStyle}"/>
          </UniformGrid>
         </StackPanel>
         <StackPanel Style="{DynamicResource PreviewValvePanelStyle}">

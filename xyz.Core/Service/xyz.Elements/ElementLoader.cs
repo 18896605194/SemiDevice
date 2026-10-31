@@ -50,7 +50,7 @@ public static class ElementLoader
         {
             if (root.IsEnabled && root.IsRun)
             {
-                root.Start();
+                root.StartScan();
             }
         }
     }

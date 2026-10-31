@@ -37,7 +37,7 @@ internal sealed class DeviceStep : RoutineStep
         }
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
         foreach (var order in _orders)
         {

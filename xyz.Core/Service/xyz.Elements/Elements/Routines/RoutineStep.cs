@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace xyz.Elements.Elements;
 
@@ -117,7 +117,7 @@ public abstract class RoutineStep
     /// <summary>
     /// 进这一步时做一次：发指令、起别家的动作；出错调 Fail
     /// </summary>
-    protected internal abstract void Run();
+    protected internal abstract void Send();
 
     /// <summary>
     /// 之后每拍判一次：true = 这一步做完；出错调 Fail

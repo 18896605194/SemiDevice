@@ -38,11 +38,13 @@ public sealed class ChamberVisualCatalog(IEnumerable<IChamberVisualProvider>? pr
 {
     private readonly IChamberVisualProvider[] _providers = providers?.ToArray() ?? [];
     public ChamberPartVisual Create(string kind) => Create(new ChamberVisualContext(kind));
-    public ChamberPartVisual Create(ChamberVisualContext context)
+    public ChamberPartVisual Create(ChamberVisualContext context) => CreateProjectVisual(context) ?? new PlatformVisual(context.Kind);
+    /// <summary>工具在导出 XAML 时选取项目控件；平台默认控件无需创建实例。</summary>
+    public ChamberPartVisual? CreateProjectVisual(ChamberVisualContext context)
     {
         foreach (var provider in _providers)
             if (provider.Create(context) is { } visual) return visual;
-        return new PlatformVisual(context.Kind);
+        return null;
     }
 
     private sealed class PlatformVisual : ChamberPartVisual

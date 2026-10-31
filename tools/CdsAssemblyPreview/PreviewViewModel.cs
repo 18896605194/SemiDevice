@@ -116,6 +116,7 @@ public sealed partial class PreviewViewModel : BaseViewModel
         SensorUnknownCommand = new RelayCommand(() => DoSetSensor(null), () => IsSensorSelected);
         HardwareStateCommand = new RelayCommand<HardwareState>(DoHardwareState);
         SaveCommand = new AsyncRelayCommand(DoSave); LoadCommand = new AsyncRelayCommand(DoLoad);
+        SceneChanged += RefreshDiagramStates;
     }
 
     public override void Init()

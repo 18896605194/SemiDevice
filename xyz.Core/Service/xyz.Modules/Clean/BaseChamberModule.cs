@@ -642,17 +642,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 检查都过了，挂上设备动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态
     /// </summary>
-    private HandleResult<ModuleRoutine> Started(ChamberAction action, ModuleRoutine routine)
-    {
-        var started = Begin(action, routine);
-        if (started is null)
-        {
-            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
-        }
-
-        return HandleResult<ModuleRoutine>.Success(started);
-    }
-
     #region Home
 
     /// <summary>
@@ -670,7 +659,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
             var home = new ModuleRoutine(this, "Home").LimitTo(() => HomeTimeout, ErrorCodes.ChamberActionTimeout);
             AddHomeSteps(home);
-            return Started(ChamberAction.Home, home);
+            return Begin(ChamberAction.Home, home);
         }
     }
 
@@ -706,7 +695,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(rejected);
             }
 
-            var started = Started(ChamberAction.Process, CreateProcessRoutine(request));
+            var started = Begin(ChamberAction.Process, CreateProcessRoutine(request));
             var routine = started.Result;
             if (!started.IsSuccess || routine is null)
             {
@@ -921,7 +910,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             jog.AwaitSent("等停下", axis, ChamberDeviceAction.Jog, () => DeviceActionTimeout);
             _jogAxis = axis;
             _jogReleased = false;
-            var started = Started(ChamberAction.Manual, jog);
+            var started = Begin(ChamberAction.Manual, jog);
             if (!started.IsSuccess)
             {
                 // 检查跟挂在同一把锁里，挂不上只是防万一；点动已经发出去了，先停下来
@@ -1016,7 +1005,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
             var manual = new ModuleRoutine(this, $"{device.FullPath} {action}");
             manual.AwaitSent("等做完", device, action, () => DeviceActionTimeout);
-            return Started(ChamberAction.Manual, manual);
+            return Begin(ChamberAction.Manual, manual);
         }
     }
 
@@ -1086,7 +1075,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
             var reset = new ModuleRoutine(this, "Reset").LimitTo(() => ResetTimeout, ErrorCodes.ChamberActionTimeout);
             AddResetSteps(reset);
-            return Started(ChamberAction.Reset, reset);
+            return Begin(ChamberAction.Reset, reset);
         }
     }
 
@@ -1107,7 +1096,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
             var abort = new ModuleRoutine(this, "Abort").LimitTo(() => AbortTimeout, ErrorCodes.ChamberActionTimeout);
             AddAbortSteps(abort);
-            return Started(ChamberAction.Abort, abort);
+            return Begin(ChamberAction.Abort, abort);
         }
     }
 

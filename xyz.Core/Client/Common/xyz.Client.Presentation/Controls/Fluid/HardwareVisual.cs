@@ -6,9 +6,9 @@ using System.Windows.Media.Media3D;
 using xyz.Client.Presentation.Controls.ThreeD;
 using xyz.Client.Presentation.Controls;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
-/// <summary>工具内的显示控件。所有状态和值由绑定提供，不发送设备命令。</summary>
+/// <summary>公共流体硬件显示控件。所有状态和值由绑定提供，不发送设备命令。</summary>
 public sealed class HardwareVisual : Grid
 {
     private readonly FluidHardwareDrawing _drawing = new();

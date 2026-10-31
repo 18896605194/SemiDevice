@@ -40,12 +40,20 @@
      <TextBlock Text="{DynamicResource chambereditor.machine_required}" Margin="30" TextWrapping="Wrap"
       HorizontalAlignment="Center" VerticalAlignment="Center"
       Visibility="{Binding NeedsConfiguration, Converter={x:Static local:ChamberEditorPage.BooleanVisibility}}"/>
+     <TextBox x:Name="XamlPreview" IsReadOnly="True" Visibility="Collapsed" AcceptsReturn="True" TextWrapping="NoWrap"
+      Style="{DynamicResource ChamberXamlPreviewStyle}" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
     </Grid>
    </Border>
    <Border x:Name="InspectorPanel" Grid.Column="4" Style="{DynamicResource ZoneBorderStyle}" Padding="8">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <WrapPanel x:Name="ViewActions" Margin="0,0,0,8">
+      <WrapPanel Width="246" Margin="0,0,0,8">
+       <Button x:Name="CanvasButton" Content="{DynamicResource chambereditor.canvas}" Click="OnShowCanvas" Style="{DynamicResource ToolbarOutlinedButtonStyle}" MinWidth="50" Padding="6,0" Margin="0,0,6,6"/>
+       <Button x:Name="XamlButton" Content="XAML" Click="OnShowXaml" IsEnabled="{Binding HasConfiguration}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" MinWidth="56" Padding="6,0" Margin="0,0,6,6"/>
+       <Button x:Name="ExportXamlButton" Content="{DynamicResource chambereditor.export_xaml}" Click="OnExportXaml" IsEnabled="{Binding HasConfiguration}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" MinWidth="104" Padding="6,0" Margin="0,0,0,6"/>
+       <Button x:Name="OpenXamlButton" Content="{DynamicResource chambereditor.open_xaml}" Click="OnOpenXaml" IsEnabled="{Binding HasConfiguration}" Style="{DynamicResource ToolbarOutlinedButtonStyle}" Margin="0"/>
+      </WrapPanel>
       <TextBlock Text="{DynamicResource chambereditor.view}" VerticalAlignment="Center" Margin="0,0,8,0"/>
       <ComboBox x:Name="ViewPicker" SelectedIndex="0" SelectionChanged="OnViewChanged" Width="110" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,6,0">
        <ComboBoxItem Tag="Perspective" Content="{DynamicResource chambereditor.view.Perspective}"/>

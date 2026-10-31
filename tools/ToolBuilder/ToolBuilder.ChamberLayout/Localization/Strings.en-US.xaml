@@ -10,6 +10,10 @@
  <sys:String x:Key="chambereditor.import">Load machine configuration</sys:String>
  <sys:String x:Key="chambereditor.open">Open layout</sys:String>
  <sys:String x:Key="chambereditor.save">Save project layouts</sys:String>
+ <sys:String x:Key="chambereditor.canvas">Canvas</sys:String>
+ <sys:String x:Key="chambereditor.export_xaml">Export XAML</sys:String>
+ <sys:String x:Key="chambereditor.open_xaml">Open XAML</sys:String>
+ <sys:String x:Key="chambereditor.xaml_filter">Chamber view (*.xaml)|*.xaml</sys:String>
  <sys:String x:Key="chambereditor.undo">Undo</sys:String>
  <sys:String x:Key="chambereditor.redo">Redo</sys:String>
  <sys:String x:Key="chambereditor.snap">Snap to grid</sys:String>

@@ -79,10 +79,19 @@ internal static partial class ToolBuilderSmoke
         model.SelectedInspectorTab = 1; model.SelectPipe(model.Layout.Pipes[0].Id);
         model.Parameters.OfType<CdsNumberParameter>().Single(p => p.Key == "Diameter").Value = 20;
         Check(model.Layout.Pipes[0].Diameter == 20, "显示参数直接修改管路粗细");
+        await CdsXamlChecks(session, output, Check, Pump);
         string layoutPath = CdsLayoutViewModel.LayoutPath(machine, module.Path); vm.SaveWorkspace(machine);
         Check(File.Exists(layoutPath) && CdsLayout.Parse(File.ReadAllText(layoutPath)).Nodes.Count == 18 && CdsLayout.Parse(File.ReadAllText(layoutPath)).Pipes[0].Diameter == 20,
             "顶部统一保存machine.xml和包含独立组件的Version2布局");
         Check(!vm.HasLayoutChanges && !vm.Title.EndsWith("*"), "统一保存清除未保存标记");
+        string diagramPath = Path.ChangeExtension(layoutPath, ".xaml");
+        Check(File.Exists(diagramPath) && CdsDiagramXaml.ReadLayout(File.ReadAllText(diagramPath)).Nodes.Count == 18, "顶部统一保存同时写入CDS显示XAML");
+        byte[] originalDiagram = File.ReadAllBytes(diagramPath), originalMachine = File.ReadAllBytes(machine), originalLayout = File.ReadAllBytes(layoutPath);
+        File.AppendAllText(diagramPath, "\n<!-- external XAML edit -->");
+        bool xamlRejected = false; try { vm.SaveWorkspace(machine); } catch (IOException) { xamlRejected = true; }
+        Check(xamlRejected && originalMachine.SequenceEqual(File.ReadAllBytes(machine)) && originalLayout.SequenceEqual(File.ReadAllBytes(layoutPath)),
+            "显示XAML外部冲突阻止整批保存，machine和编辑数据保持原样");
+        File.WriteAllBytes(diagramPath, originalDiagram);
         Check(Directory.EnumerateFiles(Path.Combine(workspace, "backup"), "*.bak").Any(), "统一保存保留备份机制");
         string current = model.Layout.ToXml(); byte[] disk = File.ReadAllBytes(machine);
         File.AppendAllText(layoutPath, "\n<!-- external edit -->"); ConfigDocument.SetValue(module.Element, "IsRun", "false");
@@ -91,6 +100,7 @@ internal static partial class ToolBuilderSmoke
         vm.OpenFile(machine); module = vm.Roots.SelectMany(r => r.Walk()).First(n => n.Path == "CDS.IPA");
         string copied = Path.Combine(workspace, "copy", "copied.xml"); vm.SaveWorkspace(copied);
         Check(File.Exists(CdsLayoutViewModel.LayoutPath(copied, module.Path)), "配置另存为携带尚未打开的布局");
+        Check(File.Exists(Path.ChangeExtension(CdsLayoutViewModel.LayoutPath(copied, module.Path), ".xaml")), "另存为同时携带尚未打开的CDS显示XAML");
         vm.SelectNode(module); await Pump(); session = vm.CurrentCdsLayout!; editor = session.Editor; model = editor.ViewModel;
         Check(model.Layout.ToXml() == current, "重新加载恢复组件位置和管路参数");
         model.Select(model.Components.First(n => n.Kind == "Tank").Id); string id = model.Selected!.Id; double placedX = model.PositionX;
@@ -113,6 +123,7 @@ internal static partial class ToolBuilderSmoke
         module.Element.Add(pumpXml, heaterXml); await Pump();
         Check(model.Components.Count(n => n.Kind == "Hardware") == 2 && editor.Scene.Hardware.Values.OfType<ProcessHardwareScene>().All(v => v.ViewMode == HardwareViewMode.Front2D),
             "仅在配置夹具明确包含泵及加热器时显示对应2D控件");
+        await CdsHardwareXamlChecks(editor, output, Check, Pump);
         ConfigDocument.SetAttribute(pumpXml, "Type", "xyz.Elements.Elements.HeaterElement"); await Pump();
         Check(editor.Scene.Hardware.Values.OfType<ProcessHardwareScene>().Count(v => v.Kind == FluidHardwareKind.InlineHeater) == 2,
             "同一配置节点更换组件类型后，正视控件按类型同步替换");

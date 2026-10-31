@@ -10,6 +10,10 @@
  <sys:String x:Key="chambereditor.import">加载装机配置</sys:String>
  <sys:String x:Key="chambereditor.open">打开布局</sys:String>
  <sys:String x:Key="chambereditor.save">保存项目布局</sys:String>
+ <sys:String x:Key="chambereditor.canvas">画布</sys:String>
+ <sys:String x:Key="chambereditor.export_xaml">导出 XAML</sys:String>
+ <sys:String x:Key="chambereditor.open_xaml">打开 XAML</sys:String>
+ <sys:String x:Key="chambereditor.xaml_filter">腔体界面 (*.xaml)|*.xaml</sys:String>
  <sys:String x:Key="chambereditor.undo">撤销</sys:String>
  <sys:String x:Key="chambereditor.redo">重做</sys:String>
  <sys:String x:Key="chambereditor.snap">网格吸附</sys:String>

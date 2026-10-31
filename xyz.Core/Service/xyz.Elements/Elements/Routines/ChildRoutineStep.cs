@@ -51,7 +51,7 @@ internal sealed class ChildRoutineStep : RoutineStep
         }
     }
 
-    protected internal override void Run()
+    protected internal override void Send()
     {
         var started = _start();
         var child = started.Result;

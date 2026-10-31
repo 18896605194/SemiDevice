@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using System.Xml.Linq;
 using ChamberLayoutEditor;
 using ToolBuilder.Core;
+using xyz.Client.Presentation.Models;
 
 namespace ToolBuilder;
 
@@ -121,6 +122,10 @@ internal static partial class ChamberLayoutSmoke
         string firstLayout = MainViewModel.ChamberLayoutPath(machine, chambers[0].Path);
         Check(File.Exists(firstLayout) && ChamberLayoutDocument.Parse(File.ReadAllText(firstLayout)).Parts.Any(p => p.Kind == "Arm" && p.X == 2.45),
             "ToolBuilder 统一保存 machine.xml 和腔体布局");
+        string firstDiagram = Path.ChangeExtension(firstLayout, ".xaml");
+        Check(File.Exists(firstDiagram) && ChamberDiagramXaml.ReadLayout(File.ReadAllText(firstDiagram)).Parts.Any(p => p.Kind == "Arm" && p.X == 2.45)
+            && ChamberDiagramXaml.Load(File.ReadAllText(firstDiagram)).Parts.Count == model.Parts.Count,
+            "顶部保存同步生成可直接加载的标准WPF XAML，坐标和组件清单与工具一致");
         Check(!vm.HasLayoutChanges, "成功保存后清除所有布局的未保存状态");
         byte[] savedMachine = File.ReadAllBytes(machine), savedLayout = File.ReadAllBytes(firstLayout);
         File.AppendAllText(firstLayout, "\n<!-- outside -->");
@@ -130,22 +135,61 @@ internal static partial class ChamberLayoutSmoke
         Check(blocked && File.ReadAllBytes(machine).SequenceEqual(savedMachine) && vm.HasLayoutChanges,
             "布局被外部修改时不覆盖，machine.xml 不会先被写入，未保存状态保留");
         File.WriteAllBytes(firstLayout, savedLayout);
+        byte[] savedDiagram = File.ReadAllBytes(firstDiagram);
+        File.AppendAllText(firstDiagram, "\n<!-- outside diagram edit -->"); blocked = false;
+        try { vm.SaveWorkspace(machine); } catch (IOException) { blocked = true; }
+        Check(blocked && File.ReadAllBytes(firstLayout).SequenceEqual(savedLayout) && File.ReadAllBytes(machine).SequenceEqual(savedMachine),
+            "导出XAML被外部修改时阻止整批覆盖，装机及编辑XML保持完整");
+        File.WriteAllBytes(firstDiagram, savedDiagram);
         string failedTarget = Path.Combine(workspace, "failed.xml");
         string obstacle = MainViewModel.ChamberLayoutPath(failedTarget, chambers[1].Path); Directory.CreateDirectory(obstacle);
         bool rolledBack = false;
         try { vm.SaveWorkspace(failedTarget); } catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { rolledBack = true; }
-        Check(rolledBack && !File.Exists(failedTarget) && !File.Exists(MainViewModel.ChamberLayoutPath(failedTarget, chambers[0].Path)) && vm.HasLayoutChanges,
+        Check(rolledBack && !File.Exists(failedTarget) && !File.Exists(MainViewModel.ChamberLayoutPath(failedTarget, chambers[0].Path))
+            && !File.Exists(Path.ChangeExtension(MainViewModel.ChamberLayoutPath(failedTarget, chambers[0].Path), ".xaml")) && vm.HasLayoutChanges,
             "布局写入失败时回滚本批已保存文件并保留修改");
         Directory.Delete(obstacle);
         string moved = Path.Combine(workspace, "copy.xml"); vm.SaveWorkspace(moved); await Pump();
         Check(File.Exists(MainViewModel.ChamberLayoutPath(moved, chambers[0].Path)) && File.Exists(MainViewModel.ChamberLayoutPath(moved, chambers[1].Path)),
             "另存为携带所有腔体的布局并使用新的配置文件命名空间");
+        Check(File.Exists(Path.ChangeExtension(MainViewModel.ChamberLayoutPath(moved, chambers[0].Path), ".xaml"))
+            && File.Exists(Path.ChangeExtension(MainViewModel.ChamberLayoutPath(moved, chambers[1].Path), ".xaml")),
+            "另存为同步携带每个腔体的标准XAML显示文件");
         vm.OpenFile(moved); vm.Sources.Clear(); foreach (string path in catalogSources) vm.Sources.Add(path);
         await vm.LoadCatalogAsync();
-        var loaded = vm.Roots.SelectMany(r => r.Walk()).First(n => n.Name == chambers[0].Name);
+        var loaded = vm.Roots.SelectMany(r => r.Walk()).First(n => n.Path == chambers[0].Path);
         vm.SelectNode(loaded); await Pump();
         Check(Math.Abs(model.Parts.Single(p => p.IsArm).X - 2.55) < 1e-6, "重新打开配置后恢复腔体布局的位置");
         Capture(content, Path.Combine(output, "chamber-restored.png"));
+        Check(((Button)editor.FindName("ExportXamlButton")).IsVisible && ((Button)editor.FindName("OpenXamlButton")).IsVisible,
+            "嵌入工具保留明确的导出XAML和打开XAML按钮");
+        editor.ShowXaml(true); await Pump();
+        var xamlPreview = (TextBox)editor.FindName("XamlPreview");
+        Check(xamlPreview.IsVisible && xamlPreview.IsReadOnly && !scene.IsVisible && xamlPreview.Text.Contains("ScaleTransform3D")
+            && xamlPreview.Text.Contains("Angle=\"{Binding") && !xamlPreview.Text.Contains("Frame=")
+            && XDocument.Parse(xamlPreview.Text).Root!.Name.LocalName == "UserControl" && !xamlPreview.Text.Contains("ResourceDictionary"),
+            "画布切换到普通UserControl源码，直接展示布局、控件及依赖属性绑定");
+        double xamlBefore = model.Parts.Single(p => p.IsArm).X;
+        model.Parts.Single(p => p.IsArm).X += 0.1; await Pump();
+        Check(Math.Abs(ChamberDiagramXaml.ReadLayout(xamlPreview.Text).Parts.Single(p => p.Kind == "Arm").X - xamlBefore - 0.1) < 1e-6,
+            "源码随布局参数修改同步更新");
+        string explicitExport = Path.Combine(output, "exported-chamber.xaml");
+        bool dirtyBefore = model.HasUnsavedChanges; await editor.ExportXamlAsync(explicitExport);
+        Check(File.ReadAllText(explicitExport) == xamlPreview.Text && ChamberDiagramXaml.Load(File.ReadAllText(explicitExport)).Parts.Count == model.Parts.Count
+            && model.HasUnsavedChanges == dirtyBefore, "显式导出真实可加载XAML且不把未保存布局误标为已保存");
+        var importedXaml = XDocument.Parse(File.ReadAllText(explicitExport));
+        var importedArm = importedXaml.Descendants().Single(e => e.Name.LocalName == "ChamberDiagramPart3D" && (string?)e.Attribute("Kind") == "Arm");
+        importedArm.Descendants().Where(e => e.Name.LocalName == "TranslateTransform3D").First().SetAttributeValue("OffsetX", 2.75);
+        editor.OpenXaml(importedXaml.ToString()); await Pump();
+        Check(Math.Abs(model.Parts.Single(p => p.IsArm).X - 2.75) < 1e-6 && model.HasUnsavedChanges,
+            "打开XAML按实际安装变换恢复布局，导入可撤销并保持未保存状态");
+        model.UndoCommand.Execute(null); await Pump();
+        Check(Math.Abs(model.Parts.Single(p => p.IsArm).X - xamlBefore - 0.1) < 1e-6, "撤销打开XAML恢复导入前布局");
+        Capture(content, Path.Combine(output, "chamber-xaml-source.png"));
+        editor.ShowXaml(false); await Pump();
+        Check(scene.IsVisible && !xamlPreview.IsVisible, "源码切回原画布，保持编辑区域尺寸和已有布局");
+        model.UndoCommand.Execute(null); await Pump();
+        Check(!model.HasUnsavedChanges, "检查结束恢复原布局，导出和导入检查不留下未保存编辑");
         Check(File.ReadAllBytes(source).SequenceEqual(original), "集成测试不修改输入 machine.xml");
         File.WriteAllLines(Path.Combine(output, "chamber-checks.txt"), checks);
         host.RootVisual = null;

@@ -1,8 +1,8 @@
 using System.Windows.Media.Media3D;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
-/// <summary>工具预览的封闭实体和贯通接头；不修改平台几何实现。</summary>
+/// <summary>流体硬件的封闭实体和贯通接头。</summary>
 internal static class PreviewMesh3D
 {
     public static MeshGeometry3D Tube(Point3D start, Point3D end, double outer, double inner = 0, int sides = 48)

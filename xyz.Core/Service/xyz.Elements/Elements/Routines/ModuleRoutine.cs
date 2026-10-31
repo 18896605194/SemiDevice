@@ -55,7 +55,7 @@ public class ModuleRoutine
     private long _startedAt = -1;
 
     /// <summary>
-    /// 这一步的 Run 做过了没有；只在持 RoutineGate 的扫描线程里改
+    /// 这一步的 Send 做过了没有；只在持 RoutineGate 的扫描线程里改
     /// </summary>
     private bool _entered;
 
@@ -275,7 +275,7 @@ public class ModuleRoutine
     /// <summary>
     /// 加一步：起一个别家的动作（站点准备、机械手扫片），等它收完尾；被拒、没做成原样带它的错误码
     /// </summary>
-    public ModuleRoutine Start(string name, Func<HandleResult<ModuleRoutine>> start, Func<HandleResult>? onSuccess = null)
+    public ModuleRoutine Child(string name, Func<HandleResult<ModuleRoutine>> start, Func<HandleResult>? onSuccess = null)
     {
         return Append(new ChildRoutineStep(name, start, onSuccess, null));
     }
@@ -283,7 +283,7 @@ public class ModuleRoutine
     /// <summary>
     /// 加一步：起一个别家的动作、等它收完尾；没做成交给 onFailed 自己收场（在里面 step.Fail 成自己的错误码），没判就原样带它的错误码
     /// </summary>
-    public ModuleRoutine Start(string name, Func<HandleResult<ModuleRoutine>> start, Action<RoutineStep, ModuleRoutine> onFailed)
+    public ModuleRoutine Child(string name, Func<HandleResult<ModuleRoutine>> start, Action<RoutineStep, ModuleRoutine> onFailed)
     {
         return Append(new ChildRoutineStep(name, start, null, onFailed));
     }
@@ -407,7 +407,7 @@ public class ModuleRoutine
 
     #region 推进（只在挂着它的模块或搬运管理的扫描线程里调）
 
-    public void Scan()
+    public void Step()
     {
         if (IsTerminal) //如果停下来了就直接return
         {
@@ -454,10 +454,10 @@ public class ModuleRoutine
             {
                 _entered = true;
                 step.Begin();
-                step.Run();
+                step.Send();
             }
 
-            // Run 里判了失败就不再判；判了没好就等下一拍；判的时候判了失败也停
+            // Send 里判了失败就不再判；判了没好就等下一拍；判的时候判了失败也停
             if (IsTerminal || !step.Check())
             {
                 return;

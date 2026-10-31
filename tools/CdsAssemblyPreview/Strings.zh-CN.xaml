@@ -111,4 +111,9 @@
   <sys:String x:Key="cdsp.zoom.in">放大画布</sys:String>
   <sys:String x:Key="cdsp.zoom.fit">适应窗口</sys:String>
   <sys:String x:Key="cdsp.zoom.tip">画布整体缩放（10%～400%）；滚轮缩放，超出窗口后可用滚动条移动视图。</sys:String>
+ <sys:String x:Key="cdsp.source.canvas">画布</sys:String>
+ <sys:String x:Key="cdsp.source.open">打开 XAML</sys:String>
+ <sys:String x:Key="cdsp.source.export">导出 XAML</sys:String>
+ <sys:String x:Key="cdsp.source.filter">CDS 界面 (*.xaml)|*.xaml</sys:String>
+ <sys:String x:Key="cdsp.source.wrong_module">此 XAML 不属于当前药液模块，请先选择对应装机节点。</sys:String>
 </ResourceDictionary>

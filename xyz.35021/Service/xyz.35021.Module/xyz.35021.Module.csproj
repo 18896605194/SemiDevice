@@ -15,7 +15,7 @@
   <ItemGroup>
     <!-- ToolBuilder 保存 machine.xml 前的备份（Config\backup），不进项目 -->
     <None Remove="Config\backup\**" />
-    <ChamberLayoutFile Include="$(MSBuildThisFileDirectory)Config\ChamberLayouts\**\*.xml" Exclude="**\backup\**" />
+    <ChamberLayoutFile Include="$(MSBuildThisFileDirectory)Config\ChamberLayouts\**\*.xml;$(MSBuildThisFileDirectory)Config\ChamberLayouts\**\*.xaml" Exclude="**\backup\**" />
   </ItemGroup>
 
   <!-- 编译完自动部署进后端宿主（等同 tools\deploy-module.ps1 -Target Service），F5 跑的就是刚改的机型代码、machine.xml 和点表：

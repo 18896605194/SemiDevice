@@ -15,13 +15,14 @@ public sealed class CdsLayoutViewModel : BaseViewModel
     public PreviewPage Editor { get; }
     public string Description => L10n.Get("cdsp.workspace.description", _module?.Path ?? "", Editor.ViewModel.TankCount, Editor.ViewModel.ValveCount, Editor.ViewModel.SensorCount);
     public string FilePath => _path;
+    public string DiagramPath => Path.ChangeExtension(_path, ".xaml");
     public bool IsDirty => _isNew || Editor.ViewModel.Layout.ToXml() != _savedXml;
     public event Action? Changed;
     #endregion
     #region Service
     private NodeModel? _module;
     private string _machinePath = "", _path = "", _savedXml = "", _schema = "";
-    private byte[]? _fingerprint;
+    private byte[]? _fingerprint, _diagramFingerprint;
     private bool _isNew, _initialized, _loading;
     private Func<string, string?>? _resolve;
     private Dictionary<XElement, string> _bindings = [];
@@ -40,6 +41,7 @@ public sealed class CdsLayoutViewModel : BaseViewModel
         if (_initialized || _module is null) return;
         _path = LayoutPath(_machinePath, _module.Path); _isNew = !File.Exists(_path);
         byte[]? bytes = _isNew ? null : File.ReadAllBytes(_path);
+        _diagramFingerprint = File.Exists(DiagramPath) ? SHA256.HashData(File.ReadAllBytes(DiagramPath)) : null;
         var saved = bytes is null ? null : CdsLayout.Parse(Encoding.UTF8.GetString(bytes));
         var snapshot = Read();
         _loading = true;
@@ -99,9 +101,16 @@ public sealed class CdsLayoutViewModel : BaseViewModel
         Validate(); string path = LayoutPath(machinePath, _module!.Path);
         return new FileWrite(path, new UTF8Encoding(false).GetBytes(Editor.PrepareSave()), string.Equals(path, _path, StringComparison.OrdinalIgnoreCase) ? _fingerprint : null);
     }
-    public void AcceptSave(FileWrite write)
+    public FileWrite PrepareDiagramWrite(string machinePath)
+    {
+        string path = Path.ChangeExtension(LayoutPath(machinePath, _module!.Path), ".xaml");
+        return new FileWrite(path, new UTF8Encoding(false).GetBytes(Editor.PrepareXamlExport()),
+            string.Equals(path, DiagramPath, StringComparison.OrdinalIgnoreCase) ? _diagramFingerprint : null);
+    }
+    public void AcceptSave(FileWrite write, FileWrite diagramWrite)
     {
         _path = write.Path; _fingerprint = SHA256.HashData(write.Content); _savedXml = Editor.ViewModel.Layout.ToXml(); _isNew = false;
+        _diagramFingerprint = SHA256.HashData(diagramWrite.Content);
         OnPropertyChanged(nameof(Description)); OnPropertyChanged(nameof(FilePath)); OnPropertyChanged(nameof(IsDirty)); Changed?.Invoke();
     }
 }

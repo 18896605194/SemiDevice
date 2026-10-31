@@ -7,9 +7,9 @@ using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using xyz.Client.Presentation.Controls.ThreeD;
 
-namespace CdsAssemblyPreview;
+namespace xyz.Client.Presentation.Controls.Fluid;
 
-/// <summary>泵/加热器的交互式三维预览，使用平台硬件基类；视图隐藏时停帧。</summary>
+/// <summary>泵/加热器的二维正视和交互式三维显示，使用平台硬件基类；视图隐藏时停帧。</summary>
 public sealed class ProcessHardwareScene : Grid
 {
     private readonly Viewport3D _viewport = new() { IsHitTestVisible = false };
@@ -55,7 +55,7 @@ public sealed class ProcessHardwareScene : Grid
             if (_hardware is PumpPreviewVisual3D pump) pump.Advance(elapsed);
             if (_hardware is HeaterPreviewVisual3D heater) heater.Advance(elapsed);
         };
-        Loaded += (_, _) => UpdateAnimation(); Unloaded += (_, _) => _timer.Stop(); IsVisibleChanged += (_, _) => UpdateAnimation();
+        IsVisibleChanged += (_, _) => UpdateAnimation();
         SizeChanged += (_, _) => UpdateCamera();
         MouseLeftButtonDown += (_, e) =>
         {
@@ -106,7 +106,7 @@ public sealed class ProcessHardwareScene : Grid
     }
     private void UpdateAnimation()
     {
-        bool active = IsLoaded && IsVisible && State == HardwareState.Active && (Kind == FluidHardwareKind.CentrifugalPump ? Reading > 0 : PowerFraction > 0);
+        bool active = IsVisible && State == HardwareState.Active && (Kind == FluidHardwareKind.CentrifugalPump ? Reading > 0 : PowerFraction > 0);
         if (active && !_timer.IsEnabled) { _lastFrame = Stopwatch.GetTimestamp(); _timer.Start(); }
         else if (!active) _timer.Stop();
     }

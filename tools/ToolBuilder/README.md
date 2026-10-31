@@ -6,18 +6,21 @@
 
 - 根据 DLL 中的 `IChamber`、`ISwingArm`、`IChamberLift`、`INozzle`、`ISpinMotor`、`IChamberDoor`、`IChamberBowl` 接口元数据识别设备，不执行后台元件，也不修改框架源码。
 - 装机配置决定设备清单。配置了几个 Arm、Lift、喷嘴或 Bowl，就生成对应的独立图元；布局页只调整位置和尺寸，不提供额外的设备库。左侧元件树与画布选中项双向同步。
-- Arm、其升降气缸、每一路喷嘴分别编辑；子元件位置相对所属 Arm，移动 Arm 时跟随。管路默认随臂长计算，也可在「尺寸」中关闭该选项并单独设置长度。
+- Arm、其升降气缸、每一路喷嘴分别编辑；子元件位置相对所属 Arm，移动 Arm 时跟随。管路默认随臂长计算，也可在「显示参数」中关闭该选项并单独设置长度。
 - 支持同一项目的多个腔体和不同 Type；切换腔体保留各自位置及未保存状态。Bowl1、Bowl2 等直接作为腔体下的同级元件，各自生成图元和独立升降模拟，不需要新增包裹节点。
 - 「模拟动作」按当前元件显示：Arm 为 Home/中心，Lift、Bowl 为上升/下降，喷嘴为喷液，SpinMotor 为旋转，Door 为开/关。模拟只作用于编辑器画面。
 - 与 CDS 共用同一种工作区设计：左侧画布占满全高，右侧为 280 宽的属性栏；视角、10%～400% 缩放、比例输入、100% 和适应窗口集中在右侧，撤销、重做和网格吸附位于「安装布局」内。画布上下不再重复显示工具栏、标题或说明。右侧页签统一为「安装布局 / 显示参数 / 模拟动作」，进入模拟页隐藏编辑选中高亮。
-- 顶部保存 / Ctrl+S 同时保存 machine.xml、腔体布局和管路布局；保留外部修改检查、备份及失败回滚。另存为携带已有布局。
-- 腔体布局单独保存在配置目录的 `ChamberLayouts/<配置文件名（不含扩展名）>/<完整腔体路径>.xml`，路径经过文件名转义；例如 `ChamberLayouts/machine/Chamber.Chamber1.xml`。不向 machine.xml 增加布局参数。35021 项目的正式腔体页面通过后端腔体服务读取同一格式的布局。
-- 编辑预览和正式页面都优先使用机型 `*.Client.Presentation.dll` 中的 `IChamberVisualProvider`，未提供的种类使用平台外观。源码环境自动寻找机型前台的编译输出；部署环境可在元件来源中加入机型前台资源 DLL。
+- 顶部保存 / Ctrl+S 同时保存 machine.xml、腔体编辑数据、标准 WPF XAML 和管路布局；XML 与 XAML 参加同一批外部修改检查、备份及失败回滚。另存为携带已有布局及显示文件。
+- 右侧「画布 / XAML」切换查看当前界面的源码，位置、尺寸等参数修改后源码同步更新，可选择和复制。「导出 XAML」选择输出文件；「打开 XAML」将本工具导出的界面导入当前腔体，保留装机清单约束并支持撤销。显式导出不清除尚未保存的编辑状态。
+- 导出文件是普通 `UserControl` 界面：`Grid → Viewbox → Viewport3D`，实际硬件控件直接写在可视树内，界面主体不放入资源字典。根界面按容器拉伸，Viewbox 保持比例并适配不同尺寸及 WPF 显示缩放；1280×800 是视口逻辑设计坐标。正式页通过 ContentControl 嵌入，并自动继承页面 ViewModel。
+- 腔体布局位于配置目录的 `ChamberLayouts/<配置文件名（不含扩展名）>/`，例如 `Chamber.Chamber1.xml` 用于工具继续编辑，`Chamber.Chamber1.xaml` 用于正式界面。XAML 声明实际控件、尺寸、父子关系，以及标准 ScaleTransform3D、RotateTransform3D、TranslateTransform3D；Angle、IsRaised、IsUnknown、IsFlowing、RotationSpeed 等控件依赖属性直接绑定 ViewModel 发布的数据。显示页面只加载 XAML 和提供数据，不再经过 Frame 或 ChamberDiagramRuntime。
+- 35021 的 `Manual/Views/ChamberManualView.xaml` 直接嵌入同目录的 `ChamberDiagram.xaml`。通过已有腔体服务优先读取导出的 XAML；只有旧 XML 时仍兼容显示。项目后端构建会将两种文件部署到运行配置目录，正式页点「重新加载布局」即可读取最新 XAML。客户端没有布局时根据实际设备生成默认显示。
+- 编辑预览从机型 `*.Client.Presentation.dll` 中发现 `IChamberVisualProvider`；导出时将选定的项目控件类型与外观依赖属性写入 XAML，未提供的种类使用平台外观。正式页面直接加载声明的控件类型。自有控件需公开对应的尺寸与状态依赖属性。源码环境自动寻找机型前台的编译输出；部署环境可在元件来源中加入机型前台资源 DLL。
 
 腔体编辑页源码在 `ToolBuilder.ChamberLayout`，作为 ToolBuilder 内部控件加载。验证在输入配置的副本上进行：
 
 ```powershell
-.\app-v8\ToolBuilder.exe --chamber-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\chamber ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
+.\app-v12\ToolBuilder.exe --chamber-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\chamber ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
 ```
 
 检查元件独立性、模拟动作、树与画布同步、多层 Bowl、配置增删及改名、切换腔体、统一保存、外部冲突、失败回滚、另存为与重新加载，并生成真实 WPF 截图。
@@ -38,14 +41,17 @@
 - 新增或复制 LL 等信号优先放在所属 Tank 附近的画布空位，保留所有已有组件、接口及连线的位置；现有画布能容纳时不扩展画布，不因额外组件数量导致整图缩小。
 - 右侧属性栏集中放置缩放、选择/连接、添加接口和删除等操作；缩放支持 10%～400%、比例输入、加减按钮、100% 和适应窗口，滚轮以指针位置为中心缩放。画布上下不再占用操作栏、重复标题统计或说明条，画面直接填满左侧区域。缩放不改变布局坐标、控件尺寸或保存内容；手动比例在装机清单刷新及窗口调整后保持。
 - 布局位于所选 machine.xml 同目录的 `CdsLayouts/<配置文件名（不含扩展名）>/<药液模块路径>.xml`，例如 `CdsLayouts/machine/CDS.IPA.xml`。采用 Version=2，兼容读取既有 Version=1 的槽及显式连线，不向 machine.xml 增加布局参数。
-- 顶部保存 / Ctrl+S 同时保存 machine.xml、腔体布局及 CDS 布局；保留外部修改检查、备份、批量写入回滚及另存为携带未打开布局。非法显示参数会阻止保存并保留输入。
+- 右侧增加「画布 / XAML」「打开 XAML」「导出 XAML」，与腔体一致。源码可选择、复制，布局参数变化后同步更新；查看源码会暂停画布动画，返回画布继续编辑。打开本工具导出的 XAML 时按当前装机清单重新核对组件，不能导入其他药液模块。
+- 顶部保存 / Ctrl+S 同时保存 machine.xml、腔体布局、CDS 编辑 XML 和同名显示 XAML；两种 CDS 文件共同参加外部修改检查、备份及批量回滚，另存为携带未打开的 XML 与 XAML。非法显示参数会阻止保存并保留输入。单独导出 XAML 不会清除未保存状态。
+- CDS XAML 是普通 `UserControl`：`Grid → Viewbox → Grid`，其中 Viewport3D 声明 Tank 和管路，Canvas 声明阀门、DI、AI 及已装机硬件。所有位置、尺寸、旋转和静态管路路径都写在 XAML；Viewbox 等比适配显示区域。界面主体不放资源字典，不依赖 ToolBuilder 或 CDS 布局运行时。
+- 阀门、泵和加热器等显示件已移至公共前端 `xyz.Client.Presentation/Controls/Fluid`，继续使用依赖属性和平台外观。动态值直接绑定页面 VM 的 `DiagramStates[组件相对路径]`、`DiagramPipes[管段ID]`；模拟状态不保存进 XAML。项目接入方法见 [CDS XAML 使用说明](../CdsAssemblyPreview/CDS-XAML.md)。
 - 页面沿用腔体编辑器的浅色工具样式，随主窗口填满可用区域；隐藏页面会停止显示动画。模拟只影响画面，不连接 PLC、不执行后台元件。
 
-编辑页位于 `ToolBuilder.CdsLayout`，与独立预览宿主共用 `tools/CdsAssemblyPreview` 中的显示和编辑源码；ToolBuilder 内不显示独立预览的硬件演示入口。所有修改都在工具目录内。
+编辑页位于 `ToolBuilder.CdsLayout`，与独立预览宿主共用 `tools/CdsAssemblyPreview` 中的编辑源码；可复用显示控件位于公共前端，ToolBuilder 内不显示独立预览的硬件演示入口。此功能未修改后台装机接口或项目手动页面。
 
 集成验证：
 ```powershell
-.\app-v8\ToolBuilder.exe --layout-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\layout
+.\app-v12\ToolBuilder.exe --layout-test ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\qa\layout
 ```
 验证在独立目录副本中进行，覆盖真实装机清单、独立阀门与DI、拖动/方向键、管路参数、装机增删改名、多药液模块、保存加载、另存为、外部冲突、旧版布局迁移及真实 WPF 截图；不会修改输入 machine.xml。
 
@@ -53,7 +59,7 @@
 
 ## 启动与选择文件
 
-双击 `Start-ToolBuilder.cmd` 或 `app-v8\ToolBuilder.exe`。需要 Windows 和 .NET 10 Desktop Runtime；开发构建需要 .NET 10 SDK。以下命令从仓库的 tools/ToolBuilder 目录执行。
+双击 `Start-ToolBuilder.cmd` 或 `app-v12\ToolBuilder.exe`。需要 Windows 和 .NET 10 Desktop Runtime；开发构建需要 .NET 10 SDK。以下命令从仓库的 tools/ToolBuilder 目录执行。
 
 1. 点击「打开 machine.xml…」，选择任意位置的 `machine.xml`。该文件所在目录就是配置目录。
 2. 未记录元件来源或记录已失效时，自动查找 machine.xml 同目录、上级部署目录、所属源码项目的最新编译输出，以及当前框架后端宿主的依赖目录；有效的手动来源优先保留。找不到时，点击顶部或添加元件窗口里的「元件来源…」，在弹出的窗口选择目录或 DLL，可以添加多个来源。目录读取本层 DLL 和 `Modules` 下的 DLL；选 DLL 时，其同目录 DLL 用于解析依赖。源码目录必须先编译成 DLL。
@@ -111,7 +117,7 @@ machine.xml 装配参数通常需要重启后端生效；运行中可调的 EC �
 
 ## 构建与验证
 
-执行 `build.ps1` 发布到 `app-v8`。开发机需要 .NET 10 SDK；发布为依赖运行时的版本。
+执行 `build.ps1` 发布到 `app-v12`。开发机需要 .NET 10 SDK；发布为依赖运行时的版本。
 
 核心功能验证：
 
@@ -122,9 +128,9 @@ dotnet run --project .\ToolBuilder.Smoke -c Release -- ..\..\xyz.35021\Service\x
 界面验证与截图（输入 machine.xml 只读，记录也不持久化）：
 
 ```powershell
-.\app-v8\ToolBuilder.exe --preview ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\preview.png ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
+.\app-v12\ToolBuilder.exe --preview ..\..\xyz.35021\Service\xyz.35021.Module\Config\machine.xml .\preview.png ..\..\xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0
 ```
 
 成功日志包括元件数量、上下文页面切换、元件选择窗口、Robot1 下新元件创建和保存重读验证；生成参数页、Robot1 自身参数页、示教点参数页（.teach-point.png）、配方字段页和数据源窗口、添加元件及添加分组窗口截图。核心验证使用专属临时目录进行读写，覆盖备份、外部修改冲突和现有配置往返验证，不修改输入 machine.xml。
 
-当前启动脚本指向 app-v8，发布目录为本机生成，不纳入版本库。新测试：app-v8\ToolBuilder.exe --config-test <machine.xml> <输出目录>，覆盖根节点真实添加入口、自动发现元件、布尔下拉写入与保存重读。
+当前启动脚本指向 app-v12，发布目录为本机生成，不纳入版本库。新测试：app-v12\ToolBuilder.exe --config-test <machine.xml> <输出目录>，覆盖根节点真实添加入口、自动发现元件、布尔下拉写入与保存重读。
