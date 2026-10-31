@@ -21,7 +21,7 @@ public sealed class PjManager(ILogSource logOwner) : IPjManager
     public IReadOnlyList<ProcessJob> ProcessJobs => _jobs.Values.Select(entity => entity.ProcessJob).ToList();
 
     /// <summary>状态变化及本次 E40 转换编号。</summary>
-    public event Action<ProcessJob, ProcessJobState, int>? StateChanged;
+    public event Action<ProcessJob, int, int>? StateChanged;
 
     public void Add(ProcessJob processJob)
     {
@@ -41,11 +41,10 @@ public sealed class PjManager(ILogSource logOwner) : IPjManager
             return;
         }
 
-        var stateMachine = new PjStateMachine(logOwner);
-        stateMachine.CurrentState = processJob.State;
-        var entity = new PjEntity(processJob, stateMachine);
-        stateMachine.OnStateChanged += (previous, current) => OnStateChanged(entity, previous, current);
-        _jobs.Add(processJob.Id, entity);
+        // 状态只存在 ProcessJob.State 上，这张表只管规则
+        var states = new StateTable(logOwner);
+        states.Register(PjStateTable.Transitions);
+        _jobs.Add(processJob.Id, new PjEntity(processJob, states));
     }
 
     public void Remove(ProcessJob processJob)
@@ -174,7 +173,7 @@ public sealed class PjManager(ILogSource logOwner) : IPjManager
         return Fire(processJob, ProcessStateAction.Dequeue);
     }
 
-    private HandleResult Fire(ProcessJob processJob, ProcessStateAction action)
+    private HandleResult Fire(ProcessJob processJob, string action)
     {
         if (processJob is null)
         {
@@ -187,14 +186,29 @@ public sealed class PjManager(ILogSource logOwner) : IPjManager
             return HandleResult.Fail(ErrorCodes.JobNotFound, processJob.Id);
         }
 
-        entity.Action = action;
-        var result = entity.StateMachine.StateChange(action);
-        if (!result.IsSuccess)
+        if (!entity.States.TryGet(processJob.State, action, out var row))
         {
-            return HandleResult.Fail(result.ErrorMessage,
-                processJob.Id, action.ToString(), JobNames.Of(processJob.State));
+            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                processJob.Id, action, JobNames.PjState(processJob.State));
         }
 
+        entity.Action = action;
+        int previous = processJob.State;
+
+        // 暂停时记住从哪儿来，恢复就回哪儿去（SettingUp / WaitingForStart / Processing 三选一）
+        if (action == ProcessStateAction.Pause)
+        {
+            entity.BeforePause = previous;
+        }
+
+        int next = row.SuccessState;
+        if (action == ProcessStateAction.Resume)
+        {
+            next = entity.BeforePause;
+        }
+
+        processJob.State = next;
+        OnStateChanged(entity, previous, processJob.State);
         return HandleResult.Success(processJob.Id);
     }
 
@@ -202,7 +216,7 @@ public sealed class PjManager(ILogSource logOwner) : IPjManager
 
     #region PJ 状态通知
 
-    private void OnStateChanged(PjEntity entity, ProcessJobState previous, ProcessJobState current)
+    private void OnStateChanged(PjEntity entity, int previous, int current)
     {
         var job = entity.ProcessJob;
         job.State = current;
@@ -294,16 +308,21 @@ public sealed class PjManager(ILogSource logOwner) : IPjManager
             job.EndedAt = now;
         }
 
-        LogHelper.Info(logOwner, $"PJ {job.Id} E40 #{e40TransitionNumber}：{JobNames.Of(previous)} → {JobNames.Of(current)}");
+        LogHelper.Info(logOwner, $"PJ {job.Id} E40 #{e40TransitionNumber}：{JobNames.PjState(previous)} → {JobNames.PjState(current)}");
         StateChanged?.Invoke(job, current, e40TransitionNumber);
     }
 
     #endregion
 
-    private sealed class PjEntity(ProcessJob processJob, PjStateMachine stateMachine)
+    private sealed class PjEntity(ProcessJob processJob, StateTable states)
     {
         public ProcessJob ProcessJob { get; } = processJob;
-        public PjStateMachine StateMachine { get; } = stateMachine;
-        public ProcessStateAction Action { get; set; }
+        public StateTable States { get; } = states;
+        public string Action { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 暂停前在哪个状态，恢复时回到它
+        /// </summary>
+        public int BeforePause { get; set; } = ProcessJobState.Processing;
     }
 }

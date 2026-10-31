@@ -196,8 +196,8 @@ try
 
     // CJ 管理按参考用对象提交事件，注册与入队分开，实体和状态机不对外暴露。
     ICjManager controls = new CjManager(new SmokeLog("Job"));
-    var controlEvents = new List<(string Id, ControlJobState State)>();
-    var controlTransitions = new List<(string Id, ControlJobState State, int Number)>();
+    var controlEvents = new List<(string Id, int State)>();
+    var controlTransitions = new List<(string Id, int State, int Number)>();
     controls.StateChanged += (job, state, number) =>
     {
         controlEvents.Add((job.Id, state));
@@ -277,7 +277,7 @@ try
 
     // PJ 与 CJ 一样按字典登记，每个 PJ 有独立状态机，登记不自动入队。
     IPjManager processes = new PjManager(new SmokeLog("Job"));
-    var processEvents = new List<(string Id, ProcessJobState State, int Number)>();
+    var processEvents = new List<(string Id, int State, int Number)>();
     processes.StateChanged += (process, state, number) => processEvents.Add((process.Id, state, number));
     ProcessJob ProcessForStateMachine(string id)
     {
@@ -377,51 +377,44 @@ try
     processes.Remove(processStopped);
     Check(processes.ProcessJobs.Count == 0, "PJ 清理后字典不保留结束实体");
 
-    // 泛型状态机验证检查失败、动作顺序、执行错误和收尾错误；规则可复用于其他模块。
-    var stateFlow = new SmokeStateMachine();
-    var flowTrace = new List<string>();
-    bool ready = false;
-    var flowTransition = new xyz.Elements.Elements.StateTransition<ControlJobState>
-    {
-        TargetState = ControlJobState.Queued,
-        ProcessState = ControlJobState.Selected,
-        OnEntry = _ => flowTrace.Add("Entry"),
-        PreCheck = _ => { flowTrace.Add("Check"); return ready; },
-        Execute = _ => { flowTrace.Add("Execute"); return HandleResult.Success("payload"); },
-        OnExit = _ => { flowTrace.Add("Exit"); return HandleResult.Success(); },
-        ErrorHandler = (_, _) => flowTrace.Add("Error"),
-    };
-    stateFlow.Transitions[(ControlJobState.Created, ControlStateAction.Queue)] = flowTransition;
-    stateFlow.OnStateChanged += (_, current) => flowTrace.Add("State:" + current);
-    Check(!stateFlow.StateChange(ControlStateAction.Queue).IsSuccess
-          && stateFlow.CurrentState == ControlJobState.Created && flowTrace.SequenceEqual(["Entry", "Check"]),
-        "PreCheck 未通过时不执行动作，也不进入中间或目标状态");
-    ready = true;
-    flowTrace.Clear();
-    var flowResult = stateFlow.StateChange(ControlStateAction.Queue);
-    Check(flowResult.IsSuccess && (string?)flowResult.Result == "payload"
-          && flowTrace.SequenceEqual(["Entry", "Check", "State:Selected", "Execute", "State:Queued", "Exit"]),
-        "成功转换按 Entry、Check、中间状态、Execute、目标状态、Exit 顺序，保留动作结果");
-    stateFlow.CurrentState = ControlJobState.Created;
-    flowTrace.Clear();
-    flowTransition.Execute = _ => HandleResult.Fail(ErrorCodes.JobDisabled);
-    Check(!stateFlow.StateChange(ControlStateAction.Queue).IsSuccess
-          && stateFlow.CurrentState == ControlJobState.Aborted
-          && flowTrace.Last() == "Error" && !flowTrace.Contains("Exit"),
-        "Execute 失败进入派生类的错误状态并调用错误处理，不执行正常收尾");
-    stateFlow.CurrentState = ControlJobState.Created;
-    flowTrace.Clear();
-    flowTransition.Execute = _ => throw new InvalidOperationException("smoke failure");
-    Check(stateFlow.StateChange(ControlStateAction.Queue).ErrorMessage == ErrorCodes.RoutineFaulted
-          && stateFlow.CurrentState == ControlJobState.Aborted && flowTrace.Count(item => item == "Error") == 1,
-        "动作异常返回失败，进入错误状态并调用一次错误处理");
-    stateFlow.CurrentState = ControlJobState.Created;
-    flowTrace.Clear();
-    flowTransition.Execute = _ => HandleResult.Success();
-    flowTransition.OnExit = _ => HandleResult.Fail(ErrorCodes.JobDisabled);
-    Check(!stateFlow.StateChange(ControlStateAction.Queue).IsSuccess
-          && stateFlow.CurrentState == ControlJobState.Queued && flowTrace.Last() == "Error",
-        "目标状态已到达但收尾失败时返回失败并调用错误处理");
+    // 状态表（模块和 Job 共用的那个类）：只管规则，不存当前状态
+    var table = new xyz.Elements.Elements.StateTable(new SmokeLog("Smoke"));
+    table.Register(CjStateTable.Transitions);
+    Check(table.TryGet(ControlJobState.Created, ControlStateAction.Queue, out var queued)
+          && queued.SuccessState == ControlJobState.Queued,
+        "状态表照 (当前状态, 动作) 查到该迁到哪");
+    Check(!table.TryGet(ControlJobState.Created, ControlStateAction.Complete, out _),
+        "表里没有这条就查不到：这个状态不允许这个动作");
+    Check(!table.TryGet(999, ControlStateAction.Queue, out _),
+        "不认识的当前状态也查不到");
+
+    // 当场做完的迁移执行态和成功态写一样，CJ 的每一条都该是这样
+    Check(CjStateTable.Transitions.Values.All(row => row.ExecutingState == row.SuccessState),
+        "CJ 的迁移都是当场做完的：执行态和成功态一致");
+
+    // 单条覆盖：后加的盖掉先装的（机型定制走的就是这条路）
+    table.Add((ControlJobState.Created, ControlStateAction.Queue), (ControlJobState.Selected, ControlJobState.Selected));
+    Check(table.TryGet(ControlJobState.Created, ControlStateAction.Queue, out var overridden)
+          && overridden.SuccessState == ControlJobState.Selected,
+        "单条追加能盖掉表里已有的那一行");
+
+    // null 通配：任意状态都能发
+    var wildcard = new xyz.Elements.Elements.StateTable(new SmokeLog("Smoke"));
+    wildcard.Add((null, ControlStateAction.Abort), (ControlJobState.Aborting, ControlJobState.Aborting));
+    Check(wildcard.TryGet(ControlJobState.Executing, ControlStateAction.Abort, out var anyState)
+          && anyState.SuccessState == ControlJobState.Aborting
+          && wildcard.TryGet(ControlJobState.Queued, ControlStateAction.Abort, out _),
+        "null 通配那一行：任意当前状态都查得到（急停靠它）");
+    Check(!wildcard.TryGet(ControlJobState.Executing, ControlStateAction.Queue, out _),
+        "通配只管它那个动作，别的动作照样查不到");
+
+    // 精确匹配优先于通配
+    wildcard.Add((ControlJobState.Executing, ControlStateAction.Abort), (ControlJobState.Aborted, ControlJobState.Aborted));
+    Check(wildcard.TryGet(ControlJobState.Executing, ControlStateAction.Abort, out var exact)
+          && exact.SuccessState == ControlJobState.Aborted
+          && wildcard.TryGet(ControlJobState.Queued, ControlStateAction.Abort, out var fallback)
+          && fallback.SuccessState == ControlJobState.Aborting,
+        "有精确匹配就用精确的，没有才退回通配");
 
     // 展开命令公共处理后，所有入口仍检查禁用状态，并在与扫描争用锁时返回超时。
     (string Name, Func<Task<HandleResult>> Run)[] guardedCommands =
@@ -924,7 +917,7 @@ try
         System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(jobs)!;
     var controlManager = (ICjManager)typeof(JobManager).GetField("_controlJobs",
         System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(jobs)!;
-    void RejectProcessQueue(ProcessJob job, ProcessJobState state, int transition)
+    void RejectProcessQueue(ProcessJob job, int state, int transition)
     {
         if (job.Id == "PJ-QUEUE-FAIL" && transition == 1)
         {
@@ -968,7 +961,7 @@ try
         Check(jobPushes.Count > 0 && jobPushes[^1].ProcessJobs.Any(job => job.Id == "PJ-QUEUE-FAIL"),
             "Job 推送：建了 PJ 就推，推的是带上它的全貌");
     }
-    void RejectControlQueue(ControlJob job, ControlJobState state, int transition)
+    void RejectControlQueue(ControlJob job, int state, int transition)
     {
         if (job.Id == "CJ-QUEUE-FAIL" && transition == 1)
         {
@@ -3342,18 +3335,6 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
     public int IndexOf(string item)
     {
         return _events.ToList().IndexOf(item);
-    }
-}
-
-sealed class SmokeStateMachine : xyz.Elements.Elements.BaseStateMachine<ControlJobState, ControlStateAction>
-{
-    public SmokeStateMachine() : base(new SmokeLog("Smoke"))
-    {
-    }
-
-    protected override ControlJobState? GetErrorState()
-    {
-        return ControlJobState.Aborted;
     }
 }
 

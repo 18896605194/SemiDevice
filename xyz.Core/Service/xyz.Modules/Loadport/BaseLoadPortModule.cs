@@ -231,7 +231,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     protected BaseLoadPortModule()
     {
-        RegisterTransitions(LoadPortStateTable.Transitions);
+        States.Register(LoadPortStateTable.Transitions);
     }
 
     protected override int StandbyState => LoadPortState.Loaded;

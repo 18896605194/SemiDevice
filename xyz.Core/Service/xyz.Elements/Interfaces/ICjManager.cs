@@ -6,7 +6,7 @@ namespace xyz.Elements.Interfaces;
 
 public interface ICjManager
 {
-    event Action<ControlJob, ControlJobState, int>? StateChanged;
+    event Action<ControlJob, int, int>? StateChanged;
 
     IReadOnlyList<ControlJob> ControlJobs { get; }
 

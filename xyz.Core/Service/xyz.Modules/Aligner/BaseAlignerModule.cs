@@ -116,7 +116,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner, I
 
     protected BaseAlignerModule()
     {
-        RegisterTransitions(AlignerStateTable.Transitions);
+        States.Register(AlignerStateTable.Transitions);
     }
 
     #region 元件初始化

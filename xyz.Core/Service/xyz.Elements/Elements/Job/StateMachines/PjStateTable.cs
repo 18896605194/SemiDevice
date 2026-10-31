@@ -1,88 +1,48 @@
-﻿using xyz.Common.Log;
 using xyz.Elements.Enums;
 
 namespace xyz.Elements.Elements;
 
-/// <summary>PJ 状态机；保留 E40 子状态，每个 PJ 使用自己的转换表。</summary>
-public sealed class PjStateMachine : BaseStateMachine<ProcessJobState, ProcessStateAction>
+/// <summary>
+/// PJ 动作与状态迁移规则表，照 SEMI E40。PJ 的迁移都是当场做完的，所以执行态和成功态写一样。
+/// Resume 这两条表里写的是 Processing，真正回哪个状态由 PjManager 按暂停前记下的那个来
+/// </summary>
+public static class PjStateTable
 {
-    public PjStateMachine(ILogSource logOwner) : base(logOwner)
-    {
-        CurrentState = ProcessJobState.Created;
-        Transitions = BuildTransitions();
-        foreach (var state in new[] { ProcessJobState.SettingUp, ProcessJobState.WaitingForStart, ProcessJobState.Processing })
+    public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> Transitions { get; } =
+        new Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)>
         {
-            // Pause 入口在基类的转换锁内保存恢复目标，每个 PJ 的表互相独立。
-            Transitions[(state, ProcessStateAction.Pause)].OnEntry = _ =>
-            {
-                Transitions[(ProcessJobState.Pausing, ProcessStateAction.Resume)].TargetState = state;
-                Transitions[(ProcessJobState.Paused, ProcessStateAction.Resume)].TargetState = state;
-            };
-        }
-    }
+            // (当前状态, 动作) = (执行状态, 成功状态)
+            [(ProcessJobState.Created, ProcessStateAction.Queue)] = (ProcessJobState.QueuedPooled, ProcessJobState.QueuedPooled),
+            [(ProcessJobState.QueuedPooled, ProcessStateAction.Setup)] = (ProcessJobState.SettingUp, ProcessJobState.SettingUp),
+            [(ProcessJobState.SettingUp, ProcessStateAction.WaitForStart)] = (ProcessJobState.WaitingForStart, ProcessJobState.WaitingForStart),
+            [(ProcessJobState.SettingUp, ProcessStateAction.Activate)] = (ProcessJobState.Processing, ProcessJobState.Processing),
+            [(ProcessJobState.WaitingForStart, ProcessStateAction.Start)] = (ProcessJobState.Processing, ProcessJobState.Processing),
+            [(ProcessJobState.Processing, ProcessStateAction.Complete)] = (ProcessJobState.ProcessComplete, ProcessJobState.ProcessComplete),
+            [(ProcessJobState.ProcessComplete, ProcessStateAction.Finish)] = (ProcessJobState.ProcessComplete, ProcessJobState.ProcessComplete),
 
-    #region PJ 状态表
+            // 暂停：从这三个状态进 Pausing，恢复时回到进来时的那个（PjManager 记着）
+            [(ProcessJobState.SettingUp, ProcessStateAction.Pause)] = (ProcessJobState.Pausing, ProcessJobState.Pausing),
+            [(ProcessJobState.WaitingForStart, ProcessStateAction.Pause)] = (ProcessJobState.Pausing, ProcessJobState.Pausing),
+            [(ProcessJobState.Processing, ProcessStateAction.Pause)] = (ProcessJobState.Pausing, ProcessJobState.Pausing),
+            [(ProcessJobState.Pausing, ProcessStateAction.FinishPause)] = (ProcessJobState.Paused, ProcessJobState.Paused),
+            [(ProcessJobState.Pausing, ProcessStateAction.Resume)] = (ProcessJobState.Processing, ProcessJobState.Processing),
+            [(ProcessJobState.Paused, ProcessStateAction.Resume)] = (ProcessJobState.Processing, ProcessJobState.Processing),
 
-    private static Dictionary<(ProcessJobState, ProcessStateAction), StateTransition<ProcessJobState>> BuildTransitions()
-    {
-        return new Dictionary<(ProcessJobState, ProcessStateAction), StateTransition<ProcessJobState>>
-        {
-            [(ProcessJobState.Created, ProcessStateAction.Queue)] =
-                new() { TargetState = ProcessJobState.QueuedPooled },
-            [(ProcessJobState.QueuedPooled, ProcessStateAction.Setup)] =
-                new() { TargetState = ProcessJobState.SettingUp },
-            [(ProcessJobState.SettingUp, ProcessStateAction.WaitForStart)] =
-                new() { TargetState = ProcessJobState.WaitingForStart },
-            [(ProcessJobState.SettingUp, ProcessStateAction.Activate)] =
-                new() { TargetState = ProcessJobState.Processing },
-            [(ProcessJobState.WaitingForStart, ProcessStateAction.Start)] =
-                new() { TargetState = ProcessJobState.Processing },
-            [(ProcessJobState.Processing, ProcessStateAction.Complete)] =
-                new() { TargetState = ProcessJobState.ProcessComplete },
-            [(ProcessJobState.ProcessComplete, ProcessStateAction.Finish)] =
-                new() { TargetState = ProcessJobState.ProcessComplete },
-            [(ProcessJobState.SettingUp, ProcessStateAction.Pause)] =
-                new() { TargetState = ProcessJobState.Pausing },
-            [(ProcessJobState.WaitingForStart, ProcessStateAction.Pause)] =
-                new() { TargetState = ProcessJobState.Pausing },
-            [(ProcessJobState.Processing, ProcessStateAction.Pause)] =
-                new() { TargetState = ProcessJobState.Pausing },
-            [(ProcessJobState.Pausing, ProcessStateAction.FinishPause)] =
-                new() { TargetState = ProcessJobState.Paused },
-            [(ProcessJobState.Pausing, ProcessStateAction.Resume)] =
-                new() { TargetState = ProcessJobState.Processing },
-            [(ProcessJobState.Paused, ProcessStateAction.Resume)] =
-                new() { TargetState = ProcessJobState.Processing },
-            [(ProcessJobState.SettingUp, ProcessStateAction.Stop)] =
-                new() { TargetState = ProcessJobState.Stopping },
-            [(ProcessJobState.WaitingForStart, ProcessStateAction.Stop)] =
-                new() { TargetState = ProcessJobState.Stopping },
-            [(ProcessJobState.Processing, ProcessStateAction.Stop)] =
-                new() { TargetState = ProcessJobState.Stopping },
-            [(ProcessJobState.Pausing, ProcessStateAction.Stop)] =
-                new() { TargetState = ProcessJobState.Stopping },
-            [(ProcessJobState.Paused, ProcessStateAction.Stop)] =
-                new() { TargetState = ProcessJobState.Stopping },
-            [(ProcessJobState.SettingUp, ProcessStateAction.Abort)] =
-                new() { TargetState = ProcessJobState.Aborting },
-            [(ProcessJobState.WaitingForStart, ProcessStateAction.Abort)] =
-                new() { TargetState = ProcessJobState.Aborting },
-            [(ProcessJobState.Processing, ProcessStateAction.Abort)] =
-                new() { TargetState = ProcessJobState.Aborting },
-            [(ProcessJobState.Pausing, ProcessStateAction.Abort)] =
-                new() { TargetState = ProcessJobState.Aborting },
-            [(ProcessJobState.Paused, ProcessStateAction.Abort)] =
-                new() { TargetState = ProcessJobState.Aborting },
-            [(ProcessJobState.Stopping, ProcessStateAction.Abort)] =
-                new() { TargetState = ProcessJobState.Aborting },
-            [(ProcessJobState.Aborting, ProcessStateAction.FinishAbort)] =
-                new() { TargetState = ProcessJobState.Aborted },
-            [(ProcessJobState.Stopping, ProcessStateAction.FinishStop)] =
-                new() { TargetState = ProcessJobState.Stopped },
-            [(ProcessJobState.QueuedPooled, ProcessStateAction.Dequeue)] =
-                new() { TargetState = ProcessJobState.QueuedPooled },
+            [(ProcessJobState.SettingUp, ProcessStateAction.Stop)] = (ProcessJobState.Stopping, ProcessJobState.Stopping),
+            [(ProcessJobState.WaitingForStart, ProcessStateAction.Stop)] = (ProcessJobState.Stopping, ProcessJobState.Stopping),
+            [(ProcessJobState.Processing, ProcessStateAction.Stop)] = (ProcessJobState.Stopping, ProcessJobState.Stopping),
+            [(ProcessJobState.Pausing, ProcessStateAction.Stop)] = (ProcessJobState.Stopping, ProcessJobState.Stopping),
+            [(ProcessJobState.Paused, ProcessStateAction.Stop)] = (ProcessJobState.Stopping, ProcessJobState.Stopping),
+
+            [(ProcessJobState.SettingUp, ProcessStateAction.Abort)] = (ProcessJobState.Aborting, ProcessJobState.Aborting),
+            [(ProcessJobState.WaitingForStart, ProcessStateAction.Abort)] = (ProcessJobState.Aborting, ProcessJobState.Aborting),
+            [(ProcessJobState.Processing, ProcessStateAction.Abort)] = (ProcessJobState.Aborting, ProcessJobState.Aborting),
+            [(ProcessJobState.Pausing, ProcessStateAction.Abort)] = (ProcessJobState.Aborting, ProcessJobState.Aborting),
+            [(ProcessJobState.Paused, ProcessStateAction.Abort)] = (ProcessJobState.Aborting, ProcessJobState.Aborting),
+            [(ProcessJobState.Stopping, ProcessStateAction.Abort)] = (ProcessJobState.Aborting, ProcessJobState.Aborting),
+
+            [(ProcessJobState.Aborting, ProcessStateAction.FinishAbort)] = (ProcessJobState.Aborted, ProcessJobState.Aborted),
+            [(ProcessJobState.Stopping, ProcessStateAction.FinishStop)] = (ProcessJobState.Stopped, ProcessJobState.Stopped),
+            [(ProcessJobState.QueuedPooled, ProcessStateAction.Dequeue)] = (ProcessJobState.QueuedPooled, ProcessJobState.QueuedPooled),
         };
-    }
-
-    #endregion
 }

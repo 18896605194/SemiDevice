@@ -1220,21 +1220,19 @@ Load
     }
 </script></figure>
 <p>其中 <code>CheckState</code>（在 <a class="ref" data-f="xyz.Core/Service/xyz.Modules/BaseStateElement.cs">BaseStateElement</a>）查三样：模块停没停用、状态迁移表允不允许、有没有动作正在做（急停例外，它可以顶替）。</p>
-<p><b><code>Begin</code> 是发起动作的唯一入口</b>，它做四件事：查状态迁移表 → 挂上去 → 落执行态 → 记下 <code>CurrentAction</code> 和 <code>FromState</code> 并打一条"开始 Load"。</p>
+<p><b><code>Begin</code> 是发起动作的唯一入口</b>，它做四件事：查状态迁移表（<code>States</code>）→ 挂上去 → 落执行态 → 记下 <code>CurrentAction</code>（动作名）和 <code>FromState</code> 并打一条"开始 Load"。动作名是字符串，所以平台和机型的动作能放进同一张表，详见第四章 4.3。</p>
 <figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>挂上那一刻 _routine = routine，所有权就交给扫描线程了</figcaption><script type="text/plain">
-    protected HandleResult<ModuleRoutine> Begin<TAction>(TAction action, ModuleRoutine routine)
-        where TAction : struct, Enum
+    protected HandleResult<ModuleRoutine> Begin(string action, ModuleRoutine routine)
     {
         lock (RoutineGate)
         {
-            string name = action.ToString();
-            if (!TryGetTransition(State, name, out var transition))  //查询状态表
+            if (!States.TryGet(State, action, out var transition))  //查询状态表
             {
                 return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
             }
 
             int from = State;
-            if (Begin(routine, transition.ExecutingState, transition.SuccessState, name == AbortAction) is null)  //真正挂上动作
+            if (Begin(routine, transition.ExecutingState, transition.SuccessState, action == ModuleAction.Abort) is null)  //真正挂上动作
             {
                 return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
             }
@@ -1418,9 +1416,28 @@ Load 中止在 2/4 扫片：急停；前面做完：Load 1200
 
 <section class="topic" id="b3-11">
 <h3>3.11 例子：从零加一个动作</h3>
-<p>给 LoadPort 加一个"吹扫"，三步。</p>
-<p><b>① 动作枚举加一项</b>，状态迁移表加一行（<code>Idle + Purge →</code> 执行态 <code>Purging</code>、成功态 <code>Idle</code>）。</p>
-<p><b>② 写指令类</b>（机型层；富创得协议是两段式，ACK 只是受理、INF 才算做完）。</p>
+<p>给 35021 的 LoadPort 加一个"吹扫"（N2 吹扫是这台设备独有的，不是平台功能）。<b>四样东西全在机型工程里，平台一行不改。</b></p>
+<p><b>① 状态码和动作名，继承平台的</b>（状态码、动作名为什么是 <code>const int</code> / <code>const string</code>，见第四章 4.2、4.3）。</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>平台的码占到 160，机型往后顺延；继承上来之后平台那几个动作名也在补全列表里，重名编译器会报 CS0108</figcaption><script type="text/plain">
+public class LoadPort35021State : LoadPortState
+{
+    public const int Purging = 170;
+}
+
+public class LoadPort35021Action : LoadPortAction
+{
+    public const string Purge = "Purge";
+}
+</script></figure>
+<p><b>② 往状态表加自己那行</b>，重写平台留的 <code>AddTransitions()</code>（为什么不在构造函数里：那时候模块的名字、machine.xml 参数都还没装上，见第四章 4.10）。</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>门开着能吹扫，吹完还是门开着</figcaption><script type="text/plain">
+    protected override void AddTransitions()
+    {
+        States.Add((LoadPortState.Loaded, LoadPort35021Action.Purge),
+                   (LoadPort35021State.Purging, LoadPortState.Loaded));
+    }
+</script></figure>
+<p><b>③ 写指令类</b>（富创得协议是两段式，ACK 只是受理、INF 才算做完）。</p>
 <figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Drivers/Fcd/Commands/FcdLoadCommand.cs"><figcaption>照着现成的 FcdLoadCommand 写</figcaption><script type="text/plain">
 public sealed class FcdPurgeCommand : FcdCommand
 {
@@ -1459,13 +1476,13 @@ public sealed class FcdPurgeCommand : FcdCommand
     }
 }
 </script></figure>
-<p><b>③ 建动作 + 挂上</b>（LoadPort 模块里，跟 Load 一个样子）。</p>
-<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>查 → 建 → 挂</figcaption><script type="text/plain">
+<p><b>④ 建动作 + 挂上</b>（机型的 LoadPort 类里，跟平台的 Load 一个样子）。</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>查 → 建 → 挂。平台的收尾 switch 认不出 "Purge"，所以不会替它收尾</figcaption><script type="text/plain">
     public HandleResult<ModuleRoutine> Purge()
     {
         lock (RoutineGate)
         {
-            var rejected = CheckState(LoadPortAction.Purge) ?? PurgeInterlock();
+            var rejected = CheckState(LoadPort35021Action.Purge) ?? PurgeInterlock();
             if (rejected is not null)
             {
                 return Rejected(rejected);
@@ -1481,11 +1498,11 @@ public sealed class FcdPurgeCommand : FcdCommand
                      return HandleResult.Success();
                  });
 
-            return Begin(LoadPortAction.Purge, purge);
+            return Begin(LoadPort35021Action.Purge, purge);
         }
     }
 </script></figure>
-<p><b>④ 服务层开个口子</b>。</p>
+<p><b>⑤ 服务层开个口子</b>。机型自己的动作，契约放 <code>xyz.35021/Shared/Services/</code>、实现放 <code>xyz.35021/Service/</code>——宿主的 <a class="ref" data-f="xyz.Core/Service/xyz.Service/ServiceExtensions.cs">GrpcServices()</a> 扫所有 <code>xyz.*</code> 程序集，机型 DLL 里的自动认到。下面这段是平台 LoadPort 服务的样子，机型照抄。</p>
 <figure class="code" data-file="xyz.Core/Service/xyz.Service/LoadPortService.cs"><figcaption>找模块 → 调入口 → 等结果 → 翻成回包，RunRoutine 一句全包了</figcaption><script type="text/plain">
     public Task<RpcResponse> PurgeAsync(RpcRequest request)
     {
@@ -1503,7 +1520,8 @@ public sealed class FcdPurgeCommand : FcdCommand
         return RunRoutine(port.Purge(), port.PurgeTimeout);
     }
 </script></figure>
-<p>完了。<code>_index</code>、<code>_entered</code>、<code>TrySetTerminal</code>、<code>DeferCompletion</code>、两把锁——<b>一个都不用知道</b>。</p>
+<p>完了，<b>平台一个文件都没改</b>。而且 <code>_index</code>、<code>_entered</code>、<code>TrySetTerminal</code>、<code>DeferCompletion</code>、两把锁——<b>一个都不用知道</b>。</p>
+<p>剩下的只有界面：按钮放 <code>xyz.35021.Client.Manual</code>；状态字要显示"吹扫中"，机型实现 <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Models/IMachineModuleStates.cs">IMachineModuleStates</a> 挂上自己那份（第四章 4.9）。</p>
 </section>
 
 <section class="topic" id="b3-12">
@@ -1538,6 +1556,431 @@ load.Command("取槽图", () => new FcdGetMapCommand(), command =>
 <tr><td>2</td><td><code>Step()</code> 只能在挂它的模块那条扫描线程调，靠注释约束</td><td>没有代码层面的检查，写错了是数据竞争、还不报错</td><td>加线程号断言（只在 Debug 下）</td></tr>
 <tr><td>3</td><td>步骤加完就不能改</td><td>不支持"按上一步的结果决定后面几步"</td><td>现在靠 <code>Child</code> 套子动作绕开，够用</td></tr>
 <tr><td>4</td><td><b>动作做完就扔，没有履历</b></td><td>想查"今天 Chamber1 做了多少次工艺、每次多久、失败几次"只能翻文本日志</td><td>数据全现成（<code>Module</code> / <code>Name</code> / <code>Code</code> / <code>StepNumber</code> / 每步 <code>DoneMs</code>），差一步落库</td></tr>
+</table>
+</section>
+
+</section>
+
+<section class="chapter" id="b4">
+<h2>四、状态机和模式</h2>
+
+<section class="topic" id="b4-1">
+<h3>4.1 一句话先分清</h3>
+<p>模块身上有两个开关，管两件不同的事：</p>
+<ul>
+<li><b>状态（State）</b>：这个模块<b>现在能干什么</b>。空闲、回零中、工艺中、出错——每时每刻只能是一个，由设备自己的进程决定。</li>
+<li><b>模式（Mode）</b>：这个模块<b>归谁用</b>。生产 = 交给调度自动派活，维护 = 只有人能动它。跟它现在忙不忙无关。</li>
+</ul>
+<p>第三章讲动作时反复出现的"查状态表"，查的就是状态；模式是动作入口更外面的一道闸。</p>
+</section>
+
+<section class="topic" id="b4-2">
+<h3>4.2 状态码：为什么是 int 不是 enum</h3>
+<p>新人第一眼会觉得奇怪，<a class="ref" data-f="xyz.Core/Service/xyz.Modules/BaseStateElement.cs">BaseStateElement</a> 里 <code>State</code> 是个 <code>int</code>：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>状态码不是枚举</figcaption><script type="text/plain">
+    public abstract int State { get; protected set; }
+</script></figure>
+<p>原因很实在：<b>C# 的 <code>enum</code> 不能继承</b>。而这套平台要的是"公共状态 + 各模块自己加 + 机型再加"。所以状态码写成 <code>class</code> + <code>const int</code>，用类继承串起来：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Enums/TransferModuleState.cs"><figcaption>继承链，括号里是码值</figcaption><script type="text/plain">
+ModuleState                      10 NotInit  20 Initing  30 Idle  35 Aborting  40 Error
+  │
+  ├ TransferModuleState          50 PreTransfer  60 TransferReady  70 Transferring  80 TransferComplete
+  │   ├ LoadPortState    100 Loading 110 Loaded 120 Unloading 130 Homing 140 Clamping 150 Unclamping 160 Mapping
+  │   ├ ChamberState     100 Homing  110 Processing  120 Manual
+  │   └ AlignerState     100 Homing  110 Aligning
+  ├ RobotState           200 Homing 210 Picking 211 PickExtended 220 Placing 221 PlaceExtended 230 Mapping
+  └ SystemState          100 AutoIdle  110 AutoRunning  120 Returning
+</script></figure>
+<p>好处是在表里 <code>ModuleState.Idle</code> 和 <code>LoadPortState.Loading</code> 能混着写，因为后者继承了前者。</p>
+<p><b>号段有约定</b>：10～40 全模块公共，50～80 搬运交接公共，100 往上各模块自己占，机型再往后顺延。机械手跳到 200，是因为它不继承 <code>TransferModuleState</code>——它不是被服务的站点，它是去服务别人的。</p>
+<p><b>一个坑</b>：同一个码在不同模块意思不一样——LoadPort 的 110 是"已装载"，腔体的 110 是"工艺中"。所以客户端翻译状态字必须带模块种类（4.10）。</p>
+</section>
+
+<section class="topic" id="b4-3">
+<h3>4.3 动作名：也是 class + const string</h3>
+<p>跟状态码一个写法：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Enums/ModuleAction.cs"><figcaption>各模块的动作类继承它加自己的，机型再继承模块的</figcaption><script type="text/plain">
+public class ModuleAction
+{
+    public const string Home = "Home";
+
+    public const string Reset = "Reset";
+
+    public const string Abort = "Abort";
+}
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Enums/ModuleAction.cs"><figcaption>继承链</figcaption><script type="text/plain">
+ModuleAction              Home / Reset / Abort
+  ├ LoadPortAction        + Load / Unload / Clamp / Unclamp / Map
+  ├ ChamberAction         + Process / Manual
+  ├ RobotAction           + Pick / Place / PowerOn / PowerOff / Extend… / Retract… / Map
+  └ AlignerAction         + Align
+
+SystemAction              Init / Auto / Manual / ReturnAll / Abort（整机不是模块，不继承）
+</script></figure>
+<p><b>为什么不是枚举</b>，三个理由，后两个才是关键：</p>
+<ul>
+<li>跟状态码一个写法，不用记"状态是常量、动作是枚举"。</li>
+<li><b>一张表要装下所有模块的动作</b>，泛型存不下，底层只能按名字存。</li>
+<li><b>机型能继承，重名编译器挡得住</b>。机型写 <code>class LoadPort35021Action : LoadPortAction</code>，一敲点号平台所有动作名都在补全列表里；真写了同名的 <code>const string Home</code>，<b>编译器直接报 CS0108</b>。枚举做不到——两个枚举之间没有任何关系，重名要到运行时才暴露。</li>
+</ul>
+</section>
+
+<section class="topic" id="b4-4">
+<h3>4.4 StateTable：全仓只有这一张表</h3>
+<p>这一章最核心的一个类，一共三个方法：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/StateMachines/StateTable.cs"><figcaption>模块、CJ、PJ 都用它</figcaption><script type="text/plain">
+public sealed class StateTable
+{
+    private readonly Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> _rows = new();
+@@
+    /// <summary>
+    /// 整张装上（平台的默认表），原来的清掉
+    /// </summary>
+    public void Register(IEnumerable<KeyValuePair<(int? State, string Action), (int ExecutingState, int SuccessState)>> rows)
+@@
+    /// <summary>
+    /// 单条追加 / 覆盖，机型在 AddTransitions 里调。
+    /// 盖掉已有的那一行时记一条日志——盖是允许的，但得让人在开机日志里看得见
+    /// </summary>
+    public void Add((int? State, string Action) key, (int ExecutingState, int SuccessState) row)
+@@
+    /// <summary>
+    /// 查表：先按当前状态精确匹配，没中再查 null 通配；都不中返回 false（这个状态不允许这个动作）
+    /// </summary>
+    public bool TryGet(int state, string action, out (int ExecutingState, int SuccessState) row)
+}
+</script></figure>
+
+<p><b>三件事一定要记住。</b></p>
+
+<p><b>① 它只管规则，不存当前状态。</b>这是设计上最要紧的一条。表只回答"能不能迁、迁到哪"，当前状态谁的就存在谁身上：</p>
+<table>
+<tr><th></th><th>规则</th><th>当前状态</th></tr>
+<tr><td>模块</td><td><code>BaseStateElement.States</code></td><td><code>BaseStateElement.State</code></td></tr>
+<tr><td>CJ</td><td><code>CjEntity.States</code></td><td><code>ControlJob.State</code></td></tr>
+<tr><td>PJ</td><td><code>PjEntity.States</code></td><td><code>ProcessJob.State</code></td></tr>
+</table>
+
+<p><b>② 谁用谁 new 一个，不靠继承。</b>模块是这样：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>模块基类的构造</figcaption><script type="text/plain">
+    protected BaseStateElement()
+    {
+        States = new StateTable(this);
+    }
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Job/CjManager.cs"><figcaption>CJ 不是模块、不继承任何状态机基类，照样能用这张表——这就是组合比继承好的地方</figcaption><script type="text/plain">
+        // 状态只存在 ControlJob.State 上，这张表只管规则
+        var states = new StateTable(logOwner);
+        states.Register(CjStateTable.Transitions);
+        _jobs.Add(controlJob.Id, new CjEntity(controlJob, states));
+</script></figure>
+
+<p><b>③ 表的值是两个状态，不是一个。</b></p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/StateMachines/LoadPortStateTable.cs"><figcaption>因为模块的动作要花几秒到几分钟，中间那段必须有个状态表示在忙</figcaption><script type="text/plain">
+[(ModuleState.Idle, LoadPortAction.Load)] = (LoadPortState.Loading, LoadPortState.Loaded)
+                                              ↑ 开门那 1.2 秒      ↑ 开完了
+</script></figure>
+<p><b>当场就做完、没有执行过程的迁移，两个写一样</b>——整机的 Auto、CJ / PJ 的每一条都是这样：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/System/StateMachines/SystemStateTable.cs"><figcaption>Auto 不挂动作，当场切</figcaption><script type="text/plain">
+            [(ModuleState.Idle, SystemAction.Auto)] = (SystemState.AutoIdle, SystemState.AutoIdle),
+</script></figure>
+</section>
+
+<section class="topic" id="b4-5">
+<h3>4.5 表长什么样：照腔体那张读几行</h3>
+<p>表是 <code>static</code> 的，模块基类在构造里 <code>States.Register(...)</code> 装上。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/StateMachines/ChamberStateTable.cs"><figcaption>null 表示任意当前状态：急停就靠这一行</figcaption><script type="text/plain">
+            // null 表示任意当前状态。
+            [(null, ChamberAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle),
+</script></figure>
+<p>查表先按当前状态精确找，找不到再找 <code>null</code> 这行。腔体不管在干什么，<code>Abort</code> 都发得出去。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/StateMachines/ChamberStateTable.cs"><figcaption>执行态和当前态一样 = 复位过程中状态不变，没必要让界面闪一下</figcaption><script type="text/plain">
+            // Reset 不占用独立执行状态。
+            [(ModuleState.Error, ChamberAction.Reset)] = (ModuleState.Error, ModuleState.Idle),
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/StateMachines/ChamberStateTable.cs"><figcaption>从现场事故反推出来的行：注释写了为什么，不只写了做什么——这种行以后不能随手删</figcaption><script type="text/plain">
+            // 卡在交互环里也允许 Reset：取放片失败时站点会停在 Transferring 回不去，
+            // 不给这几条路，人工就只剩 Abort 一条。落 Idle 等于强制脱离这一轮交互，
+            // 片到底在手上还是在腔里得人工确认——所以这是人按的，自动流程发不出来。
+            [(TransferModuleState.Transferring, ChamberAction.Reset)] = (TransferModuleState.Transferring, ModuleState.Idle),
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Clean/StateMachines/ChamberStateTable.cs"><figcaption>成功态是 Error 不是 Idle：挪完了错还在，得人自己复位</figcaption><script type="text/plain">
+            // 设备手动动作：没初始化、空闲、报错时都能点（报错后常要手动把设备挪回去），
+            // 执行中落 Manual——不是待命态，调度不会趁这时候派机械手；做完回到原来的状态，不顺带清错。
+            [(ModuleState.Error, ChamberAction.Manual)] = (ChamberState.Manual, ModuleState.Error),
+</script></figure>
+<p>全仓一共七张表：</p>
+<table>
+<tr><th>表</th><th>管谁</th></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/Loadport/StateMachines/LoadPortStateTable.cs">LoadPortStateTable</a></td><td>LoadPort</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/Clean/StateMachines/ChamberStateTable.cs">ChamberStateTable</a></td><td>腔体</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/Robot/StateMachines/RobotStateTable.cs">RobotStateTable</a></td><td>机械手</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/Aligner/StateMachines/AlignerStateTable.cs">AlignerStateTable</a></td><td>对准器</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/System/StateMachines/SystemStateTable.cs">SystemStateTable</a></td><td>整机</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Job/StateMachines/CjStateTable.cs">CjStateTable</a></td><td>CJ（4.12）</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Elements/Elements/Job/StateMachines/PjStateTable.cs">PjStateTable</a></td><td>PJ（4.12）</td></tr>
+</table>
+<p><b>七张表都喂给同一个 <code>StateTable</code> 类。</b></p>
+</section>
+
+<section class="topic" id="b4-6">
+<h3>4.6 状态是谁改的：一共三条路</h3>
+<p><code>State</code> 的 setter 是 <code>protected</code>，新人最容易懵的是"到底谁在改"。只有三处。</p>
+
+<p><b>路 ①：动作挂上和收尾时（最常见）。</b>第三章讲过，<code>Begin</code> 落执行态，<code>CompleteRoutine</code> 落成功态或 <code>Error</code>：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>一个动作的两头</figcaption><script type="text/plain">
+Idle ──Load 发起──▶ Loading ──动作做完──▶ Loaded
+                      └──动作失败/被中止──▶ Error
+</script></figure>
+
+<p><b>路 ②：当场切，根本不挂动作。</b>整机的 Auto / Manual 没有设备要动，就是一句话：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/System/SystemModule.cs"><figcaption>同一张表，两种用法：有设备要动的走 Begin 挂动作，没有的走这里直接落成功态</figcaption><script type="text/plain">
+    private void SwitchTo(string action)
+    {
+        if (States.TryGet(State, action, out var transition))
+        {
+            State = transition.SuccessState;
+            LogHelper.Info(this, $"{action}");
+        }
+    }
+</script></figure>
+<p>还有"自己每拍跟着变"的：<a class="ref" data-f="xyz.Core/Service/xyz.Modules/System/SystemModule.cs">FollowJobs</a> 在 Auto 下按有没有 Job 在跑，自己在 <code>AutoRunning</code> / <code>AutoIdle</code> 之间切，不用人点。</p>
+
+<p><b>路 ③：交接握手一步一步推。</b>机械手来取片时，那四个搬运状态是被握手推着走的：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/TransferStation/BaseTransferStationModule.cs"><figcaption>expected 是防重入的：握手指令重发一遍，第二遍就不认了</figcaption><script type="text/plain">
+    protected bool TransferStep(int expected, int next)
+    {
+        lock (RoutineGate)
+        {
+            if (State != expected)
+            {
+                return false;
+            }
+
+            State = next;
+@@
+        }
+    }
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/TransferStation/BaseTransferStationModule.cs"><figcaption>走一遍</figcaption><script type="text/plain">
+Idle ─机械手预约─▶ PreTransfer ─站点准备好─▶ TransferReady ─机械手伸─▶ Transferring ─交接完─▶ TransferComplete ─▶ Idle
+</script></figure>
+</section>
+
+<section class="topic" id="b4-7">
+<h3>4.7 发动作之前：三道闸</h3>
+<table>
+<tr><th>顺序</th><th>查什么</th><th>不过回什么</th></tr>
+<tr><td>1</td><td>模块能不能用（<code>CanBeginAction</code> / <code>CheckAvailable</code>）</td><td><code>module.disabled</code>、<code>module.not_connected</code></td></tr>
+<tr><td>2</td><td>迁移表允不允许</td><td><code>module.state_not_allowed</code> + 当前状态码</td></tr>
+<tr><td>3</td><td>有没有动作正在做</td><td><code>module.busy</code></td></tr>
+</table>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>急停只查第 1 条</figcaption><script type="text/plain">
+            // 急停只看模块能不能用（停用、驱动没装好），不看设备连没连上：没连上也要能把在途的动作顶掉，免得它一直等到超时
+            HandleResult? unavailable;
+            if (action == ModuleAction.Abort)
+            {
+                unavailable = CheckEnabled();
+            }
+            else
+            {
+                unavailable = CheckAvailable();
+            }
+</script></figure>
+<p>第 3 条急停也不查——急停的本职就是顶替在途动作。</p>
+<p>机型往里加条件是<b>重写 <code>CheckAvailable</code> 并先调 <code>base</code></b>，比如对准器要求驱动连上：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Aligner/BaseAlignerModule.cs"><figcaption>机型加自己的准入条件</figcaption><script type="text/plain">
+    protected override HandleResult? CheckAvailable()
+    {
+        var unavailable = base.CheckAvailable();
+        if (unavailable is not null)
+        {
+            return unavailable;
+        }
+
+        var driver = _driver;
+        if (driver is null || !driver.IsConnected)
+        {
+            return HandleResult.Fail(ErrorCodes.ModuleNotConnected, Name);
+        }
+
+        return null;
+    }
+</script></figure>
+</section>
+
+<section class="topic" id="b4-8">
+<h3>4.8 模式：生产 / 维护</h3>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Interfaces/IMode.cs"><figcaption>三个成员</figcaption><script type="text/plain">
+public interface IMode
+{
+    ModuleMode Mode { get; }
+
+    void SetProduction();
+
+    void SetMaintenance();
+}
+</script></figure>
+<p><b>实现了三处，默认值故意不一样</b>：</p>
+<table>
+<tr><th>类</th><th>默认</th><th>为什么</th></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/TransferStation/BaseTransferStationModule.cs">BaseTransferStationModule</a>（腔体、LoadPort 继承它）</td><td>维护</td><td>开机先让人确认过再交给调度</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/Robot/BaseRobotModule.cs">BaseRobotModule</a></td><td>维护</td><td>同上</td></tr>
+<tr><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/Cds/BaseCdsModule.cs">BaseCdsModule</a></td><td><b>生产</b></td><td>供液没有手动页、没人去点，开机就得能用，否则腔体起不了工艺</td></tr>
+</table>
+<p><b>切模式只改一个字段，不碰设备。</b>改了之后谁受影响？是调度自己去看的，不是模式去通知谁：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>调度派活前自己查</figcaption><script type="text/plain">
+            if (!IsEnable || Mode != ModuleMode.Production || State == ModuleState.NotInit || State == ModuleState.Error)
+</script></figure>
+<p>所以切到维护，<b>正在做的那一趟照常做完</b>，只是调度不再派新活。这是故意的——半路硬停会留片在机械手上。</p>
+</section>
+
+<section class="topic" id="b4-9">
+<h3>4.9 三个都叫"自动"的，别混</h3>
+<table>
+<tr><th>名字</th><th>在哪</th><th>管什么</th><th>范围</th></tr>
+<tr><td><b>整机 Auto / Manual</b></td><td><code>SystemModule.State</code> 是不是 <code>AutoIdle</code> / <code>AutoRunning</code></td><td>整台机器要不要自动派活</td><td>全机一个</td></tr>
+<tr><td><b>模块 Mode</b></td><td>各模块的 <code>IMode.Mode</code></td><td>这一个模块交不交给调度</td><td>每个模块一个</td></tr>
+<tr><td><b>LoadPort 的 <code>IsAutoMode</code></b></td><td><a class="ref" data-f="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs">BaseLoadPortModule</a></td><td><b>SEMI E84 的自动存取模式</b>，管 AGV 能不能自动来放料盒</td><td>跟上面两个毫无关系</td></tr>
+</table>
+<p>第三个纯粹是名字撞车，它属于 EAP 那一摊。</p>
+</section>
+
+<section class="topic" id="b4-10">
+<h3>4.10 状态怎么走到界面</h3>
+<p>整机每拍把所有模块的状态打包推一次，<b>变了才推</b>（每拍都推的话 100 次/秒 × 8 个模块，网络和界面都扛不住）：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/System/SystemModule.cs"><figcaption>没实现 IMode 的模块 Mode 是 null，界面就不画模式标记，而不是画一个假的"维护"</figcaption><script type="text/plain">
+            list.Modules.Add(new ModuleStatusDto
+            {
+                Name = module.Name,
+                Kind = module.Kind,
+                State = module.State,
+                Mode = ModeOf(module),
+            });
+</script></figure>
+<p>客户端这边 <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Models/ModuleStates.cs">ModuleStates</a> 把 <code>(种类, 码)</code> 翻成状态字和颜色，顶栏的 <code>ModuleChip</code>、手动页的 <code>ModuleStateBadge</code> 用同一份。查的顺序是三层：</p>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Models/ModuleStates.cs"><figcaption>平台认不出的码才轮到机型</figcaption><script type="text/plain">
+TextOf(Chamber, 170)
+  └─ ChamberText(170)              各模块自己的码（100 / 110 / 120）
+       └─ CommonText(Chamber, 170) 公共码（10～80）
+            └─ 挨个问挂上来的机型   机型自己加的码
+                 └─ "未知状态 (170)"
+</script></figure>
+<p>口子只开在 <code>CommonText</code> / <code>CommonTone</code> 两个私有方法里——6 个 <code>XxxText</code> / <code>XxxTone</code> 的 <code>default</code> 全都走它们，一处就覆盖全部。</p>
+<p>机型要显示自己的状态字，实现 <a class="ref" data-f="xyz.Core/Client/Common/xyz.Client.Presentation/Models/IMachineModuleStates.cs">IMachineModuleStates</a> 两个方法：</p>
+<figure class="code" data-file="xyz.Core/Client/Common/xyz.Client.Presentation/Models/IMachineModuleStates.cs"><figcaption>不认识这个码就返回 null，让平台接着往下走</figcaption><script type="text/plain">
+public interface IMachineModuleStates
+{
+    /// <summary>
+    /// 状态字（走机型自己的语言包）；不认识这个码返回 null
+    /// </summary>
+    string? TextOf(StationKind kind, int state);
+
+    /// <summary>
+    /// 状态徽标的色调；不认识这个码返回 null
+    /// </summary>
+    ModuleStateTone? ToneOf(StationKind kind, int state);
+}
+</script></figure>
+<p>在机型客户端模块的 <code>Register</code> 里 <code>ModuleStates.AddMachine(...)</code> 挂上，文字进机型自己的语言包（key 用 <code>m35021.</code> 开头）。这里<b>写数字不写常量</b>，因为客户端不引用后端工程——平台自己也是这么写的（<code>case 100:</code>）。</p>
+</section>
+
+<section class="topic" id="b4-11">
+<h3>4.11 机型自己加一个动作</h3>
+<p>LoadPort 加一个 N2 吹扫，<b>五步全在 xyz.35021，平台一行不改</b>（完整代码见第三章 3.11）。这里只说状态这一半：</p>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>① 状态码和动作名，继承平台的</figcaption><script type="text/plain">
+public class LoadPort35021State : LoadPortState
+{
+    public const int Purging = 170;
+}
+
+public class LoadPort35021Action : LoadPortAction
+{
+    public const string Purge = "Purge";
+}
+</script></figure>
+<figure class="code" data-file="xyz.35021/Service/xyz.35021.Module/Loadport/LoadPortModule.cs"><figcaption>② 往状态表加自己那行——重写平台留的钩子</figcaption><script type="text/plain">
+    protected override void AddTransitions()
+    {
+        States.Add((LoadPortState.Loaded, LoadPort35021Action.Purge),
+                   (LoadPort35021State.Purging, LoadPortState.Loaded));
+    }
+</script></figure>
+<p><b>为什么是 <code>AddTransitions()</code>、不是构造函数</b>：平台在 <code>InitElement</code> 里调它，那时候模块的名字、machine.xml 参数、认好的部件都在了；构造函数里这些全是空的。</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/BaseStateElement.cs"><figcaption>平台定时机、机型只管填，跟 AddLoadSteps / AddHomeSteps 一族</figcaption><script type="text/plain">
+    /// <summary>
+    /// 元件初始化：部件、子元件都认完以后，给机型一次往状态表里加自己那几行的机会
+    /// </summary>
+    public override bool InitElement()
+    {
+        bool succeeded = base.InitElement();
+        AddTransitions();
+        return succeeded;
+    }
+</script></figure>
+<p>盖掉平台已有的那一行时（比如想改 <code>Error</code> 下 <code>Home</code> 的去向），开机日志里会出现一条，盖是允许的，但得让人看得见：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/StateMachines/StateTable.cs"><figcaption>开机日志</figcaption><script type="text/plain">
+【LoadPort1】 盖掉已有的状态迁移：40 + Home
+</script></figure>
+<p><b>平台不会替机型收尾</b>——平台的收尾方法是个 <code>switch</code>，机型的动作名一条都对不上，自然什么都不做：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Modules/Loadport/BaseLoadPortModule.cs"><figcaption>要自己收尾就重写 OnRoutineCompleted，记得先调 base</figcaption><script type="text/plain">
+        // 机型自己加的动作名这里一条都对不上，收尾由机型重写这个方法做（先调 base）
+        switch (CurrentAction)
+        {
+            case LoadPortAction.Load:
+@@
+        }
+</script></figure>
+</section>
+
+<section class="topic" id="b4-12">
+<h3>4.12 Job 的 CJ / PJ：同一张表，不同的用法</h3>
+<p>CJ（Control Job）和 PJ（Process Job）的状态是 <b>SEMI E94 / E40 标准定死的</b>，机型不会往里加。但它们用的是<b>同一个 <code>StateTable</code> 类</b>。</p>
+<p>跟模块的差别只有一个：<b>CJ / PJ 的迁移都是当场做完的</b>，Host 发命令、判一下、改状态、回复，没有"正在迁移"的过程。所以表里执行态和成功态写一样：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Job/StateMachines/CjStateTable.cs"><figcaption>CJ 的每一条都是这个样子</figcaption><script type="text/plain">
+            [(ControlJobState.Created, ControlStateAction.Queue)] = (ControlJobState.Queued, ControlJobState.Queued),
+            [(ControlJobState.Queued, ControlStateAction.Select)] = (ControlJobState.Selected, ControlJobState.Selected),
+@@
+</script></figure>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Job/CjManager.cs"><figcaption>查表 → 改状态 → 往下做该做的事。状态只存这一份</figcaption><script type="text/plain">
+        if (!entity.States.TryGet(controlJob.State, action, out var row))
+        {
+            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                controlJob.Id, action, JobNames.CjState(controlJob.State));
+        }
+
+        entity.Action = action;
+        int previous = controlJob.State;
+        controlJob.State = row.SuccessState;
+        OnStateChanged(entity, previous, controlJob.State);
+        return HandleResult.Success(controlJob.Id);
+</script></figure>
+<p><b>状态码的值是跨边界契约</b>，不能随便改：<code>ProcessJobState</code> 的数值就是 SEMI E40 的 PRJobState，上报 Host 直接用它；<code>JobDto.State</code> 跨 gRPC 传的也是它。</p>
+<p><b>PJ 有一处特殊</b>：暂停之后恢复，要回到暂停前那个状态（<code>SettingUp</code> / <code>WaitingForStart</code> / <code>Processing</code> 三选一）。表里 Resume 那两行写的是 <code>Processing</code>，真正回哪儿由 PjManager 按记下的来：</p>
+<figure class="code" data-file="xyz.Core/Service/xyz.Elements/Elements/Job/PjManager.cs"><figcaption>一个字段的事</figcaption><script type="text/plain">
+        // 暂停时记住从哪儿来，恢复就回哪儿去（SettingUp / WaitingForStart / Processing 三选一）
+        if (action == ProcessStateAction.Pause)
+        {
+            entity.BeforePause = previous;
+        }
+
+        int next = row.SuccessState;
+        if (action == ProcessStateAction.Resume)
+        {
+            next = entity.BeforePause;
+        }
+</script></figure>
+</section>
+
+<section class="topic" id="b4-13">
+<h3>4.13 现在的边界</h3>
+<table>
+<tr><th>#</th><th>现状</th><th>影响</th></tr>
+<tr><td>1</td><td>状态码是 <code>const int</code>，编译器不查</td><td><code>ChamberState.Homing</code> 和 <code>AlignerState.Homing</code> 都是 100，串了编译能过</td></tr>
+<tr><td>2</td><td>迁移表在代码里，不在 machine.xml</td><td>换机型要重编，不能只改配置</td></tr>
+<tr><td>3</td><td>机型要是不用常量、直接写字符串字面量</td><td>写 <code>"Home"</code> 是覆盖（有日志），写 <code>"home"</code> 是凭空加一行永远查不到的表项（没日志）。靠规矩挡：<b>一律用常量</b></td></tr>
+<tr><td>4</td><td>客户端的状态码写的是裸数字（<code>case 100:</code>）</td><td>客户端不引用后端工程，只能这么写；后端改了码值，客户端不会报错</td></tr>
 </table>
 </section>
 

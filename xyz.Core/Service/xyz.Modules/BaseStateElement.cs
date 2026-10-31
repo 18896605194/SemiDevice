@@ -45,6 +45,11 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
     /// </summary>
     protected StateTable States { get; }
 
+    protected BaseStateElement()
+    {
+        States = new StateTable(this);
+    }
+
     /// <summary>
     /// 元件初始化：部件、子元件都认完以后，给机型一次往状态表里加自己那几行的机会
     /// </summary>
@@ -176,7 +181,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
             #region 状态表允不允许
 
             int state = State;
-            if (!TryGetTransition(state, action, out _))
+            if (!States.TryGet(state, action, out _))
             {
                 return HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
             }
@@ -220,7 +225,7 @@ public abstract class BaseStateElement : ElementBase, IRoutineHost
     {
         lock (RoutineGate)
         {
-            if (!TryGetTransition(State, action, out var transition))  //查询状态表
+            if (!States.TryGet(State, action, out var transition))  //查询状态表
             {
                 return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
             }

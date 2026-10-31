@@ -1011,7 +1011,7 @@ Check((await Send(2, 33, DefineReport(10, (uint)Dvid("Eap.E94.ControlJobState"))
       && (await Send(2, 35, LinkReport((uint)Ceid("Eap.E94.CtrlJobSMTrans12"), 10))).Body!.GetBinary()[0] == 0,
     "CJ 中止完成事件挂状态报告");
 var mappedControl = jobs.Snapshot.ControlJobs[0];
-(ControlJobState Internal, int Wire)[] controlStateMappings =
+(int Internal, int Wire)[] controlStateMappings =
 [
     (ControlJobState.Queued, 0),
     (ControlJobState.Selected, 1),
@@ -1022,11 +1022,11 @@ var mappedControl = jobs.Snapshot.ControlJobs[0];
 ];
 foreach (var mapping in controlStateMappings)
 {
-    mappedControl.State = (int)mapping.Internal;
+    mappedControl.State = mapping.Internal;
     mappedControl.E94State = mapping.Wire;
     var mappedAttributes = await Send(14, 1, GetAttr("ControlJob", ["CJ-1"], SecsItem.L(), "State"));
     Check(mappedAttributes.Body!.Items[0].Items[0].Items[1].Items[0].Items[1].GetUInt64() == (ulong)mapping.Wire,
-        $"内部 {mapping.Internal} 的 S14F1 状态查询使用 E94 {mapping.Wire}");
+        $"内部 {JobNames.CjState(mapping.Internal)} 的 S14F1 状态查询使用 E94 {mapping.Wire}");
 }
 mappedControl.State = (int)ControlJobState.Aborted;
 mappedControl.E94State = 5;

@@ -629,7 +629,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ProcessJobCommand.Start), JobNames.Of(processJob.State)];
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Start), JobNames.PjState(processJob.State)];
             }
 
             if (result.IsSuccess)
@@ -676,7 +676,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ProcessJobCommand.Pause), JobNames.Of(processJob.State)];
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Pause), JobNames.PjState(processJob.State)];
             }
 
             if (result.IsSuccess)
@@ -723,7 +723,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ProcessJobCommand.Resume), JobNames.Of(processJob.State)];
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Resume), JobNames.PjState(processJob.State)];
             }
 
             if (result.IsSuccess)
@@ -778,7 +778,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ProcessJobCommand.Stop), JobNames.Of(processJob.State)];
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Stop), JobNames.PjState(processJob.State)];
             }
 
             if (result.IsSuccess)
@@ -833,7 +833,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ProcessJobCommand.Abort), JobNames.Of(processJob.State)];
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Abort), JobNames.PjState(processJob.State)];
             }
 
             if (result.IsSuccess)
@@ -880,7 +880,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ProcessJobCommand.Cancel), JobNames.Of(processJob.State)];
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Cancel), JobNames.PjState(processJob.State)];
             }
 
             if (result.IsSuccess)
@@ -940,14 +940,14 @@ public class JobManager : ElementBase, IJobManager
             if (controlJob.State != ControlJobState.WaitingForStart)
             {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                    id, JobNames.Of(ControlJobCommand.Start), JobNames.Of(controlJob.State)));
+                    id, JobNames.Of(ControlJobCommand.Start), JobNames.CjState(controlJob.State)));
             }
 
             var result = _controlJobs.Activate(controlJob);
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ControlJobCommand.Start), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Start), JobNames.CjState(controlJob.State)];
             }
 
             if (result.IsSuccess)
@@ -999,7 +999,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ControlJobCommand.Pause), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Pause), JobNames.CjState(controlJob.State)];
             }
 
             if (result.IsSuccess)
@@ -1051,7 +1051,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ControlJobCommand.Resume), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Resume), JobNames.CjState(controlJob.State)];
             }
 
             if (result.IsSuccess)
@@ -1103,7 +1103,7 @@ public class JobManager : ElementBase, IJobManager
             else if (!controlJob.IsActive)
             {
                 result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                    id, JobNames.Of(ControlJobCommand.Stop), JobNames.Of(controlJob.State));
+                    id, JobNames.Of(ControlJobCommand.Stop), JobNames.CjState(controlJob.State));
             }
             else
             {
@@ -1118,7 +1118,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ControlJobCommand.Stop), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Stop), JobNames.CjState(controlJob.State)];
             }
 
             if (result.IsSuccess)
@@ -1182,7 +1182,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ControlJobCommand.Abort), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Abort), JobNames.CjState(controlJob.State)];
             }
 
             if (result.IsSuccess)
@@ -1233,7 +1233,7 @@ public class JobManager : ElementBase, IJobManager
             if (controlJob.State != ControlJobState.Queued)
             {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                    id, JobNames.Of(ControlJobCommand.Cancel), JobNames.Of(controlJob.State)));
+                    id, JobNames.Of(ControlJobCommand.Cancel), JobNames.CjState(controlJob.State)));
             }
 
             EndControlJobProcesses(controlJob, ControlJobCommand.Cancel, action);
@@ -1241,7 +1241,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ControlJobCommand.Cancel), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Cancel), JobNames.CjState(controlJob.State)];
             }
 
             if (result.IsSuccess)
@@ -1293,7 +1293,7 @@ public class JobManager : ElementBase, IJobManager
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(ControlJobCommand.Deselect), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Deselect), JobNames.CjState(controlJob.State)];
             }
 
             if (result.IsSuccess)
@@ -1364,7 +1364,7 @@ public class JobManager : ElementBase, IJobManager
             }
 
             return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                id, JobNames.Of(command), JobNames.Of(job.State)));
+                id, JobNames.Of(command), JobNames.CjState(job.State)));
         }
         catch (Exception exception)
         {
@@ -1416,7 +1416,7 @@ public class JobManager : ElementBase, IJobManager
             }
 
             return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                id, JobNames.Of(command), JobNames.Of(job.State)));
+                id, JobNames.Of(command), JobNames.PjState(job.State)));
         }
         catch (Exception exception)
         {
@@ -1901,7 +1901,7 @@ public class JobManager : ElementBase, IJobManager
     /// PJ 转了：刚进 ABORTING（只有 #13 / #14 / #15 转到它）给设备发中止（<see cref="AbortDevices"/>）；结束了它的行从任务表拿掉、
     /// 写最后一遍库（不归 CJ 的结束了就不在全貌里了）；往 EAP 报（E40，派发线程上按先后发，PJ 结束一定先于 CJ 完成）。
     /// </summary>
-    private void OnProcessJobStateChanged(ProcessJob job, ProcessJobState state, int e40TransitionNumber)
+    private void OnProcessJobStateChanged(ProcessJob job, int state, int e40TransitionNumber)
     {
         if (state == ProcessJobState.Aborting)
         {
@@ -1957,7 +1957,7 @@ public class JobManager : ElementBase, IJobManager
     /// CJ 转了：完成或中止收尾（内部 Completed / Aborted，上报 E94 COMPLETED）告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；
     /// 删掉了（#2 / #13）写最后一遍库（之后就不在全貌里了）；往 EAP 报（E94）。
     /// </summary>
-    private void OnControlJobStateChanged(ControlJob job, ControlJobState state, int e94TransitionNumber)
+    private void OnControlJobStateChanged(ControlJob job, int state, int e94TransitionNumber)
     {
         if (state is ControlJobState.Completed or ControlJobState.Aborted && !job.IsEnded
             && Module(job.LoadPort) is IJobAccess access)

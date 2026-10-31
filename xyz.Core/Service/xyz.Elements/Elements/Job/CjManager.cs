@@ -19,7 +19,7 @@ public sealed class CjManager(ILogSource logOwner) : ICjManager
     public IReadOnlyList<ControlJob> ControlJobs => _jobs.Values.Select(entity => entity.ControlJob).ToList();
 
     /// <summary>状态变化及本次 E94 转换编号；内部转换的编号为 0，不上报 E94。</summary>
-    public event Action<ControlJob, ControlJobState, int>? StateChanged;
+    public event Action<ControlJob, int, int>? StateChanged;
 
     public void Add(ControlJob controlJob)
     {
@@ -39,11 +39,10 @@ public sealed class CjManager(ILogSource logOwner) : ICjManager
             return;
         }
 
-        var stateMachine = new CjStateMachine(logOwner);
-        stateMachine.CurrentState = controlJob.State;
-        var entity = new CjEntity(controlJob, stateMachine);
-        stateMachine.OnStateChanged += (previous, current) => OnStateChanged(entity, previous, current);
-        _jobs.Add(controlJob.Id, entity);
+        // 状态只存在 ControlJob.State 上，这张表只管规则
+        var states = new StateTable(logOwner);
+        states.Register(CjStateTable.Transitions);
+        _jobs.Add(controlJob.Id, new CjEntity(controlJob, states));
     }
 
     public void Remove(ControlJob controlJob)
@@ -164,7 +163,7 @@ public sealed class CjManager(ILogSource logOwner) : ICjManager
         return Fire(controlJob, ControlStateAction.Delete);
     }
 
-    private HandleResult Fire(ControlJob controlJob, ControlStateAction action)
+    private HandleResult Fire(ControlJob controlJob, string action)
     {
         if (controlJob is null)
         {
@@ -177,14 +176,16 @@ public sealed class CjManager(ILogSource logOwner) : ICjManager
             return HandleResult.Fail(ErrorCodes.JobNotFound, controlJob.Id);
         }
 
-        entity.Action = action;
-        var result = entity.StateMachine.StateChange(action);
-        if (!result.IsSuccess)
+        if (!entity.States.TryGet(controlJob.State, action, out var row))
         {
-            return HandleResult.Fail(result.ErrorMessage,
-                controlJob.Id, action.ToString(), JobNames.Of(controlJob.State));
+            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                controlJob.Id, action, JobNames.CjState(controlJob.State));
         }
 
+        entity.Action = action;
+        int previous = controlJob.State;
+        controlJob.State = row.SuccessState;
+        OnStateChanged(entity, previous, controlJob.State);
         return HandleResult.Success(controlJob.Id);
     }
 
@@ -192,7 +193,7 @@ public sealed class CjManager(ILogSource logOwner) : ICjManager
 
     #region CJ 状态通知
 
-    private void OnStateChanged(CjEntity entity, ControlJobState previous, ControlJobState current)
+    private void OnStateChanged(CjEntity entity, int previous, int current)
     {
         var job = entity.ControlJob;
         job.State = current;
@@ -261,16 +262,16 @@ public sealed class CjManager(ILogSource logOwner) : ICjManager
             job.EndedAt = now;
         }
 
-        LogHelper.Info(logOwner, $"CJ {job.Id}：{JobNames.Of(previous)} → {JobNames.Of(current)}");
+        LogHelper.Info(logOwner, $"CJ {job.Id}：{JobNames.CjState(previous)} → {JobNames.CjState(current)}");
         StateChanged?.Invoke(job, current, e94TransitionNumber);
     }
 
     #endregion
 
-    private sealed class CjEntity(ControlJob controlJob, CjStateMachine stateMachine)
+    private sealed class CjEntity(ControlJob controlJob, StateTable states)
     {
         public ControlJob ControlJob { get; } = controlJob;
-        public CjStateMachine StateMachine { get; } = stateMachine;
-        public ControlStateAction Action { get; set; }
+        public StateTable States { get; } = states;
+        public string Action { get; set; } = string.Empty;
     }
 }

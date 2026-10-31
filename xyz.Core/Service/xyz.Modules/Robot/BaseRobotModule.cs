@@ -341,7 +341,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode, ICommOwner, I
 
     protected BaseRobotModule()
     {
-        RegisterTransitions(RobotStateTable.Transitions);
+        States.Register(RobotStateTable.Transitions);
     }
 
     #region 元件初始化与驱动连接

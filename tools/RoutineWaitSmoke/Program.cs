@@ -5061,7 +5061,7 @@ sealed class OwnActionPort : PlainPort
     /// </summary>
     protected override void AddTransitions()
     {
-        AddTransition((LoadPortState.Loaded, PortOwnAction.Purge), (Purging, LoadPortState.Loaded));
+        States.Add((LoadPortState.Loaded, PortOwnAction.Purge), (Purging, LoadPortState.Loaded));
     }
 
     /// <summary>

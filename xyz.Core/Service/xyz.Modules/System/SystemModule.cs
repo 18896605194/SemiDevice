@@ -21,7 +21,7 @@ public class SystemModule : BaseStateElement, ISystemModule
 {
     public SystemModule()
     {
-        RegisterTransitions(SystemStateTable.Transitions);
+        States.Register(SystemStateTable.Transitions);
     }
 
     #region Machine
@@ -325,7 +325,7 @@ public class SystemModule : BaseStateElement, ISystemModule
     /// <summary>当场切的动作（Auto / Manual）：不挂动作，直接落状态表的成功态。调用方已在锁里查过状态。</summary>
     private void SwitchTo(string action)
     {
-        if (TryGetTransition(State, action, out var transition))
+        if (States.TryGet(State, action, out var transition))
         {
             State = transition.SuccessState;
             LogHelper.Info(this, $"{action}");

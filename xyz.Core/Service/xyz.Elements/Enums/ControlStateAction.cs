@@ -1,22 +1,39 @@
-﻿namespace xyz.Elements.Enums;
+namespace xyz.Elements.Enums;
 
-/// <summary>提交给 CJ 状态机的动作。</summary>
-public enum ControlStateAction
+/// <summary>
+/// 提交给 CJ 状态表的动作名
+/// </summary>
+public class ControlStateAction
 {
-    Queue,
-    Select,
-    Activate,
-    Deselect,
-    Resume,
-    Pause,
-    Complete,
-    Abort,
-    FinishAbort,
-    Rollback,
+    public const string Queue = "Queue";
 
-    // 本设备的手动启动、Stop 和 E94 删除动作。
-    WaitForStart,
-    FinishStop,
-    Dequeue,
-    Delete,
+    public const string Select = "Select";
+
+    public const string Activate = "Activate";
+
+    public const string Deselect = "Deselect";
+
+    public const string Resume = "Resume";
+
+    public const string Pause = "Pause";
+
+    public const string Complete = "Complete";
+
+    public const string Abort = "Abort";
+
+    public const string FinishAbort = "FinishAbort";
+
+    public const string Rollback = "Rollback";
+
+    #region 本设备的手动启动、Stop 和 E94 删除动作
+
+    public const string WaitForStart = "WaitForStart";
+
+    public const string FinishStop = "FinishStop";
+
+    public const string Dequeue = "Dequeue";
+
+    public const string Delete = "Delete";
+
+    #endregion
 }

@@ -15,10 +15,10 @@ public sealed class ControlJob
 
     public string? LotId { get; init; }
 
-    public ControlJobState State { get; internal set; } = ControlJobState.Created;
+    public int State { get; internal set; } = ControlJobState.Created;
 
     /// <summary>中止前的状态，供 E94 在收尾期间继续上报原 ACTIVE 状态。</summary>
-    internal ControlJobState StateBeforeAbort { get; set; }
+    internal int StateBeforeAbort { get; set; }
 
     /// <summary>下面的 PJ，按执行顺序（ProcessingCtrlSpec 的顺序）。</summary>
     public List<ProcessJob> ProcessJobs { get; } = [];

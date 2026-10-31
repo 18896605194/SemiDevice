@@ -7,7 +7,7 @@ namespace xyz.Elements.Interfaces;
 /// <summary>PJ 登记、晶圆归属和独立状态机；在 JobManager 锁内使用，OwnerOf 可跨线程查询。</summary>
 public interface IPjManager
 {
-    event Action<ProcessJob, ProcessJobState, int>? StateChanged;
+    event Action<ProcessJob, int, int>? StateChanged;
 
     IReadOnlyList<ProcessJob> ProcessJobs { get; }
 

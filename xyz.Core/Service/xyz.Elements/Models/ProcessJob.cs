@@ -28,7 +28,7 @@ public sealed class ProcessJob
 
     public string? LotId { get; init; }
 
-    public ProcessJobState State { get; internal set; } = ProcessJobState.Created;
+    public int State { get; internal set; } = ProcessJobState.Created;
 
     /// <summary>这个 PJ 的片，一片一行任务，按投片顺序。料到了（载具 Load 好、接了 EAP 时槽图也认定了）才定片、生成；在这之前是空的。</summary>
     public List<TaskRow> Rows { get; } = [];

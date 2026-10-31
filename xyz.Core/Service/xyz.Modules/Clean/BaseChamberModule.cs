@@ -244,7 +244,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     protected BaseChamberModule()
     {
-        RegisterTransitions(ChamberStateTable.Transitions);
+        States.Register(ChamberStateTable.Transitions);
     }
 
     #region 元件初始化

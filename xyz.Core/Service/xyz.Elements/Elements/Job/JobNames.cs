@@ -4,7 +4,7 @@ namespace xyz.Elements.Elements;
 
 public static class JobNames
 {
-    public static string Of(ProcessJobState? state)
+    public static string PjState(int? state)
     {
         if (state is null)
         {
@@ -42,7 +42,7 @@ public static class JobNames
         }
     }
 
-    public static string Of(ControlJobState? state)
+    public static string CjState(int? state)
     {
         if (state is null)
         {
